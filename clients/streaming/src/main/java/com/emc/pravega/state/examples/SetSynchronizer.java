@@ -34,8 +34,15 @@ import com.emc.pravega.stream.impl.JavaSerializer;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
+/**
+ * An example of how to use Synchronizer that coordinates the values in a set.
+ * @param <T> The type of the values in the set.
+ */
 public class SetSynchronizer<T extends Serializable> {
 
+    /**
+     * The Object to by synchronized.
+     */
     @RequiredArgsConstructor
     private static class UpdatableSet<T> implements Revisioned, Serializable {
         private final String streamName;
@@ -61,6 +68,9 @@ public class SetSynchronizer<T extends Serializable> {
         }
     }
 
+    /**
+     * A base class for all updates to the state. This allows for several different types of updates.
+     */
     private static abstract class SetUpdate<T> implements Update<UpdatableSet<T>>, Serializable {
         @Override
         public UpdatableSet<T> applyTo(UpdatableSet<T> oldState, Revision newRevision) {
@@ -72,6 +82,9 @@ public class SetSynchronizer<T extends Serializable> {
         public abstract void process(LinkedHashSet<T> updatableList);
     }
 
+    /**
+     * Add an item to the set.
+     */
     @RequiredArgsConstructor
     private static class AddToSet<T> extends SetUpdate<T> {
         private final T value;
@@ -82,6 +95,9 @@ public class SetSynchronizer<T extends Serializable> {
         }
     }
 
+    /**
+     * Remove an item from the set.
+     */
     @RequiredArgsConstructor
     private static class RemoveFromSet<T> extends SetUpdate<T> {
         private final T value;
@@ -92,6 +108,9 @@ public class SetSynchronizer<T extends Serializable> {
         }
     }
 
+    /**
+     * Clear the set.
+     */
     @RequiredArgsConstructor
     private static class ClearSet<T> extends SetUpdate<T> {
         @Override
@@ -100,6 +119,9 @@ public class SetSynchronizer<T extends Serializable> {
         }
     }
     
+    /**
+     * Create a set. (This is used to initialize things)
+     */
     @RequiredArgsConstructor
     private static class CreateSet<T> implements InitialUpdate<UpdatableSet<T>>, Serializable {
         private final String streamName;
@@ -111,6 +133,10 @@ public class SetSynchronizer<T extends Serializable> {
         }
     }
 
+    //----
+    // Below this point is some example code that uses the classes above and the Synchronizer.
+    //----
+    
     private static final int REMOVALS_BEFORE_COMPACTION = 5;
 
     private final Synchronizer<UpdatableSet<T>, SetUpdate<T>, CreateSet<T>> synchronizer;
@@ -121,28 +147,37 @@ public class SetSynchronizer<T extends Serializable> {
         this.synchronizer = synchronizer;
         String stream = synchronizer.getStream().getQualifiedName();
         UpdatableSet<T> state = synchronizer.initialize(new CreateSet<T>(stream, new LinkedHashSet<>()));
-        if (state != null) {
-            current = state;
-        } else {
-            current = synchronizer.getLatestState();
-        }
+        current = (state != null) ? state : synchronizer.getLatestState();
     }
 
+    /**
+     * A blocking call to get updates from other SetSynchronizers.
+     */
     @Synchronized
     public void update() {
         current = synchronizer.getLatestState(current);
     }
 
+    /**
+     * Returns the current values in the set.
+     */
     @Synchronized
     public Set<T> getCurrentValues() {
         return current.getCurrentValues();
     }
 
+    /**
+     * Returns the size of the current set.
+     */
     @Synchronized
     public int getCurrentSize() {
         return current.getCurrentSize();
     }
 
+    /**
+     * If the set has all the latest updates, add a new item to it.
+     * @return true if successful
+     */
     @Synchronized
     public boolean attemptAdd(T value) {
         UpdatableSet<T> newSet = synchronizer.conditionallyUpdateState(current, new AddToSet<>(value));
@@ -152,7 +187,11 @@ public class SetSynchronizer<T extends Serializable> {
         current = newSet;
         return true;
     }
-
+    
+    /**
+     * If the set has all the latest updates, remove an item from.
+     * @return true if successful
+     */
     @Synchronized
     public boolean attemptRemove(T value) {
         UpdatableSet<T> newSet = synchronizer.conditionallyUpdateState(current, new RemoveFromSet<>(value));
@@ -168,6 +207,10 @@ public class SetSynchronizer<T extends Serializable> {
         return true;
     }
 
+    /**
+     * If the set has all the latest updates, clear it.
+     * @return true if successful
+     */
     @Synchronized
     public boolean attemptClear() {
         UpdatableSet<T> newSet = synchronizer.conditionallyUpdateState(current, new ClearSet<>());

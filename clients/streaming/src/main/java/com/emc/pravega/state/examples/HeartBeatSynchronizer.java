@@ -40,7 +40,6 @@ import com.google.common.util.concurrent.AbstractService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.bytebuddy.implementation.bytecode.member.HandleInvocation;
 
 @Slf4j
 public class HeartBeatSynchronizer extends AbstractService {
