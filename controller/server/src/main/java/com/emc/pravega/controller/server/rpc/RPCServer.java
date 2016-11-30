@@ -33,6 +33,7 @@ import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TServerTransport;
 import org.apache.thrift.transport.TTransportException;
 
+import static com.emc.pravega.controller.util.Config.SERVER_MAX_READ_BUFFER_BYTES;
 import static com.emc.pravega.controller.util.Config.SERVER_PORT;
 import static com.emc.pravega.controller.util.Config.SERVER_SELECTOR_THREAD_COUNT;
 import static com.emc.pravega.controller.util.Config.SERVER_WORKER_THREAD_COUNT;
@@ -76,7 +77,7 @@ public class RPCServer {
                     .protocolFactory(new TBinaryProtocol.Factory())
                     .workerThreads(SERVER_WORKER_THREAD_COUNT)
                     .selectorThreads(SERVER_SELECTOR_THREAD_COUNT);
-
+            config.maxReadBufferBytes = SERVER_MAX_READ_BUFFER_BYTES;
             TServer server = new TThreadedSelectorServer(config);
             log.info("Starting Controller Server (Threaded Selector Server) on port {}", SERVER_PORT);
             server.serve();
