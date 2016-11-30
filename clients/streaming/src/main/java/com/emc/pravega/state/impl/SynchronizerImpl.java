@@ -18,6 +18,7 @@
 package com.emc.pravega.state.impl;
 
 import java.nio.ByteBuffer;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -25,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
+
+import javax.annotation.concurrent.GuardedBy;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.state.InitialUpdate;
@@ -37,11 +40,11 @@ import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.Synchronized;
 
 @RequiredArgsConstructor
 public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>>
@@ -51,23 +54,21 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
     private static final int UPDATE = 2;
     @Getter
     private final Stream stream;
+    @GuardedBy("lock")
     private final SegmentInputStream in;
+    @GuardedBy("lock")
     private final SegmentOutputStream out;
     private final Serializer<UpdateT> updateSerializer;
     private final Serializer<InitT> initSerializer;
+    private final Object lock = new Object();
 
     @Override
-    @Synchronized
     public StateT getLatestState() {
-        in.setOffset(0);
         try {
-            ByteBuffer read;
-            do {
-                read = in.read();
-            } while (isUpdate(read));
-            InitialUpdate<StateT> init = decodeInit(read);
-            Map<Long, ByteBuffer> updates = getUpdates();
-            StateT state = init.create(new RevisionImpl(in.getOffset(), 0));
+            Entry<Long, ByteBuffer> initial = getInit(0);
+            InitialUpdate<StateT> init = decodeInit(initial.getValue());
+            Map<Long, ByteBuffer> updates = getUpdates(initial.getKey(), false);
+            StateT state = init.create(new RevisionImpl(initial.getKey(), 0));
             return applyUpdates(updates, state);
         } catch (EndOfSegmentException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
@@ -90,28 +91,40 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
         return state;
     }
 
-    private Map<Long, ByteBuffer> getUpdates() throws EndOfSegmentException {
-        Map<Long, ByteBuffer> updates = new LinkedHashMap<>();
-        long currentStreamLength = in.fetchCurrentStreamLength();
-        while (in.getOffset() < currentStreamLength) {
-            ByteBuffer read = in.read();
-            if (isUpdate(read)) {
-                updates.put(in.getOffset(), read);
-            }
+    private Entry<Long, ByteBuffer> getInit(long offset) throws EndOfSegmentException {
+        synchronized(lock) {
+            ByteBuffer read;
+            in.setOffset(offset);
+            do {
+                read = in.read();
+            } while (isUpdate(read));
+            return new AbstractMap.SimpleImmutableEntry<>(in.getOffset(), read);
         }
-        return updates;
+    }
+    
+    private Map<Long, ByteBuffer> getUpdates(long offset, boolean atLeastOne) throws EndOfSegmentException {
+        synchronized(lock) {
+            in.setOffset(offset);
+            Map<Long, ByteBuffer> updates = new LinkedHashMap<>();
+            long currentStreamLength = in.fetchCurrentStreamLength();
+            while (in.getOffset() < currentStreamLength || (atLeastOne && updates.isEmpty())) {
+                ByteBuffer read = in.read();
+                if (isUpdate(read)) {
+                    updates.put(in.getOffset(), read);
+                }
+            }
+            return updates;
+        }
     }
 
     @Override
-    @Synchronized
     public StateT getLatestState(StateT localState) {
         if (localState == null) {
             return getLatestState();
         }
         try {
             long offset = localState.getRevision().asImpl().getOffsetInSegment();
-            in.setOffset(offset);
-            Map<Long, ByteBuffer> updates = getUpdates();
+            Map<Long, ByteBuffer> updates = getUpdates(offset, true);
             return applyUpdates(updates, localState);
         } catch (EndOfSegmentException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
@@ -124,12 +137,13 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
     }
     
     @Override
-    @Synchronized
     public StateT conditionallyUpdateState(StateT localState, List<? extends UpdateT> update) {
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         long offset = localState.getRevision().asImpl().getOffsetInSegment();
         try {
-            out.conditionalWrite(offset, encodeUpdate(update), wasWritten);
+            synchronized(lock) {
+                out.conditionalWrite(offset, encodeUpdate(update), wasWritten);
+            }
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
         }
@@ -146,11 +160,12 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
     }
     
     @Override
-    @Synchronized
     public StateT unconditionallyUpdateState(StateT localState, List<? extends UpdateT> update) {
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         try {
-            out.write(encodeUpdate(update), wasWritten);
+            synchronized(lock) {
+                out.write(encodeUpdate(update), wasWritten);
+            }
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
         }
@@ -159,11 +174,12 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
     }
 
     @Override
-    @Synchronized
     public void compact(StateT localState, InitT compaction) {
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         try {
-            out.write(encodeInit(compaction), wasWritten);
+            synchronized(lock) {
+                out.write(encodeInit(compaction), wasWritten);
+            }
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
         }
@@ -181,7 +197,8 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
         }
     }
 
-    private ByteBuffer encodeInit(InitT init) {
+    @VisibleForTesting
+    ByteBuffer encodeInit(InitT init) {
         ByteBuffer buffer = initSerializer.serialize(init);
         ByteBuffer result = ByteBuffer.allocate(buffer.capacity() + 4);
         result.putInt(INITIALIZATION);
@@ -196,7 +213,8 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
         return initSerializer.deserialize(read);
     }
 
-    private ByteBuffer encodeUpdate(List<? extends UpdateT> updates) {
+    @VisibleForTesting
+    ByteBuffer encodeUpdate(List<? extends UpdateT> updates) {
         List<ByteBuffer> serializedUpdates = new ArrayList<>();
         int size = 0;
         for (UpdateT u : updates) {
@@ -231,11 +249,12 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
     }
 
     @Override
-    @Synchronized
     public StateT initialize(InitT initializer) {
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         try {
-            out.conditionalWrite(0, encodeInit(initializer), wasWritten);
+            synchronized(lock) {
+                out.conditionalWrite(0, encodeInit(initializer), wasWritten);
+            }
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
         }

@@ -17,7 +17,6 @@ package com.emc.pravega.integrationtests;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import java.time.Duration;
 
@@ -33,6 +32,7 @@ import com.emc.pravega.state.examples.SetSynchronizer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.TxFailedException;
 import com.emc.pravega.stream.mock.MockStreamManager;
+import com.emc.pravega.testcommon.Async;
 import com.emc.pravega.testcommon.TestUtils;
 
 import io.netty.util.ResourceLeakDetector;
@@ -120,4 +120,29 @@ public class StateSynchronizerTest {
         assertEquals(20, setB.getCurrentSize());
     }
 
+    @Test
+    public void testBlocking() {
+        String endpoint = "localhost";
+        String stateName = "abc";
+        int port = TestUtils.randomPort();
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
+        Stream stream = streamManager.createStream(stateName, null);
+
+        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stream);
+        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stream);
+
+        assertTrue(setA.attemptAdd("foo"));
+        setB.update();
+        assertEquals(1, setB.getCurrentSize());
+        assertTrue(setB.getCurrentValues().contains("foo"));
+        Async.testBlocking(() -> setB.update(), () -> setA.attemptAdd("bar"));
+        assertEquals(2, setB.getCurrentSize());
+        assertTrue(setB.getCurrentValues().contains("bar"));
+    }
+    
 }
