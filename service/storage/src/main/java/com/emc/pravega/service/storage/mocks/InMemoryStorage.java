@@ -28,6 +28,7 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
+import lombok.Data;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.ByteArrayInputStream;
@@ -57,6 +58,7 @@ public class InMemoryStorage implements Storage {
     private final Object lock = new Object();
     private final ScheduledExecutorService executor;
     private final AtomicLong currentOwnerId;
+    private final SyncContext syncContext;
     private boolean closed;
     private boolean ownsExecutorService;
 
@@ -74,6 +76,7 @@ public class InMemoryStorage implements Storage {
         this.offsetTriggers = new HashMap<>();
         this.sealTriggers = new HashMap<>();
         this.currentOwnerId = new AtomicLong(0);
+        this.syncContext = new SyncContext(this.currentOwnerId::get);
     }
 
     //endregion
@@ -105,7 +108,7 @@ public class InMemoryStorage implements Storage {
                             throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
                         }
 
-                        StreamSegmentData data = new StreamSegmentData(streamSegmentName, this.currentOwnerId::get);
+                        StreamSegmentData data = new StreamSegmentData(streamSegmentName, this.syncContext);
                         data.open();
                         this.streamSegments.put(streamSegmentName, data);
                         return data;
@@ -353,24 +356,24 @@ public class InMemoryStorage implements Storage {
         private final String name;
         private final ArrayList<byte[]> data;
         private final Object lock = new Object();
-        private final Supplier<Long> getCurrentOwnerId;
+        private final SyncContext context;
         private long currentOwnerId;
         private long length;
         private boolean sealed;
 
-        StreamSegmentData(String name, Supplier<Long> getCurrentOwnerId) {
+        StreamSegmentData(String name, SyncContext context) {
             this.name = name;
             this.data = new ArrayList<>();
             this.length = 0;
             this.sealed = false;
-            this.getCurrentOwnerId = getCurrentOwnerId;
+            this.context = context;
             this.currentOwnerId = Long.MIN_VALUE;
         }
 
         void open() {
             synchronized (this.lock) {
                 // Get the current InMemoryStorageAdapter owner id and keep track of it; it will be used for validation.
-                this.currentOwnerId = this.getCurrentOwnerId.get();
+                this.currentOwnerId = this.context.getCurrentOwnerId.get();
             }
         }
 
@@ -412,24 +415,31 @@ public class InMemoryStorage implements Storage {
         }
 
         void concat(StreamSegmentData other, long offset) {
-            synchronized (other.lock) {
-                Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not sealed.", other.name, this.name);
-                other.checkOpened();
-                synchronized (this.lock) {
-                    checkOpened();
-                    if (offset != this.length) {
-                        throw new CompletionException(new BadOffsetException(this.name, this.length, offset));
-                    }
+            synchronized (this.context.syncRoot) {
+                // In order to do a proper concat, we need to lock on both the source and the target segments. But since
+                // there's always a possibility of two concurrent calls to concat with swapped arguments, there is a chance
+                // this could deadlock in certain scenarios. One way to avoid that is to ensure that only one call to concat()
+                // can be in progress at any given time (for any instance of InMemoryStorage), thus the need to synchronize
+                // on SyncContext.syncRoot.
+                synchronized (other.lock) {
+                    Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not sealed.", other.name, this.name);
+                    other.checkOpened();
+                    synchronized (this.lock) {
+                        checkOpened();
+                        if (offset != this.length) {
+                            throw new CompletionException(new BadOffsetException(this.name, this.length, offset));
+                        }
 
-                    long bytesCopied = 0;
-                    int currentBlockIndex = 0;
-                    while (bytesCopied < other.length) {
-                        byte[] currentBlock = other.data.get(currentBlockIndex);
-                        int length = (int) Math.min(currentBlock.length, other.length - bytesCopied);
-                        ByteArrayInputStream bis = new ByteArrayInputStream(currentBlock, 0, length);
-                        writeInternal(this.length, bis, length);
-                        bytesCopied += length;
-                        currentBlockIndex++;
+                        long bytesCopied = 0;
+                        int currentBlockIndex = 0;
+                        while (bytesCopied < other.length) {
+                            byte[] currentBlock = other.data.get(currentBlockIndex);
+                            int length = (int) Math.min(currentBlock.length, other.length - bytesCopied);
+                            ByteArrayInputStream bis = new ByteArrayInputStream(currentBlock, 0, length);
+                            writeInternal(this.length, bis, length);
+                            bytesCopied += length;
+                            currentBlockIndex++;
+                        }
                     }
                 }
             }
@@ -492,13 +502,19 @@ public class InMemoryStorage implements Storage {
         }
 
         private void checkOpened() {
-            Preconditions.checkState(this.currentOwnerId == this.getCurrentOwnerId.get(), "StreamSegment '%s' is not open by the current owner.", this.name);
+            Preconditions.checkState(this.currentOwnerId == this.context.getCurrentOwnerId.get(), "StreamSegment '%s' is not open by the current owner.", this.name);
         }
 
         @Override
         public String toString() {
             return String.format("%s: Length = %d, Sealed = %s", this.name, this.length, this.sealed);
         }
+    }
+
+    @Data
+    private static class SyncContext {
+        final Supplier<Long> getCurrentOwnerId;
+        final Object syncRoot = new Object();
     }
 
     //endregion
