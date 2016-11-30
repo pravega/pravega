@@ -11,13 +11,14 @@ import java.util.Map;
 import java.util.HashMap;
 import org.apache.thrift.TEnum;
 
-public enum Status implements org.apache.thrift.TEnum {
+public enum UpdateStreamStatus implements org.apache.thrift.TEnum {
   SUCCESS(0),
-  FAILURE(1);
+  FAILURE(1),
+  STREAM_NOT_FOUND(2);
 
   private final int value;
 
-  private Status(int value) {
+  private UpdateStreamStatus(int value) {
     this.value = value;
   }
 
@@ -32,12 +33,14 @@ public enum Status implements org.apache.thrift.TEnum {
    * Find a the enum type by its integer value, as defined in the Thrift IDL.
    * @return null if the value is not found.
    */
-  public static Status findByValue(int value) { 
+  public static UpdateStreamStatus findByValue(int value) { 
     switch (value) {
       case 0:
         return SUCCESS;
       case 1:
         return FAILURE;
+      case 2:
+        return STREAM_NOT_FOUND;
       default:
         return null;
     }

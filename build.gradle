@@ -8,6 +8,18 @@
  */
 
 // Apply the java plugin to add support for Java
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.bmuschko:gradle-docker-plugin:3.0.3'
+    }
+}
+
+import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
+import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
+
 
 allprojects {
     apply plugin: 'java'
@@ -16,6 +28,7 @@ allprojects {
     apply plugin: 'maven'
     apply plugin: 'signing'
     apply plugin: 'checkstyle'
+    apply plugin: 'com.bmuschko.docker-java-application'
 
     checkstyle {
         toolVersion = "7.1"
@@ -33,6 +46,7 @@ allprojects {
         maven {
             url "http://maven.twttr.com"
         }
+
     }
 
     checkstyle {
@@ -50,6 +64,7 @@ allprojects {
         compile group: 'commons-lang', name: 'commons-lang', version: '2.6'
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: '1.3.9'
         compile group: 'org.projectlombok', name: 'lombok', version: '1.16.10'
+        compile group: 'commons-io', name: 'commons-io', version: '2.5'
         compile 'io.netty:netty-all:4.0.36.Final'
 
         testCompile "org.mockito:mockito-core:2.+"
@@ -111,9 +126,12 @@ project('service:storage:impl') {
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '2.7.3'
 
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: '2.7.3'
+
         compile project(':common')
         compile project(':service:storage')
         testCompile project(':testcommon')
+	testCompile files(project(':service:storage').sourceSets.test.output)
     }
 }
 
@@ -127,6 +145,8 @@ project('service:server') {
 }
 
 project('service:server:host') {
+    apply plugin: 'application'
+    mainClassName = "com.emc.pravega.service.server.host.ServiceStarter"
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
@@ -135,6 +155,25 @@ project('service:server:host') {
         compile project(':service:server')
         testCompile project(':testcommon')
     }
+    task buildPravegaHostImage(type: DockerBuildImage) {
+        dependsOn 'distTar','distZip'
+        dockerFile = file(dockerFilePravegaHost)
+        inputDir = file(dockerDirPravegaHost)
+        tag = 'abhijeet78/pravega:host'
+    }
+    task pushPravegaHostImage(type: DockerPushImage) {
+        dependsOn buildPravegaHostImage
+        conventionMapping.imageName = { buildPravegaHostImage.getTag() }
+        docker {
+            registryCredentials {
+                url = 'https://hub.docker.com/r/abhijeet78/pravega/'
+                username = 'abhijeet78'
+                password = 'pravega@123'
+                email = 'abhi.j24@gmail.com'
+            }
+        }
+    }
+
 }
 
 project('integrationtests') {
@@ -143,6 +182,8 @@ project('integrationtests') {
         compile project(':clients:streaming')
         compile project(':service:server')
         compile project(':service:server:host')
+        compile project(':controller:server')
+        compile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
         testCompile project(':testcommon')
         testCompile files(project(':common').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
@@ -154,6 +195,9 @@ project('integrationtests') {
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
+
+
+
 
     task startServerInteractive(type: JavaExec) {
         main = "com.emc.pravega.service.server.host.InteractiveStreamSegmentStoreTester"
@@ -226,6 +270,31 @@ project('controller:server') {
         compile project(":controller:contract")
         compile project(":clients:streaming")
         compile group: 'com.typesafe', name: 'config', version: '1.3.0'
+        compile group: 'org.apache.curator', name: 'curator-framework', version: '2.11.0'
+        compile group: 'org.apache.curator', name: 'curator-recipes', version: '2.11.0'
+        compile group: 'org.apache.curator', name: 'curator-client', version: '2.11.0'
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.3.2'
+        testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
+    }
+
+    task buildPravegaControllerImage(type: DockerBuildImage) {
+        dependsOn 'distTar','distZip'
+        dockerFile = file(dockerFilePravegaController)
+        inputDir = file(dockerDirPravegaController)
+        tag = 'abhijeet78/pravega:controller'
+    }
+
+    task pushPravegaControllerImage(type: DockerPushImage) {
+        dependsOn buildPravegaControllerImage
+        conventionMapping.imageName = { buildPravegaControllerImage.getTag() }
+        docker {
+            registryCredentials {
+                url = 'https://hub.docker.com/r/abhijeet78/pravega/'
+                username = 'abhijeet78'
+                password = 'pravega@123'
+                email = 'abhi.j24@gmail.com'
+            }
+        }
     }
 }
 

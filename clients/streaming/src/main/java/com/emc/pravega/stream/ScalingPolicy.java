@@ -19,11 +19,13 @@ package com.emc.pravega.stream;
 
 import lombok.Data;
 
+import java.io.Serializable;
+
 /**
  * A policy that specifies how the number of segments in a stream should scale over time.
  */
 @Data
-public class ScalingPolicy {
+public class ScalingPolicy implements Serializable {
     public enum Type {
         /**
          * No scaling, there will only ever be {@link ScalingPolicy#minNumSegments} at any given time.

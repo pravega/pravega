@@ -17,23 +17,28 @@
  */
 package com.emc.pravega.stream;
 
+import java.io.Serializable;
+
 /**
  * The configuration of a Stream.
  */
-public interface StreamConfiguration {
-
+public interface StreamConfiguration extends Serializable {
+    
     /**
-     * Gets the scope of the stream.
+     * Api to return scope.
+     * @return The scope of the stream.
      */
     String getScope();
 
     /**
-     * Gets the name of the stream.
+     * Api to return stream name.
+     * @return The name of the stream.
      */
     String getName();
 
     /**
-     * Gets the stream's scaling policy.
+     * Api to return scaling policy.
+     * @return The stream's scaling policy.
      */
     ScalingPolicy getScalingPolicy();
 }
