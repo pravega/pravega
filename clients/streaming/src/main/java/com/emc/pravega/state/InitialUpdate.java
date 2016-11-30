@@ -17,10 +17,15 @@
  */
 package com.emc.pravega.state;
 
+/**
+ * A constructor for a StateT object.
+ * 
+ * @param <StateT> A revisioned object that updates to are coordinated with a {@link Synchronizer}.
+ */
 public interface InitialUpdate<StateT extends Revisioned> {
     
     /**
-     * Return an object of type StateT with with the provided revision.
+     * Returns an object of type StateT with the provided revision.
      * @param revision the revision to use
      */
     StateT create(Revision revision);

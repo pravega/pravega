@@ -26,7 +26,8 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import com.emc.pravega.common.concurrent.NewestRefrence;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.NewestReference;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;
@@ -39,13 +40,14 @@ import com.google.common.util.concurrent.AbstractService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.bytebuddy.implementation.bytecode.member.HandleInvocation;
 
 @Slf4j
 public class HeartBeatSynchronizer extends AbstractService {
 
-    private static final int MIN_HEARTBEAT_INTERVAL = 1000;
-    private static final int MAX_HEARTBEAT_INTERVAL = 4000;
-    private static final int DEATH_THREASHOLD = 12000;
+    private static final int MIN_HEARTBEAT_INTERVAL_MILLIS = 1000;
+    private static final int MAX_HEARTBEAT_INTERVAL_MILLIS = 4000;
+    private static final int DEATH_THREASHOLD_MILLIS = 12000;
 
     private final String instanceId = UUID.randomUUID().toString();
     private final Random rand = new Random(instanceId.hashCode());
@@ -53,7 +55,7 @@ public class HeartBeatSynchronizer extends AbstractService {
     private final Thread heartbeatThread = new Thread(new HeartBeater());
     private final Thread updateThread = new Thread(new Updater());
 
-    private final NewestRefrence<LiveInstances> liveInstances = new NewestRefrence<>();
+    private final NewestReference<LiveInstances> liveInstances = new NewestReference<>();
     private final Synchronizer<LiveInstances, HeartbeatUpdate, LiveInstances> sync;
 
     HeartBeatSynchronizer(Stream stream) {
@@ -83,7 +85,7 @@ public class HeartBeatSynchronizer extends AbstractService {
         @Override
         public void run() {
             while (true) {
-                int delay = MIN_HEARTBEAT_INTERVAL + rand.nextInt(MAX_HEARTBEAT_INTERVAL - MIN_HEARTBEAT_INTERVAL);
+                int delay = MIN_HEARTBEAT_INTERVAL_MILLIS + rand.nextInt(MAX_HEARTBEAT_INTERVAL_MILLIS - MIN_HEARTBEAT_INTERVAL_MILLIS);
                 try {
                     Thread.sleep(delay);
                 } catch (InterruptedException e) {
@@ -100,7 +102,7 @@ public class HeartBeatSynchronizer extends AbstractService {
     }
 
     private List<DeclareDead> findDeadInstances(LiveInstances state, long currentTime) {
-        long threashold = currentTime - DEATH_THREASHOLD;
+        long threashold = currentTime - DEATH_THREASHOLD_MILLIS;
         return state.liveInstances.entrySet()
             .stream()
             .filter(entry -> entry.getValue() < threashold)
@@ -162,12 +164,10 @@ public class HeartBeatSynchronizer extends AbstractService {
     protected void doStop() {
         heartbeatThread.interrupt();
         updateThread.interrupt();
-        try {
+        Exceptions.handleInterrupted(() -> {
             heartbeatThread.join();
             updateThread.join();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        });
     }
 
 }

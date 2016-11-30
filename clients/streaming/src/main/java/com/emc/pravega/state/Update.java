@@ -17,6 +17,11 @@
  */
 package com.emc.pravega.state;
 
+/**
+ * An update to a StateT object coordinated via a {@link Synchronizer}.
+ * 
+ * @param <StateT> the type of the object being updated
+ */
 public interface Update<StateT extends Revisioned> {
 
     /**

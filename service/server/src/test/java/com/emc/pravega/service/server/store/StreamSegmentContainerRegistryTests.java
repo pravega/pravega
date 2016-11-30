@@ -250,12 +250,12 @@ public class StreamSegmentContainerRegistryTests {
         //region Unimplemented methods
 
         @Override
-        public CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
+        public CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
             return null;
         }
 
         @Override
-        public CompletableFuture<Long> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout) {
+        public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout) {
             return null;
         }
 

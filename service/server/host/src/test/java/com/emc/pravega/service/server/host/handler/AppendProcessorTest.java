@@ -62,8 +62,8 @@ public class AppendProcessorTest {
         CompletableFuture<AppendContext> contextFuture = new CompletableFuture<>();
         contextFuture.complete(new AppendContext(clientId, 0));
         when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT)).thenReturn(contextFuture);
-        CompletableFuture<Long> result = new CompletableFuture<>();
-        result.complete((long) data.length);
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        result.complete(null);
         when(store.append(streamSegmentName, data, new AppendContext(clientId, data.length), AppendProcessor.TIMEOUT))
             .thenReturn(result);
 
@@ -94,13 +94,13 @@ public class AppendProcessorTest {
         contextFuture.complete(new AppendContext(clientId, 0));
         when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT)).thenReturn(contextFuture);
         
-        CompletableFuture<Long> result = CompletableFuture.completedFuture((long) data.length);
+        CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
         when(store.append(streamSegmentName, data, new AppendContext(clientId, 1), AppendProcessor.TIMEOUT))
             .thenReturn(result);
         processor.setupAppend(new SetupAppend(clientId, streamSegmentName));
         processor.append(new Append(streamSegmentName, clientId, 1, Unpooled.wrappedBuffer(data), null));
         
-        result = CompletableFuture.completedFuture(2L * data.length);
+        result = CompletableFuture.completedFuture(null);
         when(store.append(streamSegmentName,
                           data.length,
                           data,
@@ -139,7 +139,7 @@ public class AppendProcessorTest {
         contextFuture.complete(new AppendContext(clientId, 0));
         when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT))
             .thenReturn(contextFuture);
-        CompletableFuture<Long> result = CompletableFuture.completedFuture((long) data.length);
+        CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
         when(store.append(streamSegmentName, data, new AppendContext(clientId, 1), AppendProcessor.TIMEOUT))
             .thenReturn(result);
         processor.setupAppend(new SetupAppend(clientId, streamSegmentName));
@@ -230,16 +230,14 @@ public class AppendProcessorTest {
         CompletableFuture<AppendContext> contextFuture = new CompletableFuture<>();
         contextFuture.complete(new AppendContext(clientId1, 0));
         when(store.getLastAppendContext(segment1, clientId1, AppendProcessor.TIMEOUT)).thenReturn(contextFuture);
-        CompletableFuture<Long> result = new CompletableFuture<>();
-        result.complete((long) data.length);
+        CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
         when(store.append(segment1, data, new AppendContext(clientId1, data.length), AppendProcessor.TIMEOUT))
             .thenReturn(result);
         
         contextFuture = new CompletableFuture<>();
         contextFuture.complete(new AppendContext(clientId2, 0));
         when(store.getLastAppendContext(segment2, clientId2, AppendProcessor.TIMEOUT)).thenReturn(contextFuture);
-        result = new CompletableFuture<>();
-        result.complete((long) data.length);
+        result = CompletableFuture.completedFuture(null);
         when(store.append(segment2, data, new AppendContext(clientId2, data.length), AppendProcessor.TIMEOUT))
             .thenReturn(result);
 
@@ -279,7 +277,7 @@ public class AppendProcessorTest {
         CompletableFuture<AppendContext> contextFuture = new CompletableFuture<>();
         contextFuture.complete(new AppendContext(clientId, 0));
         when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT)).thenReturn(contextFuture);
-        CompletableFuture<Long> result = new CompletableFuture<>();
+        CompletableFuture<Void> result = new CompletableFuture<>();
         result.completeExceptionally(new RuntimeException("Fake exception for testing"));
         when(store.append(streamSegmentName, data, new AppendContext(clientId, data.length), AppendProcessor.TIMEOUT))
             .thenReturn(result);

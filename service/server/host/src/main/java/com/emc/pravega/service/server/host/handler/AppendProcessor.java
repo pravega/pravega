@@ -165,16 +165,16 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
         AppendContext context = new AppendContext(toWrite.getConnectionId(), toWrite.getEventNumber());
-        CompletableFuture<Long> future;
+        CompletableFuture<Void> future;
         String segment = toWrite.getSegment();
         if (toWrite.isConditional()) {
             future = store.append(segment, toWrite.getExpectedLength(), bytes, context, TIMEOUT);
         } else {
             future = store.append(segment, bytes, context, TIMEOUT);
         }
-        future.handle(new BiFunction<Long, Throwable, Void>() {
+        future.handle(new BiFunction<Void, Throwable, Void>() {
             @Override
-            public Void apply(Long t, Throwable u) {
+            public Void apply(Void t, Throwable u) {
                 try {
                     boolean conditionalFailed = u != null
                             && (u instanceof BadOffsetException || u.getCause() instanceof BadOffsetException);
@@ -190,7 +190,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             latestEventNumbers.remove(context.getClientId());
                         }
                     }
-                    if (t == null) {
+                    if (u != null) {
                         if (conditionalFailed) {
                             connection.send(new ConditionalCheckFailed(context.getClientId(), context.getEventNumber()));
                         } else {

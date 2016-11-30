@@ -193,14 +193,14 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
         } else if (type == INITIALIZATION) {
             return false;
         } else {
-            throw new CorruptedStateException("Update of unknown type");
+            throw new CorruptedStateException("Update of unknown type: " + type);
         }
     }
 
     @VisibleForTesting
     ByteBuffer encodeInit(InitT init) {
         ByteBuffer buffer = initSerializer.serialize(init);
-        ByteBuffer result = ByteBuffer.allocate(buffer.capacity() + 4);
+        ByteBuffer result = ByteBuffer.allocate(buffer.capacity() + Integer.BYTES);
         result.putInt(INITIALIZATION);
         result.put(buffer);
         result.rewind();
@@ -222,7 +222,7 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
             size += serialized.remaining();
             serializedUpdates.add(serialized);
         }
-        ByteBuffer result = ByteBuffer.allocate(size + 4 + serializedUpdates.size() * 4);
+        ByteBuffer result = ByteBuffer.allocate(size + Integer.BYTES + serializedUpdates.size() * Integer.BYTES);
         result.putInt(UPDATE);
         for (ByteBuffer update : serializedUpdates) {
             result.putInt(update.remaining());

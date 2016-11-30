@@ -136,12 +136,12 @@ public class RecoveryBenchmark extends Benchmark {
         final UUID clientId = UUID.randomUUID();
 
         // Do all the appends.
-        List<CompletableFuture<Long>> appendCompletions = new ArrayList<>();
+        List<CompletableFuture<Void>> appendCompletions = new ArrayList<>();
         for (int appendIndex = 0; appendIndex < testInput.appendsPerSegment; appendIndex++) {
             // Append context is unique per Append Index (we can share it with multiple StreamSegments).
             AppendContext appendContext = new AppendContext(clientId, appendIndex);
             for (String segmentName : segmentNames) {
-                CompletableFuture<Long> appendCompletion = store.append(segmentName, appendData, appendContext, TIMEOUT);
+                CompletableFuture<Void> appendCompletion = store.append(segmentName, appendData, appendContext, TIMEOUT);
                 appendCompletions.add(appendCompletion);
             }
         }

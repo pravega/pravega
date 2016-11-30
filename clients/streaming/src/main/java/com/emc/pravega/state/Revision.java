@@ -19,6 +19,9 @@ package com.emc.pravega.state;
 
 import com.emc.pravega.state.impl.RevisionImpl;
 
+/**
+ * A maker for a version of a {@link Revisioned} object.
+ */
 public interface Revision extends Comparable<Revision> {
 
     /**

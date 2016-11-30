@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.containers;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
@@ -191,7 +192,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //region StreamSegmentStore Implementation
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
         ensureRunning();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -204,12 +205,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
                     // Add to Append Context Registry, if needed.
                     this.pendingAppendsCollection.register(operation, result);
-                    return result.thenApply(seqNo -> operation.getStreamSegmentOffset());
+                    return FutureHelpers.toVoid(result);
                 });
     }
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout) {
         ensureRunning();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -222,7 +223,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
                     // Add to Append Context Registry, if needed.
                     this.pendingAppendsCollection.register(operation, result);
-                    return result;
+                    return FutureHelpers.toVoid(result);
                 });
     }
 
