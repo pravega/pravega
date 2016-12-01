@@ -15,32 +15,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.stream.impl.segment.SegmentSealedException;
-
-import java.util.List;
+package com.emc.pravega.stream;
 
 /**
- * This is the mirror of Producer but that only deals with one segment.
+ * Event object returned by a getNextEvent call. The
+ * event object includes the event itself and some
+ * additional metadata. Currently, the additional metadata
+ * is a pointer to the position of the event in the
+ * stream.
+ *
+ * @param <T>
  */
-public interface SegmentProducer<Type> extends AutoCloseable {
-    void publish(ProducerEventInternal<Type> m) throws SegmentSealedException;
-
+public interface Event<T> {
     /**
-     * Blocks on all outstanding writes.
+     * Get the event.
      *
-     * @throws SegmentSealedException If the segment is closed for modifications.
+     * @return the event
      */
-    void flush() throws SegmentSealedException;
-
-    @Override
-    void close() throws SegmentSealedException;
-
-    boolean isAlreadySealed();
+    T getEvent();
 
     /**
-     * Gets all events that have been sent to publish but are not yet acknowledged.
+     * Get the pointer object of the event. The pointer object
+     * is an opaque object containing the segment identifier
+     * and the offset within the segment of the event.
+     *
+     * @return
      */
-    List<ProducerEventInternal<Type>> getUnackedEvents();
+    EventPointer getPointer();
 }

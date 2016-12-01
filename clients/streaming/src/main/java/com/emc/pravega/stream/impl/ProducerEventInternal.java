@@ -23,7 +23,7 @@ import lombok.Data;
  * @param <Type> The type of event the client is producing
  */
 @Data
-public class Event<Type> {
+public class ProducerEventInternal<Type> {
     private final Type value;
     private final String routingKey;
     private final CompletableFuture<Void> ackFuture;

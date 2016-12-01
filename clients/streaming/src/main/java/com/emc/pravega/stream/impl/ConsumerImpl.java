@@ -21,6 +21,8 @@ import java.util.stream.Collectors;
 
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
+import com.emc.pravega.stream.Event;
+import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.RateChangeListener;
@@ -30,6 +32,7 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactory;
+
 
 public class ConsumerImpl<Type> implements Consumer<Type> {
 
@@ -56,16 +59,23 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
     }
 
     @Override
-    public Type getNextEvent(long timeout) {
+    public Event<Type> getNextEvent(long timeout) {
         synchronized (consumers) {
             SegmentConsumer<Type> segment = orderer.nextConsumer(consumers);
             try {
-                return segment.getNextEvent(timeout);
+                return new EventImpl<Type>(segment.getNextEvent(timeout),
+                        new EventPointerImpl(segment.getSegmentId().getQualifiedName(), segment.getOffset()));
             } catch (EndOfSegmentException e) {
                 handleEndOfSegment(segment);
                 return null;
             }
         }
+    }
+
+    @Override
+    public Event<Type> readEvent(EventPointer pointer) {
+        // TODO: Still needs to be implementing, this is skeleton is to illustrate.
+        return new EventImpl<>(null, null);
     }
 
     /**
