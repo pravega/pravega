@@ -46,7 +46,6 @@ import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Duration;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -214,11 +213,10 @@ public final class ServiceBuilder implements AutoCloseable {
     /**
      * Initializes the ServiceBuilder.
      *
-     * @param timeout Timeout for the operation.
      */
-    public CompletableFuture<Void> initialize(Duration timeout) {
+    public CompletableFuture<Void> initialize() {
         return getSingleton(this.containerManager, this.segmentContainerManagerCreator)
-                .initialize(timeout);
+                .initialize();
     }
 
     /**

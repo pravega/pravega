@@ -114,7 +114,7 @@ public class RecoveryBenchmark extends Benchmark {
         final int containerId = 0;
         log("Running %s", testInput);
 
-        serviceBuilder.initialize(TIMEOUT).join();
+        serviceBuilder.initialize().join();
         SegmentContainerRegistry containerRegistry = serviceBuilder.getSegmentContainerRegistry();
         if (containerRegistry.getContainerCount() != 1) {
             throw new IllegalStateException("This benchmark only works if there is exactly one container registered.");

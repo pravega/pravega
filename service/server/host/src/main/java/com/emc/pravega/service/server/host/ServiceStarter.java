@@ -35,14 +35,12 @@ import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.concurrent.CompletionException;
 
 /**
  * Starts the Pravega Service.
  */
 public final class ServiceStarter {
-    private static final Duration INITIALIZE_TIMEOUT = Duration.ofSeconds(30);
     private final ServiceBuilderConfig serviceConfig;
     private final ServiceBuilder serviceBuilder;
     private PravegaConnectionListener listener;
@@ -79,7 +77,7 @@ public final class ServiceStarter {
         context.getLoggerList().get(0).setLevel(Level.INFO);
 
         System.out.println("Initializing Container Manager ...");
-        this.serviceBuilder.initialize(INITIALIZE_TIMEOUT).join();
+        this.serviceBuilder.initialize().join();
 
         System.out.println("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();

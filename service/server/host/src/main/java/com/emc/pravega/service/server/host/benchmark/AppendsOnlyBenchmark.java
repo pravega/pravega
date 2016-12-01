@@ -95,7 +95,7 @@ public class AppendsOnlyBenchmark extends Benchmark {
     private TestOutput runSingleBenchmark(TestInput testInput, ServiceBuilder serviceBuilder) {
         log("Running %s", testInput);
 
-        serviceBuilder.initialize(TIMEOUT).join();
+        serviceBuilder.initialize().join();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         List<String> segmentNames = createStreamSegments(store, testInput.segmentCount);
 

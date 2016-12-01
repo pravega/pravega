@@ -67,7 +67,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -86,7 +85,7 @@ public class AppendTest {
         ResourceLeakDetector.setLevel(Level.PARANOID);
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        this.serviceBuilder.initialize(Duration.ofMinutes(1)).get();
+        this.serviceBuilder.initialize().get();
     }
 
     @After
