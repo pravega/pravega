@@ -21,12 +21,18 @@ import java.io.Serializable;
 
 import com.emc.pravega.state.Revision;
 
-import lombok.Data;
+import lombok.AccessLevel;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
-@Data
+@EqualsAndHashCode
+@RequiredArgsConstructor(access=AccessLevel.PACKAGE)
 public class RevisionImpl implements Revision, Serializable {
 
+    @Getter(value=AccessLevel.PACKAGE)
     private final long offsetInSegment;
+    @Getter(value=AccessLevel.PACKAGE)
     private final int eventAtOffset;
     
     @Override

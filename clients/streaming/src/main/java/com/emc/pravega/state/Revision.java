@@ -25,7 +25,8 @@ import com.emc.pravega.state.impl.RevisionImpl;
 public interface Revision extends Comparable<Revision> {
 
     /**
-     * Used internally. Do not call.
+     * Returns the actual instance. 
+     * This method prevents other classes from implementing this interface.
      */
     RevisionImpl asImpl();
 
