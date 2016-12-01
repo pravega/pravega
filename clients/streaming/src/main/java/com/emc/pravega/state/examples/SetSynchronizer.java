@@ -176,6 +176,7 @@ public class SetSynchronizer<T extends Serializable> {
 
     /**
      * If the set has all the latest updates, add a new item to it.
+     * @param value the value to be added
      * @return true if successful
      */
     @Synchronized
@@ -190,6 +191,7 @@ public class SetSynchronizer<T extends Serializable> {
     
     /**
      * If the set has all the latest updates, remove an item from.
+     * @param value the value to be removed
      * @return true if successful
      */
     @Synchronized
