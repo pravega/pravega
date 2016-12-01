@@ -128,7 +128,6 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
                 // Sought key is smaller than the current node's item.
                 if (node.left == null) {
                     // No more nodes to the left, so this is the smallest item with a key greater than the given one.
-                    //return node.item;
                     result = node.item;
                 } else {
                     // The left child has a key smaller than this one; Search again there.
