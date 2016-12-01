@@ -63,7 +63,7 @@ public class SetSynchronizer<T extends Serializable> {
         }
 
         @Override
-        public String getQualifiedStreamName() {
+        public String getScopedStreamName() {
             return streamName;
         }
     }
@@ -145,7 +145,7 @@ public class SetSynchronizer<T extends Serializable> {
 
     private SetSynchronizer(Synchronizer<UpdatableSet<T>, SetUpdate<T>, CreateSet<T>> synchronizer) {
         this.synchronizer = synchronizer;
-        String stream = synchronizer.getStream().getQualifiedName();
+        String stream = synchronizer.getStream().getScopedName();
         UpdatableSet<T> state = synchronizer.initialize(new CreateSet<T>(stream, new LinkedHashSet<>()));
         current = (state != null) ? state : synchronizer.getLatestState();
     }

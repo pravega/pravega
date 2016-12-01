@@ -65,7 +65,7 @@ public class HeartBeatSynchronizer extends AbstractService {
 
     @Data
     private static class LiveInstances implements Revisioned, Comparable<LiveInstances>, Serializable, InitialUpdate<LiveInstances> {
-        private final String qualifiedStreamName;
+        private final String scopedStreamName;
         private final Revision revision;
         private final Map<String, Long> liveInstances;
 
@@ -76,7 +76,7 @@ public class HeartBeatSynchronizer extends AbstractService {
 
         @Override
         public LiveInstances create(Revision revision) {
-            return new LiveInstances(qualifiedStreamName, revision, liveInstances);
+            return new LiveInstances(scopedStreamName, revision, liveInstances);
         }
     }
 
@@ -136,7 +136,7 @@ public class HeartBeatSynchronizer extends AbstractService {
         public LiveInstances applyTo(LiveInstances state, Revision newRevision) {
             Map<String, Long> timestamps = new HashMap<>(state.getLiveInstances());
             timestamps.put(name, timestamp);
-            return new LiveInstances(state.qualifiedStreamName, newRevision, Collections.unmodifiableMap(timestamps));
+            return new LiveInstances(state.scopedStreamName, newRevision, Collections.unmodifiableMap(timestamps));
         }
     }
 
@@ -148,7 +148,7 @@ public class HeartBeatSynchronizer extends AbstractService {
         public LiveInstances applyTo(LiveInstances state, Revision newRevision) {
             Map<String, Long> timestamps = new HashMap<>(state.getLiveInstances());
             timestamps.remove(name);
-            return new LiveInstances(state.qualifiedStreamName, newRevision, Collections.unmodifiableMap(timestamps));
+            return new LiveInstances(state.scopedStreamName, newRevision, Collections.unmodifiableMap(timestamps));
         }
     }
 

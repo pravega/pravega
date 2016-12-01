@@ -27,7 +27,7 @@ public interface Revisioned {
     /**
      * Returns the scoped name of this stream used to persist this object.
      */
-    String getQualifiedStreamName();
+    String getScopedStreamName();
     
     /**
      * Returns the revision corresponding to this object.

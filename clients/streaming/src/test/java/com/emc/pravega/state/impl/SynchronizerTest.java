@@ -43,7 +43,7 @@ public class SynchronizerTest {
 
     @Data
     private static class RevisionedImpl implements Revisioned {
-        private final String qualifiedStreamName;
+        private final String scopedStreamName;
         private final Revision revision;
     }
 
@@ -61,7 +61,7 @@ public class SynchronizerTest {
         @Override
         public RevisionedImpl applyTo(RevisionedImpl oldState, Revision newRevision) {
             latch.awaitUninterruptibly();
-            return new RevisionedImpl(oldState.qualifiedStreamName, new RevisionImpl(num, num));
+            return new RevisionedImpl(oldState.scopedStreamName, new RevisionImpl(num, num));
         }
     }
 
