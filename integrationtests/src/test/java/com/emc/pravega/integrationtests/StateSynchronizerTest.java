@@ -18,8 +18,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import java.time.Duration;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -52,7 +50,7 @@ public class StateSynchronizerTest {
         ResourceLeakDetector.setLevel(Level.PARANOID);
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        this.serviceBuilder.initialize(Duration.ofMinutes(1)).get();
+        this.serviceBuilder.initialize().get();
     }
 
     @After
