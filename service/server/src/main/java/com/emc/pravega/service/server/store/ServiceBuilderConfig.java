@@ -67,15 +67,17 @@ public class ServiceBuilderConfig {
 
     /**
      * Gets a set of configuration values from the default config file.
+     * @return              Service builder config read from the default config file.
+     * @throws IOException  If the config file can not be read from.
      */
-    public static ServiceBuilderConfig getDefaultConfig() {
+    public static ServiceBuilderConfig getConfigFromFile() throws IOException {
         FileReader reader = null;
         try {
-            reader = new FileReader("config/config.properties");
+            reader = new FileReader("config.properties");
             return getConfigFromStream(reader);
         } catch (IOException e) {
             log.warn("Unable to read configuration because of exception " + e.getMessage());
-            return getDefaultConfigHardCoded();
+            throw e;
         }
     }
 
@@ -94,7 +96,7 @@ public class ServiceBuilderConfig {
     /**
      * Gets a default set of configuration values, in absence of any real configuration.
      */
-    private static ServiceBuilderConfig getDefaultConfigHardCoded() {
+    public static ServiceBuilderConfig getDefaultConfig() {
         Properties p = new Properties();
 
         // General params

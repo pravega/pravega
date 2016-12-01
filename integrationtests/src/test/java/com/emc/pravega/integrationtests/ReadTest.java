@@ -86,7 +86,7 @@ public class ReadTest {
         ResourceLeakDetector.setLevel(Level.PARANOID);
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        this.serviceBuilder.initialize(Duration.ofMinutes(1)).get();
+        this.serviceBuilder.initialize().get();
     }
 
     @After

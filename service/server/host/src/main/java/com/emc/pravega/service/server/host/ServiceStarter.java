@@ -34,14 +34,13 @@ import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import org.slf4j.LoggerFactory;
 
-import java.time.Duration;
+import java.io.IOException;
 import java.util.concurrent.CompletionException;
 
 /**
  * Starts the Pravega Service.
  */
 public final class ServiceStarter {
-    private static final Duration INITIALIZE_TIMEOUT = Duration.ofSeconds(30);
     private final ServiceBuilderConfig serviceConfig;
     private final ServiceBuilder serviceBuilder;
     private PravegaConnectionListener listener;
@@ -78,7 +77,7 @@ public final class ServiceStarter {
         context.getLoggerList().get(0).setLevel(Level.INFO);
 
         System.out.println("Initializing Container Manager ...");
-        this.serviceBuilder.initialize(INITIALIZE_TIMEOUT).join();
+        this.serviceBuilder.initialize().join();
 
         System.out.println("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
@@ -100,15 +99,22 @@ public final class ServiceStarter {
     }
 
     public static void main(String[] args) {
-        ServiceStarter serviceStarter = new ServiceStarter(ServiceBuilderConfig.getDefaultConfig());
+        ServiceStarter serviceStarter = null;
+        try {
+            serviceStarter = new ServiceStarter(ServiceBuilderConfig.getConfigFromFile());
+        } catch (IOException e) {
+            System.out.println("Could not create a Service with default config, Aborting.");
+            System.exit(1);
+        }
         try {
             serviceStarter.start();
+            ServiceStarter finalServiceStarter = serviceStarter;
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
                     try {
                         System.out.println("Caught interrupt signal...");
-                        serviceStarter.shutdown();
+                        finalServiceStarter.shutdown();
                     } catch (Exception e) {
                         // do nothing
                     }
