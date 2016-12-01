@@ -203,12 +203,12 @@ public class ReadTest {
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         Producer<String> producer = stream.createProducer(serializer, new ProducerConfig(null));
-        producer.publish("RoutingKey", testString);
+        producer.writeEvent("RoutingKey", testString);
         producer.flush();
 
         @Cleanup
         Consumer<String> consumer = stream.createConsumer(serializer, new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
-        String read = consumer.getNextEvent(5000);
+        String read = consumer.readNextEvent(5000);
         assertEquals(testString, read);
     }
 

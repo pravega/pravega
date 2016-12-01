@@ -84,42 +84,42 @@ public class TransactionTest {
         StreamImpl stream = (StreamImpl) streamManager.createStream(streamName, null);
         @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
-        producer.publish(routingKey, nonTxEvent);
+        producer.writeEvent(routingKey, nonTxEvent);
         Transaction<String> transaction = producer.startTransaction(60000);
-        producer.publish(routingKey, nonTxEvent);
-        transaction.publish(routingKey, txnEvent);
-        producer.publish(routingKey, nonTxEvent);
-        transaction.publish(routingKey, txnEvent);
+        producer.writeEvent(routingKey, nonTxEvent);
+        transaction.writeEvent(routingKey, txnEvent);
+        producer.writeEvent(routingKey, nonTxEvent);
+        transaction.writeEvent(routingKey, txnEvent);
         producer.flush();
-        producer.publish(routingKey, nonTxEvent);
-        transaction.publish(routingKey, txnEvent);
-        producer.publish(routingKey, nonTxEvent);
-        transaction.publish(routingKey, txnEvent);
+        producer.writeEvent(routingKey, nonTxEvent);
+        transaction.writeEvent(routingKey, txnEvent);
+        producer.writeEvent(routingKey, nonTxEvent);
+        transaction.writeEvent(routingKey, txnEvent);
         transaction.flush();
-        producer.publish(routingKey, nonTxEvent);
-        transaction.publish(routingKey, txnEvent);
+        producer.writeEvent(routingKey, nonTxEvent);
+        transaction.writeEvent(routingKey, txnEvent);
         producer.flush();
-        transaction.publish(routingKey, txnEvent);
+        transaction.writeEvent(routingKey, txnEvent);
         transaction.commit();
-        producer.publish(routingKey, nonTxEvent);
+        producer.writeEvent(routingKey, nonTxEvent);
         AssertExtensions.assertThrows(IllegalStateException.class,
-                                      () -> transaction.publish(routingKey, txnEvent));
+                                      () -> transaction.writeEvent(routingKey, txnEvent));
         Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
-        assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
+        assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout));
+        assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout));
+        assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout));
+        assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout));
+        assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout));
+        assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout));
 
-        assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
+        assertEquals(txnEvent, consumer.readNextEvent(readTimeout));
+        assertEquals(txnEvent, consumer.readNextEvent(readTimeout));
+        assertEquals(txnEvent, consumer.readNextEvent(readTimeout));
+        assertEquals(txnEvent, consumer.readNextEvent(readTimeout));
+        assertEquals(txnEvent, consumer.readNextEvent(readTimeout));
+        assertEquals(txnEvent, consumer.readNextEvent(readTimeout));
 
-        assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
+        assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout));
     }
     
     @Test
@@ -139,7 +139,7 @@ public class TransactionTest {
         @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
         Transaction<String> transaction = producer.startTransaction(60000);
-        transaction.publish(routingKey, event);
+        transaction.writeEvent(routingKey, event);
         transaction.commit();
         AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit() );    
     }
@@ -162,16 +162,16 @@ public class TransactionTest {
         @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
         Transaction<String> transaction = producer.startTransaction(60000);
-        transaction.publish(routingKey, txnEvent);
+        transaction.writeEvent(routingKey, txnEvent);
         transaction.flush();
         transaction.drop();
         transaction.drop();
-        AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.publish(routingKey, txnEvent));
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.writeEvent(routingKey, txnEvent));
         AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit());
         
         Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
-        producer.publish(routingKey, nonTxEvent);
+        producer.writeEvent(routingKey, nonTxEvent);
         producer.flush();
-        assertEquals(nonTxEvent, consumer.getNextEvent(1500));
+        assertEquals(nonTxEvent, consumer.readNextEvent(1500));
     }
 }

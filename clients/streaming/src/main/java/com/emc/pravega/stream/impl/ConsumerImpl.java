@@ -56,7 +56,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
     }
 
     @Override
-    public Type getNextEvent(long timeout) {
+    public Type readNextEvent(long timeout) {
         synchronized (consumers) {
             SegmentConsumer<Type> segment = orderer.nextConsumer(consumers);
             try {

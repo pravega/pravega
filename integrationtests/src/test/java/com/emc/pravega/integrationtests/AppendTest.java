@@ -206,7 +206,7 @@ public class AppendTest {
         Stream stream = streamManager.createStream(streamName, null);
 
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
-        producer.publish("RoutingKey", testString);
+        producer.writeEvent("RoutingKey", testString);
         producer.flush();
     }
 }

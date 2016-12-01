@@ -40,7 +40,7 @@ public interface SegmentProducer<Type> extends AutoCloseable {
     boolean isAlreadySealed();
 
     /**
-     * Gets all events that have been sent to publish but are not yet acknowledged.
+     * Gets all events that have been sent to writeEvent but are not yet acknowledged.
      */
     List<Event<Type>> getUnackedEvents();
 }

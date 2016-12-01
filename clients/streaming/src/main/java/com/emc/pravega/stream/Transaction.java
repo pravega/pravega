@@ -40,17 +40,17 @@ public interface Transaction<Type> extends Serializable {
     }
 
     /**
-     * Sends an event to the stream just like {@link Producer#publish} but with the caveat that the message will not be
+     * Sends an event to the stream just like {@link Producer#writeEvent} but with the caveat that the message will not be
      * visible to anyone until {@link #commit()} is called.
      *
      * @param routingKey The Routing Key to use for publishing.
-     * @param event      The Event to publish.
+     * @param event      The Event to writeEvent.
      * @throws TxFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
-    void publish(String routingKey, Type event) throws TxFailedException;
+    void writeEvent(String routingKey, Type event) throws TxFailedException;
 
     /**
-     * Blocks until all events passed to {@link #publish} make it to durable storage.
+     * Blocks until all events passed to {@link #writeEvent} make it to durable storage.
      * This is only needed if the transaction is going to be serialized.
      *
      * @throws TxFailedException The Transaction is no longer in state {@link Status#OPEN}

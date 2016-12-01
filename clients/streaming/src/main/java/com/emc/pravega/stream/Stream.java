@@ -35,7 +35,7 @@ import com.emc.pravega.stream.impl.Orderer;
  * A note on ordering:
  * Events inside of a stream have a strict order, but may need to be devised between multiple consumers for scaling.
  * Because events being processed in parallel on different hosts cannot have ordering semantics a few things are done.
- * Events published to a stream have a routingKey see {@link Producer#publish}.
+ * Events published to a stream have a routingKey see {@link Producer#writeEvent}.
  * Events within a routing key are strictly ordered (IE: They must go the the same consumer or its replacement).
  * For other events, within a single consumer, the ordering is dictated by the {@link Orderer}
  * If the Orderer used by the consumer is consistent, order of all events seen by that consumer is strict.
@@ -73,7 +73,7 @@ public interface Stream {
     StreamConfiguration getConfig();
 
     /**
-     * Creates a new producer that can publish to this stream.
+     * Creates a new producer that can writeEvent to this stream.
      *
      * @param config The producer configuration.
      * @param s      The Serializer.

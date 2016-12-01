@@ -56,7 +56,7 @@ public class EndToEndTransactionTest {
         for (int i = 0; i < 1; i++) {
             String event = "\n Transactional Publish \n";
             System.err.println("Producing event: " + event);
-            transaction.publish("", event);
+            transaction.writeEvent("", event);
             transaction.flush();
             Thread.sleep(500);
         }
@@ -65,7 +65,7 @@ public class EndToEndTransactionTest {
         for (int i = 0; i < 1; i++) {
             String event = "\n Transactional Publish \n";
             System.err.println("Producing event: " + event);
-            transaction2.publish("", event);
+            transaction2.writeEvent("", event);
             transaction2.flush();
             Thread.sleep(500);
         }

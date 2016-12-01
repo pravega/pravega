@@ -125,7 +125,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
     }
 
     @Override
-    public Future<Void> publish(String routingKey, Type event) {
+    public Future<Void> writeEvent(String routingKey, Type event) {
         Preconditions.checkState(!closed.get());
         CompletableFuture<Void> result = new CompletableFuture<>();
         synchronized (lock) {
@@ -194,7 +194,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         }
 
         @Override
-        public void publish(String routingKey, Type event) throws TxFailedException {
+        public void writeEvent(String routingKey, Type event) throws TxFailedException {
             Preconditions.checkState(!closed.get());
             Segment s = router.getSegmentForEvent(routingKey);
             SegmentTransaction<Type> transaction = inner.get(s);
