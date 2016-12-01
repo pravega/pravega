@@ -33,6 +33,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.lang.System;
+import java.util.concurrent.TimeUnit;
 
 import com.emc.pravega.common.netty.FailingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
@@ -67,7 +69,15 @@ import com.emc.pravega.service.contracts.WrongHostException;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;
 import com.google.common.base.Preconditions;
 
+import com.emc.pravega.metrics.StatsLogger;
+import com.emc.pravega.metrics.OpStatsLogger;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.CREATE_SEGMENT;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.DELETE_SEGMENT;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.READ_SEGMENT;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.SEGMENT_READ_BYTES;
+
 import lombok.extern.slf4j.Slf4j;
+
 
 @Slf4j
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
@@ -79,20 +89,32 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private final ServerConnection connection;
 
-    public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
+    final OpStatsLogger createStreamSegmentStats;
+    final OpStatsLogger deleteStreamSegmentStats;
+    final OpStatsLogger readStreamSegmentStats;
+    final OpStatsLogger readBytesStats;
+
+    public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, StatsLogger statsLogger) {
         this.segmentStore = segmentStore;
         this.connection = connection;
+        this.createStreamSegmentStats = statsLogger.getOpStatsLogger(CREATE_SEGMENT);
+        this.deleteStreamSegmentStats = statsLogger.getOpStatsLogger(DELETE_SEGMENT);
+        this.readStreamSegmentStats = statsLogger.getOpStatsLogger(READ_SEGMENT);
+        this.readBytesStats = statsLogger.getOpStatsLogger(SEGMENT_READ_BYTES);
     }
 
     @Override
     public void readSegment(ReadSegment readSegment) {
+        long startTime = System.nanoTime();
         final String segment = readSegment.getSegment();
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength())); 
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {
+            readStreamSegmentStats.registerSuccessfulEvent((System.nanoTime() - startTime), TimeUnit.NANOSECONDS);
             handleReadResult(readSegment, t);
             return null;
         }).exceptionally((Throwable t) -> {
+            readStreamSegmentStats.registerFailedEvent((System.nanoTime() - startTime), TimeUnit.NANOSECONDS);
             handleException(segment, "Read segment", t);
             return null;
         });
@@ -112,6 +134,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         boolean atTail = nonCachedEntry != null && nonCachedEntry.getType() == Future;
 
         if (!cachedEntries.isEmpty()) {
+            int totalSize = cachedEntries.stream().mapToInt(ReadResultEntryContents::getLength).sum();
+            readBytesStats.registerSuccessfulValue(totalSize);
             ByteBuffer data = copyData(cachedEntries);
             SegmentRead reply =  new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
             connection.send(reply);
@@ -221,11 +245,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
+        long startTime = System.nanoTime();
         CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), TIMEOUT);
         future.thenApply((Void v) -> {
+            createStreamSegmentStats.registerSuccessfulEvent((System.nanoTime() - startTime), TimeUnit.NANOSECONDS);
             connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
             return null;
         }).exceptionally((Throwable e) -> {
+            createStreamSegmentStats.registerFailedEvent((System.nanoTime() - startTime), TimeUnit.NANOSECONDS);
             handleException(createStreamsSegment.getSegment(), "Create segment", e);
             return null;
         });
@@ -288,9 +315,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void dropTransaction(DropTransaction dropTx) {
+        long startTime = System.nanoTime();
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(dropTx.getSegment(), dropTx.getTxid());
         CompletableFuture<Void> future = segmentStore.deleteStreamSegment(transactionName, TIMEOUT);
         future.thenApply((Void v) -> {
+            deleteStreamSegmentStats.registerSuccessfulEvent((System.nanoTime() - startTime), TimeUnit.NANOSECONDS);
             connection.send(new TransactionDropped(dropTx.getSegment(), dropTx.getTxid()));
             return null;
         }).exceptionally((Throwable e) -> {
@@ -299,6 +328,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             } else {
                 handleException(transactionName, "Drop transaction", e);
             }
+            deleteStreamSegmentStats.registerFailedEvent((System.nanoTime() - startTime), TimeUnit.NANOSECONDS);
             return null;
         });
     }

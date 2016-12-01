@@ -114,6 +114,14 @@ public class ServiceBuilderConfig {
         set(p, "hdfs", "replication", "1");
         set(p, "hdfs", "blockSize", "1048576");
 
+        // metric
+        set(p, "metrics", "enableStatistics", "true");
+        set(p, "metrics", "yammerStatsOutputFrequencySeconds", "60");
+        set(p, "metrics", "yammerMetricsPrefix", "server");
+        set(p, "metrics", "yammerCSVEndpoint", "/tmp/csv");
+        set(p, "metrics", "yammerStatsDHost", "localhost");
+        set(p, "metrics", "yammerStatsDPort", "8125");
+
         // DurableLogConfig, WriterConfig, ReadIndexConfig all have defaults built-in, so no need to override them here.
         return new ServiceBuilderConfig(p);
     }

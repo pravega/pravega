@@ -51,6 +51,8 @@ import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 
+import com.emc.pravega.metrics.StatsLogger;
+
 /**
  * Hands off any received data from a client to the CommandProcessor.
  */
@@ -62,11 +64,13 @@ public final class PravegaConnectionListener implements ConnectionListener {
     private Channel serverChannel;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
+    private StatsLogger statsLogger;
 
-    public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
+    public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore, StatsLogger statsLogger) {
         this.ssl = ssl;
         this.port = port;
         this.store = streamSegmentStore;
+        this.statsLogger = statsLogger;
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
     }
 
@@ -115,7 +119,7 @@ public final class PravegaConnectionListener implements ConnectionListener {
                          lsh);
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
-                         new PravegaRequestProcessor(store, lsh)));
+                         new PravegaRequestProcessor(store, lsh, statsLogger)));
              }
          });
 

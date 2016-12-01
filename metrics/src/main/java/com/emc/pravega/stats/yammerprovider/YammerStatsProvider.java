@@ -27,7 +27,6 @@ import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import static com.codahale.metrics.MetricRegistry.name;
 
 import com.readytalk.metrics.StatsDReporter;
-import org.apache.commons.configuration.Configuration;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -38,7 +37,7 @@ import com.google.common.base.Strings;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class YammerMetricsProvider implements StatsProvider {
+public class YammerStatsProvider implements StatsProvider {
     MetricRegistry metrics = null;
     List<ScheduledReporter> reporters = new ArrayList<ScheduledReporter>();
 
@@ -55,14 +54,14 @@ public class YammerMetricsProvider implements StatsProvider {
     }
 
     @Override
-    public void start(Configuration conf) {
+    public void start(MetricsConfig conf) {
         initIfNecessary();
 
-        int metricsOutputFrequency = conf.getInt("codahaleStatsOutputFrequencySeconds", 60);
-        String prefix = conf.getString("codahaleStatsPrefix", "");
-        String csvDir = conf.getString("codahaleStatsCSVEndpoint");
-        String statsDHost = conf.getString("codahaleStatsDHost");
-        Integer statsDPort = conf.getInteger("codahaleStatsDPort", null);
+        int metricsOutputFrequency = conf.getStatsOutputFrequency();
+        String prefix = conf.getMetricsPrefix();
+        String csvDir = conf.getCSVEndpoint();
+        String statsDHost = conf.getStatsDHost();
+        Integer statsDPort = conf.getStatsDPort();
 
         if (!Strings.isNullOrEmpty(csvDir)) {
             // NOTE: 1/ metrics output files are exclusive to a given process

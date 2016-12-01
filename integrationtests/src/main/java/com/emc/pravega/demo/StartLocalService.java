@@ -26,6 +26,9 @@ import lombok.Cleanup;
 
 import java.time.Duration;
 
+import com.emc.pravega.metrics.StatsProvider;
+import com.emc.pravega.metrics.NullStatsProvider;
+
 public class StartLocalService {
     
     static final int PORT = 9090;
@@ -37,8 +40,9 @@ public class StartLocalService {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize(Duration.ofMinutes(1)).get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        StatsProvider nullProvider = new NullStatsProvider();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, PORT, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, PORT, store, nullProvider.getStatsLogger(""));
         server.startListening();
         
         @Cleanup

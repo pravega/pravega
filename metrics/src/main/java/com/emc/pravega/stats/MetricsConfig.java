@@ -28,20 +28,20 @@ import java.util.Properties;
  */
 public class MetricsConfig extends ComponentConfig {
     //region Members
-    protected final static String ENABLE_STATISTICS = "enableStatistics";
-    protected final static String STATS_PROVIDER_CLASS = "statsProviderClass";
+    public static final String COMPONENT_CODE = "metrics";
+    public final static String ENABLE_STATISTICS = "enableStatistics";
+    public final static String OUTPUT_FREQUENCY = "yammerStatsOutputFrequencySeconds";
+    public final static String METRICS_PREFIX = "yammerMetricsPrefix";
+    public final static String CSV_ENDPOINT = "yammerCSVEndpoint";
+    public final static String STATSD_HOST = "yammerStatsDHost";
+    public final static String STATSD_PORT = "yammerStatsDPort";
 
-    public static final String COMPONENT_CODE = "dlog";
-    public static final String PROPERTY_HOSTNAME = "hostname";
-    public static final String PROPERTY_PORT = "port";
-    public static final String PROPERTY_NAMESPACE = "namespace";
-    private String distributedLogHost;
-    private int distributedLogPort;
-    private String distributedLogNamespace;
-
-    //endregion
-
-    //region Constructor
+    private boolean enableStatistics;
+    private int yammerStatsOutputFrequencySeconds;
+    private String yammerMetricsPrefix;
+    private String yammerCSVEndpoint;
+    private String yammerStatsDHost;
+    private int yammerStatsDPort;
 
     /**
      * Creates a new instance of the MetricsConfig class.
@@ -57,41 +57,55 @@ public class MetricsConfig extends ComponentConfig {
         super(properties, COMPONENT_CODE);
     }
 
-    //endregion
-
-    //region Properties
-
     /**
-     * Gets a value indicating the host name (no port) where DistributedLog is listening.
+     * Gets a value indicating the status of enable statistics.
      */
-    public String getDistributedLogHost() {
-        return this.distributedLogHost;
+    public boolean getEnableStatistics() {
+        return this.enableStatistics;
     }
 
     /**
-     * Gets a value indicating the port where DistributedLog is listening.
+     * Gets a value indicating output frequency in seconds.
      */
-    public int getDistributedLogPort() {
-        return this.distributedLogPort;
+    public int getStatsOutputFrequency() {
+        return this.yammerStatsOutputFrequencySeconds;
     }
 
     /**
-     * Gets a value indicating the DistributedLog Namespace to use.
+     * Gets a value indicating the metrics prefix.
      */
-    public String getDistributedLogNamespace() {
-        return this.distributedLogNamespace;
+    public String getMetricsPrefix() {
+        return this.yammerMetricsPrefix;
     }
 
-    //endregion
+    /**
+     * Gets a value indicating the metrics prefix.
+     */
+    public String getCSVEndpoint() {
+        return this.yammerMetricsPrefix;
+    }
 
-    //region ComponentConfig Implementation
+    /**
+     * Gets a value indicating the host name (no port) where StatsD is listening.
+     */
+    public String getStatsDHost() { return this.yammerStatsDHost; }
+
+    /**
+     * Gets a value indicating the port where StatsD is listening.
+     */
+    public int getStatsDPort() {
+        return this.yammerStatsDPort;
+    }
+
 
     @Override
     protected void refresh() throws ConfigurationException {
-        this.distributedLogHost = getProperty(PROPERTY_HOSTNAME);
-        this.distributedLogPort = getInt32Property(PROPERTY_PORT);
-        this.distributedLogNamespace = getProperty(PROPERTY_NAMESPACE);
+        this.enableStatistics = getBooleanProperty(ENABLE_STATISTICS);
+        this.yammerStatsOutputFrequencySeconds = getInt32Property(OUTPUT_FREQUENCY);
+        this.yammerMetricsPrefix = getProperty(METRICS_PREFIX);
+        this.yammerCSVEndpoint = getProperty(CSV_ENDPOINT);
+        this.yammerStatsDHost = getProperty(STATSD_HOST);
+        this.yammerStatsDPort = getInt32Property(STATSD_PORT);
     }
 
-    //endregion
 }

@@ -16,8 +16,6 @@
  */
 package com.emc.pravega.metrics;
 
-import org.apache.commons.configuration.Configuration;
-
 /**
  * Provider to provide stats logger for different scopes.
  */
@@ -28,7 +26,7 @@ public interface StatsProvider {
      * @param conf
      *          Configuration to configure the stats provider.
      */
-    public void start(Configuration conf);
+    public void start(MetricsConfig conf);
 
     /**
      * Close the stats provider

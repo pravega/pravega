@@ -38,6 +38,9 @@ import java.time.Duration;
 import java.util.concurrent.CompletionException;
 
 import com.emc.pravega.metrics.MetricsConfig;
+import com.emc.pravega.metrics.StatsProvider;
+import com.emc.pravega.metrics.YammerStatsProvider;
+import com.emc.pravega.metrics.NullStatsProvider;
 
 /**
  * Starts the Pravega Service.
@@ -45,8 +48,8 @@ import com.emc.pravega.metrics.MetricsConfig;
 public final class ServiceStarter {
     private static final Duration INITIALIZE_TIMEOUT = Duration.ofSeconds(30);
     private final ServiceBuilderConfig serviceConfig;
-    //private final MetricsConfig metricsConfig;
     private final ServiceBuilder serviceBuilder;
+    private StatsProvider statsProvider;
     private PravegaConnectionListener listener;
     private boolean closed;
 
@@ -78,7 +81,14 @@ public final class ServiceStarter {
         Exceptions.checkNotClosed(this.closed, this);
 
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        MetricsConfig metricsConfig = this.serviceConfig.getConfig(MetricsConfig::new);
         context.getLoggerList().get(0).setLevel(Level.INFO);
+
+        System.out.println("Initializing metrics provider ...");
+        statsProvider = (metricsConfig.getEnableStatistics()) ?
+                        (new YammerStatsProvider()) :
+                        (new NullStatsProvider());
+        statsProvider.start(metricsConfig);
 
         System.out.println("Initializing Container Manager ...");
         this.serviceBuilder.initialize(INITIALIZE_TIMEOUT).join();
@@ -86,7 +96,7 @@ public final class ServiceStarter {
         System.out.println("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getConfig(ServiceConfig::new).getListeningPort(), service);
+        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getConfig(ServiceConfig::new).getListeningPort(), service, statsProvider.getStatsLogger("service"));
         this.listener.startListening();
         System.out.println("LogServiceConnectionListener started successfully.");
     }
@@ -98,6 +108,10 @@ public final class ServiceStarter {
 
             this.listener.close();
             System.out.println("LogServiceConnectionListener is now closed.");
+
+            statsProvider.stop();
+            System.out.println("Metrics statsProvider is now closed.");
+
             this.closed = true;
         }
     }
@@ -161,6 +175,22 @@ public final class ServiceStarter {
             try {
                 HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::new);
                 HDFSStorageFactory factory = new HDFSStorageFactory(hdfsConfig);
+                factory.initialize();
+                return factory;
+            } catch (Exception ex) {
+                throw new CompletionException(ex);
+            }
+        });
+    }
+
+    /**
+     * Attaches a DistributedlogDataLogFactory to the given ServiceBuilder.
+     */
+    static void attachMetrics(ServiceBuilder builder) {
+        builder.withDataLogFactory(setup -> {
+            try {
+                DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::new);
+                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console", dlConfig);
                 factory.initialize();
                 return factory;
             } catch (Exception ex) {

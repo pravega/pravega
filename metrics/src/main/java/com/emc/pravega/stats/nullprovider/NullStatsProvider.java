@@ -16,14 +16,12 @@
  */
 package com.emc.pravega.metrics;
 
-import org.apache.commons.configuration.Configuration;
-
 public class NullStatsProvider implements StatsProvider {
 
     final StatsLogger nullStatsLogger = new NullStatsLogger();
 
     @Override
-    public void start(Configuration conf) {
+    public void start(MetricsConfig metricsConfig ) {
         // nop
     }
 

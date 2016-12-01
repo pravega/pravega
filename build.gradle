@@ -302,9 +302,6 @@ project('controller:server') {
 project('metrics') {
     dependencies {
         compile project(':common')
-// https://mvnrepository.com/artifact/commons-configuration/commons-configuration
-compile group: 'commons-configuration', name: 'commons-configuration', version: '1.10'
-
         // for Metrics 3.x
         compile('com.readytalk:metrics3-statsd:4.1.0')
         // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core

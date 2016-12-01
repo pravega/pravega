@@ -52,8 +52,7 @@ public interface OpStatsLogger {
 
     /**
      * @return Returns an OpStatsData object with necessary values. We need this function
-     * to support JMX exports. This should be deprecated sometime in the near future.
-     * populated.
+     * to support JMX exports.
      */
     public OpStatsData toOpStatsData();
 
