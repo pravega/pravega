@@ -36,7 +36,7 @@ public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
     private final Serializer<Type> serializer;
 
     private final SegmentOutputStream out;
-    private final Vector<Event<Type>> outstanding = new Vector<>();
+    private final Vector<ProducerEventInternal<Type>> outstanding = new Vector<>();
     private final AtomicBoolean sealed = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -48,7 +48,7 @@ public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
     }
 
     @Override
-    public void publish(Event<Type> m) throws SegmentSealedException {
+    public void publish(ProducerEventInternal<Type> m) throws SegmentSealedException {
         checkSealedAndClosed();
         ByteBuffer buffer = serializer.serialize(m.getValue());
         out.write(buffer, m.getAckFuture());
@@ -86,7 +86,7 @@ public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
     }
 
     @Override
-    public List<Event<Type>> getUnackedEvents() {
+    public List<ProducerEventInternal<Type>> getUnackedEvents() {
         return new ArrayList<>(outstanding);
     }
 

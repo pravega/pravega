@@ -30,7 +30,15 @@ public interface Consumer<T> extends AutoCloseable {
      * @param timeout An upper bound on how long the call may block before returning null.
      * @return The next event in the stream, or null if timeout is reached.
      */
-    T getNextEvent(long timeout);
+    Event<T> getNextEvent(long timeout);
+
+    /**
+     * Reads a single event using the pointer object to seek.
+     *
+     * @param pointer  The pointer object specifying where the even lives in the stream.
+     * @return
+     */
+    Event<T> readEvent(EventPointer pointer);
 
     /**
      * Gets the configuration that this consumer was created with.

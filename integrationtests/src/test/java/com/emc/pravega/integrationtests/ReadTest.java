@@ -208,7 +208,7 @@ public class ReadTest {
 
         @Cleanup
         Consumer<String> consumer = stream.createConsumer(serializer, new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
-        String read = consumer.getNextEvent(5000);
+        String read = consumer.getNextEvent(5000).getEvent();
         assertEquals(testString, read);
     }
 
