@@ -19,11 +19,14 @@
 package com.emc.pravega.service.server;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.hash.HashHelper;
 
 /**
  * Defines a Mapper from StreamSegment Name to Container Id.
  */
 public final class SegmentToContainerMapper {
+    
+    private final HashHelper hasher = HashHelper.seededWith("SegmentToContainerMapper");
     private final int containerCount;
 
     /**
@@ -66,6 +69,6 @@ public final class SegmentToContainerMapper {
     }
 
     private int mapStreamSegmentNameToContainerId(String streamSegmentName) {
-        return Math.abs(streamSegmentName.hashCode()) % this.containerCount;
+        return hasher.hashToBucket(streamSegmentName, containerCount);
     }
 }
