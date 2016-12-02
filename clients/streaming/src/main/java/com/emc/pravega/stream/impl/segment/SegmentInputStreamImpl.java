@@ -170,10 +170,7 @@ class SegmentInputStreamImpl extends SegmentInputStream {
         while (dataWaitingToGoInBuffer()) {
             handleRequest();
         }
-        if (buffer.dataAvailable() > 0) {
-            return true;
-        }
-        return false;
+        return buffer.dataAvailable() > 0;
     }
 
 }
