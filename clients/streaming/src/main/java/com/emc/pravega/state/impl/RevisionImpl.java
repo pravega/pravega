@@ -27,14 +27,14 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 @EqualsAndHashCode
-@RequiredArgsConstructor(access=AccessLevel.PACKAGE)
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class RevisionImpl implements Revision, Serializable {
 
-    @Getter(value=AccessLevel.PACKAGE)
+    @Getter(value = AccessLevel.PACKAGE)
     private final long offsetInSegment;
-    @Getter(value=AccessLevel.PACKAGE)
+    @Getter(value = AccessLevel.PACKAGE)
     private final int eventAtOffset;
-    
+
     @Override
     public int compareTo(Revision o) {
         int result = Long.compare(offsetInSegment, o.asImpl().offsetInSegment);
