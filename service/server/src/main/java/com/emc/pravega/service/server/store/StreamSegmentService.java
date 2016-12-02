@@ -74,7 +74,7 @@ public class StreamSegmentService implements StreamSegmentStore {
     //region StreamSegmentStore Implementation
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, "append", streamSegmentName, data.length, appendContext, timeout);
         return withCompletion(
                 () -> getContainer(streamSegmentName).thenCompose(container -> container.append(streamSegmentName, data, appendContext, timeout)),
