@@ -26,33 +26,38 @@ public interface OpStatsLogger {
 
     /**
      * Increment the failed op counter with the given eventLatency.
-     * @param eventLatencyMillis The event latency
-     * @param unit
+     *
+     * @param eventLatency the event latency
+     * @param unit         the unit
      */
     public void registerFailedEvent(long eventLatency, TimeUnit unit);
 
     /**
-     * An operation succeeded with the given eventLatency. Update
-     * stats to reflect the same
-     * @param eventLatencyMillis The event latency
-     * @param unit
+     * Increment the succeeded op counter with the given eventLatency.
+     *
+     * @param eventLatency the event latency
+     * @param unit         the unit
      */
     public void registerSuccessfulEvent(long eventLatency, TimeUnit unit);
 
     /**
      * An operation with the given value succeeded
-     * @param value
+     *
+     * @param value the value
      */
     public void registerSuccessfulValue(long value);
 
     /**
      * An operation with the given value failed
+     *
+     * @param value the value
      */
     public void registerFailedValue(long value);
 
     /**
-     * @return Returns an OpStatsData object with necessary values. We need this function
-     * to support JMX exports.
+     * To op stats data op stats data. Need this function to support JMX exports.
+     *
+     * @return Returns an OpStatsData object with necessary values.
      */
     public OpStatsData toOpStatsData();
 

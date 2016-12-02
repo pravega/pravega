@@ -107,6 +107,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         this.readStreamSegmentStats = statsLogger.getOpStatsLogger(READ_SEGMENT);
         this.readBytesStats = statsLogger.getOpStatsLogger(SEGMENT_READ_BYTES);
         this.readBytes = statsLogger.getCounter(ALL_READ_BYTES);
+        readBytes.clear();
     }
 
     @Override
