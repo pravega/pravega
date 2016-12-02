@@ -25,7 +25,9 @@ public interface PravegaRequestStats {
     public final static String READ_SEGMENT = "READ_SEGMENT";
     // Bytes read by READ_SEGMENT operation, for read throughput
     public final static String SEGMENT_READ_BYTES = "SEGMENT_READ_BYTES";
-    // counter for all read bytes.
+    // Counter for all read bytes.
     public final static String ALL_READ_BYTES = "ALL_READ_BYTES";
+    // Gauge for pending append bytes
+    public final static String PENDING_APPEND_BYTES = "PENDING_APPEND_BYTES";
 
 }

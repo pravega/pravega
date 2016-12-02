@@ -119,7 +119,8 @@ public final class PravegaConnectionListener implements ConnectionListener {
                          lsh);
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
-                         new PravegaRequestProcessor(store, lsh, statsLogger)));
+                         new PravegaRequestProcessor(store, lsh, statsLogger),
+                         statsLogger));
              }
          });
 

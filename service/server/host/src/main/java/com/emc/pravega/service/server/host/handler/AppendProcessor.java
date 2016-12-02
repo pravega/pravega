@@ -51,6 +51,10 @@ import java.util.function.BiFunction;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 
+import com.emc.pravega.metrics.StatsLogger;
+import com.emc.pravega.metrics.Gauge;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.PENDING_APPEND_BYTES;
+
 /**
  * Process incomming Append requests and write them to the appropriate store.
  */
@@ -64,7 +68,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final StreamSegmentStore store;
     private final ServerConnection connection;
     private final RequestProcessor next;
-
+    private final StatsLogger statsLogger;
     private final Object lock = new Object();
 
     @GuardedBy("lock")
@@ -74,10 +78,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     @GuardedBy("lock")
     private Append outstandingAppend = null;
 
-    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next) {
+    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, StatsLogger statsLogger) {
         this.store = store;
         this.connection = connection;
         this.next = next;
+        this.statsLogger = statsLogger;
     }
 
     /**
@@ -229,6 +234,18 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 .mapToInt(a -> a.getData().readableBytes())
                 .sum();
         }
+        // Register gauges
+        statsLogger.registerGauge(PENDING_APPEND_BYTES, new Gauge<Integer>() {
+            @Override
+            public Integer getDefaultValue() {
+                return 0;
+            }
+
+            @Override
+            public Integer getSample() {
+                return bytesWaiting;
+            }
+        });
         if (bytesWaiting > HIGH_WATER_MARK) {
             connection.pauseReading();
         }

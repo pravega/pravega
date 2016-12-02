@@ -91,6 +91,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private final ServerConnection connection;
 
+    private final StatsLogger statsLogger;
     final OpStatsLogger createStreamSegmentStats;
     final OpStatsLogger deleteStreamSegmentStats;
     final OpStatsLogger readStreamSegmentStats;
@@ -100,6 +101,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, StatsLogger statsLogger) {
         this.segmentStore = segmentStore;
         this.connection = connection;
+        this.statsLogger = statsLogger;
         this.createStreamSegmentStats = statsLogger.getOpStatsLogger(CREATE_SEGMENT);
         this.deleteStreamSegmentStats = statsLogger.getOpStatsLogger(DELETE_SEGMENT);
         this.readStreamSegmentStats = statsLogger.getOpStatsLogger(READ_SEGMENT);
