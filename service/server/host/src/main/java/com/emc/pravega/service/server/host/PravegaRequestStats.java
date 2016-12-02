@@ -23,7 +23,9 @@ public interface PravegaRequestStats {
     public final static String CREATE_SEGMENT = "CREATE_SEGMENT";
     public final static String DELETE_SEGMENT = "DELETE_SEGMENT";
     public final static String READ_SEGMENT = "READ_SEGMENT";
-    // Bytes read by READ_SEGMENT OP
+    // Bytes read by READ_SEGMENT operation, for read throughput
     public final static String SEGMENT_READ_BYTES = "SEGMENT_READ_BYTES";
+    // counter for all read bytes.
+    public final static String ALL_READ_BYTES = "ALL_READ_BYTES";
 
 }

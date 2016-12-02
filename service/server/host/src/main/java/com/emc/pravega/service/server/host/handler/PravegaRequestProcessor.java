@@ -71,10 +71,12 @@ import com.google.common.base.Preconditions;
 
 import com.emc.pravega.metrics.StatsLogger;
 import com.emc.pravega.metrics.OpStatsLogger;
+import com.emc.pravega.metrics.Counter;
 import static com.emc.pravega.service.server.host.PravegaRequestStats.CREATE_SEGMENT;
 import static com.emc.pravega.service.server.host.PravegaRequestStats.DELETE_SEGMENT;
 import static com.emc.pravega.service.server.host.PravegaRequestStats.READ_SEGMENT;
 import static com.emc.pravega.service.server.host.PravegaRequestStats.SEGMENT_READ_BYTES;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.ALL_READ_BYTES;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -93,6 +95,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     final OpStatsLogger deleteStreamSegmentStats;
     final OpStatsLogger readStreamSegmentStats;
     final OpStatsLogger readBytesStats;
+    final Counter readBytes;
 
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, StatsLogger statsLogger) {
         this.segmentStore = segmentStore;
@@ -101,6 +104,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         this.deleteStreamSegmentStats = statsLogger.getOpStatsLogger(DELETE_SEGMENT);
         this.readStreamSegmentStats = statsLogger.getOpStatsLogger(READ_SEGMENT);
         this.readBytesStats = statsLogger.getOpStatsLogger(SEGMENT_READ_BYTES);
+        this.readBytes = statsLogger.getCounter(ALL_READ_BYTES);
     }
 
     @Override
@@ -136,6 +140,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         if (!cachedEntries.isEmpty()) {
             int totalSize = cachedEntries.stream().mapToInt(ReadResultEntryContents::getLength).sum();
             readBytesStats.registerSuccessfulValue(totalSize);
+            readBytes.add(totalSize);
             ByteBuffer data = copyData(cachedEntries);
             SegmentRead reply =  new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
             connection.send(reply);
