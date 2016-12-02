@@ -170,7 +170,7 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
                 hostsChange.drainPermits();
                 triggerRebalance();
             } catch (InterruptedException e) {
-                log.error("Leadership interrupted, releasing monitor thread");
+                log.warn("Leadership interrupted, releasing monitor thread");
 
                 //Stop watching the pravega cluster.
                 pravegaServiceCluster.close();
@@ -178,7 +178,7 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
             } catch (Exception e) {
                 //We will not release leadership if in suspended mode.
                 if (!suspended.get()) {
-                    log.error("Failed to perform rebalancing, relinquishing leadership. error: " + e.getMessage());
+                    log.warn("Failed to perform rebalancing, relinquishing leadership");
 
                     //Stop watching the pravega cluster.
                     pravegaServiceCluster.close();
