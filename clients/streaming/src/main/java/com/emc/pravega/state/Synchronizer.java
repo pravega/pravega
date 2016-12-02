@@ -43,6 +43,7 @@ import com.emc.pravega.stream.Stream;
  * 
  * @param <StateT> The type of the object whose updates are being synchronized.
  * @param <UpdateT> The type of updates applied to the state object.
+ * @param <InitT> The type of the initializer for the state object.
  */
 public interface Synchronizer<StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> {
 
