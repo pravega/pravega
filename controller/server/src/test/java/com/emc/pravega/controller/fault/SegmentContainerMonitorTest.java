@@ -72,7 +72,7 @@ public class SegmentContainerMonitorTest {
 
     @Test
     public void testMonitorWithZKStore() throws Exception {
-        HostControllerStore hostStore = new ZKHostStore(zkClient, Config.CLUSTER_NAME);
+        HostControllerStore hostStore = new ZKHostStore(zkClient, CLUSTER_NAME);
         testMonitor(hostStore);
     }
 

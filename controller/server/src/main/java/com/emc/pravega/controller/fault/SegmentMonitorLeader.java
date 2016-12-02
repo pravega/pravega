@@ -26,7 +26,7 @@ import com.google.common.base.Preconditions;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.recipes.leader.LeaderSelectorListenerAdapter;
+import org.apache.curator.framework.recipes.leader.LeaderSelectorListener;
 import org.apache.curator.framework.state.ConnectionState;
 
 import java.io.IOException;
@@ -34,6 +34,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * This is the monitor leader which watches the pravega data node cluster and handles host level failures.
@@ -41,7 +42,7 @@ import java.util.concurrent.Semaphore;
  * also moved if neccessary for load balancing.
  */
 @Slf4j
-class SegmentMonitorLeader extends LeaderSelectorListenerAdapter {
+class SegmentMonitorLeader implements LeaderSelectorListener {
 
     //The store for reading and writing the host to container mapping.
     private final HostControllerStore hostStore;
@@ -66,6 +67,12 @@ class SegmentMonitorLeader extends LeaderSelectorListenerAdapter {
     //Semaphore to notify the leader thread to trigger a rebalance.
     private final Semaphore hostsChange = new Semaphore(0);
 
+    //Semaphore to keep the current thread in suspended state.
+    private final Semaphore suspendMonitor = new Semaphore(0);
+
+    //Flag to check if monitor is suspended or not.
+    private AtomicBoolean suspended = new AtomicBoolean(false);
+
     /**
      * The leader instance which monitors the data node cluster.
      *
@@ -86,6 +93,22 @@ class SegmentMonitorLeader extends LeaderSelectorListenerAdapter {
         this.hostStore = hostStore;
         this.segBalancer = balancer;
         this.minRebalanceInterval = Duration.ofSeconds(minRebalanceInterval);
+    }
+
+    /**
+     * Suspend the leader thread.
+     */
+    public void suspend() {
+        suspended.set(true);
+    }
+
+    /**
+     * Resume the suspended leader thread.
+     */
+    public void resume() {
+        if (suspended.compareAndSet(true, false)) {
+            suspendMonitor.release();
+        }
     }
 
     /**
@@ -124,9 +147,15 @@ class SegmentMonitorLeader extends LeaderSelectorListenerAdapter {
             }
         });
 
-        try {
-            //Keep looping here as long as possible to stay as the leader and exclusively monitor the pravega cluster.
-            while (true) {
+        //Keep looping here as long as possible to stay as the leader and exclusively monitor the pravega cluster.
+        while (true) {
+            try {
+                if (suspended.get()) {
+                    log.info("Monitor is suspended, waiting for notification to resume");
+                    suspendMonitor.acquire();
+                    log.info("Resuming monitor");
+                }
+
                 hostsChange.acquire();
                 log.debug("Received rebalance event");
 
@@ -140,14 +169,22 @@ class SegmentMonitorLeader extends LeaderSelectorListenerAdapter {
                 //Clear all events that has been received until this point.
                 hostsChange.drainPermits();
                 triggerRebalance();
+            } catch (InterruptedException e) {
+                log.error("Leadership interrupted, releasing monitor thread");
+
+                //Stop watching the pravega cluster.
+                pravegaServiceCluster.close();
+                throw e;
+            } catch (Exception e) {
+                //We will not release leadership if in suspended mode.
+                if (!suspended.get()) {
+                    log.error("Failed to perform rebalancing, relinquishing leadership. error: " + e.getMessage());
+
+                    //Stop watching the pravega cluster.
+                    pravegaServiceCluster.close();
+                    throw e;
+                }
             }
-        } catch (Exception e) {
-            //On any errors (exceptions) we relinquish leadership and start afresh.
-            log.error("Failed to rebalance, relinquishing leadership. error: " + e.getMessage());
-            throw e;
-        } finally {
-            // stop watching the pravega cluster
-            pravegaServiceCluster.close();
         }
     }
 
@@ -159,10 +196,10 @@ class SegmentMonitorLeader extends LeaderSelectorListenerAdapter {
             hostStore.updateHostContainersMap(newMapping);
         } catch (Exception e) {
             throw new IOException(e);
+        } finally {
+            //Reset the rebalance timer.
+            timeoutTimer = new TimeoutTimer(minRebalanceInterval);
         }
-
-        //Reset the rebalance timer.
-        timeoutTimer = new TimeoutTimer(minRebalanceInterval);
     }
 
     @Override

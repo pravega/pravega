@@ -64,6 +64,32 @@ public class SegmentContainerMonitor extends AbstractIdleService {
 
         segmentMonitorLeader = new SegmentMonitorLeader(clusterName, hostStore, balancer, minRebalanceInterval);
         leaderSelector = new LeaderSelector(client, leaderZKPath, segmentMonitorLeader);
+
+        //Listen for any zookeeper connectivity error and relinquish leadership.
+        client.getConnectionStateListenable().addListener(
+                (curatorClient, newState) -> {
+                    switch (newState) {
+                        case LOST:
+                            log.warn("Connection to zookeeper lost, attempting to interrrupt the leader thread");
+                            leaderSelector.interruptLeadership();
+                            break;
+                        case SUSPENDED:
+                            if (leaderSelector.hasLeadership()) {
+                                log.info("Zookeeper session suspended, pausing the segment monitor");
+                                segmentMonitorLeader.suspend();
+                            }
+                            break;
+                        case RECONNECTED:
+                            if (leaderSelector.hasLeadership()) {
+                                log.info("Zookeeper session reconnected, resume the segment monitor");
+                                segmentMonitorLeader.resume();
+                            }
+                            break;
+                        default:
+                            log.debug("Connection state to zookeeper updated: " + newState.toString());
+                    }
+                }
+        );
     }
 
     /**
