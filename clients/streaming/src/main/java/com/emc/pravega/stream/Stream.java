@@ -63,7 +63,7 @@ public interface Stream {
     String getScope();
 
     /**
-     * Gets the name of this stream (Not including the scope).
+     * Gets the name of this stream  (Not including the scope).
      */
     String getStreamName();
 
