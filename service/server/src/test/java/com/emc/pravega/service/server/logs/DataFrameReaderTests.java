@@ -206,8 +206,9 @@ public class DataFrameReaderTests {
 
                 try {
                     readResult = reader.getNext();
-                    Assert.assertFalse("getNext() succeeded after read exception was thrown.", encounteredException);
-                    Assert.assertNotNull("Expected an exception but none got thrown.");
+
+                    // We are expecting an exception at all times (the catch block will verify the correctness of the exception thrown).
+                    Assert.fail("Expected an exception but none got thrown.");
                 } catch (Exception ex) {
                     Throwable realException = ExceptionHelpers.getRealException(ex);
 

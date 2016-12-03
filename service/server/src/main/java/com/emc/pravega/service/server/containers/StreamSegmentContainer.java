@@ -52,8 +52,8 @@ import com.google.common.util.concurrent.AbstractService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.Collection;
 import java.util.Date;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -281,19 +281,19 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
         // metadata.deleteStreamSegment will delete the given StreamSegment and all Transactions associated with it.
-        // It returns a collection of names of StreamSegments that were deleted.
+        // It returns a mapping of segment ids to names of StreamSegments that were deleted.
         // As soon as this happens, all operations that deal with those segments will start throwing appropriate exceptions
         // or ignore the segments altogether (such as StorageWriter).
-        Collection<String> streamSegmentsToDelete = this.metadata.deleteStreamSegment(streamSegmentName);
+        Map<Long, String> streamSegmentsToDelete = this.metadata.deleteStreamSegment(streamSegmentName);
         CompletableFuture[] deletionFutures = new CompletableFuture[streamSegmentsToDelete.size()];
         int count = 0;
-        for (String s : streamSegmentsToDelete) {
+        for (String s : streamSegmentsToDelete.values()) {
             deletionFutures[count] = this.storage.delete(s, timer.getRemaining());
             count++;
         }
 
         // Remove from Read Index.
-        this.readIndex.performGarbageCollection();
+        this.readIndex.cleanup(streamSegmentsToDelete.keySet());
         return CompletableFuture.allOf(deletionFutures);
     }
 

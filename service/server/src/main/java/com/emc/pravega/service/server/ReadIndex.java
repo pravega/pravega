@@ -95,9 +95,12 @@ public interface ReadIndex extends AutoCloseable {
     void clear();
 
     /**
-     * Removes all internal indices that point to StreamSegments that do not exist anymore (i.e., have been deleted).
+     * Removes all internal indices that point to the given StreamSegments, but only if they are marked as Deleted in
+     * the metadata.
+     *
+     * @param segmentIds A Collection of SegmentIds for the Segments to clean up.
      */
-    void performGarbageCollection();
+    void cleanup(Collection<Long> segmentIds);
 
     /**
      * Puts the ReadIndex in Recovery Mode. Some operations may not be available in Recovery Mode.
