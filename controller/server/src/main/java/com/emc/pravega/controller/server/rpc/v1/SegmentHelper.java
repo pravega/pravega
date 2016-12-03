@@ -18,15 +18,21 @@
 
 package com.emc.pravega.controller.server.rpc.v1;
 
+import java.net.UnknownHostException;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+
+import org.apache.commons.lang.NotImplementedException;
+
 import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.ReplyProcessor;
-import com.emc.pravega.common.netty.Request;
-import com.emc.pravega.common.netty.WireCommands;
+import com.emc.pravega.common.netty.WireCommand;
 import com.emc.pravega.common.netty.WireCommandType;
+import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
@@ -34,11 +40,7 @@ import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.model.ModelHelper;
-import org.apache.commons.lang.NotImplementedException;
 
-import java.net.UnknownHostException;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 public class SegmentHelper {
 
@@ -258,7 +260,7 @@ public class SegmentHelper {
                 .thenCompose(x -> result);
     }
 
-    private static CompletableFuture<Void> sendRequestOverNewConnection(final Request request,
+    private static CompletableFuture<Void> sendRequestOverNewConnection(final WireCommand request,
                                                                         final ReplyProcessor replyProcessor,
                                                                         final ConnectionFactory connectionFactory,
                                                                         final PravegaNodeUri uri) {

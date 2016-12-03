@@ -15,11 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.netty;
+package com.emc.pravega.state;
 
 /**
- * A response going from the server to the client resulting from a previous message from the client to the server.
+ * An object that has a revision associated with it.
+ * It is assumed that if two objects have the same streamName, and revision, that they are equal. IE:
+ * a.equals(b) should return true.
  */
-public interface Reply {
-    void process(ReplyProcessor cp);
+public interface Revisioned {
+    
+    /**
+     * Returns the scoped name of this stream used to persist this object.
+     */
+    String getScopedStreamName();
+    
+    /**
+     * Returns the revision corresponding to this object.
+     */
+    Revision getRevision();
 }

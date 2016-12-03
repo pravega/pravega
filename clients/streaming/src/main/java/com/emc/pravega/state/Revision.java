@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -15,11 +15,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.netty;
+package com.emc.pravega.state;
+
+import com.emc.pravega.state.impl.RevisionImpl;
 
 /**
- * A request from the client to the server. Requests usually result in a corresponding Reply being sent back.
+ * A maker for a version of a {@link Revisioned} object.
  */
-public interface Request {
-    void process(RequestProcessor cp);
+public interface Revision extends Comparable<Revision> {
+
+    /**
+     * Returns the actual instance. 
+     * This method prevents other classes from implementing this interface.
+     */
+    RevisionImpl asImpl();
+
 }

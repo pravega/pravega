@@ -41,16 +41,22 @@ public abstract class SegmentInputStream implements AutoCloseable {
      * current position in the segment.)
      */
     public abstract long getOffset();
+    
+    /**
+     * Returns the length of the current segment. IE: calling setOffset with the result of this
+     * method followed by read would result in read blocking until more data is written.
+     */
+    public abstract long fetchCurrentStreamLength();
 
     /**
      * Reads bytes from the segment a single event.
      * Buffering is performed internally to try to prevent blocking.
      *
      * @return A ByteBuffer containing the serialized data that was written via {@link Producer#publish(String, Object)}
-     * @throws EndOfSegmentException If no event could beread because the end of the segment was reached.
+     * @throws EndOfSegmentException If no event could be read because the end of the segment was reached.
      */
     public abstract ByteBuffer read() throws EndOfSegmentException;
-
+    
     /**
      * Closes this InputStream. No further methods may be called after close.
      * This will free any resources associated with the InputStream.

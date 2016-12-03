@@ -17,9 +17,30 @@
  */
 package com.emc.pravega.common.netty;
 
-/**
- * A response going from the server to the client resulting from a previous message from the client to the server.
- */
-public interface Reply {
-    void process(ReplyProcessor cp);
+import java.util.UUID;
+
+import io.netty.buffer.ByteBuf;
+import lombok.Data;
+
+@Data
+public class Append implements Request, Comparable<Append> {
+    final String segment;
+    final UUID connectionId;
+    final long eventNumber;
+    final ByteBuf data;
+    final Long expectedLength;
+    
+    public boolean isConditional() {
+        return expectedLength != null;
+    }
+
+    @Override
+    public void process(RequestProcessor cp) {
+        cp.append(this);
+    }
+
+    @Override
+    public int compareTo(Append other) {
+        return Long.compare(eventNumber, other.eventNumber);
+    }
 }

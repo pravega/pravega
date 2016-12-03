@@ -15,11 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.netty;
+package com.emc.pravega.state;
+
+import java.io.Serializable;
+
+import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
+import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
+
+import lombok.Data;
 
 /**
- * A request from the client to the server. Requests usually result in a corresponding Reply being sent back.
+ * The configuration for a Consistent replicated state synchronizer.
  */
-public interface Request {
-    void process(RequestProcessor cp);
+@Data
+public class SynchronizerConfig implements Serializable {
+
+    private final SegmentInputConfiguration inputConfig;
+    private final SegmentOutputConfiguration outputConfig;
+    
 }
