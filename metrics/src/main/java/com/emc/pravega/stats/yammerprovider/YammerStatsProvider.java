@@ -68,7 +68,7 @@ public class YammerStatsProvider implements StatsProvider {
             // 2/ the output directory must exist
             // 3/ if output files already exist they are not overwritten and there is no metrics output
             File outdir;
-            if (Strings.isNullOrEmpty(prefix)) {
+            if (!Strings.isNullOrEmpty(prefix)) {
                 outdir = new File(csvDir, prefix);
             } else {
                 outdir = new File(csvDir);

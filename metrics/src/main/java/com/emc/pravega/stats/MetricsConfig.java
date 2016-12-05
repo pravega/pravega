@@ -79,10 +79,10 @@ public class MetricsConfig extends ComponentConfig {
     }
 
     /**
-     * Gets a value indicating the metrics prefix.
+     * Gets a value indicating the metrics csv endpoint.
      */
     public String getCSVEndpoint() {
-        return this.yammerMetricsPrefix;
+        return this.yammerCSVEndpoint;
     }
 
     /**
