@@ -41,6 +41,8 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -57,6 +59,7 @@ import java.util.stream.Collectors;
  * Any update to the task method signature should be avoided, since it can cause problems during upgrade.
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
+@Slf4j
 public class StreamMetadataTasks extends TaskBase implements Cloneable {
     private static final long RETRY_INITIAL_DELAY = 100;
     private static final int RETRY_MULTIPLIER = 10;
@@ -151,6 +154,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                         if (ex.getCause() instanceof StreamAlreadyExistsException) {
                             return CreateStreamStatus.STREAM_EXISTS;
                         } else {
+                            log.warn("Create stream failed due to ", ex);
                             return CreateStreamStatus.FAILURE;
                         }
                     } else {
@@ -166,6 +170,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                         if (ex instanceof StreamNotFoundException) {
                             return UpdateStreamStatus.STREAM_NOT_FOUND;
                         } else {
+                            log.warn("Update stream failed due to ", ex);
                             return UpdateStreamStatus.FAILURE;
                         }
                     } else {
