@@ -64,15 +64,14 @@ public class YammerStatsProvider implements StatsProvider {
         Integer statsDPort = conf.getStatsDPort();
 
         if (!Strings.isNullOrEmpty(csvDir)) {
-            // NOTE: 1/ metrics output files are exclusive to a given process
-            // 2/ the output directory must exist
-            // 3/ if output files already exist they are not overwritten and there is no metrics output
+            // NOTE:  metrics output files are exclusive to a given process
             File outdir;
             if (!Strings.isNullOrEmpty(prefix)) {
                 outdir = new File(csvDir, prefix);
             } else {
                 outdir = new File(csvDir);
             }
+            outdir.mkdir();
             log.info("Configuring stats with csv output to directory [{}]", outdir.getAbsolutePath());
             reporters.add(CsvReporter.forRegistry(getMetrics())
                           .convertRatesTo(TimeUnit.SECONDS)
