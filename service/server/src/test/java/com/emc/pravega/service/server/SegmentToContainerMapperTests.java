@@ -18,19 +18,23 @@
 
 package com.emc.pravega.service.server;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.nio.CharBuffer;
+import java.util.HashMap;
+import java.util.UUID;
+import java.util.function.Function;
+
 import org.junit.Assert;
 import org.junit.Test;
 
 import com.emc.pravega.testcommon.AssertExtensions;
 
-import java.util.HashMap;
-import java.util.UUID;
-
 /**
  * Unit tests for SegmentToContainerMapper.
  */
 public class SegmentToContainerMapperTests {
-    private final static int MAX_BYTE = 256;
 
     /**
      * Tests that the constructor only allows valid configurations.
@@ -49,30 +53,28 @@ public class SegmentToContainerMapperTests {
      */
     @Test
     public void testUniformMapping() {
-        // For our test, 128 containers will do.
-        int containerCount = 128;
+        testUniformMapping(20, 10000, 0.10, (num) -> getSegmentName(num));
+        testUniformMapping(20, 10000, 0.10, (num) -> Integer.toString(num));
+        testUniformMapping(100, 100000, 0.10, (num) -> getSegmentName(num));
+        testUniformMapping(100, 100000, 0.10, (num) -> Integer.toString(num));
+        testUniformMapping(100, 100000, 0.10, (num) -> Integer.toBinaryString(num));
+        testUniformMapping(100, 100000, 0.10, (num) -> Integer.toOctalString(num));
+        testUniformMapping(100, 100000, 0.10, (num) -> Integer.toHexString(num));
+    }
 
-        // To generate names uniformly, we will generate any possible Name with this length.
-        // DO not make this any larger. This will very easily grow out of proportions (MAX_BYTE ^ streamSegmentNameByteCount).
-        int streamSegmentNameByteCount = 2;
-
-        // Calculate how many segments we have.
-        int streamSegmentCount = (int) Math.pow(MAX_BYTE, streamSegmentNameByteCount);
-
-        // This is how much deviation we allow between min and max (container assignments).
-        double maxDeviation = 0.01;
-
+    private void testUniformMapping(int containerCount, int streamSegmentCount, double maxDeviation, Function<Integer,String> nameGen) {
         SegmentToContainerMapper m = new SegmentToContainerMapper(containerCount);
         Assert.assertEquals("Unexpected value for getTotalContainerCount().", containerCount, m.getTotalContainerCount());
         HashMap<Integer, Integer> containerMapCounts = new HashMap<>();
 
         // Generate all possible names with the given length and assign them to a container.
         for (int segmentId = 0; segmentId < streamSegmentCount; segmentId++) {
-            String segmentName = getSegmentName(segmentId, streamSegmentNameByteCount);
+            String segmentName = nameGen.apply(segmentId);
             int containerId = m.getContainerId(segmentName);
             containerMapCounts.put(containerId, containerMapCounts.getOrDefault(containerId, 0) + 1);
         }
-
+        assertEquals(containerCount, containerMapCounts.size());
+        int target = streamSegmentCount / containerCount;
         // Count min and max number of assignments.
         int min = Integer.MAX_VALUE;
         int max = Integer.MIN_VALUE;
@@ -80,12 +82,11 @@ public class SegmentToContainerMapperTests {
             min = Math.min(min, count);
             max = Math.max(max, count);
         }
-
-        // Verify that min and max do not deviate too much from each other.
-        AssertExtensions.assertGreaterThan(
-                String.format("Too large of a variation between min and max mapping counts to containers. Min = %d, Max = %d.", min, max),
-                max - min,
-                (int) (maxDeviation * max));
+        assertTrue(max >= target);
+        assertTrue(min <= target);
+        String msg = String.format("Too large of a variation between min and max mapping counts to containers. Min = %d, Max = %d.", min, max);
+        AssertExtensions.assertLessThan(msg, (int) (maxDeviation * target),  max - target);
+        AssertExtensions.assertLessThan(msg, (int) (maxDeviation * target), target - min);
     }
 
     /**
@@ -94,15 +95,14 @@ public class SegmentToContainerMapperTests {
     @Test
     public void testTransactionMapping() {
         int containerCount = 16;
-        int streamSegmentNameByteCount = 1;
-        int streamSegmentCount = (int) Math.pow(MAX_BYTE, streamSegmentNameByteCount);
+        int streamSegmentCount = 256;
         int transactionPerParentCount = 10;
 
         SegmentToContainerMapper m = new SegmentToContainerMapper(containerCount);
 
         // Generate all possible names with the given length and assign them to a container.
         for (int segmentId = 0; segmentId < streamSegmentCount; segmentId++) {
-            String segmentName = getSegmentName(segmentId, streamSegmentNameByteCount);
+            String segmentName = getSegmentName(segmentId);
             int containerId = m.getContainerId(segmentName);
             for (int i = 0; i < transactionPerParentCount; i++) {
                 String transcationName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
@@ -112,13 +112,14 @@ public class SegmentToContainerMapperTests {
         }
     }
 
-    private String getSegmentName(int segmentId, int length) {
-        char[] stringContents = new char[length];
-        for (int i = 0; i < length; i++) {
-            stringContents[i] = (char) (segmentId % MAX_BYTE);
-            segmentId /= MAX_BYTE;
+    private String getSegmentName(int segmentId) {
+        CharBuffer buffer = CharBuffer.allocate(4);
+        segmentId = Integer.reverseBytes(Integer.reverse(segmentId));
+        while (segmentId != 0) {
+            buffer.put((char) (segmentId & 0x00FF));
+            segmentId = segmentId >>> 8;
         }
-
-        return new String(stringContents);
+        buffer.flip();
+        return new String(buffer.array());
     }
 }
