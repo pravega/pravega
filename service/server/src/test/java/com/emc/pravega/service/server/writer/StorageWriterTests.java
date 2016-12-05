@@ -408,6 +408,7 @@ public class StorageWriterTests {
         producingComplete2.complete(null);
 
         // Restart the writer (restart a new one, to clear out any in-memory state).
+        // Note that this also changes the storage owner, which verifies that the writer correctly reacquires ownership.
         context.resetWriter();
         context.writer.startAsync().awaitRunning();
         ackEverything2.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -674,6 +675,7 @@ public class StorageWriterTests {
         final CloseableExecutorService executor;
         final UpdateableContainerMetadata metadata;
         final TestWriterDataSource dataSource;
+        final InMemoryStorage baseStorage;
         final TestStorage storage;
         final InMemoryCache cache;
         final WriterConfig config;
@@ -682,7 +684,8 @@ public class StorageWriterTests {
         TestContext(WriterConfig config) {
             this.executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-            this.storage = new TestStorage(new InMemoryStorage(this.executor.get()));
+            this.baseStorage = new InMemoryStorage(this.executor.get());
+            this.storage = new TestStorage(this.baseStorage);
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
             this.config = config;
 
@@ -694,6 +697,7 @@ public class StorageWriterTests {
 
         void resetWriter() {
             this.writer.close();
+            this.baseStorage.changeOwner();
             this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this.executor.get());
         }
 
@@ -702,7 +706,7 @@ public class StorageWriterTests {
             this.writer.close();
             this.dataSource.close();
             this.cache.close();
-            this.storage.close();
+            this.storage.close(); // This also closes the baseStorage.
             this.executor.close();
         }
     }
