@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.store;
 
+import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.MetadataRepository;
@@ -26,7 +27,6 @@ import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainerFactory;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
-import com.emc.pravega.service.server.SegmentToContainerMapper;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;

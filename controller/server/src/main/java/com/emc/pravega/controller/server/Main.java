@@ -95,7 +95,7 @@ public class Main {
                 executor);
         log.info("Creating in-memory host store");
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
-                new InMemoryHostControllerStoreConfig(hostContainerMap));
+                new InMemoryHostControllerStoreConfig(hostContainerMap, 1));
 
         log.info("Creating zk based task store");
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);

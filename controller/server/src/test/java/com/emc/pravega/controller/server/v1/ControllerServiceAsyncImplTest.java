@@ -87,7 +87,7 @@ public class ControllerServiceAsyncImplTest {
 
         final HostControllerStore hostStore =
                 HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
-                        new InMemoryHostControllerStoreConfig(hostContainerMap));
+                        new InMemoryHostControllerStoreConfig(hostContainerMap, 1));
 
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =

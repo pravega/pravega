@@ -24,7 +24,6 @@ import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang.NotImplementedException;
 
-import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
@@ -48,8 +47,7 @@ public class SegmentHelper {
                                         final String stream,
                                         final int segmentNumber,
                                         final HostControllerStore hostStore) {
-        final int container = HashHelper.seededWith("SegmentHelper").hashToBucket(stream + segmentNumber, hostStore.getContainerCount());
-        final Host host = hostStore.getHostForContainer(container);
+        final Host host = hostStore.getHostForSegment(scope, stream, segmentNumber);
         return new NodeUri(host.getIpAddr(), host.getPort());
     }
 

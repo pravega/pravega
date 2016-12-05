@@ -17,22 +17,25 @@
  */
 package com.emc.pravega.controller.store.host;
 
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
-
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
-import static com.emc.pravega.controller.util.Config.HOST_STORE_CONTAINER_COUNT;
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import com.google.common.base.Preconditions;
 
 public class InMemoryHostControllerStoreConfig extends StoreConfiguration {
-    private final int numOfContainers = HOST_STORE_CONTAINER_COUNT;
+    private final int numOfContainers;
 
     private final Map<Host, Set<Integer>> hostContainerMap;
 
-    public InMemoryHostControllerStoreConfig(Map<Host, Set<Integer>> hostContainerMap) {
+    public InMemoryHostControllerStoreConfig(Map<Host, Set<Integer>> hostContainerMap, int numOfContainers) {
         super("");
+        int assigned = hostContainerMap.values().stream().mapToInt(r -> r.size()).sum();
+        Preconditions.checkArgument(numOfContainers == assigned);
         this.hostContainerMap = hostContainerMap;
+        this.numOfContainers = numOfContainers;
+        
     }
 
     public Map<Host, Set<Integer>> getHostContainerMap() {

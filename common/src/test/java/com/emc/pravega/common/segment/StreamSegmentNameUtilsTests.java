@@ -16,15 +16,15 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server;
+package com.emc.pravega.common.segment;
+
+import java.util.Stack;
+import java.util.UUID;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 import com.emc.pravega.testcommon.AssertExtensions;
-
-import java.util.Stack;
-import java.util.UUID;
 
 /**
  * Unit tests for StreamSegmentNameUtils class.

@@ -54,7 +54,7 @@ import com.emc.pravega.stream.impl.Orderer;
  * a group that wish to split the messages between them is by giving different segments to different consumers. For this
  * reason when creating a consumer a {@link RateChangeListener} is provided, that can help scale up or down the number
  * of consumers if the number of segments has changed in response to a change in the rate of events in the stream. For
- * the most part this is done by calling {@link RebalancerUtils#rebalance}
+ * the most part this is done by calling {@link RebalancerUtils#rebalance}.
  */
 public interface Stream {
     /**
@@ -63,7 +63,7 @@ public interface Stream {
     String getScope();
 
     /**
-     * Gets the name of this stream (Not including the scope).
+     * Gets the name of this stream  (Not including the scope).
      */
     String getStreamName();
 
