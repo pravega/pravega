@@ -62,9 +62,12 @@ public class SegmentToContainerMapperTests {
         testUniformMapping(100, 100000, 0.10, (num) -> Integer.toHexString(num));
     }
 
-    private void testUniformMapping(int containerCount, int streamSegmentCount, double maxDeviation, Function<Integer,String> nameGen) {
+    private void testUniformMapping(int containerCount, int streamSegmentCount, double maxDeviation,
+            Function<Integer, String> nameGen) {
         SegmentToContainerMapper m = new SegmentToContainerMapper(containerCount);
-        Assert.assertEquals("Unexpected value for getTotalContainerCount().", containerCount, m.getTotalContainerCount());
+        Assert.assertEquals("Unexpected value for getTotalContainerCount().",
+                            containerCount,
+                            m.getTotalContainerCount());
         HashMap<Integer, Integer> containerMapCounts = new HashMap<>();
 
         // Generate all possible names with the given length and assign them to a container.
