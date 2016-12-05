@@ -21,6 +21,7 @@ package com.emc.pravega.service.server;
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.testcommon.AssertExtensions;
 
 import java.util.Stack;

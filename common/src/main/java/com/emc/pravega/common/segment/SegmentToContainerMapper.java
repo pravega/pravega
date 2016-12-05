@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server;
+package com.emc.pravega.common.segment;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.hash.HashHelper;
