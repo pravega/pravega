@@ -21,7 +21,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.stream.Segment;
@@ -31,9 +30,8 @@ public class InMemoryHostStore implements HostControllerStore {
     private final SegmentToContainerMapper segmentMapper;
 
 
-    public InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap) {
+    public InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap, int containerCount) {
         this.hostContainerMap = hostContainerMap;
-        int containerCount = hostContainerMap.values().stream().flatMap(f -> f.stream()).collect(Collectors.toList()).size();
         segmentMapper = new SegmentToContainerMapper(containerCount);
     }
 
