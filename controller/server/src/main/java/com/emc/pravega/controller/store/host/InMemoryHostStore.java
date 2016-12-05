@@ -23,12 +23,18 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.emc.pravega.common.segment.SegmentToContainerMapper;
+import com.emc.pravega.stream.Segment;
+
 public class InMemoryHostStore implements HostControllerStore {
     private final Map<Host, Set<Integer>> hostContainerMap;
+    private final SegmentToContainerMapper segmentMapper;
 
 
     public InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap) {
         this.hostContainerMap = hostContainerMap;
+        int containerCount = hostContainerMap.values().stream().flatMap(f -> f.stream()).collect(Collectors.toList()).size();
+        segmentMapper = new SegmentToContainerMapper(containerCount);
     }
 
     @Override
@@ -43,10 +49,9 @@ public class InMemoryHostStore implements HostControllerStore {
         } else {
             throw new HostNotFoundException(host);
         }
-    }
+    }  
 
-    @Override
-    public Host getHostForContainer(int containerId) {
+    private Host getHostForContainer(int containerId) {
         Optional<Host> hosts = hostContainerMap.entrySet().stream()
                 .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
         if (hosts.isPresent()) {
@@ -57,7 +62,8 @@ public class InMemoryHostStore implements HostControllerStore {
     }
 
     @Override
-    public Integer getContainerCount() {
-        return hostContainerMap.values().stream().flatMap(f -> f.stream()).collect(Collectors.toList()).size();
+    public Host getHostForSegment(String scope, String stream, int segmentNumber) {
+        String qualifiedName = Segment.getQualifiedName(scope, stream, segmentNumber);
+        return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
     }
 }
