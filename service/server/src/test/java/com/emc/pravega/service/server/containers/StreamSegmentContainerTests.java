@@ -122,7 +122,7 @@ public class StreamSegmentContainerTests {
         ArrayList<String> segmentNames = createSegments(context);
 
         // 2. Add some appends.
-        ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
         HashMap<String, Long> lengths = new HashMap<>();
         HashMap<String, AppendContext> lastAppendContexts = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
@@ -243,7 +243,7 @@ public class StreamSegmentContainerTests {
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
         // 2. Add some appends.
-        ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
         HashMap<String, Long> lengths = new HashMap<>();
 
         for (String segmentName : segmentNames) {
@@ -376,7 +376,7 @@ public class StreamSegmentContainerTests {
         HashMap<String, ArrayList<String>> transactionsBySegment = createTransactions(segmentNames, context);
 
         // 2. Add some appends.
-        ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
 
         for (int i = 0; i < appendsPerSegment; i++) {
             for (String segmentName : segmentNames) {
@@ -474,7 +474,7 @@ public class StreamSegmentContainerTests {
         mergeTransactions(transactionsBySegment, lengths, segmentContents, context);
 
         // 4. Add more appends (to the parent segments)
-        ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             for (String segmentName : segmentNames) {
                 byte[] appendData = getAppendData(segmentName, APPENDS_PER_SEGMENT + i);
@@ -564,7 +564,7 @@ public class StreamSegmentContainerTests {
         mergeTransactions(transactionsBySegment, lengths, segmentContents, context);
 
         // 5. Add more appends (to the parent segments)
-        ArrayList<CompletableFuture<Long>> operationFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Void>> operationFutures = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             for (String segmentName : segmentNames) {
                 byte[] appendData = getAppendData(segmentName, APPENDS_PER_SEGMENT + i);
@@ -574,7 +574,8 @@ public class StreamSegmentContainerTests {
             }
         }
 
-        segmentsToSeal.forEach(segmentName -> operationFutures.add(context.container.sealStreamSegment(segmentName, TIMEOUT)));
+        segmentsToSeal.forEach(segmentName -> operationFutures
+            .add(FutureHelpers.toVoid(context.container.sealStreamSegment(segmentName, TIMEOUT))));
         FutureHelpers.allOf(operationFutures).join();
 
         // Now wait for all the reads to complete, and verify their results against the expected output.
@@ -684,7 +685,7 @@ public class StreamSegmentContainerTests {
     }
 
     private void appendToParentsAndTransactions(Collection<String> segmentNames, HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
-        ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (String segmentName : segmentNames) {
                 byte[] appendData = getAppendData(segmentName, i);

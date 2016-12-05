@@ -25,6 +25,7 @@ import java.security.cert.CertificateException;
 import javax.net.ssl.SSLException;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.netty.AppendDecoder;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
 import com.emc.pravega.common.netty.ConnectionListener;
@@ -112,6 +113,7 @@ public final class PravegaConnectionListener implements ConnectionListener {
                          new CommandEncoder(),
                          new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                          new CommandDecoder(),
+                         new AppendDecoder(),
                          lsh);
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,

@@ -38,6 +38,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -48,6 +50,7 @@ public class ZkStreamTest {
 
     private TestingServer zkTestServer;
     private CuratorFramework cli;
+    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     @Before
     public void startZookeeper() throws Exception {
@@ -67,7 +70,7 @@ public class ZkStreamTest {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
 
         final StoreConfiguration config = new StoreConfiguration(zkTestServer.getConnectString());
-        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper, config);
+        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper, config, executor);
         final String streamName = "test";
 
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
@@ -160,7 +163,7 @@ public class ZkStreamTest {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 6);
 
         final StoreConfiguration config = new StoreConfiguration(zkTestServer.getConnectString());
-        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper, config);
+        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper, config, executor);
         final String streamName = "test2";
 
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
@@ -206,7 +209,7 @@ public class ZkStreamTest {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
 
         final StoreConfiguration config = new StoreConfiguration(zkTestServer.getConnectString());
-        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper, config);
+        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper, config, executor);
         final String streamName = "testTx";
 
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);

@@ -29,6 +29,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -45,9 +47,10 @@ public class StreamMetadataStoreTest {
     private final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
     private final StreamConfiguration configuration1 = new StreamConfigurationImpl(scope, stream1, policy1);
     private final StreamConfiguration configuration2 = new StreamConfigurationImpl(scope, stream2, policy2);
+    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore store =
-            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
+            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null, executor);
 
     @Test
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {

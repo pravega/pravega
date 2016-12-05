@@ -34,13 +34,14 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.common.netty.WireCommands.Append;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
+import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
@@ -89,7 +90,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
         @GuardedBy("lock")
         private Exception exception = null;
         @GuardedBy("lock")
-        private final ConcurrentSkipListMap<Append, CompletableFuture<Void>> inflight = new ConcurrentSkipListMap<>();
+        private final ConcurrentSkipListMap<Append, CompletableFuture<Boolean>> inflight = new ConcurrentSkipListMap<>();
         @GuardedBy("lock")
         private long eventNumber = 0;
         private final ReusableLatch connectionSetup = new ReusableLatch();
@@ -102,11 +103,8 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
             handleInterrupted(() -> inflightEmpty.await());
         }
 
-        private void connectionSetupComplete(long ackLevel) {
-            synchronized (lock) {
-                eventNumber = ackLevel;
-                connectionSetup.release();
-            }
+        private void connectionSetupComplete() {
+            connectionSetup.release();
         }
 
         /**
@@ -142,7 +140,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
                 oldConnection = connection;
                 connection = null;
             }
-            connectionSetupComplete(0);
+            connectionSetupComplete();
             oldConnection.close();
         }
 
@@ -169,24 +167,40 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
          * Add event to the infight
          */
         private Append createNewInflightAppend(UUID connectionId, String segment, ByteBuffer buff,
-                CompletableFuture<Void> callback) {
+                CompletableFuture<Boolean> callback, Long expectedLength) {
             synchronized (lock) {
                 eventNumber++;
-                Append append = new Append(segment, connectionId, eventNumber, Unpooled.wrappedBuffer(buff));
+                Append append = new Append(segment, connectionId, eventNumber, Unpooled.wrappedBuffer(buff), expectedLength);
                 inflightEmpty.reset();
                 inflight.put(append, callback);
                 return append;
             }
         }
-
+        
+        private CompletableFuture<Boolean> removeSingleInflight(long inflightEventNumber) {
+            synchronized (lock) {
+                for (Iterator<Entry<Append, CompletableFuture<Boolean>>> iter = inflight.entrySet().iterator(); iter.hasNext();) {
+                    Entry<Append, CompletableFuture<Boolean>> append = iter.next();
+                    if (append.getKey().getEventNumber() == inflightEventNumber) {
+                        iter.remove();
+                        return append.getValue();
+                    }
+                    if (append.getKey().getEventNumber() > inflightEventNumber) {
+                        break;
+                    }
+                }
+            }
+            return null;
+        }
+        
         /**
          * Remove all events with event numbers below the provided level from inflight and return them.
          */
-        private List<CompletableFuture<Void>> removeInflightBelow(long ackLevel) {
+        private List<CompletableFuture<Boolean>> removeInflightBelow(long ackLevel) {
             synchronized (lock) {
-                ArrayList<CompletableFuture<Void>> result = new ArrayList<>();
-                for (Iterator<Entry<Append, CompletableFuture<Void>>> iter = inflight.entrySet().iterator(); iter.hasNext();) {
-                    Entry<Append, CompletableFuture<Void>> append = iter.next();
+                ArrayList<CompletableFuture<Boolean>> result = new ArrayList<>();
+                for (Iterator<Entry<Append, CompletableFuture<Boolean>>> iter = inflight.entrySet().iterator(); iter.hasNext();) {
+                    Entry<Append, CompletableFuture<Boolean>> append = iter.next();
                     if (append.getKey().getEventNumber() <= ackLevel) {
                         result.add(append.getValue());
                         iter.remove();
@@ -246,6 +260,12 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
             long ackLevel = dataAppended.getEventNumber();
             ackUpTo(ackLevel);
         }
+        
+        @Override
+        public void conditionalCheckFailed(ConditionalCheckFailed dataNotAppended) {
+            long eventNumber = dataNotAppended.getEventNumber();
+            conditionalFail(eventNumber);
+        }
 
         @Override
         public void appendSetup(AppendSetup appendSetup) {
@@ -253,17 +273,24 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
             ackUpTo(ackLevel);
             try {
                 retransmitInflight();
-                state.connectionSetupComplete(ackLevel);
+                state.connectionSetupComplete();
             } catch (ConnectionFailedException e) {
                 state.failConnection(e);
             }
         }
 
         private void ackUpTo(long ackLevel) {
-            for (CompletableFuture<Void> toAck : state.removeInflightBelow(ackLevel)) {
+            for (CompletableFuture<Boolean> toAck : state.removeInflightBelow(ackLevel)) {
                 if (toAck != null) {
-                    toAck.complete(null);
+                    toAck.complete(true);
                 }
+            }
+        }
+        
+        private void conditionalFail(long eventNumber) {
+            CompletableFuture<Boolean> toAck = state.removeSingleInflight(eventNumber);
+            if (toAck != null) {
+                toAck.complete(false);
             }
         }
 
@@ -280,10 +307,20 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
      */
     @Override
     @Synchronized
-    public void write(ByteBuffer buff, CompletableFuture<Void> callback) throws SegmentSealedException {
+    public void write(ByteBuffer buff, CompletableFuture<Boolean> callback) throws SegmentSealedException {
+        performWrite(null, buff, callback);
+    }
+    
+    @Override
+    @Synchronized
+    public void conditionalWrite(long expectedLength, ByteBuffer buff, CompletableFuture<Boolean> callback) throws SegmentSealedException {
+        performWrite(expectedLength, buff, callback);
+    }
+
+    private void performWrite(Long expectedLength, ByteBuffer buff, CompletableFuture<Boolean> callback) throws SegmentSealedException {
         checkArgument(buff.remaining() <= SegmentOutputStream.MAX_WRITE_SIZE, "Write size too large: %s", buff.remaining());
         ClientConnection connection = getConnection();
-        Append append = state.createNewInflightAppend(connectionId, segmentName, buff, callback);
+        Append append = state.createNewInflightAppend(connectionId, segmentName, buff, callback, expectedLength);
         try {
             connection.send(append);
         } catch (ConnectionFailedException e) {
@@ -291,7 +328,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
             getConnection(); // As the messages is inflight, this will perform the retransmition.
         }
     }
-
+    
     /**
      * Blocking call to establish a connection and wait for it to be setup. (Retries built in)
      */

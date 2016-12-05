@@ -17,6 +17,8 @@ package com.emc.pravega.common.netty;
 import static com.emc.pravega.common.netty.WireCommandType.EVENT;
 import static com.emc.pravega.common.netty.WireCommands.APPEND_BLOCK_SIZE;
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,12 +29,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.emc.pravega.common.netty.WireCommands.Append;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -49,7 +47,7 @@ public class AppendEncodeDecodeTest {
     private final String streamName = "Test Stream Name";
     private final CommandEncoder encoder = new CommandEncoder();
     private final FakeLengthDecoder lengthDecoder = new FakeLengthDecoder();
-    private final CommandDecoder decoder = new CommandDecoder();
+    private final AppendDecoder appendDecoder = new AppendDecoder();
     private Level origionalLogLevel;
 
     @Before
@@ -226,9 +224,9 @@ public class AppendEncodeDecodeTest {
         SetupAppend setupAppend = new SetupAppend(connectionId, testStream);
         encoder.encode(null, setupAppend, fakeNetwork);
         ArrayList<Object> received = new ArrayList<>();
-        decoder.decode(null, fakeNetwork, received);
-        assertEquals(1, received.size());
-        assertEquals(setupAppend, received.remove(0));
+        WireCommand command = CommandDecoder.parseCommand(fakeNetwork);
+        assertTrue(appendDecoder.acceptInboundMessage(command));
+        assertEquals(setupAppend, appendDecoder.processCommand(command));
         return received;
     }
 
@@ -237,7 +235,7 @@ public class AppendEncodeDecodeTest {
         byte[] content = new byte[length];
         Arrays.fill(content, (byte) messageNumber);
         ByteBuf buffer = Unpooled.wrappedBuffer(content);
-        Append msg = new Append(segment, connectionId, messageNumber, buffer);
+        Append msg = new Append(segment, connectionId, messageNumber, buffer, null);
         encoder.encode(null, msg, out);
         return offset + length;
     }
@@ -246,7 +244,15 @@ public class AppendEncodeDecodeTest {
         ByteBuf segmented = (ByteBuf) lengthDecoder.decode(null, in);
         while (segmented != null) {
             int before = results.size();
-            decoder.decode(null, segmented, results);
+            WireCommand command = CommandDecoder.parseCommand(segmented);
+            if (appendDecoder.acceptInboundMessage(command)) {
+                Request request = appendDecoder.processCommand(command);
+                if (request != null) {
+                    results.add(request);
+                }
+            } else {
+                results.add(command);
+            }
             assertTrue(results.size() == before || results.size() == before + 1);
             segmented.release();
             segmented = (ByteBuf) lengthDecoder.decode(null, in);

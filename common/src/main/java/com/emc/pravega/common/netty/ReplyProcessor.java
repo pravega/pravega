@@ -18,6 +18,7 @@
 package com.emc.pravega.common.netty;
 
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
+import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
@@ -52,6 +53,8 @@ public interface ReplyProcessor {
     void appendSetup(AppendSetup appendSetup);
 
     void dataAppended(DataAppended dataAppended);
+    
+    void conditionalCheckFailed(ConditionalCheckFailed dataNotAppended);
 
     void segmentRead(SegmentRead segmentRead);
 

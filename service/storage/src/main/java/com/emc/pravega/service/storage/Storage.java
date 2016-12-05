@@ -68,7 +68,6 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * StreamSegmentInformation with the final state of the StreamSegment). If the operation failed, it will contain the
      * cause of the failure. Notable exceptions:
      * <ul>
-     * <li> StreamSegmentSealedException: When the segment is already sealed in Storage.
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
      * </ul>
      */

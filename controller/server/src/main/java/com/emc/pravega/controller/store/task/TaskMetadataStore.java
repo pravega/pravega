@@ -29,28 +29,28 @@ public interface TaskMetadataStore {
 
     /**
      * Locks a resource for update.
-     * If (oldOwner, oldThreadId) are specified then it revokes old owner's lock and itself acquires it.
+     * If (oldOwner, oldTag) are specified then it revokes old owner's lock and itself acquires it.
      * This is non-reentrant lock, i.e., a process/thread cannot lock the same resource twice.
      * If oldOwner is null then
-     * atomically create the key value pair resource -> (owner, threadId, taskData) if it does not exist.
+     * atomically create the key value pair resource -> (owner, tag, taskData) if it does not exist.
      * If oldOwner is non-null
-     * then atomically replace the key value pair resource -> (oldOwner, oldThreadId, taskData) with the pair
-     * resource -> (owner, threadId, taskData).
+     * then atomically replace the key value pair resource -> (oldOwner, oldTag, taskData) with the pair
+     * resource -> (owner, tag, taskData).
      *
      * @param resource    resource identifier.
      * @param taskData    details of update task on the resource.
      * @param owner       owner of the task.
-     * @param threadId    threadId.
+     * @param tag         tag.
      * @param oldOwner    host that had previously locked the resource.
-     * @param oldThreadId threadId that took the lock
+     * @param oldTag tag that took the lock
      * @return void if the operation succeeds, otherwise throws LockFailedException.
      */
     CompletableFuture<Void> lock(final Resource resource,
                                  final TaskData taskData,
                                  final String owner,
-                                 final String threadId,
+                                 final String tag,
                                  final String oldOwner,
-                                 final String oldThreadId);
+                                 final String oldTag);
 
     /**
      * Unlocks a resource if it is owned by the specified owner.
@@ -58,20 +58,20 @@ public interface TaskMetadataStore {
      *
      * @param resource resource identifier.
      * @param owner    owner of the lock.
-     * @param threadId threadId.
+     * @param tag tag.
      * @return void if successful, otherwise throws UnlockFailedException.
      */
-    CompletableFuture<Void> unlock(final Resource resource, final String owner, final String threadId);
+    CompletableFuture<Void> unlock(final Resource resource, final String owner, final String tag);
 
     /**
-     * Fetch details of task associated with the specified resource and locked/owned by specified owner and threadId.
+     * Fetch details of task associated with the specified resource and locked/owned by specified owner and tag.
      *
      * @param resource resource.
      * @param owner    owner.
-     * @param threadId threadId.
-     * @return TaskData if owner and threadId hold a lock on the specified resource otherwise Optional.empty().
+     * @param tag tag.
+     * @return TaskData if owner and tag hold a lock on the specified resource otherwise Optional.empty().
      */
-    CompletableFuture<Optional<TaskData>> getTask(final Resource resource, final String owner, final String threadId);
+    CompletableFuture<Optional<TaskData>> getTask(final Resource resource, final String owner, final String tag);
 
     /**
      * Adds specified resource as a child of current host's hostId node.
