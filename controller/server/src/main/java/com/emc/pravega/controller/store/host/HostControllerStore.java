@@ -24,7 +24,6 @@ public interface HostControllerStore {
 
     Set<Integer> getContainersForHost(Host host);
 
-    Host getHostForContainer(int containerId);
+    Host getHostForSegment(String scope, String stream, int segmentNumber);
 
-    Integer getContainerCount();
 }

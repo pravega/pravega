@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.store;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.function.CallbackHelpers;
+import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ContainerNotFoundException;
 import com.emc.pravega.service.contracts.ReadResult;
@@ -28,7 +29,6 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
-import com.emc.pravega.service.server.SegmentToContainerMapper;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 

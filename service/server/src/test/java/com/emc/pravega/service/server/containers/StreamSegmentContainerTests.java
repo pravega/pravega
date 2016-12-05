@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.BadOffsetException;
@@ -39,7 +40,6 @@ import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.ServiceShutdownListener;
-import com.emc.pravega.service.server.StreamSegmentNameUtils;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
