@@ -116,7 +116,6 @@ public class StorageWriterFactory implements WriterFactory {
         public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
             log.debug("{}: CompleteMerge (TargetSegmentId={}, SourceSegmentId={}).", this.traceObjectId, targetStreamSegmentId, sourceStreamSegmentId);
             this.readIndex.completeMerge(targetStreamSegmentId, sourceStreamSegmentId);
-            this.readIndex.performGarbageCollection();
         }
 
         @Override

@@ -197,7 +197,7 @@ public class MemoryStateUpdaterTests {
         static final String COMPLETE_MERGE = "completeMerge";
         static final String READ = "read";
         static final String TRIGGER_FUTURE_READS = "triggerFutureReads";
-        static final String PERFORM_GARBAGE_COLLECTION = "performGarbageCollection";
+        static final String CLEANUP = "cleanup";
         static final String ENTER_RECOVERY_MODE = "enterRecoveryMode";
         static final String EXIT_RECOVERY_MODE = "exitRecoveryMode";
 
@@ -251,8 +251,8 @@ public class MemoryStateUpdaterTests {
         }
 
         @Override
-        public void performGarbageCollection() {
-            invoke(new MethodInvocation(PERFORM_GARBAGE_COLLECTION));
+        public void cleanup(Collection<Long> segmentIds) {
+            invoke(new MethodInvocation(CLEANUP));
         }
 
         @Override
