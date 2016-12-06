@@ -15,7 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.netty;
+package com.emc.pravega.service.server.host.handler;
+
+import com.emc.pravega.common.netty.RequestProcessor;
+import com.emc.pravega.common.netty.WireCommand;
 
 /**
  * A connection object. Represents the TCP connection in the server process that is coming from the client.

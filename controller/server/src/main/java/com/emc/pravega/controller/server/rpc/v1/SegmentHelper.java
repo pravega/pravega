@@ -24,7 +24,6 @@ import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang.NotImplementedException;
 
-import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
@@ -39,6 +38,7 @@ import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.model.ModelHelper;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 
 
 public class SegmentHelper {
