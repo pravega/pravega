@@ -30,12 +30,12 @@ public class StreamStoreFactory {
         HDFS
     }
 
-    public static StreamMetadataStore createStore(final StoreType type, final StoreConfiguration config, ScheduledExecutorService executor) {
+    public static StreamMetadataStore createStore(final StoreType type, ScheduledExecutorService executor) {
         switch (type) {
             case InMemory:
                 return new InMemoryStreamMetadataStore();
             case Zookeeper:
-                return new ZKStreamMetadataStore(config, executor);
+                return new ZKStreamMetadataStore(executor);
             case ECS:
             case S3:
             case HDFS:

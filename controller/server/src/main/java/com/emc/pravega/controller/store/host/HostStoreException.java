@@ -15,14 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.emc.pravega.controller.store.host;
 
+/**
+ * This exception is thrown on errors from the HostControllerStore implementation.
+ */
+public class HostStoreException extends RuntimeException {
 
-public class ContainerNotFoundException extends HostControllerException {
-    private static final long serialVersionUID = 1L;
+    /**
+     * Create a HostStoreException using a text cause.
+     *
+     * @param message   The cause of the exception.
+     */
+    public HostStoreException(String message) {
+        super(message);
+    }
 
-    public ContainerNotFoundException(int containerId) {
-        super(String.format("Container %d not found.", containerId));
+    /**
+     * Create a HostStoreException using a text cause.
+     *
+     * @param message   The cause of the exception.
+     * @param cause     Any existing exception that needs to be wrapped.
+     */
+    public HostStoreException(String message, Throwable cause) {
+        super(message, cause);
     }
 }
