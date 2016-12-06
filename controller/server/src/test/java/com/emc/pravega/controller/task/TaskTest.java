@@ -259,48 +259,15 @@ public class TaskTest {
 
     @Test
     public void testLocking() {
-
         TestTasks testTasks = new TestTasks(taskMetadataStore, executor, HOSTNAME);
-
-        LockingTask first = new LockingTask(testTasks, SCOPE, stream1);
-        LockingTask second = new LockingTask(testTasks, SCOPE, stream1);
-
-        first.start();
-        second.start();
-
+        
+        CompletableFuture<Void> first = testTasks.testStreamLock(SCOPE, stream1);
+        CompletableFuture<Void> second = testTasks.testStreamLock(SCOPE, stream1);
         try {
-            first.result.join();
-            second.result.join();
+            first.getNow(null);
+            second.getNow(null);
         } catch (CompletionException ce) {
             assertTrue(ce.getCause() instanceof LockFailedException);
-        }
-    }
-
-    @Data
-    @EqualsAndHashCode(callSuper = false)
-    class LockingTask extends Thread {
-
-        private final TestTasks testTasks;
-        private final String scope;
-        private final String stream;
-        private CompletableFuture<Void> result = new CompletableFuture<>();
-
-        LockingTask(TestTasks testTasks, String scope, String stream) {
-            this.testTasks = testTasks;
-            this.scope = scope;
-            this.stream = stream;
-        }
-
-        @Override
-        public void run() {
-            testTasks.testStreamLock(scope, stream)
-                    .whenComplete((value, ex) -> {
-                        if (ex != null) {
-                            this.result.completeExceptionally(ex);
-                        } else {
-                            this.result.complete(value);
-                        }
-                    });
         }
     }
 

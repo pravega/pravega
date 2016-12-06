@@ -70,14 +70,7 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {
         Segment segmentId = new Segment(streamConfig.getScope(), streamConfig.getName(), 0);
-
         createSegment(segmentId.getQualifiedName(), new PravegaNodeUri(endpoint, port));
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
         return CompletableFuture.completedFuture(CreateStreamStatus.SUCCESS);
     }
 
