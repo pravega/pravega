@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.store.host;
 
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.controller.util.Config;
 import com.google.common.base.Preconditions;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -27,9 +28,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import com.emc.pravega.common.segment.SegmentToContainerMapper;
+import com.emc.pravega.stream.Segment;
+
 @Slf4j
 public class InMemoryHostStore implements HostControllerStore {
     private Map<Host, Set<Integer>> hostContainerMap;
+    private final SegmentToContainerMapper segmentMapper;
 
     /**
      * Creates an in memory based host store. The data is not persisted across restarts. Useful for dev and single node
@@ -39,8 +44,8 @@ public class InMemoryHostStore implements HostControllerStore {
      */
     public InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap) {
         Preconditions.checkNotNull(hostContainerMap, "hostContainerMap");
-
         this.hostContainerMap = hostContainerMap;
+        segmentMapper = new SegmentToContainerMapper(Config.HOST_STORE_CONTAINER_COUNT);
     }
 
     @Override
@@ -74,5 +79,12 @@ public class InMemoryHostStore implements HostControllerStore {
     @Synchronized
     public int getContainerCount() {
         return (int) hostContainerMap.values().stream().flatMap(f -> f.stream()).count();
+    }
+
+    @Override
+    @Synchronized
+    public Host getHostForSegment(String scope, String stream, int segmentNumber) {
+        String qualifiedName = Segment.getQualifiedName(scope, stream, segmentNumber);
+        return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
     }
 }

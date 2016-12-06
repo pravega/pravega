@@ -18,8 +18,10 @@
 package com.emc.pravega.controller.store.host;
 
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
+import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +49,8 @@ public class ZKHostStore implements HostControllerStore {
     //To bootstrap zookeeper on first use.
     private volatile boolean zkInit = false;
 
+    private final SegmentToContainerMapper segmentMapper;
+
     /**
      * Zookeeper based host store implementation.
      *
@@ -59,6 +63,7 @@ public class ZKHostStore implements HostControllerStore {
 
         zkClient = client;
         zkPath = ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping");
+        segmentMapper = new SegmentToContainerMapper(Config.HOST_STORE_CONTAINER_COUNT);
     }
 
     //Ensure required zk node is present in zookeeper.
@@ -117,5 +122,11 @@ public class ZKHostStore implements HostControllerStore {
     @Override
     public int getContainerCount() {
         return Config.HOST_STORE_CONTAINER_COUNT;
+    }
+
+    @Override
+    public Host getHostForSegment(String scope, String stream, int segmentNumber) {
+        String qualifiedName = Segment.getQualifiedName(scope, stream, segmentNumber);
+        return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
     }
 }

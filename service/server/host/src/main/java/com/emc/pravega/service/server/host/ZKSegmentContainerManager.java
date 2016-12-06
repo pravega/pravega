@@ -23,11 +23,11 @@ import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
-import com.emc.pravega.service.server.SegmentToContainerMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
@@ -62,7 +62,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ZKSegmentContainerManager implements SegmentContainerManager {
 
-    private static final Duration CLOSE_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration INIT_TIMEOUT_PER_CONTAINER = Duration.ofSeconds(30L);
+    private static final Duration CLOSE_TIMEOUT_PER_CONTAINER = Duration.ofSeconds(30L);
     private final SegmentContainerRegistry registry;
     private final SegmentToContainerMapper segmentToContainerMapper;
 
@@ -110,16 +111,16 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     }
 
     @Override
-    public CompletableFuture<Void> initialize(Duration timeout) {
+    public CompletableFuture<Void> initialize() {
         long traceId = LoggerHelpers.traceEnter(log, "initialize");
         ensureNotClosed();
         try {
-            List<CompletableFuture<Void>> futures = initializeFromZK(host, timeout);
+            List<CompletableFuture<Void>> futures = initializeFromZK(host, INIT_TIMEOUT_PER_CONTAINER);
             CompletableFuture<Void> initResult = FutureHelpers.allOf(futures)
                     .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
 
             // Add the node cache listener which watches ZK for changes in segment container mapping.
-            addListenerSegContainerMapping(timeout, host);
+            addListenerSegContainerMapping(INIT_TIMEOUT_PER_CONTAINER, host);
 
             return initResult;
         } catch (Exception ex) {
@@ -136,7 +137,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
                 close(segContainerHostMapping); // Close Node cache and its listeners.
                 ArrayList<ContainerHandle> toClose = new ArrayList<>(this.handles.values());
                 for (ContainerHandle handle : toClose) {
-                    results.add(this.registry.stopContainer(handle, CLOSE_TIMEOUT)
+                    results.add(this.registry.stopContainer(handle, CLOSE_TIMEOUT_PER_CONTAINER)
                             .thenAccept(v -> unregisterHandle(handle.getContainerId())));
                 }
             }

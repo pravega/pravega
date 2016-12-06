@@ -57,4 +57,7 @@ public interface HostControllerStore {
      * @return The total number of segment containers present in the cluster.
      */
     int getContainerCount();
+
+    Host getHostForSegment(String scope, String stream, int segmentNumber);
+
 }

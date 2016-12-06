@@ -27,6 +27,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -187,8 +188,8 @@ public class StreamSegmentContainerMetadataTests {
                 expectedDeletedSegmentNames.add(m.getStreamSegmentMetadata(transactionId).getName());
             }
 
-            Collection<String> deletedSegmentNames = m.deleteStreamSegment(name);
-            AssertExtensions.assertContainsSameElements("Unexpected StreamSegments were deleted.", expectedDeletedSegmentNames, deletedSegmentNames);
+            Map<Long, String> deletedSegmentNames = m.deleteStreamSegment(name);
+            AssertExtensions.assertContainsSameElements("Unexpected StreamSegments were deleted.", expectedDeletedSegmentNames, deletedSegmentNames.values());
         }
 
         // Delete Transactions.
@@ -199,8 +200,8 @@ public class StreamSegmentContainerMetadataTests {
             deletedStreamSegmentIds.add(transactionId);
             expectedDeletedSegmentNames.add(name);
 
-            Collection<String> deletedSegmentNames = m.deleteStreamSegment(name);
-            AssertExtensions.assertContainsSameElements("Unexpected StreamSegments were deleted.", expectedDeletedSegmentNames, deletedSegmentNames);
+            Map<Long, String> deletedSegmentNames = m.deleteStreamSegment(name);
+            AssertExtensions.assertContainsSameElements("Unexpected StreamSegments were deleted.", expectedDeletedSegmentNames, deletedSegmentNames.values());
         }
 
         // Verify deleted segments have not been actually removed from the metadata.

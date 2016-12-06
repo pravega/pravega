@@ -18,6 +18,7 @@
 package com.emc.pravega.common.netty;
 
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
+import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
@@ -76,6 +77,11 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     @Override
     public void dataAppended(DataAppended dataAppended) {
         getNextReplyProcessor().dataAppended(dataAppended);
+    }
+    
+    @Override
+    public void conditionalCheckFailed(ConditionalCheckFailed dataNotAppended) {
+        getNextReplyProcessor().conditionalCheckFailed(dataNotAppended);
     }
 
     @Override

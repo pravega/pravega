@@ -61,14 +61,14 @@ public class SelfTestRunner {
     private static TestConfig getTestConfig() {
         return new TestConfig(TestConfig.convert(TestConfig.COMPONENT_CODE,
                 PropertyBag.create()
-                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 10)
-                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 10)
-                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 100000)
+                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 100)
+                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 100)
+                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 1000000)
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
-                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 300)
-                           .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 50)
+                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 50)
+                           .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 100)
                            .with(TestConfig.PROPERTY_TIMEOUT_MILLIS, 3000)));
     }
 }

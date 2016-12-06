@@ -18,9 +18,9 @@
 package com.emc.pravega.service.server.host;
 
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
-import com.emc.pravega.service.server.SegmentToContainerMapper;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -35,7 +35,6 @@ import org.mockito.Mock;
 import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -98,7 +97,7 @@ public class ZKSegmentContainerManagerTest {
                 segmentToContainerMapper, zkClient,
                 PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
 
-        CompletableFuture<Void> result = segManager.initialize(Duration.ofSeconds(5));
+        CompletableFuture<Void> result = segManager.initialize();
 
         assertEquals(1, segManager.getHandles().size());
         assertEquals(1, segManager.getHandles().get(1).getContainerId());
@@ -126,7 +125,7 @@ public class ZKSegmentContainerManagerTest {
                 segmentToContainerMapper, zkClient,
                 PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
 
-        CompletableFuture<Void> result = segManager.initialize(Duration.ofSeconds(5));
+        CompletableFuture<Void> result = segManager.initialize();
 
         ContainerHandle containerHandle2 = mock(ContainerHandle.class);
         when(containerHandle2.getContainerId()).thenReturn(2);
@@ -167,7 +166,7 @@ public class ZKSegmentContainerManagerTest {
                 segmentToContainerMapper, zkClient,
                 PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
 
-        CompletableFuture<Void> result = segManager.initialize(Duration.ofSeconds(5));
+        CompletableFuture<Void> result = segManager.initialize();
 
         segManager.close();
         assertEquals(0, segManager.getHandles().size());

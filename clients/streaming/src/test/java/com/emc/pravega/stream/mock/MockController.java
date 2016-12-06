@@ -34,7 +34,7 @@ import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.ReplyProcessor;
-import com.emc.pravega.common.netty.Request;
+import com.emc.pravega.common.netty.WireCommand;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
 import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
@@ -239,7 +239,7 @@ public class MockController implements Controller {
         return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
     }
     
-    private void sendRequestOverNewConnection(Request request, ReplyProcessor replyProcessor) {
+    private void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor) {
         ClientConnection connection = getAndHandleExceptions(connectionFactory
             .establishConnection(new PravegaNodeUri(endpoint, port), replyProcessor), RuntimeException::new);
         try {

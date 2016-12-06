@@ -110,6 +110,11 @@ public class SegmentContainerMonitorTest {
             public int getContainerCount() {
                 return hostStore.getContainerCount();
             }
+
+            @Override
+            public Host getHostForSegment(String scope, String stream, int segmentNumber) {
+                return null;
+            }
         }
 
         SegmentContainerMonitor monitor = new SegmentContainerMonitor(new MockHostControllerStore(), zkClient,

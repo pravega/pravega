@@ -55,6 +55,7 @@ import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
 import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
+import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -64,7 +65,6 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
-import com.emc.pravega.service.server.StreamSegmentNameUtils;
 import com.google.common.base.Preconditions;
 
 import lombok.extern.slf4j.Slf4j;
@@ -120,7 +120,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             nonCachedEntry.requestContent(TIMEOUT);
             nonCachedEntry.getContent().thenApply((ReadResultEntryContents contents) -> {
                 ByteBuffer data = copyData(Collections.singletonList(contents));
-                SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), atTail, endOfSegment, data);
+                SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), false, endOfSegment, data);
                 connection.send(reply);
                 return null;
             }).exceptionally((Throwable e) -> {
