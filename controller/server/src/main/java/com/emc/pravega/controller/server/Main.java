@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.server;
 
+import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
 import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_CONNECTION_STRING;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
@@ -39,6 +40,7 @@ import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
 import com.google.common.collect.Sets;
 
@@ -48,6 +50,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Entry point of controller server.
@@ -73,6 +77,10 @@ public class Main {
             hostId = UUID.randomUUID().toString();
         }
 
+        // initialize the executor service
+        ScheduledExecutorService executor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
+                new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
+
         //1) LOAD configuration.
 
         log.info("Creating store client");
@@ -83,19 +91,19 @@ public class Main {
         log.info("Creating in-memory stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
                 StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE),
-                new StoreConfiguration(STREAM_STORE_CONNECTION_STRING));
-
+                new StoreConfiguration(STREAM_STORE_CONNECTION_STRING),
+                executor);
         log.info("Creating in-memory host store");
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
-                new InMemoryHostControllerStoreConfig(hostContainerMap));
+                new InMemoryHostControllerStoreConfig(hostContainerMap, 1));
 
         log.info("Creating zk based task store");
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient);
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
         //2) start RPC server with v1 implementation. Enable other versions if required.
         log.info("Starting RPC server");
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, hostId);
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, hostId);
         RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
 
         //3. hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure

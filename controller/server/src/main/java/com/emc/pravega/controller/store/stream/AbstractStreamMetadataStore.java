@@ -222,16 +222,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         return sequence(futures)
                 .thenApply(list -> Sets.union(completedSegments, list.stream().reduce(Collections.emptySet(), Sets::union)));
-        // append completed segment set with implicitly completed segments
-//        return foldFutures(
-//                sequence(futures),
-//                new HashSet<>(),
-//                (CompletableFuture<Set<Integer>> x, List<Integer> y) -> x.thenApply(set -> {
-//                    set.addAll(y);
-//                    return set;
-//                }),
-//                Sets::union
-//        ).thenApply(set -> Sets.union(set, completedSegments));
     }
 
     private CompletableFuture<Set<Integer>> getSuccessors(final Stream stream, final Set<Integer> completedSegments) {
@@ -247,15 +237,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         return sequence(futures)
                 .thenApply(list -> list.stream().reduce(Collections.emptySet(), Sets::union));
-//        return foldFutures(
-//                sequence(futures),
-//                new HashSet<>(),
-//                (CompletableFuture<Set<Integer>> x, List<Integer> y) -> x.thenApply(set -> {
-//                    set.addAll(y);
-//                    return set;
-//                }),
-//                Sets::union
-//        );
     }
 
     private CompletableFuture<List<Integer>> getNewCurrents(final Stream stream,

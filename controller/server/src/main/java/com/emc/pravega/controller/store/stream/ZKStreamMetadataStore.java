@@ -25,7 +25,6 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -36,10 +35,11 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private static final long INITIAL_DELAY = 1;
     private static final long PERIOD = 1;
     private static final long TIMEOUT = 60 * 60 * 1000;
-    private static final ScheduledExecutorService EXEC_SERVICE = Executors.newSingleThreadScheduledExecutor();
+    private final ScheduledExecutorService executor;
 
-    public ZKStreamMetadataStore(final StoreConfiguration storeConfiguration) {
+    public ZKStreamMetadataStore(final StoreConfiguration storeConfiguration, ScheduledExecutorService executor) {
 
+        this.executor = executor;
         // TODO: get common curator client
         CuratorFramework client = CuratorFrameworkFactory.newClient(storeConfiguration.getConnectionString(),
                 new ExponentialBackoffRetry(1000, 3));
@@ -48,7 +48,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         // Garbage collector for completed transactions
         ZKStream.initialize(client);
 
-        EXEC_SERVICE.scheduleAtFixedRate(() -> {
+        this.executor.scheduleAtFixedRate(() -> {
             // find completed transactions to be gc'd
             try {
                 final long currentTime = System.currentTimeMillis();

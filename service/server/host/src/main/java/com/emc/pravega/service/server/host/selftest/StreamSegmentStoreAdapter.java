@@ -18,6 +18,13 @@
 
 package com.emc.pravega.service.server.host.selftest;
 
+import java.time.Duration;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
@@ -29,13 +36,6 @@ import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
-
-import java.time.Duration;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 /**
  * Store Adapter wrapping a real StreamSegmentStore.
@@ -100,7 +100,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     public CompletableFuture<Void> initialize(Duration timeout) {
         Preconditions.checkState(!this.initialized.get(), "Cannot call initialize() after initialization happened.");
         TestLogger.log(LOG_ID, "Initializing.");
-        return this.serviceBuilder.initialize(timeout)
+        return this.serviceBuilder.initialize()
                                   .thenRun(() -> {
                                       this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
                                       this.initialized.set(true);
@@ -111,7 +111,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     @Override
     public CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext context, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.append(streamSegmentName, data, context, timeout).thenAccept(LONG_TO_VOID);
+        return this.streamSegmentStore.append(streamSegmentName, data, context, timeout);
     }
 
     @Override

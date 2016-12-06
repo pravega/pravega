@@ -18,7 +18,15 @@
 package com.emc.pravega.common.util;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
+
+import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
 
 /**
  * A Utility class to support retrying something that can fail with exponential backoff.
@@ -48,6 +56,7 @@ import com.google.common.base.Preconditions;
  * above example if FooException were to extend RuntimeException. Then the more specific exception
  * is given preference. (In the above case FooException would be retried).
  */
+@Slf4j
 public final class Retry {
 
     private Retry() {}
@@ -91,7 +100,7 @@ public final class Retry {
     
     /**
      * Returned by {@link RetryWithBackoff#retryingOn(Class)} to add the type of exception that should result in a retry.
-     * Any subtype of this exception will be retried unless the subtype is passed to {@link #throwingOn()}.
+     * Any subtype of this exception will be retried unless the subtype is passed to {@link RetringOnException#throwingOn(Class)}.
      */
     public static final class RetryingOnException<RetryT extends Exception> {
         private final Class<RetryT> retryType;
@@ -112,7 +121,7 @@ public final class Retry {
     public interface Retryable<ReturnT, RetryableET extends Exception, NonRetryableET extends Exception> {
         ReturnT attempt() throws RetryableET, NonRetryableET;
     }
-    
+
     /**
      * Returned by {@link RetryingOnException#throwingOn(Class)} to add the type of exception that should cause the
      * method to throw right away. If any subtype of this exception occurs the method will throw it right away unless
@@ -138,11 +147,7 @@ public final class Retry {
                 try {
                     return r.attempt();
                 } catch (Exception e) {
-                    Class<? extends Exception> type = e.getClass();
-                    if (throwType.isAssignableFrom(type) && retryType.isAssignableFrom(throwType)) {
-                        throw (ThrowsT) e;
-                    }
-                    if (retryType.isAssignableFrom(type)) {
+                    if (canRetry(e)) {
                         last = e;
                     } else if (e instanceof RuntimeException) {
                         throw (RuntimeException) e;
@@ -155,9 +160,61 @@ public final class Retry {
                 Exceptions.handleInterrupted(() -> Thread.sleep(sleepFor));
  
                 delay = Math.min(params.maxDelay, params.multiplier * delay);
+                log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
             }
             throw new RetriesExaustedException(last);
         }
+
+        public <ReturnT> CompletableFuture<ReturnT> runAsync(final Supplier<CompletableFuture<ReturnT>> r,
+                                                        final ScheduledExecutorService executorService) {
+            Preconditions.checkNotNull(r);
+            int attemptNumber = 1;
+            long initialDelay = 0;
+            return execute(attemptNumber, initialDelay, r, executorService);
+        }
+
+        private <ReturnT> CompletableFuture<ReturnT> execute(final int attemptNumber,
+                                                             final long delay,
+                                                             final Supplier<CompletableFuture<ReturnT>> r,
+                                                             final ScheduledExecutorService executorService) {
+
+            CompletableFuture<ReturnT> result = FutureHelpers.delayedFuture(r, delay, executorService);
+
+            return FutureHelpers.flatExceptionally(result, (Throwable e) -> {
+                if (canRetry(e)) {
+                    if (attemptNumber + 1 > params.attempts) {
+                        return FutureHelpers.failedFuture(new RetriesExaustedException((Exception) e));
+                    } else {
+                        long newDelay = attemptNumber == 1 ?
+                                params.initialMillis :
+                                Math.min(params.maxDelay, params.multiplier * delay);
+                        log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
+                        return execute(attemptNumber + 1, newDelay, r, executorService);
+                    }
+                } else {
+                    return FutureHelpers.failedFuture(e);
+                }
+            });
+        }
+
+        private boolean canRetry(final Throwable e) {
+            Class<? extends Throwable> type = getErrorType(e);
+            if (throwType.isAssignableFrom(type) && retryType.isAssignableFrom(throwType)) {
+                return false;
+            }
+            return retryType.isAssignableFrom(type);
+        }
+
+        private Class<? extends Throwable> getErrorType(final Throwable e) {
+            if (retryType.equals(CompletionException.class) || throwType.equals(CompletionException.class)) {
+                return e.getClass();
+            } else {
+                if (e instanceof CompletionException && e.getCause() != null) {
+                    return e.getCause().getClass();
+                } else {
+                    return e.getClass();
+                }
+            }
+        }
     }
-    
 }

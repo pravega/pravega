@@ -22,13 +22,13 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
-import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
-
+import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
+import lombok.Data;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.ByteArrayInputStream;
@@ -42,7 +42,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
@@ -56,6 +57,8 @@ public class InMemoryStorage implements Storage {
     private final HashMap<String, StreamSegmentData> streamSegments = new HashMap<>();
     private final Object lock = new Object();
     private final ScheduledExecutorService executor;
+    private final AtomicLong currentOwnerId;
+    private final SyncContext syncContext;
     private boolean closed;
     private boolean ownsExecutorService;
 
@@ -72,6 +75,8 @@ public class InMemoryStorage implements Storage {
         this.executor = executor;
         this.offsetTriggers = new HashMap<>();
         this.sealTriggers = new HashMap<>();
+        this.currentOwnerId = new AtomicLong(0);
+        this.syncContext = new SyncContext(this.currentOwnerId::get);
     }
 
     //endregion
@@ -103,30 +108,25 @@ public class InMemoryStorage implements Storage {
                             throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
                         }
 
-                        StreamSegmentData data = new StreamSegmentData(streamSegmentName, this.executor);
+                        StreamSegmentData data = new StreamSegmentData(streamSegmentName, this.syncContext);
+                        data.open();
                         this.streamSegments.put(streamSegmentName, data);
                         return data;
                     }
                 }, this.executor)
-                .thenCompose(StreamSegmentData::getInfo);
+                .thenApply(StreamSegmentData::getInfo);
     }
 
     @Override
     public CompletableFuture<Void> open(String streamSegmentName) {
-        return CompletableFuture.supplyAsync(() -> {
-            synchronized (this.lock) {
-                if (!this.streamSegments.containsKey(streamSegmentName)) {
-                    throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
-                }
-                return null;
-            }
-        }, this.executor);
+        return getStreamSegmentData(streamSegmentName)
+                .thenAccept(StreamSegmentData::open);
     }
 
     @Override
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
         CompletableFuture<Void> result = getStreamSegmentData(streamSegmentName)
-                .thenCompose(ssd -> ssd.write(offset, data, length));
+                .thenAccept(ssd -> ssd.write(offset, data, length));
         result.thenRunAsync(() -> fireOffsetTriggers(streamSegmentName, offset + length), this.executor);
         return result;
     }
@@ -134,21 +134,21 @@ public class InMemoryStorage implements Storage {
     @Override
     public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
         return getStreamSegmentData(streamSegmentName)
-                .thenCompose(ssd -> ssd.read(offset, buffer, bufferOffset, length));
+                .thenApply(ssd -> ssd.read(offset, buffer, bufferOffset, length));
     }
 
     @Override
     public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
         CompletableFuture<SegmentProperties> result = getStreamSegmentData(streamSegmentName)
-                .thenCompose(StreamSegmentData::markSealed);
-        result.thenRunAsync(() -> fireSealTrigger(streamSegmentName));
+                .thenApply(StreamSegmentData::markSealed);
+        result.thenRunAsync(() -> fireSealTrigger(streamSegmentName), this.executor);
         return result;
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         return getStreamSegmentData(streamSegmentName)
-                .thenCompose(StreamSegmentData::getInfo);
+                .thenApply(StreamSegmentData::getInfo);
     }
 
     @Override
@@ -157,19 +157,20 @@ public class InMemoryStorage implements Storage {
         synchronized (this.lock) {
             exists = this.streamSegments.containsKey(streamSegmentName);
         }
+
         return CompletableFuture.completedFuture(exists);
     }
 
     @Override
     public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName,
-            Duration timeout) {
+                                          Duration timeout) {
         CompletableFuture<StreamSegmentData> sourceData = getStreamSegmentData(sourceStreamSegmentName);
         CompletableFuture<StreamSegmentData> targetData = getStreamSegmentData(targetStreamSegmentName);
         CompletableFuture<Void> result = CompletableFuture.allOf(sourceData, targetData)
-                                                          .thenCompose(v -> targetData.join().concat(sourceData.join(), offset))
+                                                          .thenAccept(v -> targetData.join().concat(sourceData.join(), offset))
                                                           .thenCompose(v -> delete(sourceStreamSegmentName, timeout));
         result.thenRunAsync(() -> {
-            fireOffsetTriggers(targetStreamSegmentName, targetData.join().getInfo().join().getLength());
+            fireOffsetTriggers(targetStreamSegmentName, targetData.join().getInfo().getLength());
             fireSealTrigger(sourceStreamSegmentName);
         }, this.executor);
         return result;
@@ -187,6 +188,14 @@ public class InMemoryStorage implements Storage {
                         this.streamSegments.remove(streamSegmentName);
                     }
                 }, this.executor);
+    }
+
+    /**
+     * Changes the current owner of the Storage Adapter. After calling this, all calls to existing Segments will fail
+     * until open() is called again on them.
+     */
+    public void changeOwner() {
+        this.currentOwnerId.incrementAndGet();
     }
 
     private CompletableFuture<StreamSegmentData> getStreamSegmentData(String streamSegmentName) {
@@ -347,66 +356,80 @@ public class InMemoryStorage implements Storage {
         private final String name;
         private final ArrayList<byte[]> data;
         private final Object lock = new Object();
-        private final Executor executor;
+        private final SyncContext context;
+        private long currentOwnerId;
         private long length;
         private boolean sealed;
 
-        StreamSegmentData(String name, Executor executor) {
+        StreamSegmentData(String name, SyncContext context) {
             this.name = name;
             this.data = new ArrayList<>();
             this.length = 0;
             this.sealed = false;
-            this.executor = executor;
+            this.context = context;
+            this.currentOwnerId = Long.MIN_VALUE;
         }
 
-        CompletableFuture<Void> write(long startOffset, InputStream data, int length) {
-            return CompletableFuture.runAsync(() -> {
-                synchronized (this.lock) {
-                    writeInternal(startOffset, data, length);
+        void open() {
+            synchronized (this.lock) {
+                // Get the current InMemoryStorageAdapter owner id and keep track of it; it will be used for validation.
+                this.currentOwnerId = this.context.getCurrentOwnerId.get();
+            }
+        }
+
+        void write(long startOffset, InputStream data, int length) {
+            synchronized (this.lock) {
+                checkOpened();
+                writeInternal(startOffset, data, length);
+            }
+        }
+
+        int read(long startOffset, byte[] target, int targetOffset, int length) {
+            synchronized (this.lock) {
+                Exceptions.checkArrayRange(targetOffset, length, target.length, "targetOffset", "length");
+                Exceptions.checkArrayRange(startOffset, length, this.length, "startOffset", "length");
+                checkOpened();
+
+                long offset = startOffset;
+                int readBytes = 0;
+                while (readBytes < length) {
+                    int bufferSeq = getBufferSequence(offset);
+                    int bufferOffset = getBufferOffset(offset);
+                    int bytesToCopy = Math.min(BUFFER_SIZE - bufferOffset, length - readBytes);
+                    System.arraycopy(this.data.get(bufferSeq), bufferOffset, target, targetOffset + readBytes, bytesToCopy);
+
+                    readBytes += bytesToCopy;
+                    offset += bytesToCopy;
                 }
-            }, this.executor);
+
+                return readBytes;
+            }
         }
 
-        CompletableFuture<Integer> read(long startOffset, byte[] target, int targetOffset, int length) {
-            return CompletableFuture.supplyAsync(() -> {
-                synchronized (this.lock) {
-                    Exceptions.checkArrayRange(targetOffset, length, target.length, "targetOffset", "length");
-                    Exceptions.checkArrayRange(startOffset, length, this.length, "startOffset", "length");
-
-                    long offset = startOffset;
-                    int readBytes = 0;
-                    while (readBytes < length) {
-                        int bufferSeq = getBufferSequence(offset);
-                        int bufferOffset = getBufferOffset(offset);
-                        int bytesToCopy = Math.min(BUFFER_SIZE - bufferOffset, length - readBytes);
-                        System.arraycopy(this.data.get(bufferSeq), bufferOffset, target, targetOffset + readBytes, bytesToCopy);
-
-                        readBytes += bytesToCopy;
-                        offset += bytesToCopy;
-                    }
-
-                    return readBytes;
-                }
-            }, this.executor);
+        SegmentProperties markSealed() {
+            synchronized (this.lock) {
+                checkOpened();
+                this.sealed = true;
+                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date());
+            }
         }
 
-        CompletableFuture<SegmentProperties> markSealed() {
-            return CompletableFuture.supplyAsync(() -> {
-                synchronized (this.lock) {
-                    this.sealed = true;
-                    return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date());
-                }
-            }, this.executor);
-        }
-
-        CompletableFuture<Void> concat(StreamSegmentData other, long offset) {
-            return CompletableFuture.runAsync(() -> {
+        void concat(StreamSegmentData other, long offset) {
+            synchronized (this.context.syncRoot) {
+                // In order to do a proper concat, we need to lock on both the source and the target segments. But since
+                // there's always a possibility of two concurrent calls to concat with swapped arguments, there is a chance
+                // this could deadlock in certain scenarios. One way to avoid that is to ensure that only one call to concat()
+                // can be in progress at any given time (for any instance of InMemoryStorage), thus the need to synchronize
+                // on SyncContext.syncRoot.
                 synchronized (other.lock) {
                     Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not sealed.", other.name, this.name);
+                    other.checkOpened();
                     synchronized (this.lock) {
+                        checkOpened();
                         if (offset != this.length) {
                             throw new CompletionException(new BadOffsetException(this.name, this.length, offset));
                         }
+
                         long bytesCopied = 0;
                         int currentBlockIndex = 0;
                         while (bytesCopied < other.length) {
@@ -419,12 +442,13 @@ public class InMemoryStorage implements Storage {
                         }
                     }
                 }
-            }, this.executor);
+            }
         }
 
-        CompletableFuture<SegmentProperties> getInfo() {
+        SegmentProperties getInfo() {
             synchronized (this.lock) {
-                return CompletableFuture.completedFuture(new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date()));
+                checkOpened();
+                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date());
             }
         }
 
@@ -466,6 +490,7 @@ public class InMemoryStorage implements Storage {
                     if (readBytes < 0) {
                         throw new IOException("reached end of stream while still expecting data");
                     }
+
                     writtenBytes += readBytes;
                     offset += readBytes;
                 }
@@ -476,12 +501,21 @@ public class InMemoryStorage implements Storage {
             }
         }
 
+        private void checkOpened() {
+            Preconditions.checkState(this.currentOwnerId == this.context.getCurrentOwnerId.get(), "StreamSegment '%s' is not open by the current owner.", this.name);
+        }
+
         @Override
         public String toString() {
             return String.format("%s: Length = %d, Sealed = %s", this.name, this.length, this.sealed);
         }
     }
 
-    //endregion
+    @Data
+    private static class SyncContext {
+        final Supplier<Long> getCurrentOwnerId;
+        final Object syncRoot = new Object();
+    }
 
+    //endregion
 }

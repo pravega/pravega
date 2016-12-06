@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.Reply;
@@ -63,7 +64,10 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         super.channelRegistered(ctx);
         Channel c = ctx.channel();
         channel.set(c);
-        keepAliveFuture.set(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(ctx), 2, 1, TimeUnit.SECONDS));
+        ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(ctx), 2, 1, TimeUnit.SECONDS));
+        if (old != null) {
+            old.cancel(false);
+        }
     }
     
     @RequiredArgsConstructor
@@ -119,6 +123,12 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     public void send(WireCommand cmd) throws ConnectionFailedException {
         recentMessage.set(true);
         FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(cmd), ConnectionFailedException::new);
+    }
+    
+    @Override
+    public void send(Append append) throws ConnectionFailedException {
+        recentMessage.set(true);
+        FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(append), ConnectionFailedException::new);
     }
 
     @Override

@@ -18,7 +18,7 @@
 
 package com.emc.pravega.controller.server.v1;
 
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
+import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -52,38 +52,43 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 
 /**
  * Controller service implementation test.
  */
-public class ControllerServiceImplTest {
+public class ControllerServiceTest {
 
     private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
+    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore streamStore =
-            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
+            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null, executor);
 
     private final Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
 
-    private final ControllerServiceImpl consumer;
+    private final ControllerService consumer;
 
     private final TestingServer zkServer;
 
-    public ControllerServiceImplTest() throws Exception {
+    public ControllerServiceTest() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
         StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
-        final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(config));
+        final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(config), executor);
+        Host host = new Host("localhost", 9090);
+        hostContainerMap.put(host, new HashSet<>(Collections.singletonList(0)));
         final HostControllerStore hostStore =
                 HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
-                        new InMemoryHostControllerStoreConfig(hostContainerMap));
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, "host");
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, "host");
-        consumer = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+                        new InMemoryHostControllerStoreConfig(hostContainerMap, 1));
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
+        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 
     @Before
@@ -110,12 +115,6 @@ public class ControllerServiceImplTest {
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
         streamStore.scale(stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20);
         // endregion
-    }
-
-    @Before
-    public void prepareHostStore() {
-        Host host = new Host("localhost", 9090);
-        hostContainerMap.put(host, new HashSet<>(Collections.singletonList(0)));
     }
 
     @After

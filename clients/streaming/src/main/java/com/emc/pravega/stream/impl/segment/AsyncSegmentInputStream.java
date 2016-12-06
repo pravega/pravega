@@ -17,12 +17,17 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
+import java.util.concurrent.CompletableFuture;
+
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
+import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 
 /**
  * Allows for reading from a Segment asynchronously.
  */
 abstract class AsyncSegmentInputStream implements AutoCloseable {
+    
+    public abstract CompletableFuture<StreamSegmentInfo> getSegmentInfo();
 
     public interface ReadFuture {
         /**
