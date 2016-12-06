@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -340,9 +341,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
             // Get the RedirectReadIndexEntry. These types of entries are sticky in the cache and DO NOT contribute to the
             // cache Stats. They are already accounted for in the other Segment's ReadIndex.
-            ReadIndexEntry treeEntry = this.indexEntries.get(endOffset, null);
-            assert treeEntry != null && (treeEntry instanceof RedirectReadIndexEntry) : String.format("mergeOffsets points to a ReadIndexEntry that does not exist or is of the wrong type. sourceStreamSegmentId = %d, offset = %d, treeEntry = %s.", sourceSegmentStreamId, endOffset, treeEntry);
-            redirectEntry = (RedirectReadIndexEntry) treeEntry;
+            Optional<ReadIndexEntry> treeEntry = this.indexEntries.get(endOffset);
+            assert treeEntry.isPresent() && (treeEntry.get() instanceof RedirectReadIndexEntry) : String.format("mergeOffsets points to a ReadIndexEntry that does not exist or is of the wrong type. sourceStreamSegmentId = %d, offset = %d, treeEntry = %s.", sourceSegmentStreamId, endOffset, treeEntry);
+            redirectEntry = (RedirectReadIndexEntry) treeEntry.get();
         }
 
         StreamSegmentReadIndex sourceIndex = redirectEntry.getRedirectReadIndex();
@@ -370,8 +371,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
             // Finally, append the entry.
             // Key is Offset + Length -1 = Last Offset Of Entry. Value is entry itself. This makes searching easier.
-            ReadIndexEntry oldEntry = addToIndex(entry);
-            assert oldEntry == null : String.format("Added a new entry in the ReadIndex that overrode an existing element. New = %s, Old = %s.", entry, oldEntry);
+            Optional<ReadIndexEntry> oldEntry = addToIndex(entry);
+            assert !oldEntry.isPresent() : String.format("Added a new entry in the ReadIndex that overrode an existing element. New = %s, Old = %s.", entry, oldEntry);
             this.lastAppendedOffset = entry.getLastStreamSegmentOffset();
         }
     }
@@ -383,27 +384,27 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // the StorageReader. Fixing it would be complicated, so let's see if it poses any problems.
         this.cache.insert(new CacheKey(this.metadata.getId(), offset), data);
         ReadIndexEntry entry = new ReadIndexEntry(offset, data.getLength());
-        ReadIndexEntry oldEntry;
+        Optional<ReadIndexEntry> oldEntry;
         synchronized (this.lock) {
             Exceptions.checkArgument(entry.getLastStreamSegmentOffset() < this.metadata.getStorageLength(), "entry", "The given range of bytes (%d-%d) does not correspond to the StreamSegment range that is in Storage (%d).", entry.getStreamSegmentOffset(), entry.getLastStreamSegmentOffset(), this.metadata.getStorageLength());
             oldEntry = addToIndex(entry);
         }
 
-        if (oldEntry != null) {
-            log.warn("{}: Insert overrode existing entry (Offset = {}, OldLength = {}, NewLength = {}).", this.traceObjectId, entry.getStreamSegmentOffset(), entry.getLength(), oldEntry.getLength());
+        if (oldEntry.isPresent()) {
+            log.warn("{}: Insert overrode existing entry (Offset = {}, OldLength = {}, NewLength = {}).", this.traceObjectId, entry.getStreamSegmentOffset(), entry.getLength(), oldEntry.get().getLength());
         }
     }
 
-    private ReadIndexEntry addToIndex(ReadIndexEntry entry) {
+    private Optional<ReadIndexEntry> addToIndex(ReadIndexEntry entry) {
         // Insert the new entry and figure out if an old entry was overwritten.
-        ReadIndexEntry oldEntry = this.indexEntries.put(entry);
+        Optional<ReadIndexEntry> oldEntry = this.indexEntries.put(entry);
 
         // Update the Stats with the entry's length, and set the entry's generation as well.
         int generation = this.summary.add(entry.getLength());
         entry.setGeneration(generation);
-        if (oldEntry != null) {
+        if (oldEntry.isPresent()) {
             // Need to eject the old entry's data from the Cache Stats.
-            this.summary.remove(oldEntry.getLength(), oldEntry.getGeneration());
+            this.summary.remove(oldEntry.get().getLength(), oldEntry.get().getGeneration());
         }
 
         return oldEntry;
@@ -422,14 +423,14 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
 
-        if (this.indexEntries.size() == 0) {
+        // Get all eligible Future Reads which wait for data prior to the end offset.
+        // Since we are not actually using this entry's data, there is no need to 'touch' it.
+        Optional<ReadIndexEntry> lastEntry = this.indexEntries.getLast();
+        if (!lastEntry.isPresent()) {
             // Nothing to do.
             return;
         }
 
-        // Get all eligible Future Reads which wait for data prior to the end offset.
-        // Since we are not actually using this entry's data, there is no need to 'touch' it.
-        ReadIndexEntry lastEntry = this.indexEntries.getLast(); // NOTE: this is O(log(n)), not O(1)
         Collection<FutureReadResultEntry> futureReads;
         boolean sealed = this.metadata.isSealed();
         if (sealed) {
@@ -437,7 +438,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             futureReads = this.futureReads.pollAll();
         } else {
             // Get only those up to the last offset of the last append.
-            futureReads = this.futureReads.poll(lastEntry.getLastStreamSegmentOffset());
+            futureReads = this.futureReads.poll(lastEntry.get().getLastStreamSegmentOffset());
         }
 
         log.debug("{}: triggerFutureReads (Count = {}, Sealed = {}).", this.traceObjectId, futureReads.size(), sealed);
@@ -515,14 +516,15 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             } else {
                 // We have at least one entry.
                 // Find the first entry that has an End offset beyond equal to at least ResultStartOffset.
-                ReadIndexEntry treeEntry = this.indexEntries.getCeiling(resultStartOffset);
-                if (treeEntry == null) {
+                Optional<ReadIndexEntry> ceilingEntry = this.indexEntries.getCeiling(resultStartOffset);
+                if (!ceilingEntry.isPresent()) {
                     // The ResultStartOffset is beyond the End Offset of the last entry in the index.
                     // Use the metadata to figure out whether to return a Storage or Future Read, since we do not have
                     // this data in memory.
                     result = createDataNotAvailableRead(resultStartOffset, maxLength);
                 } else {
                     // We have an entry. Let's see if it's valid or not.
+                    ReadIndexEntry treeEntry = ceilingEntry.get();
                     if (resultStartOffset < treeEntry.getStreamSegmentOffset()) {
                         // ResultStartOffset is before the Start Offset of this entry. This means either:
                         // 1. This is the first entry and ResultStartOffset is before it. OR

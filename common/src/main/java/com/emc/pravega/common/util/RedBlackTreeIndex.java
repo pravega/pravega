@@ -20,6 +20,7 @@ package com.emc.pravega.common.util;
 
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 
@@ -57,13 +58,13 @@ public class RedBlackTreeIndex<K, V extends IndexEntry<K>> implements SortedInde
     }
 
     @Override
-    public V put(V item) {
-        return this.map.put(item.key(), item);
+    public Optional<V> put(V item) {
+        return Optional.ofNullable(this.map.put(item.key(), item));
     }
 
     @Override
-    public V remove(K key) {
-        return this.map.remove(key);
+    public Optional<V> remove(K key) {
+        return Optional.ofNullable(this.map.remove(key));
     }
 
     @Override
@@ -72,27 +73,22 @@ public class RedBlackTreeIndex<K, V extends IndexEntry<K>> implements SortedInde
     }
 
     @Override
-    public V get(K key) {
-        return this.map.get(key);
+    public Optional<V> get(K key) {
+        return Optional.ofNullable(this.map.get(key));
     }
 
     @Override
-    public V get(K key, V defaultValue) {
-        return this.map.getOrDefault(key, defaultValue);
-    }
-
-    @Override
-    public V getCeiling(K key) {
+    public Optional<V> getCeiling(K key) {
         return getValue(this.map.ceilingEntry(key));
     }
 
     @Override
-    public V getFirst() {
+    public Optional<V> getFirst() {
         return getValue(this.map.firstEntry());
     }
 
     @Override
-    public V getLast() {
+    public Optional<V> getLast() {
         return getValue(this.map.lastEntry());
     }
 
@@ -101,8 +97,8 @@ public class RedBlackTreeIndex<K, V extends IndexEntry<K>> implements SortedInde
         this.map.values().forEach(consumer);
     }
 
-    private V getValue(Map.Entry<K, V> e) {
-        return e == null ? null : e.getValue();
+    private Optional<V> getValue(Map.Entry<K, V> e) {
+        return e == null ? Optional.empty() : Optional.of(e.getValue());
     }
 
     //endregion

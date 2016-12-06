@@ -23,6 +23,7 @@ import lombok.val;
 
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
+import java.util.Optional;
 import java.util.Stack;
 import java.util.function.Consumer;
 
@@ -69,22 +70,22 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
     }
 
     @Override
-    public V put(V item) {
+    public Optional<V> put(V item) {
         Preconditions.checkNotNull(item, "item");
         Preconditions.checkNotNull(item.key(), "item.key()");
 
         val result = insert(item, this.root);
         this.root = result.node;
-        return result.updatedItem;
+        return Optional.ofNullable(result.updatedItem);
     }
 
     @Override
-    public V remove(K key) {
+    public Optional<V> remove(K key) {
         Preconditions.checkNotNull(key, "key");
 
         val result = delete(key, this.root);
         this.root = result.node;
-        return result.updatedItem;
+        return Optional.ofNullable(result.updatedItem);
     }
 
     @Override
@@ -93,12 +94,7 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
     }
 
     @Override
-    public V get(K key) {
-        return get(key, null);
-    }
-
-    @Override
-    public V get(K key, V defaultValue) {
+    public Optional<V> get(K key) {
         // No need to check key != null, since we do not risk corrupting the tree with input is not valid.
         Node<V> node = this.root;
         while (node != null) {
@@ -108,15 +104,15 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
             } else if (compareResult > 0) {
                 node = node.right;
             } else {
-                return node.item;
+                return Optional.of(node.item);
             }
         }
 
-        return defaultValue;
+        return Optional.empty();
     }
 
     @Override
-    public V getCeiling(K key) {
+    public Optional<V> getCeiling(K key) {
         // No need to check key != null, since we do not risk corrupting the tree with input is not valid.
         Node<V> node = this.root;
         Node<V> lastLeftChildParent = null;
@@ -148,7 +144,7 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
                     result = lastLeftChildParent.item;
                 } else {
                     // Nothing could be found.
-                    return null;
+                    return Optional.empty();
                 }
             } else {
                 // Exact match; return it.
@@ -156,26 +152,26 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
             }
         }
 
-        // Nothing could be found.
-        return result;
+        // Return the result, whether we found something or not.
+        return Optional.ofNullable(result);
     }
 
     @Override
-    public V getFirst() {
+    public Optional<V> getFirst() {
         if (this.size == 0) {
-            return null;
+            return Optional.empty();
         }
 
-        return findSmallest(this.root).item;
+        return Optional.ofNullable(findSmallest(this.root).item);
     }
 
     @Override
-    public V getLast() {
+    public Optional<V> getLast() {
         if (this.size == 0) {
-            return null;
+            return Optional.empty();
         }
 
-        return findLargest(this.root).item;
+        return Optional.ofNullable(findLargest(this.root).item);
     }
 
     @Override
