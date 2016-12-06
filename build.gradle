@@ -77,6 +77,9 @@ def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
 project('common') {
     dependencies {
         testCompile project(':testcommon')
+        testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
+        compile group: 'org.apache.curator', name: 'curator-recipes', version: '2.11.0'
+        compile group: 'commons-io', name: 'commons-io', version: '2.5'
     }
 }
 
@@ -154,6 +157,7 @@ project('service:server:host') {
         compile project(':service:storage:impl')
         compile project(':service:server')
         testCompile project(':testcommon')
+        testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
     }
     task buildPravegaHostImage(type: DockerBuildImage) {
         dependsOn 'distTar','distZip'

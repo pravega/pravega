@@ -47,7 +47,6 @@ class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
     public ZKTaskMetadataStore(ZKStoreClient storeClient, ScheduledExecutorService executor) {
         super(executor);
         this.client = storeClient.getClient();
-        this.client.start();
     }
 
     @Override

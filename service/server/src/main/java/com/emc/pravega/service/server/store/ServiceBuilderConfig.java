@@ -25,6 +25,8 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.Inet4Address;
+import java.net.UnknownHostException;
 import java.util.Properties;
 import java.util.function.Function;
 
@@ -83,7 +85,8 @@ public class ServiceBuilderConfig {
 
     /**
      * Gets a set of configuration values from a given InputStreamReader.
-     * @param  reader the InputStreamReader from which to read the configuration.
+     *
+     * @param reader the InputStreamReader from which to read the configuration.
      * @return A ServiceBuilderConfig object.
      * @throws IOException If an exception occurred during reading of the configuration.
      */
@@ -103,6 +106,13 @@ public class ServiceBuilderConfig {
         set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "1");
         set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "50");
         set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT, "12345");
+        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_IP_ADDRESS, getHostAddress());
+
+        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_HOSTNAME, "zk1");
+        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_PORT, "2181");
+        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_RETRY_SLEEP_MS, "100");
+        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_RETRY_COUNT, "5");
+        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CLUSTER_NAME, "pravega-cluster");
 
         // DistributedLog params.
         set(p, "dlog", "hostname", "zk1");
@@ -132,6 +142,15 @@ public class ServiceBuilderConfig {
     public static void set(Properties p, String componentCode, String propertyName, String value) {
         String key = String.format("%s.%s", componentCode, propertyName);
         p.setProperty(key, value);
+    }
+
+    private static String getHostAddress() {
+        //TODO: Find a better way to compute the host address. https://github.com/emccode/pravega/issues/162
+        try {
+            return Inet4Address.getLocalHost().getHostAddress();
+        } catch (UnknownHostException e) {
+            throw new RuntimeException("Unable to get the Host Address", e);
+        }
     }
 
     //endregion

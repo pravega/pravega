@@ -17,7 +17,13 @@
  */
 package com.emc.pravega.controller.store.host;
 
-import java.util.Collections;
+import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.controller.util.Config;
+import com.google.common.base.Preconditions;
+import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -25,41 +31,58 @@ import java.util.Set;
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.stream.Segment;
 
+@Slf4j
 public class InMemoryHostStore implements HostControllerStore {
-    private final Map<Host, Set<Integer>> hostContainerMap;
+    private Map<Host, Set<Integer>> hostContainerMap;
     private final SegmentToContainerMapper segmentMapper;
 
-
-    public InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap, int containerCount) {
+    /**
+     * Creates an in memory based host store. The data is not persisted across restarts. Useful for dev and single node
+     * deployment purposes.
+     *
+     * @param hostContainerMap      The initial Host to container ownership information.
+     */
+    public InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap) {
+        Preconditions.checkNotNull(hostContainerMap, "hostContainerMap");
         this.hostContainerMap = hostContainerMap;
-        segmentMapper = new SegmentToContainerMapper(containerCount);
+        segmentMapper = new SegmentToContainerMapper(Config.HOST_STORE_CONTAINER_COUNT);
     }
 
     @Override
-    public Set<Host> getHosts() {
-        return Collections.unmodifiableSet(hostContainerMap.keySet());
+    @Synchronized
+    public Map<Host, Set<Integer>> getHostContainersMap() {
+        return new HashMap<>(hostContainerMap);
     }
 
     @Override
-    public Set<Integer> getContainersForHost(Host host) {
-        if (hostContainerMap.containsKey(host)) {
-            return Collections.unmodifiableSet(hostContainerMap.get(host));
-        } else {
-            throw new HostNotFoundException(host);
-        }
-    }  
+    @Synchronized
+    public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) {
+        Preconditions.checkNotNull(newMapping, "newMapping");
 
-    private Host getHostForContainer(int containerId) {
-        Optional<Host> hosts = hostContainerMap.entrySet().stream()
+        hostContainerMap = new HashMap<>(newMapping);
+    }
+
+    @Override
+    @Synchronized
+    public Host getHostForContainer(int containerId) {
+        Optional<Host> host = hostContainerMap.entrySet().stream()
                 .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
-        if (hosts.isPresent()) {
-            return hosts.get();
+        if (host.isPresent()) {
+            log.debug("Found owning host: {} for containerId: {}", host.get(), containerId);
+            return host.get();
         } else {
-            throw new ContainerNotFoundException(containerId);
+            throw new HostStoreException("Could not find host for container id: " + String.valueOf(containerId));
         }
     }
 
     @Override
+    @Synchronized
+    public int getContainerCount() {
+        return (int) hostContainerMap.values().stream().flatMap(f -> f.stream()).count();
+    }
+
+    @Override
+    @Synchronized
     public Host getHostForSegment(String scope, String stream, int segmentNumber) {
         String qualifiedName = Segment.getQualifiedName(scope, stream, segmentNumber);
         return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
