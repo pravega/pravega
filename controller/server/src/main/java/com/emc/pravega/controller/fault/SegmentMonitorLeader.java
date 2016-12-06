@@ -71,7 +71,7 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
     private final Semaphore suspendMonitor = new Semaphore(0);
 
     //Flag to check if monitor is suspended or not.
-    private AtomicBoolean suspended = new AtomicBoolean(false);
+    private final AtomicBoolean suspended = new AtomicBoolean(false);
 
     /**
      * The leader instance which monitors the data node cluster.
