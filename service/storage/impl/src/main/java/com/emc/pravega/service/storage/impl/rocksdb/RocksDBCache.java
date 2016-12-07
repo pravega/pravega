@@ -35,6 +35,7 @@ import org.rocksdb.WriteOptions;
 import java.io.File;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
@@ -58,8 +59,9 @@ class RocksDBCache implements Cache {
     private final String id;
     private final Options databaseOptions;
     private final WriteOptions writeOptions;
-    private final RocksDB database;
+    private final AtomicReference<RocksDB> database;
     private final AtomicBoolean closed;
+    private final String dbDir;
     private final String logId;
     private final Consumer<String> closeCallback;
 
@@ -80,14 +82,34 @@ class RocksDBCache implements Cache {
 
         this.id = id;
         this.logId = String.format("RocksDBCache[%s]", id);
+        this.dbDir = Paths.get(config.getDatabaseDir(), FILE_PREFIX + this.id).toString();
         this.closeCallback = closeCallback;
         this.closed = new AtomicBoolean();
-        String dbDir = Paths.get(config.getDatabaseDir(), FILE_PREFIX + this.id).toString();
+        this.database = new AtomicReference<>();
         try {
-            clear(dbDir);
-            this.databaseOptions = createDatabaseOptions(dbDir);
-            this.database = openDatabase(dbDir);
+            this.databaseOptions = createDatabaseOptions();
             this.writeOptions = createWriteOptions();
+        } catch (Exception ex) {
+            // Make sure we cleanup anything we may have created in case of failure.
+            try {
+                close();
+            } catch (Exception closeEx) {
+                ex.addSuppressed(closeEx);
+            }
+
+            throw ex;
+        }
+    }
+
+    /**
+     * Initializes this instance of the RocksDB cache. This method must be invoked before the cache can be used.
+     */
+    void initialize() {
+        Preconditions.checkState(this.database.get() == null, "%s has already been initialized.", this.logId);
+
+        try {
+            clear();
+            this.database.set(openDatabase());
         } catch (Exception ex) {
             // Make sure we cleanup anything we may have created in case of failure.
             try {
@@ -109,8 +131,10 @@ class RocksDBCache implements Cache {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            if (this.database != null) {
-                this.database.close();
+            RocksDB db = this.database.get();
+            if (db != null) {
+                db.close();
+                this.database.set(null);
             }
 
             if (this.writeOptions != null) {
@@ -137,9 +161,9 @@ class RocksDBCache implements Cache {
 
     @Override
     public void insert(Key key, byte[] data) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
+        ensureInitializedAndNotClosed();
         try {
-            this.database.put(this.writeOptions, key.getSerialization(), data);
+            this.database.get().put(this.writeOptions, key.getSerialization(), data);
         } catch (RocksDBException ex) {
             throw convert(ex, "insert key '%s'", key);
         }
@@ -152,9 +176,9 @@ class RocksDBCache implements Cache {
 
     @Override
     public byte[] get(Key key) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
+        ensureInitializedAndNotClosed();
         try {
-            return this.database.get(key.getSerialization());
+            return this.database.get().get(key.getSerialization());
         } catch (RocksDBException ex) {
             throw convert(ex, "get key '%s'", key);
         }
@@ -162,9 +186,9 @@ class RocksDBCache implements Cache {
 
     @Override
     public void remove(Key key) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
+        ensureInitializedAndNotClosed();
         try {
-            this.database.remove(this.writeOptions, key.getSerialization());
+            this.database.get().remove(this.writeOptions, key.getSerialization());
         } catch (RocksDBException ex) {
             throw convert(ex, "remove key '%s'", key);
         }
@@ -186,25 +210,25 @@ class RocksDBCache implements Cache {
                 .setSync(false);
     }
 
-    private RocksDB openDatabase(String dbDir) {
+    private RocksDB openDatabase() {
         try {
-            return RocksDB.open(this.databaseOptions, dbDir);
+            return RocksDB.open(this.databaseOptions, this.dbDir);
         } catch (RocksDBException ex) {
             throw convert(ex, "initialize RocksDB instance");
         }
     }
 
-    private Options createDatabaseOptions(String dbDir) {
+    private Options createDatabaseOptions() {
         return new Options()
                 .setCreateIfMissing(true)
-                .setDbLogDir(Paths.get(dbDir, DB_LOG_DIR).toString())
-                .setWalDir(Paths.get(dbDir, DB_WRITE_AHEAD_LOG_DIR).toString())
+                .setDbLogDir(Paths.get(this.dbDir, DB_LOG_DIR).toString())
+                .setWalDir(Paths.get(this.dbDir, DB_WRITE_AHEAD_LOG_DIR).toString())
                 .setWalTtlSeconds(0)
                 .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB);
     }
 
-    private void clear(String directoryPath) {
-        File dbDir = new File(directoryPath);
+    private void clear() {
+        File dbDir = new File(this.dbDir);
         if (FileHelpers.deleteFileOrDirectory(dbDir)) {
             log.debug("{}: Deleted existing database directory '%s'.", this.logId, dbDir.getAbsolutePath());
         }
@@ -221,6 +245,11 @@ class RocksDBCache implements Cache {
                 this.id);
 
         throw new CacheException(exceptionMessage, exception);
+    }
+
+    private void ensureInitializedAndNotClosed() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        Preconditions.checkState(this.database.get() != null, "%s has not been initialized.", this.logId);
     }
 
     //endregion

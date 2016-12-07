@@ -89,15 +89,22 @@ public class RocksDBCacheFactory implements CacheFactory {
     public Cache getCache(String id) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
+        RocksDBCache result;
+        boolean isNew = false;
         synchronized (this.caches) {
-            RocksDBCache result = this.caches.get(id);
+            result = this.caches.get(id);
             if (result == null) {
                 result = new RocksDBCache(id, this.config, this::cacheClosed);
                 this.caches.put(id, result);
+                isNew = true;
             }
-
-            return result;
         }
+
+        if (isNew) {
+            result.initialize();
+        }
+
+        return result;
     }
 
     private void cacheClosed(String cacheId) {
