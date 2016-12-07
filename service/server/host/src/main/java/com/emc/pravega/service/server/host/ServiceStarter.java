@@ -55,10 +55,10 @@ public final class ServiceStarter {
     private ServiceStarter(ServiceBuilderConfig config) {
         this.serviceConfig = config;
         Options opt = new Options();
-        opt.distributedLog = false;
+        opt.distributedLog = true;
         opt.hdfs = false;
         opt.rocksDb = true;
-        opt.zkSegmentManager = false;
+        opt.zkSegmentManager = true;
         this.serviceBuilder = createServiceBuilder(this.serviceConfig, opt);
     }
 
@@ -84,7 +84,7 @@ public final class ServiceStarter {
         Exceptions.checkNotClosed(this.closed, this);
 
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        context.getLoggerList().get(0).setLevel(Level.INFO);
+        context.getLoggerList().get(0).setLevel(Level.ALL);
 
         System.out.println("Initializing Container Manager ...");
         this.serviceBuilder.initialize().join();
