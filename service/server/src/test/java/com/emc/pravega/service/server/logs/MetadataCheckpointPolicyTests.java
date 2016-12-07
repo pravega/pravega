@@ -40,7 +40,6 @@ public class MetadataCheckpointPolicyTests {
         final int recordCount = 10000;
         final int recordLength = 100;
 
-
         InlineExecutor executor = new InlineExecutor();
         //1. MinCommit Count: Triggering is delayed until min number of recordings happen.
         DurableLogConfig config = ConfigHelpers.createDurableLogConfig(

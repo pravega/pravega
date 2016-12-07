@@ -88,7 +88,7 @@ public class StorageWriterTests {
                        .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250)
                        .with(WriterConfig.PROPERTY_ERROR_SLEEP_MILLIS, 0));
 
-    private static final Duration TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration TIMEOUT = Duration.ofSeconds(20);
 
     /**
      * Tests a normal, happy case, when the Writer needs to process operations in the "correct" order, from a DataSource
