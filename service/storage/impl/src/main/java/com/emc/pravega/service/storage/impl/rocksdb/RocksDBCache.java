@@ -20,6 +20,7 @@ package com.emc.pravega.service.storage.impl.rocksdb;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
+import com.emc.pravega.common.io.FileHelpers;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.CacheException;
@@ -31,6 +32,7 @@ import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.WriteOptions;
 
+import java.io.File;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -43,10 +45,17 @@ class RocksDBCache implements Cache {
     //region Members
 
     private static final String FILE_PREFIX = "cache_";
+    private static final String DB_LOG_DIR = "log";
+    private static final String DB_WRITE_AHEAD_LOG_DIR = "wal";
+
+    /**
+     * Max RocksDB WAL Size MB.
+     * See this for more info: https://github.com/facebook/rocksdb/wiki/Basic-Operations#purging-wal-files
+     */
+    private static final int MAX_WRITE_AHEAD_LOG_SIZE_MB = 64;
 
     @Getter
     private final String id;
-    private final RocksDBConfig config;
     private final Options databaseOptions;
     private final WriteOptions writeOptions;
     private final RocksDB database;
@@ -61,24 +70,23 @@ class RocksDBCache implements Cache {
     /**
      * Creates a new instance of the RocksDBCache class.
      *
-     * @param id              The Cache Id.
-     * @param databaseOptions RocksDB database options to use.
-     * @param config          RocksDB configuration.
-     * @param closeCallback   A callback to invoke when the cache is closed.
+     * @param id            The Cache Id.
+     * @param config        RocksDB configuration.
+     * @param closeCallback A callback to invoke when the cache is closed.
      */
-    RocksDBCache(String id, Options databaseOptions, RocksDBConfig config, Consumer<String> closeCallback) {
+    RocksDBCache(String id, RocksDBConfig config, Consumer<String> closeCallback) {
         Exceptions.checkNotNullOrEmpty(id, "id");
-        Preconditions.checkNotNull(databaseOptions, "databaseOptions");
         Preconditions.checkNotNull(config, "config");
 
         this.id = id;
         this.logId = String.format("RocksDBCache[%s]", id);
-        this.databaseOptions = databaseOptions;
-        this.config = config;
         this.closeCallback = closeCallback;
         this.closed = new AtomicBoolean();
+        String dbDir = Paths.get(config.getDatabaseDir(), FILE_PREFIX + this.id).toString();
         try {
-            this.database = openDatabase();
+            clear(dbDir);
+            this.databaseOptions = createDatabaseOptions(dbDir);
+            this.database = openDatabase(dbDir);
             this.writeOptions = createWriteOptions();
         } catch (Exception ex) {
             // Make sure we cleanup anything we may have created in case of failure.
@@ -91,7 +99,7 @@ class RocksDBCache implements Cache {
             throw ex;
         }
 
-        log.info("{}: Created.", this.logId);
+        log.info("{}: Initialized.", this.logId);
     }
 
     //endregion
@@ -107,6 +115,10 @@ class RocksDBCache implements Cache {
 
             if (this.writeOptions != null) {
                 this.writeOptions.close();
+            }
+
+            if (this.databaseOptions != null) {
+                this.databaseOptions.close();
             }
 
             log.info("{}: Closed.", this.logId);
@@ -174,16 +186,32 @@ class RocksDBCache implements Cache {
                 .setSync(false);
     }
 
-    private RocksDB openDatabase() {
+    private RocksDB openDatabase(String dbDir) {
         try {
-            return RocksDB.open(this.databaseOptions, getDatabaseDir());
+            return RocksDB.open(this.databaseOptions, dbDir);
         } catch (RocksDBException ex) {
             throw convert(ex, "initialize RocksDB instance");
         }
     }
 
-    private String getDatabaseDir() {
-        return Paths.get(this.config.getDatabaseDir(), FILE_PREFIX + this.id).toString();
+    private Options createDatabaseOptions(String dbDir) {
+        return new Options()
+                .setCreateIfMissing(true)
+                .setDbLogDir(Paths.get(dbDir, DB_LOG_DIR).toString())
+                .setWalDir(Paths.get(dbDir, DB_WRITE_AHEAD_LOG_DIR).toString())
+                .setWalTtlSeconds(0)
+                .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB);
+    }
+
+    private void clear(String directoryPath) {
+        File dbDir = new File(directoryPath);
+        if (FileHelpers.deleteFileOrDirectory(dbDir)) {
+            log.debug("{}: Deleted existing database directory '%s'.", this.logId, dbDir.getAbsolutePath());
+        }
+
+        if (dbDir.mkdirs()) {
+            log.info("{}: Created empty database directory '{}'.", this.logId, dbDir.getAbsolutePath());
+        }
     }
 
     private RuntimeException convert(RocksDBException exception, String message, Object... messageFormatArgs) {
