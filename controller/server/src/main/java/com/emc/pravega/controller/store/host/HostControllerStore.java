@@ -44,10 +44,19 @@ public interface HostControllerStore {
 
     /**
      * Fetch the Host which owns the specified segment.
-     *
+     * 
+     * @param scope                         The scope of the segment
+     * @param stream                        The stream of the segment
+     * @param segmentNumber                 The number of the segment
      * @return                              The host which owns the supplied segment.
      * @throws HostStoreException           On error while fetching host info from the ownership Map.
      */
     Host getHostForSegment(String scope, String stream, int segmentNumber);
-
+    
+    /**
+     * Return the total number of segment containers present in the system.
+     *
+     * @return The total number of segment containers present in the cluster.
+     */
+    int getContainerCount();
 }

@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.controller.store.host;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -60,17 +59,8 @@ public class InMemoryHostStore implements HostControllerStore {
     @Synchronized
     public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) {
         Preconditions.checkNotNull(newMapping, "newMapping");
-
         hostContainerMap = new HashMap<>(newMapping);
     }
-
-    public Set<Integer> getContainersForHost(Host host) {
-        if (hostContainerMap.containsKey(host)) {
-            return Collections.unmodifiableSet(hostContainerMap.get(host));
-        } else {
-            throw new HostNotFoundException(host);
-        }
-    }  
 
     private Host getHostForContainer(int containerId) {
         Optional<Host> host = hostContainerMap.entrySet().stream()
@@ -81,6 +71,11 @@ public class InMemoryHostStore implements HostControllerStore {
         } else {
             throw new HostStoreException("Could not find host for container id: " + String.valueOf(containerId));
         }
+    }
+
+    @Override
+    public int getContainerCount() {
+        return segmentMapper.getTotalContainerCount();
     }
 
     @Override
