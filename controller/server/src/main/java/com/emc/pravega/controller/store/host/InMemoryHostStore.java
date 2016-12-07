@@ -17,19 +17,21 @@
  */
 package com.emc.pravega.controller.store.host;
 
-import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.controller.util.Config;
-import com.google.common.base.Preconditions;
-import lombok.Synchronized;
-import lombok.extern.slf4j.Slf4j;
-
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
+import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.Segment;
+import com.google.common.base.Preconditions;
+
+import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
+
 
 @Slf4j
 public class InMemoryHostStore implements HostControllerStore {
@@ -62,9 +64,15 @@ public class InMemoryHostStore implements HostControllerStore {
         hostContainerMap = new HashMap<>(newMapping);
     }
 
-    @Override
-    @Synchronized
-    public Host getHostForContainer(int containerId) {
+    public Set<Integer> getContainersForHost(Host host) {
+        if (hostContainerMap.containsKey(host)) {
+            return Collections.unmodifiableSet(hostContainerMap.get(host));
+        } else {
+            throw new HostNotFoundException(host);
+        }
+    }  
+
+    private Host getHostForContainer(int containerId) {
         Optional<Host> host = hostContainerMap.entrySet().stream()
                 .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
         if (host.isPresent()) {
@@ -73,12 +81,6 @@ public class InMemoryHostStore implements HostControllerStore {
         } else {
             throw new HostStoreException("Could not find host for container id: " + String.valueOf(containerId));
         }
-    }
-
-    @Override
-    @Synchronized
-    public int getContainerCount() {
-        return (int) hostContainerMap.values().stream().flatMap(f -> f.stream()).count();
     }
 
     @Override

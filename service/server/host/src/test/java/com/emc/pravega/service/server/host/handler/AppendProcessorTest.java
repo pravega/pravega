@@ -37,7 +37,6 @@ import org.junit.Test;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.FailingRequestProcessor;
-import com.emc.pravega.common.netty.ServerConnection;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;

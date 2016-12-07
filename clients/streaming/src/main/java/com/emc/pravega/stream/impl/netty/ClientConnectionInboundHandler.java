@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.Append;
-import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.Reply;
 import com.emc.pravega.common.netty.ReplyProcessor;

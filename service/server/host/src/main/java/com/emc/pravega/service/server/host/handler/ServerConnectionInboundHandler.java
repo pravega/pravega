@@ -22,7 +22,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.emc.pravega.common.netty.Request;
 import com.emc.pravega.common.netty.RequestProcessor;
-import com.emc.pravega.common.netty.ServerConnection;
 import com.emc.pravega.common.netty.WireCommand;
 
 import io.netty.channel.Channel;

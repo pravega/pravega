@@ -15,9 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.netty;
+package com.emc.pravega.stream.impl.netty;
 
 import java.util.concurrent.CompletableFuture;
+
+import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.common.netty.ReplyProcessor;
 
 /**
  * A factory that establishes connections to Prevaga servers.

@@ -15,35 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.netty;
+package com.emc.pravega.common.concurrent;
+
+import java.util.concurrent.Executor;
 
 /**
- * A connection object. Represents the TCP connection in the server process that is coming from the client.
+ * An Executor that runs commands inline when they are submitted.
  */
-public interface ServerConnection extends AutoCloseable {
+public class InlineExecutor implements Executor {
 
-    /**
-     * Sends the provided command asynchronously. This operation is non-blocking.
-     *
-     * @param cmd The command to send.
-     */
-    void send(WireCommand cmd);
-
-    /**
-     * Sets the command processor to receive incoming commands from the client. This
-     * method may only be called once.
-     *
-     * @param cp The Request Processor to set.
-     */
-    void setRequestProcessor(RequestProcessor cp);
-
-    void pauseReading();
-
-    void resumeReading();
-
-    /**
-     * Drop the connection. No further operations may be performed.
-     */
     @Override
-    void close();
+    public void execute(Runnable command) {
+        command.run();
+    }
+
 }

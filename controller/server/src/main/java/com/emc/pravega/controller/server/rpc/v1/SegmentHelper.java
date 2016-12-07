@@ -40,6 +40,7 @@ import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.model.ModelHelper;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 
 
 public class SegmentHelper {
