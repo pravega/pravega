@@ -26,7 +26,6 @@ import java.util.concurrent.CompletableFuture;
 import org.apache.commons.lang.NotImplementedException;
 
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;

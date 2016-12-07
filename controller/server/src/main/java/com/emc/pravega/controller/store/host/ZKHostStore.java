@@ -104,8 +104,7 @@ public class ZKHostStore implements HostControllerStore {
         }
     }
 
-    @Override
-    public Host getHostForContainer(int containerId) {
+    private Host getHostForContainer(int containerId) {
         tryInit();
 
         Map<Host, Set<Integer>> mapping = getCurrentHostMap();
@@ -118,12 +117,12 @@ public class ZKHostStore implements HostControllerStore {
             throw new HostStoreException("Could not find host for container id: " + String.valueOf(containerId));
         }
     }
-
+    
     @Override
     public int getContainerCount() {
-        return Config.HOST_STORE_CONTAINER_COUNT;
+        return segmentMapper.getTotalContainerCount();
     }
-
+    
     @Override
     public Host getHostForSegment(String scope, String stream, int segmentNumber) {
         String qualifiedName = Segment.getQualifiedName(scope, stream, segmentNumber);
