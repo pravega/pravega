@@ -114,14 +114,18 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     public CompletableFuture<Void> initialize() {
         long traceId = LoggerHelpers.traceEnter(log, "initialize");
         ensureNotClosed();
-        List<CompletableFuture<Void>> futures = initializeFromZK(host, INIT_TIMEOUT_PER_CONTAINER);
-        CompletableFuture<Void> initResult = FutureHelpers.allOf(futures)
-                .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
+        try {
+            List<CompletableFuture<Void>> futures = initializeFromZK(host, INIT_TIMEOUT_PER_CONTAINER);
+            CompletableFuture<Void> initResult = FutureHelpers.allOf(futures)
+                    .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
 
-        // Add the node cache listener which watches ZK for changes in segment container mapping.
-        addListenerSegContainerMapping(INIT_TIMEOUT_PER_CONTAINER, host);
+            // Add the node cache listener which watches ZK for changes in segment container mapping.
+            addListenerSegContainerMapping(INIT_TIMEOUT_PER_CONTAINER, host);
 
-        return initResult;
+            return initResult;
+        } catch (Exception ex) {
+            throw new RuntimeStreamingException("Unable to initialize from Zookeeper", ex);
+        }
     }
 
     @Override
@@ -214,7 +218,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
      * @param timeout timeout value to be passed to SegmentContainerRegistry.
      * @return List of CompletableFuture for the start and stop operations performed.
      */
-    private List<CompletableFuture<Void>> initializeFromZK(Host hostId, Duration timeout) {
+    private List<CompletableFuture<Void>> initializeFromZK(Host hostId, Duration timeout) throws Exception {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         Map<Host, Set<Integer>> controlMapping = getSegmentContainerMapping();
 
@@ -222,11 +226,16 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
                 .filter(ep -> ep.getKey().equals(hostId))
                 .map(Map.Entry::getValue)
                 .findFirst().orElse(Collections.<Integer>emptySet());
+        log.debug("Desired list of running containers {}.", desiredContainerList);
 
         Collection<Integer> runningContainers = this.registry.getRegisteredContainerIds();
+        log.debug("Current list of running containers {}.", runningContainers);
 
         Collection<Integer> containersToBeStarted = getComplement(desiredContainerList, runningContainers);
+        log.debug("Containers that need to be started {}.", containersToBeStarted);
+
         Collection<Integer> containersToBeStopped = getComplement(runningContainers, desiredContainerList);
+        log.debug("Containers that need to be stopped {}.", containersToBeStopped);
 
         List<CompletableFuture<Void>> futures = containersToBeStarted.stream()
                 .map(containerId ->
@@ -251,20 +260,16 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<Host, Set<Integer>> getSegmentContainerMapping() {
+    private Map<Host, Set<Integer>> getSegmentContainerMapping() throws Exception {
         Map<Host, Set<Integer>> segContainerMapping = Collections.<Host, Set<Integer>>emptyMap();
-        try {
-            if (client.checkExists().forPath(clusterPath) != null) {
-                Optional<byte[]> containerToHostMapSer = Optional.ofNullable(client.getData().forPath(clusterPath));
-                if (containerToHostMapSer.isPresent()) {
-                    segContainerMapping = (Map<Host, Set<Integer>>)
-                            SerializationUtils.deserialize(containerToHostMapSer.get());
-                }
+        if (client.checkExists().forPath(clusterPath) != null) { //Check if path exists.
+            //read data from zk.
+            Optional<byte[]> containerToHostMapSer = Optional.ofNullable(client.getData().forPath(clusterPath));
+            if (containerToHostMapSer.isPresent()) {
+                segContainerMapping = (Map<Host, Set<Integer>>)
+                        SerializationUtils.deserialize(containerToHostMapSer.get());
             }
-        } catch (Exception ex) {
-            log.error("Exception while reading segmentContainerMapping information from zookeeper", ex);
         }
-
         return segContainerMapping;
     }
 }
