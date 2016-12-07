@@ -18,13 +18,14 @@
 
 package com.emc.pravega.controller.server.rpc.v1;
 
-import com.emc.pravega.common.cluster.Host;
+
 import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang.NotImplementedException;
 
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
