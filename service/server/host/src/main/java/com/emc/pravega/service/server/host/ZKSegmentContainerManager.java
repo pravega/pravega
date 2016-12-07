@@ -114,18 +114,14 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     public CompletableFuture<Void> initialize() {
         long traceId = LoggerHelpers.traceEnter(log, "initialize");
         ensureNotClosed();
-        try {
-            List<CompletableFuture<Void>> futures = initializeFromZK(host, INIT_TIMEOUT_PER_CONTAINER);
-            CompletableFuture<Void> initResult = FutureHelpers.allOf(futures)
-                    .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
+        List<CompletableFuture<Void>> futures = initializeFromZK(host, INIT_TIMEOUT_PER_CONTAINER);
+        CompletableFuture<Void> initResult = FutureHelpers.allOf(futures)
+                .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
 
-            // Add the node cache listener which watches ZK for changes in segment container mapping.
-            addListenerSegContainerMapping(INIT_TIMEOUT_PER_CONTAINER, host);
+        // Add the node cache listener which watches ZK for changes in segment container mapping.
+        addListenerSegContainerMapping(INIT_TIMEOUT_PER_CONTAINER, host);
 
-            return initResult;
-        } catch (Exception ex) {
-            throw new RuntimeStreamingException("Unable to initialize from Zookeeper", ex);
-        }
+        return initResult;
     }
 
     @Override
@@ -218,7 +214,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
      * @param timeout timeout value to be passed to SegmentContainerRegistry.
      * @return List of CompletableFuture for the start and stop operations performed.
      */
-    private List<CompletableFuture<Void>> initializeFromZK(Host hostId, Duration timeout) throws Exception {
+    private List<CompletableFuture<Void>> initializeFromZK(Host hostId, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         Map<Host, Set<Integer>> controlMapping = getSegmentContainerMapping();
 
@@ -255,12 +251,20 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<Host, Set<Integer>> getSegmentContainerMapping() throws Exception {
-        Optional<byte[]> containerToHostMapSer = Optional.of(client.getData().forPath(clusterPath));
-        if (containerToHostMapSer.isPresent()) {
-            return (Map<Host, Set<Integer>>) SerializationUtils.deserialize(containerToHostMapSer.get());
-        } else {
-            return Collections.<Host, Set<Integer>>emptyMap();
+    private Map<Host, Set<Integer>> getSegmentContainerMapping() {
+        Map<Host, Set<Integer>> segContainerMapping = Collections.<Host, Set<Integer>>emptyMap();
+        try {
+            if (client.checkExists().forPath(clusterPath) != null) {
+                Optional<byte[]> containerToHostMapSer = Optional.ofNullable(client.getData().forPath(clusterPath));
+                if (containerToHostMapSer.isPresent()) {
+                    segContainerMapping = (Map<Host, Set<Integer>>)
+                            SerializationUtils.deserialize(containerToHostMapSer.get());
+                }
+            }
+        } catch (Exception ex) {
+            log.error("Exception while reading segmentContainerMapping information from zookeeper", ex);
         }
+
+        return segContainerMapping;
     }
 }
