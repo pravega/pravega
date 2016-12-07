@@ -491,7 +491,7 @@ class StorageWriter extends AbstractService implements Writer {
 
     private void logErrorHandled(Throwable ex) {
         ex = ExceptionHelpers.getRealException(ex);
-        log.warn("{}: Iteration[{}].HandledError {}", this.traceObjectId, this.state.getIterationId(), ex.getMessage());
+        log.warn("{}: Iteration[{}].HandledError {}", this.traceObjectId, this.state.getIterationId(), ex.toString());
         //        System.out.println(String.format("%s: Iteration[%s].Warn. %s", this.traceObjectId, this.state.getIterationId(), ex));
     }
 
