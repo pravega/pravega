@@ -18,17 +18,18 @@
 
 package com.emc.pravega.common.util;
 
-import com.emc.pravega.testcommon.AssertExtensions;
-import lombok.val;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.concurrent.CompletableFuture.runAsync;
+import org.junit.Assert;
+import org.junit.Test;
+
+import com.emc.pravega.testcommon.Async;
+
+import lombok.val;
 
 /**
  * Unit tests for BlockingDrainingQueue class.
@@ -94,32 +95,23 @@ public class BlockingDrainingQueueTests {
     @Test
     public void testClose() throws Exception {
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
-        AtomicReference<List<Integer>> result = new AtomicReference<>();
-        CompletableFuture<Void> resultSet = new CompletableFuture<>();
-        val completionFuture = runAsync(() -> {
+        AtomicReference<List<Integer>> queueContents = new AtomicReference<>();
+        AtomicBoolean wasInterupted = new AtomicBoolean(false);
+
+        List<Integer> result = Async.testBlocking(() -> {
             try {
-                result.set(queue.takeAllEntries());
-                resultSet.complete(null);
-            } catch (InterruptedException ex) {
-                resultSet.completeExceptionally(ex);
+                return queue.takeAllEntries();
+            } catch (InterruptedException e) {
+                wasInterupted.set(true);
+                return null;
             }
+        }, () -> {
+            queueContents.set(queue.close());
         });
 
-        // Verify the queue hasn't returned before we actually set the result.
-        Assert.assertNull("Queue unblocked before result was set.", result.get());
-        Thread.sleep(10);
-        List<Integer> queueContents = queue.close();
-
-        // Wait for the completion future to finish. This will also pop any other exceptions that we did not anticipate.
-        completionFuture.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-
         // Verify result.
-        AssertExtensions.assertThrows(
-                "Future was not cancelled with the correct exception.",
-                () -> resultSet.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
-                ex -> ex instanceof InterruptedException);
-
-        Assert.assertNull("Queue returned an item even if it got closed.", result.get());
-        Assert.assertEquals("Queue.close() returned an item even though it was empty.", 0, queueContents.size());
+        Assert.assertTrue("Future was not cancelled with the correct exception.", wasInterupted.get());
+        Assert.assertNull("Queue returned an item even if it got closed.", result);
+        Assert.assertEquals("Queue.close() returned an item even though it was empty.", 0, queueContents.get().size());
     }
 }

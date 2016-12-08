@@ -20,6 +20,7 @@ package com.emc.pravega.service.storage.impl.rocksdb;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
+import com.emc.pravega.common.io.FileHelpers;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.CacheException;
@@ -31,8 +32,10 @@ import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.WriteOptions;
 
+import java.io.File;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
@@ -43,14 +46,22 @@ class RocksDBCache implements Cache {
     //region Members
 
     private static final String FILE_PREFIX = "cache_";
+    private static final String DB_LOG_DIR = "log";
+    private static final String DB_WRITE_AHEAD_LOG_DIR = "wal";
+
+    /**
+     * Max RocksDB WAL Size MB.
+     * See this for more info: https://github.com/facebook/rocksdb/wiki/Basic-Operations#purging-wal-files
+     */
+    private static final int MAX_WRITE_AHEAD_LOG_SIZE_MB = 64;
 
     @Getter
     private final String id;
-    private final RocksDBConfig config;
     private final Options databaseOptions;
     private final WriteOptions writeOptions;
-    private final RocksDB database;
+    private final AtomicReference<RocksDB> database;
     private final AtomicBoolean closed;
+    private final String dbDir;
     private final String logId;
     private final Consumer<String> closeCallback;
 
@@ -61,24 +72,22 @@ class RocksDBCache implements Cache {
     /**
      * Creates a new instance of the RocksDBCache class.
      *
-     * @param id              The Cache Id.
-     * @param databaseOptions RocksDB database options to use.
-     * @param config          RocksDB configuration.
-     * @param closeCallback   A callback to invoke when the cache is closed.
+     * @param id            The Cache Id.
+     * @param config        RocksDB configuration.
+     * @param closeCallback A callback to invoke when the cache is closed.
      */
-    RocksDBCache(String id, Options databaseOptions, RocksDBConfig config, Consumer<String> closeCallback) {
+    RocksDBCache(String id, RocksDBConfig config, Consumer<String> closeCallback) {
         Exceptions.checkNotNullOrEmpty(id, "id");
-        Preconditions.checkNotNull(databaseOptions, "databaseOptions");
         Preconditions.checkNotNull(config, "config");
 
         this.id = id;
         this.logId = String.format("RocksDBCache[%s]", id);
-        this.databaseOptions = databaseOptions;
-        this.config = config;
+        this.dbDir = Paths.get(config.getDatabaseDir(), FILE_PREFIX + this.id).toString();
         this.closeCallback = closeCallback;
         this.closed = new AtomicBoolean();
+        this.database = new AtomicReference<>();
         try {
-            this.database = openDatabase();
+            this.databaseOptions = createDatabaseOptions();
             this.writeOptions = createWriteOptions();
         } catch (Exception ex) {
             // Make sure we cleanup anything we may have created in case of failure.
@@ -90,8 +99,29 @@ class RocksDBCache implements Cache {
 
             throw ex;
         }
+    }
 
-        log.info("{}: Created.", this.logId);
+    /**
+     * Initializes this instance of the RocksDB cache. This method must be invoked before the cache can be used.
+     */
+    void initialize() {
+        Preconditions.checkState(this.database.get() == null, "%s has already been initialized.", this.logId);
+
+        try {
+            clear();
+            this.database.set(openDatabase());
+        } catch (Exception ex) {
+            // Make sure we cleanup anything we may have created in case of failure.
+            try {
+                close();
+            } catch (Exception closeEx) {
+                ex.addSuppressed(closeEx);
+            }
+
+            throw ex;
+        }
+
+        log.info("{}: Initialized.", this.logId);
     }
 
     //endregion
@@ -101,12 +131,18 @@ class RocksDBCache implements Cache {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            if (this.database != null) {
-                this.database.close();
+            RocksDB db = this.database.get();
+            if (db != null) {
+                db.close();
+                this.database.set(null);
             }
 
             if (this.writeOptions != null) {
                 this.writeOptions.close();
+            }
+
+            if (this.databaseOptions != null) {
+                this.databaseOptions.close();
             }
 
             log.info("{}: Closed.", this.logId);
@@ -125,9 +161,9 @@ class RocksDBCache implements Cache {
 
     @Override
     public void insert(Key key, byte[] data) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
+        ensureInitializedAndNotClosed();
         try {
-            this.database.put(this.writeOptions, key.getSerialization(), data);
+            this.database.get().put(this.writeOptions, key.getSerialization(), data);
         } catch (RocksDBException ex) {
             throw convert(ex, "insert key '%s'", key);
         }
@@ -140,9 +176,9 @@ class RocksDBCache implements Cache {
 
     @Override
     public byte[] get(Key key) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
+        ensureInitializedAndNotClosed();
         try {
-            return this.database.get(key.getSerialization());
+            return this.database.get().get(key.getSerialization());
         } catch (RocksDBException ex) {
             throw convert(ex, "get key '%s'", key);
         }
@@ -150,9 +186,9 @@ class RocksDBCache implements Cache {
 
     @Override
     public void remove(Key key) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
+        ensureInitializedAndNotClosed();
         try {
-            this.database.remove(this.writeOptions, key.getSerialization());
+            this.database.get().remove(this.writeOptions, key.getSerialization());
         } catch (RocksDBException ex) {
             throw convert(ex, "remove key '%s'", key);
         }
@@ -176,14 +212,30 @@ class RocksDBCache implements Cache {
 
     private RocksDB openDatabase() {
         try {
-            return RocksDB.open(this.databaseOptions, getDatabaseDir());
+            return RocksDB.open(this.databaseOptions, this.dbDir);
         } catch (RocksDBException ex) {
             throw convert(ex, "initialize RocksDB instance");
         }
     }
 
-    private String getDatabaseDir() {
-        return Paths.get(this.config.getDatabaseDir(), FILE_PREFIX + this.id).toString();
+    private Options createDatabaseOptions() {
+        return new Options()
+                .setCreateIfMissing(true)
+                .setDbLogDir(Paths.get(this.dbDir, DB_LOG_DIR).toString())
+                .setWalDir(Paths.get(this.dbDir, DB_WRITE_AHEAD_LOG_DIR).toString())
+                .setWalTtlSeconds(0)
+                .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB);
+    }
+
+    private void clear() {
+        File dbDir = new File(this.dbDir);
+        if (FileHelpers.deleteFileOrDirectory(dbDir)) {
+            log.debug("{}: Deleted existing database directory '%s'.", this.logId, dbDir.getAbsolutePath());
+        }
+
+        if (dbDir.mkdirs()) {
+            log.info("{}: Created empty database directory '{}'.", this.logId, dbDir.getAbsolutePath());
+        }
     }
 
     private RuntimeException convert(RocksDBException exception, String message, Object... messageFormatArgs) {
@@ -191,8 +243,13 @@ class RocksDBCache implements Cache {
                 "Unable to %s (CacheId=%s).",
                 String.format(message, messageFormatArgs),
                 this.id);
-
+        log.warn("RocksDBException: " + exception.getMessage() + " : " + exceptionMessage);
         throw new CacheException(exceptionMessage, exception);
+    }
+
+    private void ensureInitializedAndNotClosed() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        Preconditions.checkState(this.database.get() != null, "%s has not been initialized.", this.logId);
     }
 
     //endregion

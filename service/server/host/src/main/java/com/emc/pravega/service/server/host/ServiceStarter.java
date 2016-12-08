@@ -55,10 +55,10 @@ public final class ServiceStarter {
     private ServiceStarter(ServiceBuilderConfig config) {
         this.serviceConfig = config;
         Options opt = new Options();
-        opt.distributedLog = false;
-        opt.hdfs = false;
+        opt.distributedLog = true;
+        opt.hdfs = true;
         opt.rocksDb = true;
-        opt.zkSegmentManager = false;
+        opt.zkSegmentManager = true;
         this.serviceBuilder = createServiceBuilder(this.serviceConfig, opt);
     }
 
@@ -84,7 +84,7 @@ public final class ServiceStarter {
         Exceptions.checkNotClosed(this.closed, this);
 
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        context.getLoggerList().get(0).setLevel(Level.INFO);
+        context.getLoggerList().get(0).setLevel(Level.ALL);
 
         System.out.println("Initializing Container Manager ...");
         this.serviceBuilder.initialize().join();
@@ -103,8 +103,11 @@ public final class ServiceStarter {
             this.serviceBuilder.close();
             System.out.println("StreamSegmentService is now closed.");
 
-            this.listener.close();
-            System.out.println("LogServiceConnectionListener is now closed.");
+            if (this.listener != null) {
+                this.listener.close();
+                System.out.println("LogServiceConnectionListener is now closed.");
+            }
+
             this.closed = true;
         }
     }
@@ -158,11 +161,7 @@ public final class ServiceStarter {
     }
 
     static void attachRocksDB(ServiceBuilder builder) {
-        builder.withCacheFactory(setup -> {
-            RocksDBCacheFactory factory = new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new));
-            factory.initialize(true); // Always clear/reset the cache at startup.
-            return factory;
-        });
+        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new)));
     }
 
     private static class Options {

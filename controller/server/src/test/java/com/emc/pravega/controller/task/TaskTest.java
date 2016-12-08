@@ -34,6 +34,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -60,9 +63,7 @@ import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
+
 
 /**
  * Task test cases.
@@ -78,9 +79,11 @@ public class TaskTest {
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore streamStore =
+
             StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executor);
 
     private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
+
 
     private final TaskMetadataStore taskMetadataStore;
 
@@ -254,48 +257,15 @@ public class TaskTest {
 
     @Test
     public void testLocking() {
-
         TestTasks testTasks = new TestTasks(taskMetadataStore, executor, HOSTNAME);
-
-        LockingTask first = new LockingTask(testTasks, SCOPE, stream1);
-        LockingTask second = new LockingTask(testTasks, SCOPE, stream1);
-
-        first.start();
-        second.start();
-
+        
+        CompletableFuture<Void> first = testTasks.testStreamLock(SCOPE, stream1);
+        CompletableFuture<Void> second = testTasks.testStreamLock(SCOPE, stream1);
         try {
-            first.result.join();
-            second.result.join();
+            first.getNow(null);
+            second.getNow(null);
         } catch (CompletionException ce) {
             assertTrue(ce.getCause() instanceof LockFailedException);
-        }
-    }
-
-    @Data
-    @EqualsAndHashCode(callSuper = false)
-    class LockingTask extends Thread {
-
-        private final TestTasks testTasks;
-        private final String scope;
-        private final String stream;
-        private CompletableFuture<Void> result = new CompletableFuture<>();
-
-        LockingTask(TestTasks testTasks, String scope, String stream) {
-            this.testTasks = testTasks;
-            this.scope = scope;
-            this.stream = stream;
-        }
-
-        @Override
-        public void run() {
-            testTasks.testStreamLock(scope, stream)
-                    .whenComplete((value, ex) -> {
-                        if (ex != null) {
-                            this.result.completeExceptionally(ex);
-                        } else {
-                            this.result.complete(value);
-                        }
-                    });
         }
     }
 

@@ -28,8 +28,6 @@ import javax.annotation.concurrent.GuardedBy;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.netty.ClientConnection;
-import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
@@ -43,6 +41,8 @@ import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.Retry.RetryWithBackoff;
 import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.netty.ClientConnection;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.base.Preconditions;
 
 import lombok.Data;
