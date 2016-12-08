@@ -135,7 +135,7 @@ public class AppendEncodeDecodeTest {
         assertEquals(2, received.size());
 
         Append one = (Append) received.get(0);
-        assertEquals(size + TYPE_PLUS_LENGTH_SIZE, one.data.readableBytes());
+        assertEquals(size + TYPE_PLUS_LENGTH_SIZE, one.getData().readableBytes());
         KeepAlive two = (KeepAlive) received.get(1);
         assertEquals(keepAlive, two);
     }
@@ -208,8 +208,8 @@ public class AppendEncodeDecodeTest {
 
         Append one = (Append) received.get(0);
         Append two = (Append) received.get(1);
-        assertEquals(size + TYPE_PLUS_LENGTH_SIZE, one.data.readableBytes());
-        assertEquals(size / 2 + TYPE_PLUS_LENGTH_SIZE, two.data.readableBytes());
+        assertEquals(size + TYPE_PLUS_LENGTH_SIZE, one.getData().readableBytes());
+        assertEquals(size / 2 + TYPE_PLUS_LENGTH_SIZE, two.getData().readableBytes());
         KeepAlive three = (KeepAlive) received.get(2);
         assertEquals(keepAlive, three);
     }
@@ -265,14 +265,14 @@ public class AppendEncodeDecodeTest {
         for (Object r : results) {
             Append append = (Append) r;
             assertEquals("Append split mid event", sizeOfEachValue, currentCount);
-            while (append.data.isReadable()) {
+            while (append.getData().isReadable()) {
                 if (currentCount == sizeOfEachValue) {
-                    assertEquals(EVENT.getCode(), append.data.readInt());
-                    assertEquals(sizeOfEachValue, append.data.readInt());
+                    assertEquals(EVENT.getCode(), append.getData().readInt());
+                    assertEquals(sizeOfEachValue, append.getData().readInt());
                     currentCount = 0;
                     currentValue++;
                 }
-                byte readByte = append.data.readByte();
+                byte readByte = append.getData().readByte();
                 assertEquals((byte) currentValue, readByte);
                 currentCount++;
             }

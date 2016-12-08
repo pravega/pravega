@@ -30,13 +30,13 @@ import org.junit.Test;
 import org.mockito.InOrder;
 
 import com.emc.pravega.common.netty.Append;
-import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
+import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.testcommon.Async;

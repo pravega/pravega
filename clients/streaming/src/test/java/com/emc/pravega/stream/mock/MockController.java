@@ -28,8 +28,6 @@ import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang.NotImplementedException;
 
-import com.emc.pravega.common.netty.ClientConnection;
-import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
@@ -56,6 +54,8 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxFailedException;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.PositionImpl;
+import com.emc.pravega.stream.impl.netty.ClientConnection;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.collect.ImmutableList;
 
 import lombok.AllArgsConstructor;
@@ -70,14 +70,7 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {
         Segment segmentId = new Segment(streamConfig.getScope(), streamConfig.getName(), 0);
-
         createSegment(segmentId.getQualifiedName(), new PravegaNodeUri(endpoint, port));
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
         return CompletableFuture.completedFuture(CreateStreamStatus.SUCCESS);
     }
 
