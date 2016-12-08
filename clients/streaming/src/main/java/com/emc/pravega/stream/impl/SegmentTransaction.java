@@ -26,10 +26,10 @@ public interface SegmentTransaction<Type> {
      * Publishes the provided event to this transaction on this segment. This operation is asyncronus, the item is not
      * Guaranteed to be stored until after {@link #flush()} has been called.
      *
-     * @param event The event to writeEvent.
+     * @param event The event to write.
      * @throws TxFailedException The item could be persisted because the transaction has failed. (Timed out or dropped)
      */
-    void publish(Type event) throws TxFailedException;
+    void writeEvent(Type event) throws TxFailedException;
 
     /**
      * Blocks until all events passed to the writeEvent call have made it to durable storage.

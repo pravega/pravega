@@ -198,7 +198,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             Preconditions.checkState(!closed.get());
             Segment s = router.getSegmentForEvent(routingKey);
             SegmentTransaction<Type> transaction = inner.get(s);
-            transaction.publish(event);
+            transaction.writeEvent(event);
         }
 
         @Override

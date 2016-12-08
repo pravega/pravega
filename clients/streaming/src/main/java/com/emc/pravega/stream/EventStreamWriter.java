@@ -20,7 +20,7 @@ package com.emc.pravega.stream;
 import java.util.concurrent.Future;
 
 /**
- * A producer can writeEvent events to a stream.
+ * A producer can write events to a stream.
  * 
  * @param <Type> The type of events that go in this stream
  */

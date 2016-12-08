@@ -78,7 +78,7 @@ public interface Stream {
     StreamConfiguration getConfig();
 
     /**
-     * Creates a new producer that can writeEvent to this stream.
+     * Creates a new producer that can write to this stream.
      *
      * @param config The producer configuration.
      * @param s      The Serializer.
