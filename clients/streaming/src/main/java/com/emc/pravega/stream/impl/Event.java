@@ -18,7 +18,7 @@ import lombok.Data;
 
 /**
  * This is a internal wrapper object used in the producer to pass along the routing key and the future with the actual
- * event durring writeEvent.
+ * event corresponding to a writeEvent call.
  * 
  * @param <Type> The type of event the client is producing
  */
