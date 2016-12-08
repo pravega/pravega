@@ -24,7 +24,7 @@ import java.util.concurrent.Future;
  * 
  * @param <Type> The type of events that go in this stream
  */
-public interface Producer<Type> extends AutoCloseable {
+public interface EventStreamWriter<Type> extends AutoCloseable {
     
     /**
      * Send an event to the stream. Events that are published should appear in the stream exactly once.
@@ -57,7 +57,7 @@ public interface Producer<Type> extends AutoCloseable {
     /**
      * Returns the configuration that this producer was create with.
      */
-    ProducerConfig getConfig();
+    WriterConfig getConfig();
 
     /**
      * Block until all events that have been passed to writeEvent's corresponding futures have completed.

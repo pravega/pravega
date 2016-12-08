@@ -24,17 +24,17 @@ import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.state.impl.CorruptedStateException;
 import com.emc.pravega.state.impl.SynchronizerImpl;
-import com.emc.pravega.stream.Consumer;
-import com.emc.pravega.stream.ConsumerConfig;
 import com.emc.pravega.stream.EventRouter;
+import com.emc.pravega.stream.EventStreamReader;
+import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Position;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.RateChangeListener;
+import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.WriterConfig;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactoryImpl;
@@ -64,7 +64,7 @@ public class StreamImpl implements Stream {
 
     private static final class SingleStreamOrderer<T> implements Orderer<T> {
         @Override
-        public SegmentConsumer<T> nextConsumer(Collection<SegmentConsumer<T>> logs) {
+        public EventSegmentReader<T> nextConsumer(Collection<EventSegmentReader<T>> logs) {
             Preconditions.checkState(logs.size() == 1);
             return logs.iterator().next();
         }
@@ -83,14 +83,14 @@ public class StreamImpl implements Stream {
     }
 
     @Override
-    public <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config) {
-        return new ProducerImpl<T>(this, controller, new SegmentOutputStreamFactoryImpl(controller, connectionFactory), router, s, config);
+    public <T> EventStreamWriter<T> createProducer(Serializer<T> s, WriterConfig config) {
+        return new EventStreamWriterImpl<T>(this, controller, new SegmentOutputStreamFactoryImpl(controller, connectionFactory), router, s, config);
     }
 
     @Override
-    public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition,
-                                          RateChangeListener l) {
-        return new ConsumerImpl<T>(this,
+    public <T> EventStreamReader<T> createConsumer(Serializer<T> s, ReaderConfig config, Position startingPosition,
+                                                   RateChangeListener l) {
+        return new EventStreamReaderImpl<T>(this,
                 new SegmentInputStreamFactoryImpl(controller, connectionFactory),
                 s,
                 startingPosition.asImpl(),

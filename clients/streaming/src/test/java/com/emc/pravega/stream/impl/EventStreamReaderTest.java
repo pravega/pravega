@@ -23,7 +23,7 @@ import org.junit.Test;
 import static org.junit.Assert.fail;
 
 @Ignore
-public class ConsumerTest {
+public class EventStreamReaderTest {
     @Test
     public void testChangeConfig() {
         fail();

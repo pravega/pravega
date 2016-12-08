@@ -22,8 +22,8 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.PositionInternal;
-import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -79,7 +79,7 @@ public interface Controller {
     CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout);
 
     /**
-     * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}.
+     * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link EventStreamWriter}.
      * Will fail with {@link TxFailedException} if the transaction has already been committed or dropped.
      * @param stream stream name
      * @param txId transaction id

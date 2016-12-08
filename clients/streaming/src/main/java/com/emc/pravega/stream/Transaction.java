@@ -40,7 +40,7 @@ public interface Transaction<Type> extends Serializable {
     }
 
     /**
-     * Sends an event to the stream just like {@link Producer#writeEvent} but with the caveat that the message will not be
+     * Sends an event to the stream just like {@link EventStreamWriter#writeEvent} but with the caveat that the message will not be
      * visible to anyone until {@link #commit()} is called.
      *
      * @param routingKey The Routing Key to use for publishing.

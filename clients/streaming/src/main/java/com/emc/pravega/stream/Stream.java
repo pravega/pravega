@@ -35,12 +35,12 @@ import com.emc.pravega.stream.impl.Orderer;
  * <p>
  * Events that a published to a stream can be consumed by a consumer. All events can be consumed with exactly once
  * semantics provided the consumer has the ability to restore to the correct position upon failure. See
- * {@link Consumer#getPosition}
+ * {@link EventStreamReader#getPosition}
  * <p>
  * A note on ordering:
  * Events inside of a stream have a strict order, but may need to be devised between multiple consumers for scaling.
  * Because events being processed in parallel on different hosts cannot have ordering semantics a few things are done.
- * Events published to a stream have a routingKey see {@link Producer#writeEvent}.
+ * Events published to a stream have a routingKey see {@link EventStreamWriter#writeEvent}.
  * Events within a routing key are strictly ordered (IE: They must go the the same consumer or its replacement).
  * For other events, within a single consumer, the ordering is dictated by the {@link Orderer}
  * If the Orderer used by the consumer is consistent, order of all events seen by that consumer is strict.
@@ -84,7 +84,7 @@ public interface Stream {
      * @param s      The Serializer.
      * @param <T>    The producer data type.
      */
-    <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config);
+    <T> EventStreamWriter<T> createProducer(Serializer<T> s, WriterConfig config);
 
     /**
      * Creates a new consumer that will consumer from this stream at the startingPosition.
@@ -99,7 +99,7 @@ public interface Stream {
      * @param startingPosition The StartingPosition to use.
      * @param <T>              The consumer data type.
      */
-    <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition, RateChangeListener l);
+    <T> EventStreamReader<T> createConsumer(Serializer<T> s, ReaderConfig config, Position startingPosition, RateChangeListener l);
     
     
 

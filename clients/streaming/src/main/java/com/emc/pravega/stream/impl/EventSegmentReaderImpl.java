@@ -27,13 +27,13 @@ import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 /**
  * Reads items from the segmentInputStream, deserializes them with the Serializer and returns them to the caller.
  */
-public class SegmentConsumerImpl<Type> implements SegmentConsumer<Type> {
+public class EventSegmentReaderImpl<Type> implements EventSegmentReader<Type> {
 
     private final Segment segmentId;
     private final SegmentInputStream in;
     private final Serializer<Type> deserializer;
 
-    SegmentConsumerImpl(Segment segmentId, SegmentInputStream in, Serializer<Type> deserializer) {
+    EventSegmentReaderImpl(Segment segmentId, SegmentInputStream in, Serializer<Type> deserializer) {
         this.segmentId = segmentId;
         this.in = in;
         this.deserializer = deserializer;

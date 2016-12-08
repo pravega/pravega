@@ -17,14 +17,14 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.stream.Consumer;
+import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 
 /**
- * The mirror of {@link Consumer} but that is specific to a single segment.
+ * The mirror of {@link EventStreamReader} but that is specific to a single segment.
  */
-public interface SegmentConsumer<Type> extends AutoCloseable {
+public interface EventSegmentReader<Type> extends AutoCloseable {
     Segment getSegmentId();
 
     /**
@@ -43,7 +43,7 @@ public interface SegmentConsumer<Type> extends AutoCloseable {
     long getOffset();
 
     /**
-     * Given an offset obtained from {@link SegmentConsumer#getOffset()} reset consumption to that position.
+     * Given an offset obtained from {@link EventSegmentReader#getOffset()} reset consumption to that position.
      *
      * @param offset The offset to set.
      */
