@@ -58,6 +58,7 @@ public class Consumer extends Actor {
     private final String logId;
     private final String segmentName;
     private final AtomicBoolean canContinue;
+    private final TestState testState;
     private final TruncateableArray readBuffer;
 
     /**
@@ -95,13 +96,16 @@ public class Consumer extends Actor {
      * @param segmentName     The name of the Segment to monitor.
      * @param config          Test Configuration.
      * @param dataSource      Data Source.
+     * @param testState       A TestState representing the current state of the test. This will be used for reporting purposes.
      * @param store           A StoreAdapter to execute operations on.
      * @param executorService The Executor Service to use for async tasks.
      */
-    Consumer(String segmentName, TestConfig config, ProducerDataSource dataSource, StoreAdapter store, ScheduledExecutorService executorService) {
+    Consumer(String segmentName, TestConfig config, ProducerDataSource dataSource, TestState testState, StoreAdapter store, ScheduledExecutorService executorService) {
         super(config, dataSource, store, executorService);
+        Preconditions.checkNotNull(testState, "testState");
         this.logId = String.format("Consumer[%s]", segmentName);
         this.segmentName = segmentName;
+        this.testState = testState;
         this.canContinue = new AtomicBoolean();
         this.readBuffer = new TruncateableArray();
         this.readBufferSegmentOffset = -1;
@@ -240,11 +244,14 @@ public class Consumer extends Actor {
                       }
 
                       // After a successful validation, update the state and truncate the buffer.
+                      int verifiedDiff;
                       synchronized (this.lock) {
+                          verifiedDiff = (int) (segmentLength - this.storageReadValidatedOffset);
                           this.storageReadValidatedOffset = segmentLength;
                           truncateBuffer();
                       }
 
+                      this.testState.recordStorageRead(verifiedDiff);
                       logState(SOURCE_STORAGE_READ, "StorageLength=%s", segmentLength);
                   })
                   .whenComplete((r, ex) -> {
@@ -349,6 +356,7 @@ public class Consumer extends Actor {
                 if (validationResult.isSuccess()) {
                     // Successful validation; advance the tail-read validated offset.
                     this.tailReadValidatedOffset += validationResult.getLength();
+                    this.testState.recordTailRead(validationResult.getLength());
                     logState(SOURCE_TAIL_READ, null);
                 } else if (validationResult.isFailed()) {
                     // Validation failed. Invoke callback.
@@ -392,10 +400,14 @@ public class Consumer extends Actor {
                           }
 
                           // Validation is successful, update current state.
+                          int verifiedLength;
                           synchronized (this.lock) {
-                              this.catchupReadValidatedOffset = segmentStartOffset + length;
+                              long newLength = segmentStartOffset + length;
+                              verifiedLength = (int) (newLength - this.catchupReadValidatedOffset);
+                              this.catchupReadValidatedOffset = newLength;
                           }
 
+                          this.testState.recordCatchupRead(verifiedLength);
                           logState(SOURCE_CATCHUP_READ, null);
                       } finally {
                           readResult.close();

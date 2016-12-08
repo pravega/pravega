@@ -142,7 +142,7 @@ class ProducerDataSource {
 
     private void operationCompletionCallback(ProducerOperation op) {
         // Record the operation as completed in the State.
-        this.state.operationCompleted(op.getTarget());
+        this.state.operationCompleted(op.getTarget(), op.getType(), op.getDuration());
 
         // OperationType-specific updates.
         if (op.getType() == OperationType.MergeTransaction) {
@@ -157,6 +157,8 @@ class ProducerDataSource {
             String transactionName = (String) r;
             this.state.recordNewTransaction(transactionName);
             this.appendGenerators.put(transactionName, new AppendContentGenerator((int) System.nanoTime()));
+        } else if (op.getType() == OperationType.Append) {
+            this.state.recordAppend(op.getLength());
         }
     }
 

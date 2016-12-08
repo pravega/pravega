@@ -47,6 +47,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
     private final AtomicBoolean closed;
     private final ScheduledExecutorService executor;
     private final ArrayList<Actor> actors;
+    private final Reporter reporter;
     private final ProducerDataSource dataSource;
     private final AtomicReference<CompletableFuture<Void>> testCompletion;
     private final StoreAdapter store;
@@ -75,6 +76,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.testCompletion = new AtomicReference<>();
         this.executor = Executors.newScheduledThreadPool(testConfig.getThreadPoolSize());
         addListener(new ServiceShutdownListener(this::shutdownCallback, this::shutdownCallback), this.executor);
+        this.reporter = new Reporter(this.state, this.testConfig);
     }
 
     //endregion
@@ -144,7 +146,9 @@ class SelfTest extends AbstractService implements AutoCloseable {
                                     notifyFailed(service.failureCause());
                                 }
                             }, this.executor);
+
                             this.actorManager.startAsync();
+                            this.reporter.startAsync();
                         },
                         this.executor);
 
@@ -182,7 +186,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         // Create Consumers (based on the number of non-transaction Segments).
         for (val si : this.state.getAllSegments()) {
             if (!si.isTransaction()) {
-                this.actors.add(new Consumer(si.getName(), this.testConfig, this.dataSource, this.store, this.executor));
+                this.actors.add(new Consumer(si.getName(), this.testConfig, this.dataSource, this.state, this.store, this.executor));
             }
         }
     }
@@ -193,9 +197,15 @@ class SelfTest extends AbstractService implements AutoCloseable {
     }
 
     private void shutdownCallback(Throwable failureCause) {
+        // Stop reporting.
+        this.reporter.stopAsync();
+
         // Close all TestActors.
         this.actors.forEach(Actor::close);
         this.actors.clear();
+
+        // Output Summary, whether successful or not.
+        this.reporter.outputSummary();
 
         // Complete Test Completion Future
         if (failureCause == null) {
