@@ -226,11 +226,16 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
                 .filter(ep -> ep.getKey().equals(hostId))
                 .map(Map.Entry::getValue)
                 .findFirst().orElse(Collections.<Integer>emptySet());
+        log.debug("Desired list of running containers {}.", desiredContainerList);
 
         Collection<Integer> runningContainers = this.registry.getRegisteredContainerIds();
+        log.debug("Current list of running containers {}.", runningContainers);
 
         Collection<Integer> containersToBeStarted = getComplement(desiredContainerList, runningContainers);
+        log.debug("Containers that need to be started {}.", containersToBeStarted);
+
         Collection<Integer> containersToBeStopped = getComplement(runningContainers, desiredContainerList);
+        log.debug("Containers that need to be stopped {}.", containersToBeStopped);
 
         List<CompletableFuture<Void>> futures = containersToBeStarted.stream()
                 .map(containerId ->
@@ -256,11 +261,15 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
     @SuppressWarnings("unchecked")
     private Map<Host, Set<Integer>> getSegmentContainerMapping() throws Exception {
-        Optional<byte[]> containerToHostMapSer = Optional.of(client.getData().forPath(clusterPath));
-        if (containerToHostMapSer.isPresent()) {
-            return (Map<Host, Set<Integer>>) SerializationUtils.deserialize(containerToHostMapSer.get());
-        } else {
-            return Collections.<Host, Set<Integer>>emptyMap();
+        Map<Host, Set<Integer>> segContainerMapping = Collections.<Host, Set<Integer>>emptyMap();
+        if (client.checkExists().forPath(clusterPath) != null) { //Check if path exists.
+            //read data from zk.
+            Optional<byte[]> containerToHostMapSer = Optional.ofNullable(client.getData().forPath(clusterPath));
+            if (containerToHostMapSer.isPresent()) {
+                segContainerMapping = (Map<Host, Set<Integer>>)
+                        SerializationUtils.deserialize(containerToHostMapSer.get());
+            }
         }
+        return segContainerMapping;
     }
 }

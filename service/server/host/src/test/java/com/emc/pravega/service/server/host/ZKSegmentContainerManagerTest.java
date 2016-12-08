@@ -78,6 +78,27 @@ public class ZKSegmentContainerManagerTest {
         zkTestServer.close();
     }
 
+    //Test if no mapping is present is present in zk.
+    @Test(timeout = TEST_TIMEOUT)
+    public void initializeErrorTest() throws Exception {
+
+        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
+                RETRY_SLEEP_MS, MAX_RETRY));
+        zkClient.start();
+
+        segmentToContainerMapper = new SegmentToContainerMapper(8);
+
+        ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(createMockContainerRegistry(),
+                segmentToContainerMapper, zkClient,
+                PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
+
+        CompletableFuture<Void> result = segManager.initialize();
+
+        assertEquals(false, result.isCompletedExceptionally());
+
+        zkClient.close();
+    }
+
     @Test(timeout = TEST_TIMEOUT)
     public void initializeTest() throws Exception {
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
@@ -86,14 +107,8 @@ public class ZKSegmentContainerManagerTest {
 
         initializeSegmentMapping(zkClient);
 
-        SegmentContainerRegistry containerRegistry = mock(SegmentContainerRegistry.class);
-        ContainerHandle containerHandle1 = mock(ContainerHandle.class);
-        when(containerHandle1.getContainerId()).thenReturn(1);
-        when(containerRegistry.startContainer(anyInt(), any()))
-                .thenReturn(CompletableFuture.completedFuture(containerHandle1));
         segmentToContainerMapper = new SegmentToContainerMapper(8);
-
-        ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(containerRegistry,
+        ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(createMockContainerRegistry(),
                 segmentToContainerMapper, zkClient,
                 PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
 
@@ -113,12 +128,8 @@ public class ZKSegmentContainerManagerTest {
         zkClient.start();
 
         initializeSegmentMapping(zkClient);
+        SegmentContainerRegistry containerRegistry = createMockContainerRegistry();
 
-        SegmentContainerRegistry containerRegistry = mock(SegmentContainerRegistry.class);
-        ContainerHandle containerHandle1 = mock(ContainerHandle.class);
-        when(containerHandle1.getContainerId()).thenReturn(1);
-        when(containerRegistry.startContainer(eq(1), any()))
-                .thenReturn(CompletableFuture.completedFuture(containerHandle1));
         segmentToContainerMapper = new SegmentToContainerMapper(8);
 
         ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(containerRegistry,
@@ -152,8 +163,6 @@ public class ZKSegmentContainerManagerTest {
                 RETRY_SLEEP_MS, MAX_RETRY));
         zkClient.start();
 
-        initializeSegmentMapping(zkClient);
-
         SegmentContainerRegistry containerRegistry = mock(SegmentContainerRegistry.class);
         ContainerHandle containerHandle1 = mock(ContainerHandle.class);
         when(containerHandle1.getContainerId()).thenReturn(1);
@@ -184,5 +193,14 @@ public class ZKSegmentContainerManagerTest {
         HashMap<Host, Set<Integer>> mapping = new HashMap<>();
         mapping.put(PRAVEGA_SERVICE_ENDPOINT, new HashSet<>(Arrays.asList(1)));
         zkClient.create().creatingParentsIfNeeded().forPath(PATH, SerializationUtils.serialize(mapping));
+    }
+
+    private SegmentContainerRegistry createMockContainerRegistry() {
+        SegmentContainerRegistry containerRegistry = mock(SegmentContainerRegistry.class);
+        ContainerHandle containerHandle1 = mock(ContainerHandle.class);
+        when(containerHandle1.getContainerId()).thenReturn(1);
+        when(containerRegistry.startContainer(anyInt(), any()))
+                .thenReturn(CompletableFuture.completedFuture(containerHandle1));
+        return containerRegistry;
     }
 }
