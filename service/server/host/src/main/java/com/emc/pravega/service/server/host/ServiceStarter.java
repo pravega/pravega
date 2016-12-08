@@ -103,8 +103,11 @@ public final class ServiceStarter {
             this.serviceBuilder.close();
             System.out.println("StreamSegmentService is now closed.");
 
-            this.listener.close();
-            System.out.println("LogServiceConnectionListener is now closed.");
+            if (this.listener != null) {
+                this.listener.close();
+                System.out.println("LogServiceConnectionListener is now closed.");
+            }
+
             this.closed = true;
         }
     }
@@ -158,11 +161,7 @@ public final class ServiceStarter {
     }
 
     static void attachRocksDB(ServiceBuilder builder) {
-        builder.withCacheFactory(setup -> {
-            RocksDBCacheFactory factory = new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new));
-            factory.initialize(true); // Always clear/reset the cache at startup.
-            return factory;
-        });
+        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new)));
     }
 
     private static class Options {
