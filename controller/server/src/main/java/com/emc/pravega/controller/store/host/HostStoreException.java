@@ -15,35 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.netty;
+package com.emc.pravega.controller.store.host;
 
 /**
- * A connection object. Represents the TCP connection in the server process that is coming from the client.
+ * This exception is thrown on errors from the HostControllerStore implementation.
  */
-public interface ServerConnection extends AutoCloseable {
+public class HostStoreException extends RuntimeException {
 
     /**
-     * Sends the provided command asynchronously. This operation is non-blocking.
+     * Create a HostStoreException using a text cause.
      *
-     * @param cmd The command to send.
+     * @param message   The cause of the exception.
      */
-    void send(WireCommand cmd);
+    public HostStoreException(String message) {
+        super(message);
+    }
 
     /**
-     * Sets the command processor to receive incoming commands from the client. This
-     * method may only be called once.
+     * Create a HostStoreException using a text cause.
      *
-     * @param cp The Request Processor to set.
+     * @param message   The cause of the exception.
+     * @param cause     Any existing exception that needs to be wrapped.
      */
-    void setRequestProcessor(RequestProcessor cp);
-
-    void pauseReading();
-
-    void resumeReading();
-
-    /**
-     * Drop the connection. No further operations may be performed.
-     */
-    @Override
-    void close();
+    public HostStoreException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

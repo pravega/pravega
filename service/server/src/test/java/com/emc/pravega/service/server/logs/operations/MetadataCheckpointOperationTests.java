@@ -42,7 +42,7 @@ public class MetadataCheckpointOperationTests extends OperationTestsBase<Metadat
     protected void configurePreSerialization(MetadataCheckpointOperation operation, Random random) {
         if (operation.getContents() == null) {
             byte[] data = new byte[10245];
-            new Random().nextBytes(data);
+            random.nextBytes(data);
             operation.setContents(new ByteArraySegment(data));
         } else if (isPreSerializationConfigRequired(operation)) {
             Assert.fail("isPreSerializationConfigRequired returned true but there is nothing to be done.");

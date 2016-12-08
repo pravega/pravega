@@ -15,19 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.netty;
+package com.emc.pravega.state;
 
-import java.util.concurrent.CompletableFuture;
+import java.io.Serializable;
+
+import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
+import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
+
+import lombok.Data;
 
 /**
- * A factory that establishes connections to Prevaga servers.
- * The underlying implementation may or may not implement connection pooling.
+ * The configuration for a Consistent replicated state synchronizer.
  */
-public interface ConnectionFactory extends AutoCloseable {
+@Data
+public class SynchronizerConfig implements Serializable {
 
-    CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp);
-
-    @Override
-    void close();
-
+    private final SegmentInputConfiguration inputConfig;
+    private final SegmentOutputConfiguration outputConfig;
+    
 }

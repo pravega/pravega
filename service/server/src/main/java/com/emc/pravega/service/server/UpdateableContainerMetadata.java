@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server;
 
 import java.util.Collection;
+import java.util.Map;
 
 /**
  * Defines an updateable StreamSegment Metadata.
@@ -54,10 +55,10 @@ public interface UpdateableContainerMetadata extends ContainerMetadata, Recovera
      * Marks the StreamSegment and all child StreamSegments as deleted.
      *
      * @param streamSegmentName The name of the StreamSegment to delete.
-     * @return A Collection of StreamSegment names that have been deleted. This includes the given StreamSegmentName,
-     * as well as the names of any child StreamSegments that have been deleted.
+     * @return A Map of SegmentIds-to-SegmentNames that have been deleted. This includes the given StreamSegment,
+     * as well as any child StreamSegments that have been deleted.
      */
-    Collection<String> deleteStreamSegment(String streamSegmentName);
+    Map<Long, String> deleteStreamSegment(String streamSegmentName);
 
     /**
      * Gets the next available Operation Sequence Number. Atomically increments the value by 1 with every call.

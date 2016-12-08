@@ -15,16 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.host;
+package com.emc.pravega.common.concurrent;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.ToString;
+import java.util.concurrent.Executor;
 
-@AllArgsConstructor
-@Data
-@ToString(includeFieldNames = true)
-public class Host {
-    private final String ipAddr;
-    private final int port;
+/**
+ * An Executor that runs commands inline when they are submitted.
+ */
+public class InlineExecutor implements Executor {
+
+    @Override
+    public void execute(Runnable command) {
+        command.run();
+    }
+
 }

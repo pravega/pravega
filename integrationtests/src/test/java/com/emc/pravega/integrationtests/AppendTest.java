@@ -19,14 +19,14 @@
 package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.netty.Append;
+import com.emc.pravega.common.netty.AppendDecoder;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
-import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ExceptionLoggingHandler;
 import com.emc.pravega.common.netty.Reply;
 import com.emc.pravega.common.netty.Request;
 import com.emc.pravega.common.netty.WireCommand;
-import com.emc.pravega.common.netty.WireCommands.Append;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
@@ -47,6 +47,7 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
@@ -67,7 +68,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -86,7 +86,7 @@ public class AppendTest {
         ResourceLeakDetector.setLevel(Level.PARANOID);
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        this.serviceBuilder.initialize(Duration.ofMinutes(1)).get();
+        this.serviceBuilder.initialize().get();
     }
 
     @After
@@ -101,10 +101,9 @@ public class AppendTest {
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 
         EmbeddedChannel channel = createChannel(store);
-        CommandDecoder decoder = new CommandDecoder();
 
         UUID uuid = UUID.randomUUID();
-        NoSuchSegment setup = (NoSuchSegment) sendRequest(channel, decoder, new SetupAppend(uuid, segment));
+        NoSuchSegment setup = (NoSuchSegment) sendRequest(channel, new SetupAppend(uuid, segment));
 
         assertEquals(segment, setup.getSegment());
     }
@@ -116,25 +115,23 @@ public class AppendTest {
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 
         EmbeddedChannel channel = createChannel(store);
-        CommandDecoder decoder = new CommandDecoder();
 
-        SegmentCreated created = (SegmentCreated) sendRequest(channel, decoder, new CreateSegment(segment));
+        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(segment));
         assertEquals(segment, created.getSegment());
 
         UUID uuid = UUID.randomUUID();
-        AppendSetup setup = (AppendSetup) sendRequest(channel, decoder, new SetupAppend(uuid, segment));
+        AppendSetup setup = (AppendSetup) sendRequest(channel, new SetupAppend(uuid, segment));
 
         assertEquals(segment, setup.getSegment());
         assertEquals(uuid, setup.getConnectionId());
 
         DataAppended ack = (DataAppended) sendRequest(channel,
-                decoder,
-                new Append(segment, uuid, data.readableBytes(), data));
+                                                      new Append(segment, uuid, data.readableBytes(), data, null));
         assertEquals(uuid, ack.getConnectionId());
         assertEquals(data.readableBytes(), ack.getEventNumber());
     }
 
-    static Reply sendRequest(EmbeddedChannel channel, CommandDecoder decoder, Request request) throws Exception {
+    static Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
         channel.writeInbound(request);
         Object encodedReply = channel.readOutbound();
         for (int i = 0; encodedReply == null && i < 50; i++) {
@@ -144,10 +141,8 @@ public class AppendTest {
         if (encodedReply == null) {
             throw new IllegalStateException("No reply to request: " + request);
         }
-        WireCommand decoded = decoder.parseCommand((ByteBuf) encodedReply);
+        WireCommand decoded = CommandDecoder.parseCommand((ByteBuf) encodedReply);
         ((ByteBuf) encodedReply).release();
-        assertNotNull(decoded);
-        decoded = decoder.processCommand(decoded);
         assertNotNull(decoded);
         return (Reply) decoded;
     }
@@ -158,6 +153,7 @@ public class AppendTest {
                 new CommandEncoder(),
                 new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                 new CommandDecoder(),
+                new AppendDecoder(),
                 lsh);
         lsh.setRequestProcessor(new AppendProcessor(store, lsh, new PravegaRequestProcessor(store, lsh)));
         return channel;
@@ -184,10 +180,10 @@ public class AppendTest {
         Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup("close")
         SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, null);
-        CompletableFuture<Void> ack = new CompletableFuture<>();
+        CompletableFuture<Boolean> ack = new CompletableFuture<>();
         out.write(ByteBuffer.wrap(testString.getBytes()), ack);
         out.flush();
-        assertEquals(null, ack.get(5, TimeUnit.SECONDS));
+        assertEquals(true, ack.get(5, TimeUnit.SECONDS));
     }
 
     @Test

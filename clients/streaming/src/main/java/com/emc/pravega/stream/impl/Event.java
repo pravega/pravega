@@ -26,5 +26,5 @@ import lombok.Data;
 public class Event<Type> {
     private final Type value;
     private final String routingKey;
-    private final CompletableFuture<Void> ackFuture;
+    private final CompletableFuture<Boolean> ackFuture;
 }

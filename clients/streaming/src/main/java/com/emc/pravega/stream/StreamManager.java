@@ -18,6 +18,7 @@
 package com.emc.pravega.stream;
 
 public interface StreamManager extends AutoCloseable {
+
     /**
      * Creates a new stream
      * <p>

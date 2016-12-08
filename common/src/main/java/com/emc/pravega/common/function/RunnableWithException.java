@@ -15,10 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.host;
 
-public class HostControllerException extends RuntimeException {
-    public HostControllerException(String message) {
-        super(message);
-    }
+package com.emc.pravega.common.function;
+
+/**
+ * Functional interface for a runnable with no result that may throw an Exception.
+ */
+@FunctionalInterface
+public interface RunnableWithException {
+    void run() throws Exception;
 }

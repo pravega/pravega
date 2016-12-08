@@ -69,8 +69,7 @@ public class ZkStreamTest {
     public void TestZkStream() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
 
-        final StoreConfiguration config = new StoreConfiguration(zkTestServer.getConnectString());
-        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper, config, executor);
+        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test";
 
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
@@ -162,8 +161,7 @@ public class ZkStreamTest {
     public void TestZkStreamChukning() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 6);
 
-        final StoreConfiguration config = new StoreConfiguration(zkTestServer.getConnectString());
-        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper, config, executor);
+        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test2";
 
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
@@ -208,8 +206,7 @@ public class ZkStreamTest {
     public void TestTransaction() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
 
-        final StoreConfiguration config = new StoreConfiguration(zkTestServer.getConnectString());
-        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper, config, executor);
+        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testTx";
 
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);

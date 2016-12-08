@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import static com.emc.pravega.common.netty.WireCommandType.APPEND;
+import static com.emc.pravega.common.netty.WireCommandType.EVENT;
 import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static com.emc.pravega.stream.impl.segment.SegmentOutputStream.MAX_WRITE_SIZE;
@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 
 import javax.annotation.concurrent.GuardedBy;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.InvalidMessageException;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.util.CircularBuffer;
@@ -61,15 +62,19 @@ class SegmentInputStreamImpl extends SegmentInputStream {
         Preconditions.checkNotNull(asyncInput);
         this.asyncInput = asyncInput;
         this.offset = offset;
+        issueRequestIfNeeded();
     }
 
     @Override
     @Synchronized
     public void setOffset(long offset) {
         Preconditions.checkArgument(offset >= 0);
-        this.offset = offset;
-        buffer.clear();
-        receivedEndOfSegment = false;
+        if (offset != this.offset) {
+            this.offset = offset;
+            buffer.clear();
+            receivedEndOfSegment = false;
+            outstandingRequest = null;        
+        }
     }
 
     @Override
@@ -99,7 +104,7 @@ class SegmentInputStreamImpl extends SegmentInputStream {
             headerReadingBuffer.flip();
             int type = headerReadingBuffer.getInt();
             int length = headerReadingBuffer.getInt();
-            if (type != APPEND.getCode()) {
+            if (type != EVENT.getCode()) {
                 throw new InvalidMessageException("Event was of wrong type: " + type);
             }
             if (length < 0 || length > MAX_WIRECOMMAND_SIZE) {
@@ -150,9 +155,22 @@ class SegmentInputStreamImpl extends SegmentInputStream {
     }
 
     @Override
+    public long fetchCurrentStreamLength() {
+        return FutureHelpers.getAndHandleExceptions(asyncInput.getSegmentInfo(), RuntimeException::new).getSegmentLength();
+    }
+
+    @Override
     @Synchronized
     public void close() {
         asyncInput.close();
+    }
+
+    @Synchronized
+    public boolean canReadWithoutBlocking() {
+        while (dataWaitingToGoInBuffer()) {
+            handleRequest();
+        }
+        return buffer.dataAvailable() > 0;
     }
 
 }

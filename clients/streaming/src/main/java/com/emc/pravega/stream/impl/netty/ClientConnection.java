@@ -12,9 +12,13 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.emc.pravega.common.netty;
+package com.emc.pravega.stream.impl.netty;
 
 import java.util.concurrent.Future;
+
+import com.emc.pravega.common.netty.Append;
+import com.emc.pravega.common.netty.ConnectionFailedException;
+import com.emc.pravega.common.netty.WireCommand;
 
 /**
  * A connection object. Represents the TCP connection in the client process that connects to the server.
@@ -31,6 +35,15 @@ public interface ClientConnection extends AutoCloseable {
      * @throws ConnectionFailedException The connection has died, and can no longer be used.
      */
     void send(WireCommand cmd) throws ConnectionFailedException;
+
+    /**
+     * Sends the provided append request. This operation may block.
+     * (Though buffering is used to try to prevent it)
+     * 
+     * @param append The append command to send.
+     * @throws ConnectionFailedException The connection has died, and can no longer be used.
+     */
+    void send(Append append) throws ConnectionFailedException;
 
     /**
      * Drop the connection. No further operations may be performed.

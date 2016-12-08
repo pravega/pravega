@@ -50,7 +50,7 @@ public class StreamMetadataStoreTest {
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore store =
-            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null, executor);
+            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executor);
 
     @Test
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
@@ -112,20 +112,23 @@ public class StreamMetadataStoreTest {
         // region getNextPosition
 
         SegmentFutures updatedPosition = new SegmentFutures(Arrays.asList(0, 5), Collections.emptyMap());
-        List<SegmentFutures> futuresList = store.getNextSegments(stream2, new HashSet<>(Arrays.asList(1, 2)), Collections.singletonList(updatedPosition)).get();
+        List<SegmentFutures> futuresList = store.getNextSegments(stream2, new HashSet<>(Arrays.asList(1, 2)),
+                Collections.singletonList(updatedPosition)).get();
         assertEquals(1, futuresList.size());
         assertEquals(3, futuresList.get(0).getCurrent().size());
         assertEquals(1, futuresList.get(0).getFutures().size());
         assertTrue(futuresList.get(0).getCurrent().contains(4));
 
         updatedPosition = new SegmentFutures(Arrays.asList(0, 1, 5), Collections.emptyMap());
-        futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(2)), Collections.singletonList(updatedPosition)).get();
+        futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(2)),
+                Collections.singletonList(updatedPosition)).get();
         assertEquals(1, futuresList.size());
         assertEquals(3, futuresList.get(0).getCurrent().size());
         assertEquals(1, futuresList.get(0).getFutures().size());
 
         updatedPosition = new SegmentFutures(Arrays.asList(0, 4, 5), Collections.emptyMap());
-        futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(1)), Collections.singletonList(updatedPosition)).get();
+        futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(1)),
+                Collections.singletonList(updatedPosition)).get();
         assertEquals(1, futuresList.size());
         assertEquals(3, futuresList.get(0).getCurrent().size());
         assertEquals(1, futuresList.get(0).getFutures().size());

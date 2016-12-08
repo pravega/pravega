@@ -15,15 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.netty;
+package com.emc.pravega.stream.impl.netty;
+
+import java.util.concurrent.CompletableFuture;
+
+import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.common.netty.ReplyProcessor;
 
 /**
- * A listener for incoming connections. (Used on the server)
+ * A factory that establishes connections to Prevaga servers.
+ * The underlying implementation may or may not implement connection pooling.
  */
-public interface ConnectionListener extends AutoCloseable {
+public interface ConnectionFactory extends AutoCloseable {
 
-    void startListening();
+    CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp);
 
     @Override
     void close();
+
 }

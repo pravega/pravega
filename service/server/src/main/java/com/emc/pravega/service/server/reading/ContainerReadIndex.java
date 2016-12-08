@@ -203,22 +203,32 @@ public class ContainerReadIndex implements ReadIndex {
     }
 
     @Override
-    public void performGarbageCollection() {
+    public void cleanup(Collection<Long> segmentIds) {
         Exceptions.checkNotClosed(this.closed, this);
 
-        List<Long> toRemove = new ArrayList<>();
+        List<Long> removed = new ArrayList<>();
+        List<Long> notRemoved = new ArrayList<>();
         synchronized (this.lock) {
-            for (Long streamSegmentId : this.readIndices.keySet()) {
+            for (long streamSegmentId : segmentIds) {
                 SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+                boolean wasRemoved = false;
                 if (segmentMetadata == null || segmentMetadata.isDeleted()) {
-                    toRemove.add(streamSegmentId);
+                    wasRemoved = removeReadIndex(streamSegmentId);
+                }
+
+                if (wasRemoved) {
+                    removed.add(streamSegmentId);
+                } else {
+                    notRemoved.add(streamSegmentId);
                 }
             }
-
-            toRemove.forEach(streamSegmentId -> this.readIndices.remove(streamSegmentId).close());
         }
 
-        log.info("{}: Garbage Collection Complete (Removed {}).", this.traceObjectId, toRemove);
+        if (notRemoved.size() > 0) {
+            log.debug("{}: Unable to clean up ReadIndex for Segments {} because no such index exists or the Segments are not deleted.", this.traceObjectId, notRemoved);
+        }
+
+        log.info("{}: Cleaned up ReadIndices for deleted Segments {}.", this.traceObjectId, removed);
     }
 
     @Override

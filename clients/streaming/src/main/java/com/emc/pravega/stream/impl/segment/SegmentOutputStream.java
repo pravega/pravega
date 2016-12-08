@@ -29,11 +29,25 @@ public abstract class SegmentOutputStream implements AutoCloseable {
     /**
      * Writes the data from the given ByteBuffer to this SegmentOutputStream.
      *
-     * @param buff       Data to be written. Note this is limited to {@value #MAX_WRITE_SIZE} bytes.
+     * @param buff Data to be written. Note this is limited to {@value #MAX_WRITE_SIZE} bytes.
      * @param onComplete future to be completed when data has been replicated and stored durably.
      * @throws SegmentSealedException If the segment is closed for modifications.
      */
-    public abstract void write(ByteBuffer buff, CompletableFuture<Void> onComplete) throws SegmentSealedException;
+    public abstract void write(ByteBuffer buff, CompletableFuture<Boolean> onComplete) throws SegmentSealedException;
+
+    /**
+     * Writes the provided data to the SegmentOutputStream if and only if the SegmentOutputStream is
+     * currently of expectedLength.
+     * 
+     * @param expectedLength The length of all data written to the SegmentOutputStream for the write
+     *            to be applied
+     * @param buff the data to be written. Note this is limited to {@value #MAX_WRITE_SIZE} bytes.
+     * @param onComplete future to be completed when the operation is complete. True if the data was
+     *            written and false if it was not.
+     * @throws SegmentSealedException If the segment is closed for modifications.
+     */
+    public abstract void conditionalWrite(long expectedLength, ByteBuffer buff, CompletableFuture<Boolean> onComplete)
+            throws SegmentSealedException;
 
     /**
      * Flushes and then closes the output stream.

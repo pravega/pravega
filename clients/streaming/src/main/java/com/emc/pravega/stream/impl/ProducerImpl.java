@@ -127,13 +127,13 @@ public class ProducerImpl<Type> implements Producer<Type> {
     @Override
     public Future<Void> writeEvent(String routingKey, Type event) {
         Preconditions.checkState(!closed.get());
-        CompletableFuture<Void> result = new CompletableFuture<>();
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
         synchronized (lock) {
             if (!attemptPublish(new Event<Type>(event, routingKey, result))) {
                 handleLogSealed();
             }
         }
-        return result;
+        return FutureHelpers.toVoid(result);
     }
 
     /**

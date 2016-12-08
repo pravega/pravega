@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.service.server.host.handler;
 
-import com.emc.pravega.common.netty.ServerConnection;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.service.contracts.ReadResult;

@@ -15,31 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.host;
+package com.emc.pravega.controller.fault;
 
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
-
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
-import static com.emc.pravega.controller.util.Config.HOST_STORE_CONTAINER_COUNT;
+import com.emc.pravega.common.cluster.Host;
 
-public class InMemoryHostControllerStoreConfig extends StoreConfiguration {
-    private final int numOfContainers = HOST_STORE_CONTAINER_COUNT;
+/**
+ * Container Balancers are used to fetch the new owners for the segment containers.
+ */
+public interface ContainerBalancer {
+    /**
+     * Compute the new owners of the segment containers based on hosts alive in the cluster.
+     *
+     * @param previousMapping       Existing host to container mapping. If non-empty its assumed to be balanced for the
+     *                              older host set.
+     * @param currentHosts          The updated list of hosts in the cluster.
+     * @return                      The new host to containers mapping after performing a rebalance operation.
+     */
+    Map<Host, Set<Integer>> rebalance(Map<Host, Set<Integer>> previousMapping, Set<Host> currentHosts);
 
-    private final Map<Host, Set<Integer>> hostContainerMap;
-
-    public InMemoryHostControllerStoreConfig(Map<Host, Set<Integer>> hostContainerMap) {
-        super("");
-        this.hostContainerMap = hostContainerMap;
-    }
-
-    public Map<Host, Set<Integer>> getHostContainerMap() {
-        return Collections.unmodifiableMap(hostContainerMap);
-    }
-
-    public int getNumOfContainers() {
-        return numOfContainers;
-    }
 }
