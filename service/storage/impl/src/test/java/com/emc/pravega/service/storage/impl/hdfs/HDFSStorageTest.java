@@ -90,11 +90,6 @@ public class HDFSStorageTest extends StorageTestBase {
 
         return new MiniClusterPermFixer(storage);
     }
-
-    @Override
-    protected String createInvalidHandle(String segmentName) {
-        return segmentName + "_invalid";
-    }
     
     /**
      * Wrapper for a storage class which handles the ACL behavior of MiniDFSCluster.

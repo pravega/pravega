@@ -41,6 +41,13 @@ public interface HostControllerStore {
      * @throws HostStoreException   On error while updating the Map.
      */
     void updateHostContainersMap(Map<Host, Set<Integer>> newMapping);
+    
+    /**
+     * Return the total number of segment containers present in the system.
+     *
+     * @return The total number of segment containers present in the cluster.
+     */
+    int getContainerCount();
 
     /**
      * Fetch the Host which owns the specified segment.
@@ -52,11 +59,5 @@ public interface HostControllerStore {
      * @throws HostStoreException           On error while fetching host info from the ownership Map.
      */
     Host getHostForSegment(String scope, String stream, int segmentNumber);
-    
-    /**
-     * Return the total number of segment containers present in the system.
-     *
-     * @return The total number of segment containers present in the cluster.
-     */
-    int getContainerCount();
+
 }
