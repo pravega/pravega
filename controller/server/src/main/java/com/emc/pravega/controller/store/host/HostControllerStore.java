@@ -59,4 +59,5 @@ public interface HostControllerStore {
      * @throws HostStoreException           On error while fetching host info from the ownership Map.
      */
     Host getHostForSegment(String scope, String stream, int segmentNumber);
+
 }
