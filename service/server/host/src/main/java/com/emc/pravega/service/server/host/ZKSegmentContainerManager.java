@@ -124,7 +124,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
             return initResult;
         } catch (Exception ex) {
-            log.warn("Unable to initialize from Zookeeper", ex.getMessage());
+            log.warn("Unable to initialize from Zookeeper: " + ex.getMessage());
             throw new RuntimeStreamingException("Unable to initialize from Zookeeper", ex);
         }
     }

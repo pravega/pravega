@@ -243,7 +243,7 @@ class RocksDBCache implements Cache {
                 "Unable to %s (CacheId=%s).",
                 String.format(message, messageFormatArgs),
                 this.id);
-
+        log.warn("RocksDBException: " + exception.getMessage() + " : " + exceptionMessage);	
         throw new CacheException(exceptionMessage, exception);
     }
 
