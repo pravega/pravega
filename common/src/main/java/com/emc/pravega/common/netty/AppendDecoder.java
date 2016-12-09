@@ -118,7 +118,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 throw new InvalidMessageException("AppendBlockEnd for wrong connection.");
             }
             segment = getSegment(connectionId);
-            if (blockEnd.lastEventNumber < segment.lastEventNumber) {
+            if (blockEnd.getLastEventNumber() < segment.lastEventNumber) {
                 throw new InvalidMessageException("Last event number went backwards.");
             }
             int sizeOfWholeEventsInBlock = blockEnd.getSizeOfWholeEvents();
@@ -126,7 +126,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 throw new InvalidMessageException("Invalid SizeOfWholeEvents in block");
             }
             ByteBuf appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
-            segment.lastEventNumber = blockEnd.lastEventNumber;
+            segment.lastEventNumber = blockEnd.getLastEventNumber();
             currentBlock = null;
             result = new Append(segment.name, connectionId, segment.lastEventNumber, appendDataBuf, null);
             break;

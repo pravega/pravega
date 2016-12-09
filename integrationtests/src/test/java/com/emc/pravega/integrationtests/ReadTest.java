@@ -35,7 +35,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.service.contracts.AppendContext;
@@ -56,6 +55,7 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;

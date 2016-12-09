@@ -15,35 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.netty;
+package com.emc.pravega.controller.fault;
+
+import java.util.Map;
+import java.util.Set;
+
+import com.emc.pravega.common.cluster.Host;
 
 /**
- * A connection object. Represents the TCP connection in the server process that is coming from the client.
+ * Container Balancers are used to fetch the new owners for the segment containers.
  */
-public interface ServerConnection extends AutoCloseable {
-
+public interface ContainerBalancer {
     /**
-     * Sends the provided command asynchronously. This operation is non-blocking.
+     * Compute the new owners of the segment containers based on hosts alive in the cluster.
      *
-     * @param cmd The command to send.
+     * @param previousMapping       Existing host to container mapping. If non-empty its assumed to be balanced for the
+     *                              older host set.
+     * @param currentHosts          The updated list of hosts in the cluster.
+     * @return                      The new host to containers mapping after performing a rebalance operation.
      */
-    void send(WireCommand cmd);
+    Map<Host, Set<Integer>> rebalance(Map<Host, Set<Integer>> previousMapping, Set<Host> currentHosts);
 
-    /**
-     * Sets the command processor to receive incoming commands from the client. This
-     * method may only be called once.
-     *
-     * @param cp The Request Processor to set.
-     */
-    void setRequestProcessor(RequestProcessor cp);
-
-    void pauseReading();
-
-    void resumeReading();
-
-    /**
-     * Drop the connection. No further operations may be performed.
-     */
-    @Override
-    void close();
 }

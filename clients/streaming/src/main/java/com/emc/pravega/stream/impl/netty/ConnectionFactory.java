@@ -15,14 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.stream.impl.netty;
 
-package com.emc.pravega.controller.store.host;
+import java.util.concurrent.CompletableFuture;
 
+import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.common.netty.ReplyProcessor;
 
-public class ContainerNotFoundException extends HostControllerException {
-    private static final long serialVersionUID = 1L;
+/**
+ * A factory that establishes connections to Prevaga servers.
+ * The underlying implementation may or may not implement connection pooling.
+ */
+public interface ConnectionFactory extends AutoCloseable {
 
-    public ContainerNotFoundException(int containerId) {
-        super(String.format("Container %d not found.", containerId));
-    }
+    CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp);
+
+    @Override
+    void close();
+
 }

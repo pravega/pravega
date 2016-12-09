@@ -12,9 +12,13 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.emc.pravega.common.netty;
+package com.emc.pravega.stream.impl.netty;
 
 import java.util.concurrent.Future;
+
+import com.emc.pravega.common.netty.Append;
+import com.emc.pravega.common.netty.ConnectionFailedException;
+import com.emc.pravega.common.netty.WireCommand;
 
 /**
  * A connection object. Represents the TCP connection in the client process that connects to the server.

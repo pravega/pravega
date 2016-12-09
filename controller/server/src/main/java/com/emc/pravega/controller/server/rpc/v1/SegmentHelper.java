@@ -18,13 +18,14 @@
 
 package com.emc.pravega.controller.server.rpc.v1;
 
+
 import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang.NotImplementedException;
 
-import com.emc.pravega.common.netty.ConnectionFactory;
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
@@ -32,13 +33,13 @@ import com.emc.pravega.common.netty.ReplyProcessor;
 import com.emc.pravega.common.netty.WireCommand;
 import com.emc.pravega.common.netty.WireCommandType;
 import com.emc.pravega.common.netty.WireCommands;
-import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.model.ModelHelper;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 
 
 public class SegmentHelper {

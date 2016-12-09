@@ -15,19 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.netty;
-
-import java.util.concurrent.CompletableFuture;
+package com.emc.pravega.controller.store.host;
 
 /**
- * A factory that establishes connections to Prevaga servers.
- * The underlying implementation may or may not implement connection pooling.
+ * This exception is thrown on errors from the HostControllerStore implementation.
  */
-public interface ConnectionFactory extends AutoCloseable {
+public class HostStoreException extends RuntimeException {
 
-    CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp);
+    /**
+     * Create a HostStoreException using a text cause.
+     *
+     * @param message   The cause of the exception.
+     */
+    public HostStoreException(String message) {
+        super(message);
+    }
 
-    @Override
-    void close();
-
+    /**
+     * Create a HostStoreException using a text cause.
+     *
+     * @param message   The cause of the exception.
+     * @param cause     Any existing exception that needs to be wrapped.
+     */
+    public HostStoreException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

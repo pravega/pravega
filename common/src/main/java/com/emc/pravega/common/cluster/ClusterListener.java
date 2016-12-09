@@ -15,15 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.netty;
+package com.emc.pravega.common.cluster;
 
 /**
- * A listener for incoming connections. (Used on the server)
+ * Cluster listener.
  */
-public interface ConnectionListener extends AutoCloseable {
+public interface ClusterListener {
 
-    void startListening();
+    enum EventType {
+        HOST_ADDED,
+        HOST_REMOVED,
+        ERROR
+    }
 
-    @Override
-    void close();
+    /**
+     * Method invoked on cluster Event.
+     *
+     * @param type Event type.
+     * @param host Host added/removed, in case of an ERROR a null host value is passed.
+     */
+    public void onEvent(final EventType type, final Host host);
+
 }

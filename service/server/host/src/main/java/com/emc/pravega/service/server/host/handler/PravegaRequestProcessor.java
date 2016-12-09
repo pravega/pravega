@@ -36,7 +36,6 @@ import java.util.concurrent.CompletionException;
 
 import com.emc.pravega.common.netty.FailingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
-import com.emc.pravega.common.netty.ServerConnection;
 import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.CreateTransaction;

@@ -17,12 +17,12 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.ReplyProcessor;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
+import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.segment.AsyncSegmentInputStream.ReadFuture;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;

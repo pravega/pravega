@@ -15,10 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.host;
+package com.emc.pravega.common.concurrent;
 
-public class HostControllerException extends RuntimeException {
-    public HostControllerException(String message) {
-        super(message);
+import java.util.concurrent.Executor;
+
+/**
+ * An Executor that runs commands inline when they are submitted.
+ */
+public class InlineExecutor implements Executor {
+
+    @Override
+    public void execute(Runnable command) {
+        command.run();
     }
+
 }
