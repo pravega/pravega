@@ -22,9 +22,11 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.server.store.ServiceConfig;
 import lombok.Cleanup;
 import org.slf4j.LoggerFactory;
 
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -55,7 +57,17 @@ public class SelfTestRunner {
     }
 
     private static ServiceBuilderConfig getBuilderConfig() {
-        return ServiceBuilderConfig.getDefaultConfig();
+        Properties p = new Properties();
+
+        // Change Number of containers and Thread Pool Size for each test.
+        ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "100");
+        ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "50");
+
+        // Not necessary, but needs to stay here.
+        ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT, "12345");
+
+        // DurableLogConfig, WriterConfig, ReadIndexConfig all have defaults built-in, so no need to override them here.
+        return new ServiceBuilderConfig(p);
     }
 
     private static TestConfig getTestConfig() {
