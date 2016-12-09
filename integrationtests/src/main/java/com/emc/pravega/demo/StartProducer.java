@@ -31,7 +31,7 @@ public class StartProducer {
     public static void main(String[] args) throws Exception {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,
-                "localhost",
+                "10.249.250.158",
                 StartLocalService.PORT);
         Stream stream = streamManager.createStream(StartLocalService.STREAM_NAME, null);
 

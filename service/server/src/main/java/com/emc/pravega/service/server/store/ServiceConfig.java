@@ -21,6 +21,8 @@ package com.emc.pravega.service.server.store;
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Properties;
 
 /**
@@ -97,6 +99,11 @@ public class ServiceConfig extends ComponentConfig {
      * Gets a value indicating the IP address to listen to.
      */
     public String getListeningIPAddress() {
+        try {
+            return InetAddress.getLocalHost().getHostName();
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        }
         return this.listeningIPAddress;
     }
 
