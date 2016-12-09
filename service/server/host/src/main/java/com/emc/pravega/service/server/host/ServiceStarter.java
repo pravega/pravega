@@ -32,6 +32,7 @@ import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
@@ -40,6 +41,7 @@ import java.util.concurrent.CompletionException;
 /**
  * Starts the Pravega Service.
  */
+@Slf4j
 public final class ServiceStarter {
     private final ServiceBuilderConfig serviceConfig;
     private final ServiceBuilder serviceBuilder;
@@ -76,27 +78,29 @@ public final class ServiceStarter {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.INFO);
 
-        System.out.println("Initializing Container Manager ...");
+        log.info("Initializing Container Manager ...");
         this.serviceBuilder.initialize().join();
 
-        System.out.println("Creating StreamSegmentService ...");
+        log.info("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
         this.listener = new PravegaConnectionListener(false, this.serviceConfig.getConfig(ServiceConfig::new).getListeningPort(), service);
         this.listener.startListening();
-        System.out.println("LogServiceConnectionListener started successfully.");
+        log.info("LogServiceConnectionListener started successfully.");
+        log.info("Started.");
     }
 
     private void shutdown() {
         if (!this.closed) {
             this.serviceBuilder.close();
-            System.out.println("StreamSegmentService is now closed.");
+            log.info("StreamSegmentService is now closed.");
 
             if (this.listener != null) {
                 this.listener.close();
-                System.out.println("LogServiceConnectionListener is now closed.");
+                log.info("LogServiceConnectionListener is now closed.");
             }
 
+            log.info("Shutdown.");
             this.closed = true;
         }
     }
@@ -106,9 +110,10 @@ public final class ServiceStarter {
         try {
             serviceStarter = new ServiceStarter(ServiceBuilderConfig.getConfigFromFile());
         } catch (IOException e) {
-            System.out.println("Could not create a Service with default config, Aborting.");
+            log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
         }
+
         try {
             serviceStarter.start();
             ServiceStarter finalServiceStarter = serviceStarter;
@@ -116,7 +121,7 @@ public final class ServiceStarter {
                 @Override
                 public void run() {
                     try {
-                        System.out.println("Caught interrupt signal...");
+                        log.info("Caught interrupt signal...");
                         finalServiceStarter.shutdown();
                     } catch (Exception e) {
                         // do nothing
@@ -126,7 +131,7 @@ public final class ServiceStarter {
 
             Thread.sleep(Long.MAX_VALUE);
         } catch (InterruptedException ex) {
-            System.out.println("Caught interrupt signal");
+            log.info("Caught interrupt signal...");
         } finally {
             serviceStarter.shutdown();
         }

@@ -22,6 +22,7 @@ import com.google.common.base.Preconditions;
 import lombok.Getter;
 import lombok.Setter;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -47,6 +48,7 @@ class TestState {
     private final AtomicLong verifiedTailLength;
     private final AtomicLong verifiedCatchupLength;
     private final AtomicLong verifiedStorageLength;
+    @GuardedBy("allSegmentNames")
     private final ConcurrentHashMap<String, SegmentInfo> allSegments;
     private final ArrayList<String> allSegmentNames;
     private final AbstractMap<OperationType, List<Integer>> durations;

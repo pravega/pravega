@@ -466,7 +466,6 @@ class StorageWriter extends AbstractService implements Writer {
      */
     private Duration getIterationStartDelay() {
         if (this.state.getLastIterationError()) {
-            System.out.println("Iteration start delay: " + this.config.getErrorSleepDuration().toMillis());
             return this.config.getErrorSleepDuration();
         } else {
             // No error, we can proceed right away.
