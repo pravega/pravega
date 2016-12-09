@@ -77,7 +77,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         this.serializer = serializer;
         this.config = config;
         synchronized (lock) {
-            List<Event<Type>> list = setupSegmentProducers();
+            List<WriterEvent<Type>> list = setupSegmentProducers();
             if (!list.isEmpty()) {
                 throw new IllegalStateException("Producer initialized with unsent messages?!");
             }
@@ -90,7 +90,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
      * @return The events that were sent but never acked to segments that are now sealed, and hence need to be
      *         retransmitted.
      */
-    private List<Event<Type>> setupSegmentProducers() {
+    private List<WriterEvent<Type>> setupSegmentProducers() {
         Collection<Segment> segments = Retry.withExpBackoff(1, 10, 5)
             .retryingOn(SegmentSealedException.class)
             .throwingOn(RuntimeException.class)
@@ -105,7 +105,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
                 }
                 return s;
             });
-        List<Event<Type>> toResend = new ArrayList<>();
+        List<WriterEvent<Type>> toResend = new ArrayList<>();
 
         Iterator<Entry<Segment, SegmentProducer<Type>>> iter = producers.entrySet().iterator();
         while (iter.hasNext()) {
@@ -129,7 +129,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         Preconditions.checkState(!closed.get());
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         synchronized (lock) {
-            if (!attemptPublish(new Event<Type>(event, routingKey, result))) {
+            if (!attemptPublish(new WriterEvent<Type>(event, routingKey, result))) {
                 handleLogSealed();
             }
         }
@@ -142,10 +142,10 @@ public class ProducerImpl<Type> implements Producer<Type> {
      * over very quickly.
      */
     private void handleLogSealed() {
-        List<Event<Type>> toResend = setupSegmentProducers();
+        List<WriterEvent<Type>> toResend = setupSegmentProducers();
         while (toResend.isEmpty()) {
-            List<Event<Type>> unsent = new ArrayList<>();
-            for (Event<Type> event : toResend) {
+            List<WriterEvent<Type>> unsent = new ArrayList<>();
+            for (WriterEvent<Type> event : toResend) {
                 if (!attemptPublish(event)) {
                     unsent.add(event);
                 }
@@ -157,7 +157,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         }
     }
 
-    private boolean attemptPublish(Event<Type> event) {
+    private boolean attemptPublish(WriterEvent<Type> event) {
         SegmentProducer<Type> segmentProducer = getSegmentProducer(event.getRoutingKey());
         if (segmentProducer == null || segmentProducer.isAlreadySealed()) {
             return false;
