@@ -18,12 +18,12 @@
 
 package com.emc.pravega.service.server.writer;
 
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Unit tests for the AckCalculator class.
@@ -36,6 +36,7 @@ public class AckCalculatorTests {
     public void testGetHighestCommittedSequenceNumber() {
         final long initialLastReadSeqNo = 1;
         final int processorCount = 10;
+        final int resetCount = 5;
         WriterState state = new WriterState();
         AckCalculator calc = new AckCalculator(state);
         Random random = new Random();
@@ -80,15 +81,13 @@ public class AckCalculatorTests {
         long expectedResult = processors.stream().mapToLong(TestProcessor::getLowestUncommittedSequenceNumber).min().getAsLong() - 1;
         Assert.assertEquals("Unexpected result for Set with values when LRSN is infinite.", expectedResult, result);
 
-        // 2d. Some have values, some don't
-        AtomicInteger resetCount = new AtomicInteger();
-        processors.forEach(p -> {
-            if (random.nextBoolean()) {
-                p.setLowestUncommittedSequenceNumber(-1);
-                resetCount.incrementAndGet();
-            }
-        });
-        Assert.assertTrue("Either no resets or all were reset. Bad test.", 0 < resetCount.get() && resetCount.get() < processors.size());
+        // 2d. Some have values, some don't.
+        // Pick some processors at random and reset their values. The following loop guarantees at least one processor will get it.
+        for (int i = 0; i < resetCount; i++) {
+            val p = processors.get(random.nextInt(processors.size()));
+            p.setLowestUncommittedSequenceNumber(-1);
+        }
+
         result = calc.getHighestCommittedSequenceNumber(processors);
         expectedResult = processors.stream().mapToLong(TestProcessor::getLowestUncommittedSequenceNumber).filter(sn -> sn >= 0).min().getAsLong() - 1;
         Assert.assertEquals("Unexpected result for Set with partial values when LRSN is infinite.", expectedResult, result);

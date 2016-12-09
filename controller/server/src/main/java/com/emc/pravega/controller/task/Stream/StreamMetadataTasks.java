@@ -17,6 +17,9 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
+import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
@@ -38,12 +41,15 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 /**
@@ -53,14 +59,23 @@ import java.util.stream.Collectors;
  * Any update to the task method signature should be avoided, since it can cause problems during upgrade.
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
+@Slf4j
 public class StreamMetadataTasks extends TaskBase implements Cloneable {
+    private static final long RETRY_INITIAL_DELAY = 100;
+    private static final int RETRY_MULTIPLIER = 10;
+    private static final int RETRY_MAX_ATTEMPTS = 100;
+    private static final long RETRY_MAX_DELAY = 100000;
 
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
-    private ConnectionFactoryImpl connectionFactory;
+    private final ConnectionFactoryImpl connectionFactory;
 
-    public StreamMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, TaskMetadataStore taskMetadataStore, String hostId) {
-        super(taskMetadataStore, hostId);
+    public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
+                               final HostControllerStore hostControllerStore,
+                               final TaskMetadataStore taskMetadataStore,
+                               final ScheduledExecutorService executor,
+                               final String hostId) {
+        super(taskMetadataStore, executor, hostId);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         connectionFactory = new ConnectionFactoryImpl(false);
@@ -136,9 +151,10 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 })
                 .handle((result, ex) -> {
                     if (ex != null) {
-                        if (ex instanceof StreamAlreadyExistsException) {
+                        if (ex.getCause() instanceof StreamAlreadyExistsException) {
                             return CreateStreamStatus.STREAM_EXISTS;
                         } else {
+                            log.warn("Create stream failed due to ", ex);
                             return CreateStreamStatus.FAILURE;
                         }
                     } else {
@@ -154,6 +170,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                         if (ex instanceof StreamNotFoundException) {
                             return UpdateStreamStatus.STREAM_NOT_FOUND;
                         } else {
+                            log.warn("Update stream failed due to ", ex);
                             return UpdateStreamStatus.FAILURE;
                         }
                     } else {
@@ -219,15 +236,33 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     private Void notifyNewSegment(String scope, String stream, int segmentNumber) {
         NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, this.hostControllerStore);
 
-        SegmentHelper.createSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), this.connectionFactory);
+        // async call, don't wait for its completion or success. Host will contact controller if it does not know
+        // about some segment even if this call fails?
+        CompletableFuture.runAsync(() -> SegmentHelper.createSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), this.connectionFactory), executor);
         return null;
     }
 
     private CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Integer> sealedSegments) {
-        sealedSegments
-                .stream()
-                .parallel()
-                .forEach(number -> SegmentHelper.sealSegment(scope, stream, number, this.hostControllerStore, this.connectionFactory));
-        return CompletableFuture.completedFuture(null);
+        return FutureCollectionHelper.sequence(
+                sealedSegments
+                        .stream()
+                        .parallel()
+                        .map(number -> notifySealedSegment(scope, stream, number))
+                        .collect(Collectors.toList()))
+                .thenApply(x -> null);
+    }
+
+    private CompletableFuture<Boolean> notifySealedSegment(final String scope, final String stream, final int sealedSegment) {
+        return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
+                .retryingOn(WireCommandFailedException.class)
+                .throwingOn(RuntimeException.class)
+                .runAsync(() ->
+                        SegmentHelper.sealSegment(
+                                scope,
+                                stream,
+                                sealedSegment,
+                                this.hostControllerStore,
+                                this.connectionFactory),
+                        executor);
     }
 }

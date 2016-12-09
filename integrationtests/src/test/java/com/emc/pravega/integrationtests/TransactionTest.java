@@ -43,7 +43,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.Serializable;
-import java.time.Duration;
 
 import static org.junit.Assert.assertEquals;
 
@@ -57,7 +56,7 @@ public class TransactionTest {
         ResourceLeakDetector.setLevel(Level.PARANOID);
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        this.serviceBuilder.initialize(Duration.ofMinutes(1)).get();
+        this.serviceBuilder.initialize().get();
     }
 
     @After

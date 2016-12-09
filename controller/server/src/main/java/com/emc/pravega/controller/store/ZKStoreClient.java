@@ -17,10 +17,9 @@
  */
 package com.emc.pravega.controller.store;
 
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import com.emc.pravega.controller.util.ZKUtils;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 
 /**
  * ZK client.
@@ -29,8 +28,13 @@ public class ZKStoreClient implements StoreClient {
 
     private final CuratorFramework client;
 
-    public ZKStoreClient(StoreConfiguration configuration) {
-        this.client = CuratorFrameworkFactory.newClient(configuration.getConnectionString(), new ExponentialBackoffRetry(1000, 3));
+    public ZKStoreClient() {
+        this.client = ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient();
+    }
+
+    @VisibleForTesting
+    public ZKStoreClient(CuratorFramework client) {
+        this.client = client;
     }
 
     @Override

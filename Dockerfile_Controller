@@ -9,6 +9,7 @@ WORKDIR /opt/controller/
 RUN tar -xvf /opt/controller/server.tar
 
 RUN rm /opt/controller/server.tar
+RUN rm /opt/controller/server.zip
 
 ENTRYPOINT [ "/opt/controller/server/bin/server" ]
 

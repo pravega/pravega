@@ -167,11 +167,11 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
     @Override
-    public Collection<String> deleteStreamSegment(String streamSegmentName) {
-        Collection<String> result = new ArrayList<>();
-        result.add(streamSegmentName);
+    public Map<Long, String> deleteStreamSegment(String streamSegmentName) {
+        Map<Long, String> result = new HashMap<>();
         synchronized (this.lock) {
             long streamSegmentId = this.streamSegmentIds.getOrDefault(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID);
+            result.put(streamSegmentId, streamSegmentName);
             if (streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
                 // We have no knowledge in our metadata about this StreamSegment. This means it has no transactions associated
                 // with it, so no need to do anything else.
@@ -191,7 +191,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
                     m -> m.getParentId() == streamSegmentId,
                     m -> {
                         m.markDeleted();
-                        result.add(m.getName());
+                        result.put(m.getId(), m.getName());
                     });
         }
 

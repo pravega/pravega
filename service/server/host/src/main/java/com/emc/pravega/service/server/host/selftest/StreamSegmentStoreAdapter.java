@@ -67,11 +67,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
         this.storage = new AtomicReference<>();
         this.serviceBuilder = ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withCacheFactory(setup -> {
-                    RocksDBCacheFactory factory = new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new));
-                    factory.initialize(true); // Always clear/reset the cache before every test.
-                    return factory;
-                })
+                .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new)))
                 .withStorageFactory(setup -> {
                     VerificationStorage.Factory factory = new VerificationStorage.Factory(new InMemoryStorageFactory(setup.getExecutor()).getStorageAdapter());
                     this.storage.set((VerificationStorage) factory.getStorageAdapter());
@@ -100,7 +96,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     public CompletableFuture<Void> initialize(Duration timeout) {
         Preconditions.checkState(!this.initialized.get(), "Cannot call initialize() after initialization happened.");
         TestLogger.log(LOG_ID, "Initializing.");
-        return this.serviceBuilder.initialize(timeout)
+        return this.serviceBuilder.initialize()
                                   .thenRun(() -> {
                                       this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
                                       this.initialized.set(true);
@@ -111,7 +107,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     @Override
     public CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext context, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.append(streamSegmentName, data, context, timeout).thenAccept(LONG_TO_VOID);
+        return this.streamSegmentStore.append(streamSegmentName, data, context, timeout);
     }
 
     @Override

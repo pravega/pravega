@@ -18,6 +18,7 @@ import static com.emc.pravega.common.Exceptions.handleInterrupted;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -27,19 +28,21 @@ import javax.annotation.concurrent.GuardedBy;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.netty.ClientConnection;
-import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
+import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.Retry.RetryWithBackoff;
 import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.netty.ClientConnection;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.base.Preconditions;
 
 import lombok.Data;
@@ -56,10 +59,20 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     private final Object lock = new Object();
     private final ConcurrentHashMap<Long, ReadFutureImpl> outstandingRequests = new ConcurrentHashMap<>();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
+    private final ConcurrentLinkedQueue<CompletableFuture<StreamSegmentInfo>> infoRequests = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Controller controller;
 
     private final class ResponseProcessor extends FailingReplyProcessor {
+        
+        @Override
+        public void streamSegmentInfo(StreamSegmentInfo streamInfo) {
+            CompletableFuture<StreamSegmentInfo> request = infoRequests.poll();
+            while (request != null) {
+                request.complete(streamInfo);
+                request = infoRequests.poll();
+            }
+        }        
 
         @Override
         public void connectionDropped() {
@@ -193,6 +206,11 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         for (ReadFutureImpl read : outstandingRequests.values()) {
             read.completeExceptionally(e);
         }
+        CompletableFuture<StreamSegmentInfo> request = infoRequests.poll();
+        while (request != null) {
+            request.completeExceptionally(e);
+            request = infoRequests.poll();
+        }
     }
 
     @Override
@@ -214,6 +232,21 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             }
             return Exceptions.<ExecutionException, SegmentRead>handleInterrupted(() -> read.get());
         });
+    }
+
+    @Override
+    public CompletableFuture<StreamSegmentInfo> getSegmentInfo() {
+        CompletableFuture<StreamSegmentInfo> result = new CompletableFuture<>();
+        infoRequests.add(result);
+        getConnection().thenApply(c -> {
+            try {
+                c.send(new GetStreamSegmentInfo(segment));
+            } catch (ConnectionFailedException e) {
+                closeConnection(e);
+            }
+            return null; 
+        });
+        return result;
     }
 
 }

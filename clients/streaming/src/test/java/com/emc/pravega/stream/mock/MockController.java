@@ -28,13 +28,11 @@ import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang.NotImplementedException;
 
-import com.emc.pravega.common.netty.ClientConnection;
-import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.ReplyProcessor;
-import com.emc.pravega.common.netty.Request;
+import com.emc.pravega.common.netty.WireCommand;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
 import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
@@ -56,6 +54,8 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.PositionImpl;
+import com.emc.pravega.stream.impl.netty.ClientConnection;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.collect.ImmutableList;
 
 import lombok.AllArgsConstructor;
@@ -70,14 +70,7 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {
         Segment segmentId = new Segment(streamConfig.getScope(), streamConfig.getName(), 0);
-
         createSegment(segmentId.getQualifiedName(), new PravegaNodeUri(endpoint, port));
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
         return CompletableFuture.completedFuture(CreateStreamStatus.SUCCESS);
     }
 
@@ -239,7 +232,7 @@ public class MockController implements Controller {
         return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
     }
     
-    private void sendRequestOverNewConnection(Request request, ReplyProcessor replyProcessor) {
+    private void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor) {
         ClientConnection connection = getAndHandleExceptions(connectionFactory
             .establishConnection(new PravegaNodeUri(endpoint, port), replyProcessor), RuntimeException::new);
         try {

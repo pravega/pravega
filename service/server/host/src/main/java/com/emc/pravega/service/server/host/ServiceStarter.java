@@ -21,6 +21,9 @@ package com.emc.pravega.service.server.host;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.cluster.Cluster;
+import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -32,16 +35,18 @@ import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.slf4j.LoggerFactory;
 
-import java.time.Duration;
+import java.io.IOException;
 import java.util.concurrent.CompletionException;
 
 /**
  * Starts the Pravega Service.
  */
 public final class ServiceStarter {
-    private static final Duration INITIALIZE_TIMEOUT = Duration.ofSeconds(30);
     private final ServiceBuilderConfig serviceConfig;
     private final ServiceBuilder serviceBuilder;
     private PravegaConnectionListener listener;
@@ -53,6 +58,7 @@ public final class ServiceStarter {
         opt.distributedLog = false;
         opt.hdfs = false;
         opt.rocksDb = true;
+        opt.zkSegmentManager = false;
         this.serviceBuilder = createServiceBuilder(this.serviceConfig, opt);
     }
 
@@ -67,6 +73,9 @@ public final class ServiceStarter {
         if (options.hdfs) {
             attachHDFS(builder);
         }
+        if (options.zkSegmentManager) {
+            attachZKSegmentManager(builder);
+        }
 
         return builder;
     }
@@ -78,12 +87,13 @@ public final class ServiceStarter {
         context.getLoggerList().get(0).setLevel(Level.INFO);
 
         System.out.println("Initializing Container Manager ...");
-        this.serviceBuilder.initialize(INITIALIZE_TIMEOUT).join();
+        this.serviceBuilder.initialize().join();
 
         System.out.println("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getConfig(ServiceConfig::new).getListeningPort(), service);
+        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getConfig(ServiceConfig::new)
+                .getListeningPort(), service);
         this.listener.startListening();
         System.out.println("LogServiceConnectionListener started successfully.");
     }
@@ -93,22 +103,32 @@ public final class ServiceStarter {
             this.serviceBuilder.close();
             System.out.println("StreamSegmentService is now closed.");
 
-            this.listener.close();
-            System.out.println("LogServiceConnectionListener is now closed.");
+            if (this.listener != null) {
+                this.listener.close();
+                System.out.println("LogServiceConnectionListener is now closed.");
+            }
+
             this.closed = true;
         }
     }
 
     public static void main(String[] args) {
-        ServiceStarter serviceStarter = new ServiceStarter(ServiceBuilderConfig.getDefaultConfig());
+        ServiceStarter serviceStarter = null;
+        try {
+            serviceStarter = new ServiceStarter(ServiceBuilderConfig.getConfigFromFile());
+        } catch (IOException e) {
+            System.out.println("Could not create a Service with default config, Aborting.");
+            System.exit(1);
+        }
         try {
             serviceStarter.start();
+            ServiceStarter finalServiceStarter = serviceStarter;
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
                     try {
                         System.out.println("Caught interrupt signal...");
-                        serviceStarter.shutdown();
+                        finalServiceStarter.shutdown();
                     } catch (Exception e) {
                         // do nothing
                     }
@@ -130,7 +150,8 @@ public final class ServiceStarter {
         builder.withDataLogFactory(setup -> {
             try {
                 DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::new);
-                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console", dlConfig);
+                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console",
+                        dlConfig);
                 factory.initialize();
                 return factory;
             } catch (Exception ex) {
@@ -140,17 +161,14 @@ public final class ServiceStarter {
     }
 
     static void attachRocksDB(ServiceBuilder builder) {
-        builder.withCacheFactory(setup -> {
-            RocksDBCacheFactory factory = new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new));
-            factory.initialize(true); // Always clear/reset the cache at startup.
-            return factory;
-        });
+        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new)));
     }
 
     private static class Options {
         boolean distributedLog;
         boolean hdfs;
         boolean rocksDb;
+        boolean zkSegmentManager;
     }
 
     static ServiceBuilder attachHDFS(ServiceBuilder builder) {
@@ -164,5 +182,33 @@ public final class ServiceStarter {
                 throw new CompletionException(ex);
             }
         });
+    }
+
+    /**
+     * Attaches a Zookeeper based segment manager
+     */
+    static ServiceBuilder attachZKSegmentManager(ServiceBuilder builder) {
+        return builder.withContainerManager(setup -> {
+            ServiceConfig config = setup.getConfig(ServiceConfig::new);
+            CuratorFramework zkClient = createZKClient(config);
+            joinCluster(config, zkClient);
+            return new ZKSegmentContainerManager(setup.getContainerRegistry(),
+                    setup.getSegmentToContainerMapper(),
+                    zkClient,
+                    new Host(config.getListeningIPAddress(), config.getListeningPort()),
+                    config.getClusterName());
+        });
+    }
+
+    private static CuratorFramework createZKClient(ServiceConfig config) {
+        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(config.getZkHostName() + ":" + config.getZkPort(),
+                new ExponentialBackoffRetry(config.getZkRetrySleepMs(), config.getZkRetryCount()));
+        zkClient.start();
+        return zkClient;
+    }
+
+    private static void joinCluster(ServiceConfig config, CuratorFramework zkClient) {
+        Cluster cluster = new ClusterZKImpl(zkClient, config.getClusterName());
+        cluster.registerHost(new Host(config.getListeningIPAddress(), config.getListeningPort()));
     }
 }

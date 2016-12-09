@@ -17,12 +17,34 @@
  */
 package com.emc.pravega.controller.task;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.AbstractMap;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import com.emc.pravega.controller.store.ZKStoreClient;
-import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
@@ -37,32 +59,11 @@ import com.emc.pravega.controller.task.Stream.TestTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
-import java.io.IOException;
-import java.io.Serializable;
-import java.util.AbstractMap;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Task test cases.
@@ -75,14 +76,14 @@ public class TaskTest {
     private final String stream2 = "stream2";
     private final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
     private final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
+    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore streamStore =
-            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
 
-    private final Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
+            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executor);
 
-    private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
-            new InMemoryHostControllerStoreConfig(hostContainerMap));
+    private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
+
 
     private final TaskMetadataStore taskMetadataStore;
 
@@ -93,9 +94,11 @@ public class TaskTest {
     public TaskTest() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
-        StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
-        taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(config));
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, HOSTNAME);
+
+        CuratorFramework cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
+        cli.start();
+        taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(cli), executor);
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, HOSTNAME);
     }
 
     @Before
@@ -124,12 +127,6 @@ public class TaskTest {
         // endregion
     }
 
-    @Before
-    public void prepareHostStore() {
-        Host host = new Host("localhost", 9090);
-        hostContainerMap.put(host, new HashSet<>(Collections.singletonList(0)));
-    }
-
     @After
     public void stopZKServer() throws IOException {
         zkServer.stop();
@@ -144,9 +141,9 @@ public class TaskTest {
             assertTrue(e.getCause() instanceof StreamAlreadyExistsException);
         }
 
-        CreateStreamStatus result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1, System.currentTimeMillis()).join();
-        // failure because the task will not be able to contact pravega host as we have not started one
-        assertEquals(result, CreateStreamStatus.FAILURE);
+        CreateStreamStatus result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
+                System.currentTimeMillis()).join();
+        assertEquals(result, CreateStreamStatus.SUCCESS);
     }
 
     @Test
@@ -229,8 +226,10 @@ public class TaskTest {
         taskMetadataStore.lock(resource1, taskData1, deadHost, deadThreadId1, null, null).join();
         taskMetadataStore.lock(resource2, taskData2, deadHost, deadThreadId2, null, null).join();
 
-        final SweeperThread sweeperThread1 = new SweeperThread(HOSTNAME, taskMetadataStore, streamMetadataTasks, deadHost);
-        final SweeperThread sweeperThread2 = new SweeperThread(HOSTNAME, taskMetadataStore, streamMetadataTasks, deadHost);
+        final SweeperThread sweeperThread1 = new SweeperThread(HOSTNAME, taskMetadataStore, streamMetadataTasks,
+                deadHost);
+        final SweeperThread sweeperThread2 = new SweeperThread(HOSTNAME, taskMetadataStore, streamMetadataTasks,
+                deadHost);
 
         sweeperThread1.start();
         sweeperThread2.start();
@@ -258,48 +257,15 @@ public class TaskTest {
 
     @Test
     public void testLocking() {
-
-        TestTasks testTasks = new TestTasks(taskMetadataStore, HOSTNAME);
-
-        LockingTask first = new LockingTask(testTasks, SCOPE, stream1);
-        LockingTask second = new LockingTask(testTasks, SCOPE, stream1);
-
-        first.start();
-        second.start();
-
+        TestTasks testTasks = new TestTasks(taskMetadataStore, executor, HOSTNAME);
+        
+        CompletableFuture<Void> first = testTasks.testStreamLock(SCOPE, stream1);
+        CompletableFuture<Void> second = testTasks.testStreamLock(SCOPE, stream1);
         try {
-            first.result.join();
-            second.result.join();
+            first.getNow(null);
+            second.getNow(null);
         } catch (CompletionException ce) {
             assertTrue(ce.getCause() instanceof LockFailedException);
-        }
-    }
-
-    @Data
-    @EqualsAndHashCode(callSuper = false)
-    class LockingTask extends Thread {
-
-        private final TestTasks testTasks;
-        private final String scope;
-        private final String stream;
-        private CompletableFuture<Void> result = new CompletableFuture<>();
-
-        LockingTask(TestTasks testTasks, String scope, String stream) {
-            this.testTasks = testTasks;
-            this.scope = scope;
-            this.stream = stream;
-        }
-
-        @Override
-        public void run() {
-            testTasks.testStreamLock(scope, stream)
-                    .whenComplete((value, ex) -> {
-                        if (ex != null) {
-                            this.result.completeExceptionally(ex);
-                        } else {
-                            this.result.complete(value);
-                        }
-                    });
         }
     }
 
@@ -311,7 +277,8 @@ public class TaskTest {
         private final String deadHostId;
         private final TaskSweeper taskSweeper;
 
-        public SweeperThread(String hostId, TaskMetadataStore taskMetadataStore, StreamMetadataTasks streamMetadataTasks, String deadHostId) {
+        public SweeperThread(String hostId, TaskMetadataStore taskMetadataStore,
+                             StreamMetadataTasks streamMetadataTasks, String deadHostId) {
             this.result = new CompletableFuture<>();
             this.taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks);
             this.deadHostId = deadHostId;

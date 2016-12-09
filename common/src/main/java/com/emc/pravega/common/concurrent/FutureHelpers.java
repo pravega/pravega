@@ -25,9 +25,7 @@ import lombok.SneakyThrows;
 
 import java.time.Duration;
 import java.util.Collection;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
@@ -245,6 +243,63 @@ public final class FutureHelpers {
     }
 
     /**
+     * Executes the asynchronous task returning a CompletableFuture<T> with specified delay and returns the task result.
+     * @param task Asynchronous task.
+     * @param delay Delay in milliseconds.
+     * @param executorService Executor on which to execute the task.
+     * @param <T> Type parameter.
+     * @return The result of task execution.
+     */
+    public static <T> CompletableFuture<T> delayedFuture(final Supplier<CompletableFuture<T>> task,
+                                                         final long delay,
+                                                         final ScheduledExecutorService executorService) {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        executorService.schedule(
+                () -> task.get().whenComplete((r, ex) -> complete(result, r, ex)),
+                delay,
+                TimeUnit.MILLISECONDS);
+        return result;
+    }
+
+    /**
+     * Completes the supplied CompletableFuture object with either the exception or a valid value. Preference is given
+     * to exception e when both the exception e and result value are non-null.
+     * @param result The result object to complete.
+     * @param value The result value.
+     * @param e Exception.
+     * @param <T> Type parameter.
+     */
+    public static <T> void complete(final CompletableFuture<T> result, final T value, final Throwable e) {
+        if (e != null) {
+            result.completeExceptionally(e);
+        } else {
+            result.complete(value);
+        }
+    }
+
+    /**
+     * A variant of .exceptionally that admits an exception handler returning value of type T in future. Exceptionally
+     * and flatExceptionally can be thought of as analogous to map and flatMap method for transforming Futures.
+     * @param input The input future.
+     * @param exceptionHandler Exception handler.
+     * @param <T> Type parameter.
+     * @return result of exceptionHandler if input completed exceptionally, otherwise input.
+     */
+    public static <T> CompletableFuture<T> flatExceptionally(final CompletableFuture<T> input,
+                                                             final Function<Throwable, CompletableFuture<T>> exceptionHandler) {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        input.whenComplete((r, e) -> {
+            if (e != null) {
+                exceptionHandler.apply(e)
+                        .whenComplete((ir, ie) -> complete(result, ir, ie));
+            } else {
+                result.complete(r);
+            }
+        });
+        return result;
+    }
+
+    /**
      * Attaches the given callback as an exception listener to the given CompletableFuture, which will be invoked when
      * the future times out (fails with a TimeoutException).
      *
@@ -289,8 +344,8 @@ public final class FutureHelpers {
     public static <T> CompletableFuture<Void> loop(Supplier<Boolean> condition, Supplier<CompletableFuture<T>> loopBody, Consumer<T> resultConsumer, Executor executor) {
         if (condition.get()) {
             return loopBody.get()
-                    .thenAccept(resultConsumer)
-                    .thenComposeAsync(v -> loop(condition, loopBody, resultConsumer, executor), executor);
+                           .thenAccept(resultConsumer)
+                           .thenComposeAsync(v -> loop(condition, loopBody, resultConsumer, executor), executor);
         } else {
             return CompletableFuture.completedFuture(null);
         }
@@ -302,7 +357,7 @@ public final class FutureHelpers {
      * @param condition Predicate that indicates whether to proceed with the loop or not.
      * @param loopBody  A Supplier that returns a CompletableFuture which represents the body of the loop. This
      *                  supplier is invoked every time the loopBody needs to execute.
-     * @param <T>                 Return type of the executor.
+     * @param <T>       Return type of the executor.
      * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
      * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
@@ -311,29 +366,6 @@ public final class FutureHelpers {
                 condition.test(result)
                         ? doWhileLoop(loopBody, condition)
                         : CompletableFuture.completedFuture(null));
-    }
-
-    /**
-     * This utility function returns a CompletableFuture object. This object represents the return of
-     * the execution of the given function in an async manner. The exceptions are translated to the exceptions
-     * that are understandable by the tier1 implementation.
-     *
-     * @param function            This function is executed in the async future.
-     * @param exceptionTranslator utility function that translates the exception
-     * @param executor            The context for the execution.
-     * @param <T>                 Return type of the executor.
-     * @return The CompletableFuture which either holds the result or is completed exceptionally.
-     */
-    public static <T> CompletableFuture<T> runAsyncTranslateException(Callable<T> function,
-                                                                      Function<Exception, Exception> exceptionTranslator,
-                                                                      Executor executor) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return function.call();
-            } catch (Exception e) {
-                throw new CompletionException(exceptionTranslator.apply(e));
-            }
-        }, executor);
     }
 
     /**

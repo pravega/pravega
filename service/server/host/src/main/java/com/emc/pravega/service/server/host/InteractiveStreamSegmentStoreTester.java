@@ -18,6 +18,19 @@
 
 package com.emc.pravega.service.server.host;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
+import com.emc.pravega.common.function.CallbackHelpers;
+import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.ReadResultEntry;
+import com.emc.pravega.service.contracts.ReadResultEntryContents;
+import com.emc.pravega.service.contracts.StreamSegmentStore;
+import com.emc.pravega.service.server.ExceptionHelpers;
+import com.emc.pravega.service.server.store.ServiceBuilder;
+import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import org.slf4j.LoggerFactory;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,21 +45,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
-
-import org.slf4j.LoggerFactory;
-
-import com.emc.pravega.common.function.CallbackHelpers;
-import com.emc.pravega.common.io.StreamHelpers;
-import com.emc.pravega.service.contracts.AppendContext;
-import com.emc.pravega.service.contracts.ReadResultEntry;
-import com.emc.pravega.service.contracts.ReadResultEntryContents;
-import com.emc.pravega.service.contracts.StreamSegmentStore;
-import com.emc.pravega.service.server.ExceptionHelpers;
-import com.emc.pravega.service.server.store.ServiceBuilder;
-import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
 
 /**
  * Interactive (command-line) StreamSegmentStore tester.
@@ -88,7 +86,13 @@ public class InteractiveStreamSegmentStoreTester {
         context.getLoggerList().get(0).setLevel(Level.TRACE);
         context.reset();
 
-        ServiceBuilderConfig config = ServiceBuilderConfig.getDefaultConfig();
+        ServiceBuilderConfig config = null;
+        try {
+            config = ServiceBuilderConfig.getConfigFromFile();
+        } catch (IOException e) {
+            System.out.println("Creation of ServiceBuilderConfig failed becaue of exception " + e);
+            config = ServiceBuilderConfig.getDefaultConfig();
+        }
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(config);
         if (useDistributedLog) {
             // Real (Distributed Log) Data Log.
@@ -99,8 +103,10 @@ public class InteractiveStreamSegmentStoreTester {
             ServiceStarter.attachHDFS(serviceBuilder);
         }
 
+        ServiceStarter.attachRocksDB(serviceBuilder);
+
         try {
-            serviceBuilder.initialize(TIMEOUT).join();
+            serviceBuilder.initialize().join();
             InteractiveStreamSegmentStoreTester tester = new InteractiveStreamSegmentStoreTester(serviceBuilder, System.in, System.out, System.err);
             tester.run();
         } finally {

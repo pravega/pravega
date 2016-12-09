@@ -17,6 +17,11 @@
  */
 package com.emc.pravega.stream;
 
+import com.emc.pravega.state.InitialUpdate;
+import com.emc.pravega.state.Revisioned;
+import com.emc.pravega.state.Synchronizer;
+import com.emc.pravega.state.SynchronizerConfig;
+import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.impl.Orderer;
 
 /**
@@ -49,7 +54,7 @@ import com.emc.pravega.stream.impl.Orderer;
  * a group that wish to split the messages between them is by giving different segments to different consumers. For this
  * reason when creating a consumer a {@link RateChangeListener} is provided, that can help scale up or down the number
  * of consumers if the number of segments has changed in response to a change in the rate of events in the stream. For
- * the most part this is done by calling {@link RebalancerUtils#rebalance}
+ * the most part this is done by calling {@link RebalancerUtils#rebalance}.
  */
 public interface Stream {
     /**
@@ -58,14 +63,14 @@ public interface Stream {
     String getScope();
 
     /**
-     * Gets the name of this stream (Not including the scope).
+     * Gets the name of this stream  (Not including the scope).
      */
     String getStreamName();
 
     /**
      * Gets the scoped name of this stream.
      */
-    String getQualifiedName();
+    String getScopedName();
 
     /**
      * Gets the configuration associated with this stream.
@@ -88,11 +93,28 @@ public interface Stream {
      * nothing about it until you do so manually. (Usually by getting its last {@link Position}) object and either
      * calling this method again or invoking: {@link RebalancerUtils#rebalance} and then invoking this method.
      *
-     * @param config           The consumer configuration.
      * @param s                The Serializer.
+     * @param config           The consumer configuration.
      * @param l                The RateChangeListener to use.
      * @param startingPosition The StartingPosition to use.
      * @param <T>              The consumer data type.
      */
     <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition, RateChangeListener l);
+    
+    
+
+    /**
+     * Creates a new Synchronizer that will work on this stream.
+     * 
+     * @param <StateT> The type of the state being synchronized.
+     * @param <UpdateT> The type of updates applied to the state object.
+     * @param <InitT> The type of the initializer of the stat object.
+     * @param updateSerializer The serializer for updates.
+     * @param initialSerializer The serializer for the initial update.
+     * @param config The Serializer configuration
+     */
+    <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
+            Synchronizer<StateT, UpdateT, InitT> createSynchronizer(Serializer<UpdateT> updateSerializer,
+                    Serializer<InitT> initialSerializer, SynchronizerConfig config);
+
 }

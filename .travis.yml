@@ -14,7 +14,6 @@ notifications:
   slack: emcnautilus:UZK3F72LSRYWXUuvlzSilFyy
   email:
     - arvind.kandhare@dell.com
-    - ram.viswanathan@dell.com
     - tom.kaitchuck@dell.com
     - andrei.paduroiu@dell.com
     - shivesh.ranjan@dell.com

@@ -27,20 +27,22 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface StreamSegmentStore {
     /**
-     * Appends a range of bytes at the end of a StreamSegment. The byte range will be appended as a contiguous block,
-     * however there is no guarantee of ordering between different calls to this method.
+     * Appends a range of bytes at the end of a StreamSegment. The byte range will be appended as a
+     * contiguous block, however there is no guarantee of ordering between different calls to this
+     * method.
      *
      * @param streamSegmentName The name of the StreamSegment to add to.
-     * @param data              The data to add.
-     * @param appendContext     Append context for this append.
-     * @param timeout           Timeout for the operation
-     * @return A CompletableFuture that, when completed normally, will contain the offset within the StreamSegment where
-     * the add was added. If the operation failed, the future will be failed with the causing exception.
-     * @throws NullPointerException     If any of the arguments are null.
-     * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
-     *                                  does not exist - that exception will be set in the returned CompletableFuture).
+     * @param data The data to add.
+     * @param appendContext Append context for this append.
+     * @param timeout Timeout for the operation
+     * @return A CompletableFuture that, will completed normally, if the add was added. If the
+     *         operation failed, the future will be failed with the causing exception.
+     * @throws NullPointerException If any of the arguments are null.
+     * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't
+     *         check if the StreamSegment does not exist - that exception will be set in the
+     *         returned CompletableFuture).
      */
-    CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout);
+    CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout);
 
     /**
      * Appends a range of bytes at the end of a StreamSegment, but only if the current length of the StreamSegment equals

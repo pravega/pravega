@@ -20,7 +20,6 @@ package com.emc.pravega.controller.server.rpc.v1;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.ControllerService;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.Position;
@@ -44,15 +43,15 @@ import java.util.Map;
 /**
  * Synchronous controller service implementation.
  */
-public class ControllerServiceSyncImpl implements ControllerService.Iface {
+public class ControllerServiceSyncImpl implements com.emc.pravega.controller.stream.api.v1.ControllerService.Iface {
 
-    private final ControllerServiceImpl controllerService;
+    private final ControllerService controllerService;
 
     public ControllerServiceSyncImpl(final StreamMetadataStore streamStore,
                                      final HostControllerStore hostStore,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
-        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 
     /**

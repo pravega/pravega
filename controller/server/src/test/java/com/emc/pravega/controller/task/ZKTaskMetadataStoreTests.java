@@ -18,125 +18,35 @@
 package com.emc.pravega.controller.task;
 
 import com.emc.pravega.controller.store.ZKStoreClient;
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
-import com.emc.pravega.controller.store.task.LockFailedException;
-import com.emc.pravega.controller.store.task.Resource;
-import com.emc.pravega.controller.store.task.TaggedResource;
-import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
-import org.junit.Test;
 
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
-
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import java.io.IOException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * ZK task metadata store tests.
+ * Zk task metadata store tests.
  */
-public class ZKTaskMetadataStoreTests {
+public class ZKTaskMetadataStoreTests extends TaskMetadataStoreTests {
 
-    private final Resource resource = new Resource("scope", "stream1");
-    private final String host1 = "host1";
-    private final String host2 = "host2";
-    private final String threadId1 = UUID.randomUUID().toString();
-    private final String threadId2 = UUID.randomUUID().toString();
-    private final TaskData taskData = new TaskData();
+    private TestingServer zkServer;
 
-    private final TaskMetadataStore taskMetadataStore;
-
-    public ZKTaskMetadataStoreTests() throws Exception {
-        final TestingServer zkServer;
+    @Override
+    public void setupTaskStore() throws Exception {
+        final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
         zkServer = new TestingServer();
         zkServer.start();
-        StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
-        taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(config));
-        taskData.setMethodName("test");
-        taskData.setMethodVersion("1.0");
-        taskData.setParameters(new String[]{"string1"});
+        CuratorFramework cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
+        cli.start();
+        taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(cli), executor);
     }
 
-    @Test
-    public void testFolderOperations() throws ExecutionException, InterruptedException {
-        final TaggedResource child1 = new TaggedResource(UUID.randomUUID().toString(), resource);
-        final TaggedResource child2 = new TaggedResource(UUID.randomUUID().toString(), resource);
-        final TaggedResource child3 = new TaggedResource(UUID.randomUUID().toString(), resource);
-
-        taskMetadataStore.putChild(host1, child1).get();
-        taskMetadataStore.putChild(host1, child2).get();
-
-        Optional<TaggedResource> child = taskMetadataStore.getRandomChild(host1).get();
-        assertTrue(child.isPresent());
-        assertTrue(child.get().getResource().equals(resource));
-
-        taskMetadataStore.removeChild(host1, child1, true).get();
-
-        child = taskMetadataStore.getRandomChild(host1).get();
-        assertTrue(child.isPresent());
-        assertTrue(child.get().getResource().equals(resource));
-
-        taskMetadataStore.removeChild(host1, child3, true).get();
-
-        child = taskMetadataStore.getRandomChild(host1).get();
-        assertTrue(child.isPresent());
-        assertTrue(child.get().getResource().equals(resource));
-
-        taskMetadataStore.removeChild(host1, child2, true).get();
-
-        child = taskMetadataStore.getRandomChild(host1).get();
-        assertFalse(child.isPresent());
-    }
-
-    @Test
-    public void lockUnlockTests() throws ExecutionException, InterruptedException {
-
-        taskMetadataStore.lock(resource, taskData, host1, threadId1, null, null).get();
-
-        Optional<TaskData> data = taskMetadataStore.getTask(resource, host1, threadId1).get();
-        assertTrue(data.isPresent());
-        assertArrayEquals(taskData.serialize(), data.get().serialize());
-
-        taskMetadataStore.lock(resource, taskData, host2, threadId2, host1, threadId1).get();
-
-        data = taskMetadataStore.getTask(resource, host2, threadId2).get();
-        assertTrue(data.isPresent());
-        assertArrayEquals(taskData.serialize(), data.get().serialize());
-
-        taskMetadataStore.unlock(resource, host2, threadId2).get();
-
-        data = taskMetadataStore.getTask(resource, host2, threadId2).join();
-        assertFalse(data.isPresent());
-
-        taskMetadataStore.lock(resource, taskData, host1, threadId1, null, null).get();
-
-        data = taskMetadataStore.getTask(resource, host1, threadId1).get();
-        assertTrue(data.isPresent());
-        assertArrayEquals(taskData.serialize(), data.get().serialize());
-
-        taskMetadataStore.unlock(resource, host1, threadId1).get();
-
-        data = taskMetadataStore.getTask(resource, host1, threadId1).join();
-        assertFalse(data.isPresent());
-    }
-
-    @Test
-    public void lockFailureTest() throws ExecutionException, InterruptedException {
-
-        taskMetadataStore.lock(resource, taskData, host1, threadId1, null, null).get();
-
-        Optional<TaskData> data = taskMetadataStore.getTask(resource, host1, threadId1).get();
-        assertTrue(data.isPresent());
-        assertArrayEquals(taskData.serialize(), data.get().serialize());
-
-        try {
-            taskMetadataStore.lock(resource, taskData, host2, threadId2, null, null).join();
-        } catch (CompletionException e) {
-            assertTrue(e.getCause() instanceof LockFailedException);
-        }
+    @Override
+    public void cleanupTaskStore() throws IOException {
+        zkServer.close();
     }
 }

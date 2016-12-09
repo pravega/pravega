@@ -20,12 +20,11 @@ package com.emc.pravega.service.server.mocks;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
-import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
-import com.emc.pravega.service.server.SegmentToContainerMapper;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -44,8 +43,8 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 public class LocalSegmentContainerManager implements SegmentContainerManager {
     //region Members
-
-    private static final Duration CLOSE_TIMEOUT = Duration.ofSeconds(30); //TODO: config?
+    private static final Duration INIT_TIMEOUT_PER_CONTAINER = Duration.ofSeconds(30L);
+    private static final Duration CLOSE_TIMEOUT_PER_CONTAINER = Duration.ofSeconds(30L); //TODO: config?
     private final SegmentContainerRegistry registry;
     private final SegmentToContainerMapper segmentToContainerMapper;
     private final HashMap<Integer, ContainerHandle> handles;
@@ -89,7 +88,7 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
         synchronized (this.handles) {
             ArrayList<ContainerHandle> toClose = new ArrayList<>(this.handles.values());
             for (ContainerHandle handle : toClose) {
-                results.add(this.registry.stopContainer(handle, CLOSE_TIMEOUT));
+                results.add(this.registry.stopContainer(handle, CLOSE_TIMEOUT_PER_CONTAINER));
             }
         }
 
@@ -102,13 +101,14 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
     //region SegmentContainerManager Implementation
 
     @Override
-    public CompletableFuture<Void> initialize(Duration timeout) {
+    public CompletableFuture<Void> initialize() {
         long traceId = LoggerHelpers.traceEnter(log, "initialize");
+        long containerCount = this.segmentToContainerMapper.getTotalContainerCount();
         ensureNotClosed();
-        TimeoutTimer timer = new TimeoutTimer(timeout);
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-        for (int containerId = 0; containerId < this.segmentToContainerMapper.getTotalContainerCount(); containerId++) {
-            futures.add(this.registry.startContainer(containerId, timer.getRemaining()).thenAccept(this::registerHandle));
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            futures.add(this.registry.startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER)
+                    .thenAccept(this::registerHandle));
         }
 
         return FutureHelpers.allOf(futures)
@@ -136,7 +136,8 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
 
             handle.setContainerStoppedListener(id -> {
                 unregisterHandle(handle);
-                //TODO: need to restart container. BUT ONLY IF WE HAVE A FLAG SET. In benchmark mode, we rely on not auto-restarting containers.
+                //TODO: need to restart container. BUT ONLY IF WE HAVE A FLAG SET. In benchmark mode,
+                // we rely on not auto-restarting containers.
             });
         }
 
