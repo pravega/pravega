@@ -19,12 +19,13 @@
 package com.emc.pravega.service.server.host;
 
 import ch.qos.logback.classic.LoggerContext;
-import com.emc.pravega.service.server.store.ServiceBuilder;
-import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.host.benchmark.Benchmark;
 import com.emc.pravega.service.server.host.benchmark.RecoveryBenchmark;
+import com.emc.pravega.service.server.store.ServiceBuilder;
+import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -40,9 +41,16 @@ public class ServiceBenchmark {
         //context.getLoggerList().get(0).setLevel(Level.INFO);
         context.reset();
 
-        ServiceBuilderConfig config = ServiceBuilderConfig.getDefaultConfig();
-        Supplier<ServiceBuilder> serviceBuilderProvider = ()-> new DistributedLogServiceBuilder(config);
-       // Supplier<ServiceBuilder> serviceBuilderProvider = () -> new InMemoryServiceBuilder(config);
+        ServiceBuilderConfig config = null;
+        try {
+            config = ServiceBuilderConfig.getConfigFromFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+            config = ServiceBuilderConfig.getDefaultConfig();
+        }
+        //Supplier<ServiceBuilder> serviceBuilderProvider = () -> new DistributedLogServiceBuilder(config);
+        ServiceBuilderConfig finalConfig = config;
+        Supplier<ServiceBuilder> serviceBuilderProvider = () -> ServiceBuilder.newInMemoryBuilder(finalConfig);
 
         // WARNING: The benchmark does not work too well with DistributedLogServiceBuilder. In order to function
         //          properly, the benchmark needs to completely erase the DurableDataLog + Storage in order to ensure

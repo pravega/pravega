@@ -1,0 +1,70 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.emc.pravega.stream;
+
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+
+import lombok.Data;
+import lombok.NonNull;
+
+/**
+ * An identifier for a segment of a stream.
+ */
+@Data
+public class Segment {
+    private final String scope;
+    @NonNull
+    private final String streamName;
+    private final int segmentNumber;
+
+    public Segment(String scope, String streamName, int number) {
+        Preconditions.checkNotNull(streamName);
+        Preconditions.checkArgument(streamName.matches("^\\w+\\z"), "Name must be [a-zA-Z0-9]*");
+        this.scope = scope;
+        this.streamName = streamName;
+        this.segmentNumber = number;
+    }
+
+    public String getQualifiedName() {
+        return getQualifiedName(scope, streamName, segmentNumber);
+    }
+
+    public static String getQualifiedName(String scope, String streamName, int segmentNumber) {
+        StringBuffer sb = new StringBuffer();
+        if (!Strings.isNullOrEmpty(scope)) {
+            sb.append(scope);
+            sb.append('/');
+        }
+        sb.append(streamName);
+        sb.append('/');
+        sb.append(segmentNumber);
+        return sb.toString();
+    }
+
+    public static Segment fromQualifiedName(String qualifiedName) {
+        String[] tokens = qualifiedName.split("[/#]");
+        if (tokens.length == 2) {
+            return new Segment(null, tokens[0], Integer.parseInt(tokens[1]));
+        } else if (tokens.length >= 3) {
+            return new Segment(tokens[0], tokens[1], Integer.parseInt(tokens[2]));
+        } else {
+            throw new IllegalArgumentException("Not a valid segment name");
+        }
+    }
+}

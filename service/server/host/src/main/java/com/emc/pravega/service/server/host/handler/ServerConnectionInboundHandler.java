@@ -22,10 +22,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.emc.pravega.common.netty.Request;
 import com.emc.pravega.common.netty.RequestProcessor;
-import com.emc.pravega.common.netty.ServerConnection;
 import com.emc.pravega.common.netty.WireCommand;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.extern.slf4j.Slf4j;
@@ -65,7 +65,7 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
 
     @Override
     public void send(WireCommand cmd) {
-        getChannel().writeAndFlush(cmd);
+        getChannel().writeAndFlush(cmd).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
     }
 
     @Override

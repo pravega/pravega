@@ -35,7 +35,7 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
     //region Members
 
     private final int length;
-    private final CacheKey cacheKey;
+    private final long streamSegmentOffset;
 
     //endregion
 
@@ -44,19 +44,20 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
     /**
      * Creates a new instance of the CachedStreamSegmentAppendOperation based on the given StreamSegmentAppendOperation.
      * The created operation will have the same SequenceNumber, StreamSegmentId, Offset and Length as the base operation,
-     * but it will not directly store the data (it only keeps a CacheKey so the data can be retrieved later).
+     * but it will not directly store the data (the contents of the Append is stored in the Cache, and will have to be
+     * retrieved using properties of this object).
      *
      * @param baseOperation The StreamSegmentAppendOperation to use.
-     * @param cacheKey      The CacheKey that should be used to access the data for this operation.
      */
-    public CachedStreamSegmentAppendOperation(StreamSegmentAppendOperation baseOperation, CacheKey cacheKey) {
+    public CachedStreamSegmentAppendOperation(StreamSegmentAppendOperation baseOperation) {
         super(baseOperation.getStreamSegmentId());
-        Preconditions.checkArgument(baseOperation.getStreamSegmentId() == cacheKey.getStreamSegmentId(), "given baseOperation and cacheKey do not refer to the same StreamSegment.");
-        Preconditions.checkArgument(baseOperation.getStreamSegmentOffset() == cacheKey.getOffset(), "given baseOperation and cacheKey have different Offsets.");
+        Preconditions.checkArgument(baseOperation.getStreamSegmentOffset() >= 0, "given baseOperation does not have an assigned StreamSegment Offset.");
 
+        this.streamSegmentOffset = baseOperation.getStreamSegmentOffset();
         this.length = baseOperation.getData().length;
-        this.cacheKey = cacheKey;
-        setSequenceNumber(baseOperation.getSequenceNumber());
+        if (baseOperation.getSequenceNumber() >= 0) {
+            setSequenceNumber(baseOperation.getSequenceNumber());
+        }
     }
 
     //endregion
@@ -64,21 +65,10 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
     //region Properties
 
     /**
-     * Gets a value indicating the CacheKey to use in order to retrieve the data associated with this operation.
-     *
-     * @return The result.
+     * Creates a new CacheKey with information from this CachedStreamSegmentAppendOperation.
      */
-    public CacheKey getCacheKey() {
-        return this.cacheKey;
-    }
-
-    /**
-     * Gets a value indicating the length of the data associated with this AppendOperation.
-     *
-     * @return The result.
-     */
-    public int getLength() {
-        return this.length;
+    public CacheKey createCacheKey() {
+        return new CacheKey(getStreamSegmentId(), getStreamSegmentOffset());
     }
 
     @Override
@@ -86,13 +76,23 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
         return String.format(
                 "%s, Offset = %d, Length = %d",
                 super.toString(),
-                this.cacheKey.getOffset(),
+                this.streamSegmentOffset,
                 this.length);
     }
 
     //endregion
 
-    //region StorageOperation Implementation
+    //region Operation Implementation
+
+    @Override
+    public long getStreamSegmentOffset() {
+        return this.streamSegmentOffset;
+    }
+
+    @Override
+    public long getLength() {
+        return this.length;
+    }
 
     @Override
     protected byte getOperationType() {

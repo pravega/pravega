@@ -23,14 +23,14 @@ package com.emc.pravega.service.storage;
  */
 public class WriteFailureException extends DurableDataLogException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 
     /**
      * Creates a new instance of the WriteFailureException class.
      *
-     * @param message
+     * @param message The message to set.
      */
     public WriteFailureException(String message) {
         super(message);
@@ -39,8 +39,8 @@ public class WriteFailureException extends DurableDataLogException {
     /**
      * Creates a new instance of the WriteFailureException class.
      *
-     * @param message
-     * @param cause
+     * @param message The message to set.
+     * @param cause   The triggering cause of this exception.
      */
     public WriteFailureException(String message, Throwable cause) {
         super(message, cause);

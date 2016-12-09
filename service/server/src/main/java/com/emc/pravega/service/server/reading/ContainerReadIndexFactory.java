@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ReadIndexFactory;
@@ -25,35 +26,47 @@ import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
 
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Default implementation for ReadIndexFactory.
  */
 public class ContainerReadIndexFactory implements ReadIndexFactory {
-    private final Executor executor;
+    private final ScheduledExecutorService executorService;
     private final StorageFactory storageFactory;
     private final ReadIndexConfig config;
+    private final CacheManager cacheManager;
+    private boolean closed;
 
     /**
      * Creates a new instance of the ContainerReadIndexFactory class.
      *
-     * @param config         Configuration for the ReadIndex.
-     * @param storageFactory The StorageFactory to use to get a reference to the Storage adapter.
-     * @param executor       The Executor to use to invoke async callbacks.
+     * @param config          Configuration for the ReadIndex.
+     * @param storageFactory  The StorageFactory to use to get a reference to the Storage adapter.
+     * @param executorService The Executor to use to invoke async callbacks.
      */
-    public ContainerReadIndexFactory(ReadIndexConfig config, StorageFactory storageFactory, Executor executor) {
+    public ContainerReadIndexFactory(ReadIndexConfig config, StorageFactory storageFactory, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(storageFactory, "storageFactory");
-        Preconditions.checkNotNull(executor, "executor");
+        Preconditions.checkNotNull(executorService, "executorService");
 
         this.config = config;
         this.storageFactory = storageFactory;
-        this.executor = executor;
+        this.executorService = executorService;
+        this.cacheManager = new CacheManager(config.getCachePolicy(), this.executorService);
     }
 
     @Override
     public ReadIndex createReadIndex(ContainerMetadata containerMetadata, Cache cache) {
-        return new ContainerReadIndex(this.config, containerMetadata, cache, this.storageFactory.getStorageAdapter(), this.executor);
+        Exceptions.checkNotClosed(this.closed, this);
+        return new ContainerReadIndex(this.config, containerMetadata, cache, this.storageFactory.getStorageAdapter(), this.cacheManager, this.executorService);
+    }
+
+    @Override
+    public void close() {
+        if (!this.closed) {
+            this.cacheManager.close();
+            this.closed = true;
+        }
     }
 }

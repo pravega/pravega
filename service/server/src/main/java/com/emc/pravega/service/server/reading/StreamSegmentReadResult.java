@@ -131,8 +131,6 @@ class StreamSegmentReadResult implements ReadResult {
      * <li> We haven't reached the end of a sealed StreamSegment.
      * <li> We have at least one more byte to read.
      * </ul>
-     *
-     * @return
      */
     @Override
     public boolean hasNext() {
@@ -151,7 +149,6 @@ class StreamSegmentReadResult implements ReadResult {
      * for the previous entry to complete and then do more processing.
      * </ul>
      *
-     * @return
      * @throws IllegalStateException If we have more elements, but the last element returned hasn't finished processing.
      */
     @Override

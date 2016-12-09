@@ -37,14 +37,8 @@ import java.util.function.Function;
 class DataFrameTestHelpers {
     /**
      * Generates a collection of TestLogItems.
-     *
-     * @param count
-     * @param minSize
-     * @param maxSize
-     * @param startSeqNo
-     * @return
      */
-    public static ArrayList<TestLogItem> generateLogItems(int count, int minSize, int maxSize, int startSeqNo) {
+    static ArrayList<TestLogItem> generateLogItems(int count, int minSize, int maxSize, int startSeqNo) {
         ArrayList<byte[]> rawRecords = DataFrameTestHelpers.generateRecords(count, minSize, maxSize);
         ArrayList<TestLogItem> result = new ArrayList<>(rawRecords.size());
         for (int i = 0; i < count; i++) {
@@ -56,27 +50,15 @@ class DataFrameTestHelpers {
 
     /**
      * Generates a collection of byte[] records.
-     *
-     * @param count
-     * @param minSize
-     * @param maxSize
-     * @return
      */
-    public static ArrayList<byte[]> generateRecords(int count, int minSize, int maxSize) {
+    static ArrayList<byte[]> generateRecords(int count, int minSize, int maxSize) {
         return generateRecords(count, minSize, maxSize, r -> r);
     }
 
     /**
      * Generates a collection of records and converts them to a custom data type (i.e. ByteArraySegment).
-     *
-     * @param count
-     * @param minSize
-     * @param maxSize
-     * @param recordConverter
-     * @param <T>
-     * @return
      */
-    public static <T> ArrayList<T> generateRecords(int count, int minSize, int maxSize, Function<byte[], T> recordConverter) {
+    static <T> ArrayList<T> generateRecords(int count, int minSize, int maxSize, Function<byte[], T> recordConverter) {
         assert minSize <= maxSize;
         Random random = new Random(0);
         ArrayList<T> result = new ArrayList<>();
@@ -92,27 +74,15 @@ class DataFrameTestHelpers {
 
     /**
      * Checks that the given data frame contains the given collection of records.
-     *
-     * @param dataFrames
-     * @param records
-     * @param recordConverter
-     * @param <T>
-     * @throws Exception
      */
-    public static <T> void checkReadRecords(Collection<DataFrame> dataFrames, List<T> records, Function<T, ByteArraySegment> recordConverter) throws Exception {
+    static <T> void checkReadRecords(Collection<DataFrame> dataFrames, List<T> records, Function<T, ByteArraySegment> recordConverter) throws Exception {
         checkReadRecords(dataFrames, records, new HashSet<>(), recordConverter);
     }
 
     /**
      * Checks that the given data frame contains the given collection of records.
-     *
-     * @param dataFrame
-     * @param records
-     * @param recordConverter
-     * @param <T>
-     * @throws Exception
      */
-    public static <T> void checkReadRecords(DataFrame dataFrame, List<T> records, Function<T, ByteArraySegment> recordConverter) throws Exception {
+    static <T> void checkReadRecords(DataFrame dataFrame, List<T> records, Function<T, ByteArraySegment> recordConverter) throws Exception {
         ArrayList<DataFrame> frames = new ArrayList<>();
         frames.add(dataFrame);
         checkReadRecords(frames, records, recordConverter);
@@ -120,15 +90,8 @@ class DataFrameTestHelpers {
 
     /**
      * Checks that the given collection of DataFrames contain the given collection of records.
-     *
-     * @param dataFrames            The data frames to read.
-     * @param records               The records to compare to.
-     * @param knownBadRecordIndices Indices within records that are known to be bad records (improper or missing serialization).
-     * @param recordConverter       Converter of records into ByteArraySegment.
-     * @param <T>
-     * @throws Exception
      */
-    public static <T> void checkReadRecords(Collection<DataFrame> dataFrames, List<T> records, Collection<Integer> knownBadRecordIndices, Function<T, ByteArraySegment> recordConverter) throws Exception {
+    static <T> void checkReadRecords(Collection<DataFrame> dataFrames, List<T> records, Collection<Integer> knownBadRecordIndices, Function<T, ByteArraySegment> recordConverter) throws Exception {
         ReadState state = new ReadState(records.size(), knownBadRecordIndices);
 
         for (DataFrame dataFrame : dataFrames) {
@@ -140,9 +103,9 @@ class DataFrameTestHelpers {
                 // General DataFrameEntry validation.
                 Assert.assertNotNull("Received a null entry even though hasNext() returned true." + state.getPosition(), entry);
                 Assert.assertEquals(
-                        "Unexpected value returned by getLastUsedDataFrameSequence()." + state.getPosition(),
-                        dataFrame.getFrameSequence(),
-                        entry.getDataFrameSequence());
+                        "Unexpected value returned by getDataFrameAddress(). " + state.getPosition(),
+                        dataFrame.getAddress(),
+                        entry.getDataFrameAddress());
 
                 if (entry.isFirstRecordEntry()) {
                     state.clearCurrentRecordEntries();
@@ -203,7 +166,7 @@ class DataFrameTestHelpers {
         private int currentRecordEntriesSize;
         private int frameIndex;
 
-        public ReadState(int recordCount, Collection<Integer> knownBadRecordIndices) {
+        ReadState(int recordCount, Collection<Integer> knownBadRecordIndices) {
             this.recordCount = recordCount;
             this.knownBadRecordIndices = knownBadRecordIndices;
             this.currentRecordEntries = new ArrayList<>();
@@ -212,7 +175,7 @@ class DataFrameTestHelpers {
             this.frameIndex = 0;
         }
 
-        public int getNextGoodRecordIndex() {
+        int getNextGoodRecordIndex() {
             do {
                 this.recordIndex++;
             } while (this.recordIndex < this.recordCount && this.knownBadRecordIndices.contains(this.recordIndex));
@@ -220,32 +183,32 @@ class DataFrameTestHelpers {
             return this.recordIndex;
         }
 
-        public boolean isCurrentRecordBad() {
+        boolean isCurrentRecordBad() {
             return this.knownBadRecordIndices.contains(this.recordIndex);
         }
 
-        public List<DataFrame.DataFrameEntry> getCurrentRecordEntries() {
+        List<DataFrame.DataFrameEntry> getCurrentRecordEntries() {
             return this.currentRecordEntries;
         }
 
-        public int getCurrentRecordEntriesSize() {
+        int getCurrentRecordEntriesSize() {
             return this.currentRecordEntriesSize;
         }
 
-        public int getFrameIndex() {
+        int getFrameIndex() {
             return this.frameIndex;
         }
 
-        public void clearCurrentRecordEntries() {
+        void clearCurrentRecordEntries() {
             this.currentRecordEntries.clear();
             this.currentRecordEntriesSize = 0;
         }
 
-        public void moveToNextFrame() {
+        void moveToNextFrame() {
             this.frameIndex++;
         }
 
-        public String getPosition() {
+        String getPosition() {
             return String.format(" FrameIndex = %d, RecordIndex = %d, EntryIndexInRecord = %d.", this.frameIndex, this.recordIndex, this.currentRecordEntries.size());
         }
     }

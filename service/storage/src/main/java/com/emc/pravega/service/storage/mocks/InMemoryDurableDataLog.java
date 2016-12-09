@@ -25,6 +25,7 @@ import com.emc.pravega.common.util.TruncateableList;
 import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
+import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
 
 import java.io.IOException;
@@ -81,7 +82,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
         Entry last = this.entries.getLast();
         if (last == null) {
             this.offset = 0;
-            this.lastAppendSequence = Long.MIN_VALUE;
+            this.lastAppendSequence = -1;
         } else {
             this.offset = last.sequenceNumber + last.data.length;
             this.lastAppendSequence = last.sequenceNumber;
@@ -103,7 +104,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<Long> append(InputStream data, Duration timeout) {
+    public CompletableFuture<LogAddress> append(InputStream data, Duration timeout) {
         ensurePreconditions();
         return CompletableFuture.supplyAsync(() -> {
             Entry entry;
@@ -121,17 +122,17 @@ class InMemoryDurableDataLog implements DurableDataLog {
                 throw new CompletionException(ex);
             }
 
-            return entry.sequenceNumber;
+            return new InMemoryLogAddress(entry.sequenceNumber);
         });
     }
 
     @Override
-    public CompletableFuture<Boolean> truncate(long upToSequence, Duration timeout) {
+    public CompletableFuture<Boolean> truncate(LogAddress upToAddress, Duration timeout) {
         ensurePreconditions();
         return CompletableFuture.supplyAsync(() -> {
             synchronized (this.entries) {
                 try {
-                    return this.entries.truncate(upToSequence, this.clientId) > 0;
+                    return this.entries.truncate(upToAddress.getSequence(), this.clientId) > 0;
                 } catch (DataLogWriterNotPrimaryException ex) {
                     throw new CompletionException(ex);
                 }
@@ -190,31 +191,33 @@ class InMemoryDurableDataLog implements DurableDataLog {
     private static class ReadResultItem implements DurableDataLog.ReadItem {
 
         private final byte[] payload;
-        private final long sequence;
+        private final LogAddress address;
 
         ReadResultItem(Entry entry) {
             this.payload = new byte[entry.data.length];
             System.arraycopy(entry.data, 0, this.payload, 0, this.payload.length);
-            this.sequence = entry.sequenceNumber;
+            this.address = new InMemoryLogAddress(entry.sequenceNumber);
         }
 
         @Override
         public byte[] getPayload() {
-            return payload;
+            return this.payload;
         }
 
         @Override
-        public long getSequence() {
-            return sequence;
+        public LogAddress getAddress() {
+            return this.address;
         }
 
         @Override
         public String toString() {
-            return String.format("Sequence = %d, Length = %d", sequence, payload.length);
+            return String.format("Address = %s, Length = %d", this.address, this.payload.length);
         }
     }
 
     //endregion
+
+    //region EntryCollection
 
     static class EntryCollection {
         private final TruncateableList<Entry> entries;
@@ -255,32 +258,22 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
         void acquireLock(String clientId) throws DataLogWriterNotPrimaryException {
             Exceptions.checkNotNullOrEmpty(clientId, "clientId");
-            synchronized (this.writeLock) {
-                String existingLockOwner = this.writeLock.get();
-                if (existingLockOwner != null) {
-                    throw new DataLogWriterNotPrimaryException("Unable to acquire exclusive write lock because is already owned by " + clientId);
-                }
-
-                this.writeLock.set(clientId);
+            if (!writeLock.compareAndSet(null, clientId)) {
+                throw new DataLogWriterNotPrimaryException("Unable to acquire exclusive write lock because is already owned by " + clientId);
             }
         }
 
         void forceAcquireLock(String clientId) {
             Exceptions.checkNotNullOrEmpty(clientId, "clientId");
-            synchronized (this.writeLock) {
-                this.writeLock.set(clientId);
-            }
+            this.writeLock.set(clientId);
         }
 
         void releaseLock(String clientId) throws DataLogWriterNotPrimaryException {
             Exceptions.checkNotNullOrEmpty(clientId, "clientId");
-            synchronized (this.writeLock) {
-                String existingLockOwner = this.writeLock.get();
-                if (existingLockOwner == null || !existingLockOwner.equals(clientId)) {
-                    throw new DataLogWriterNotPrimaryException("Unable to release exclusive write lock because the current client does not own it. Current owner: " + clientId);
-                }
-
-                this.writeLock.set(null);
+            if (!writeLock.compareAndSet(clientId, null)) {
+                throw new DataLogWriterNotPrimaryException(
+                        "Unable to release exclusive write lock because the current client does not own it. Current owner: "
+                                + clientId);
             }
         }
 
@@ -292,6 +285,8 @@ class InMemoryDurableDataLog implements DurableDataLog {
             }
         }
     }
+
+    //endregion
 
     //region Entry
 
@@ -307,6 +302,30 @@ class InMemoryDurableDataLog implements DurableDataLog {
         @Override
         public String toString() {
             return String.format("SequenceNumber = %d, Length = %d", sequenceNumber, data.length);
+        }
+    }
+
+    //endregion
+
+    //region InMemoryLogAddress
+
+    static class InMemoryLogAddress extends LogAddress {
+        InMemoryLogAddress(long sequence) {
+            super(sequence);
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(getSequence());
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (other instanceof InMemoryLogAddress) {
+                return this.getSequence() == ((InMemoryLogAddress) other).getSequence();
+            }
+
+            return false;
         }
     }
 

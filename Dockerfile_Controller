@@ -1,0 +1,16 @@
+FROM java:8
+
+MAINTAINER Prabha Veerubhotla [Vijayalakshmi.Veerubhotla@emc.com]
+
+COPY /controller/server/build/distributions/   /opt/controller/
+
+WORKDIR /opt/controller/
+
+RUN tar -xvf /opt/controller/server.tar
+
+RUN rm /opt/controller/server.tar
+RUN rm /opt/controller/server.zip
+
+ENTRYPOINT [ "/opt/controller/server/bin/server" ]
+
+

@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class DataFrameOutputStreamTests {
     /**
-     * Tests the basic functionality of startNewRecord(), endRecord() and discardRecord()
+     * Tests the basic functionality of startNewRecord(), endRecord() and discardRecord().
      */
     @Test
     public void testRecordCreation() throws Exception {
@@ -91,8 +91,6 @@ public class DataFrameOutputStreamTests {
 
     /**
      * Tests the ability to drop the current frame, if the current frame is in a bad state.
-     *
-     * @throws Exception
      */
     @Test
     public void testReset() throws Exception {

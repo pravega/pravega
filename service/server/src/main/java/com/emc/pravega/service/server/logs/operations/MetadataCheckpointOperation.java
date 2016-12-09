@@ -58,7 +58,7 @@ public class MetadataCheckpointOperation extends MetadataOperation {
     /**
      * Sets the Contents of this MetadataCheckpointOperation.
      *
-     * @param contents
+     * @param contents The contents to set.
      */
     public void setContents(ByteArraySegment contents) {
         Preconditions.checkNotNull(contents, "contents");
@@ -92,7 +92,7 @@ public class MetadataCheckpointOperation extends MetadataOperation {
 
     @Override
     protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
-        byte version = readVersion(source, CURRENT_VERSION);
+        readVersion(source, CURRENT_VERSION);
         int contentsLength = source.readInt();
         this.contents = new ByteArraySegment(new byte[contentsLength]);
         int bytesRead = this.contents.readFrom(source);

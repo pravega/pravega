@@ -37,6 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Single-thread Processor for Operations. Queues all incoming entries in a BlockingDrainingQueue, then picks them all
@@ -48,10 +49,11 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
 
     private final String traceObjectId;
     private final OperationMetadataUpdater metadataUpdater;
-    private final MemoryLogUpdater logUpdater;
+    private final MemoryStateUpdater stateUpdater;
     private final DurableDataLog durableDataLog;
     private final BlockingDrainingQueue<CompletableOperation> operationQueue;
     private final MetadataCheckpointPolicy checkpointPolicy;
+    private final AtomicBoolean closed;
 
     //endregion
 
@@ -61,23 +63,24 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
      * Creates a new instance of the OperationProcessor class.
      *
      * @param metadata         The ContainerMetadata for the Container to process operations for.
-     * @param logUpdater       A MemoryLogUpdater that is used to update in-memory structures upon successful Operation committal.
+     * @param stateUpdater     A MemoryStateUpdater that is used to update in-memory structures upon successful Operation committal.
      * @param durableDataLog   The DataFrameLog to write DataFrames to.
      * @param checkpointPolicy The Checkpoint Policy for Metadata.
      * @throws NullPointerException If any of the arguments are null.
      */
-    OperationProcessor(UpdateableContainerMetadata metadata, MemoryLogUpdater logUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy) {
+    OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy) {
         Preconditions.checkNotNull(metadata, "metadata");
-        Preconditions.checkNotNull(logUpdater, "logUpdater");
+        Preconditions.checkNotNull(stateUpdater, "stateUpdater");
         Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         Preconditions.checkNotNull(checkpointPolicy, "checkpointPolicy");
 
         this.traceObjectId = String.format("OperationProcessor[%d]", metadata.getContainerId());
         this.metadataUpdater = new OperationMetadataUpdater(metadata);
-        this.logUpdater = logUpdater;
+        this.stateUpdater = stateUpdater;
         this.durableDataLog = durableDataLog;
         this.checkpointPolicy = checkpointPolicy;
         this.operationQueue = new BlockingDrainingQueue<>();
+        this.closed = new AtomicBoolean();
     }
 
     //endregion
@@ -86,8 +89,12 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
 
     @Override
     public void close() {
-        stopAsync();
-        ServiceShutdownListener.awaitShutdown(this, false);
+        if (!this.closed.get()) {
+            stopAsync();
+            ServiceShutdownListener.awaitShutdown(this, false);
+            log.info("{}: Closed.", this.traceObjectId);
+            this.closed.set(true);
+        }
     }
 
     //endregion
@@ -96,7 +103,7 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
 
     @Override
     protected void run() throws Exception {
-        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "run");
+        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "run");
         Throwable closingException = null;
         try {
             while (isRunning()) {
@@ -187,7 +194,7 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
                 // In the happy case, this loop is only executed once. But we need the bigger while loop in case we
                 // encountered a non-fatal exception. There is no point in failing the whole set of operations if only
                 // one set failed.
-                state = new QueueProcessingState(this.metadataUpdater, this.logUpdater, this.checkpointPolicy, this.traceObjectId);
+                state = new QueueProcessingState(this.metadataUpdater, this.stateUpdater, this.checkpointPolicy, this.traceObjectId);
                 DataFrameBuilder<Operation> dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, state::commit, state::fail);
                 for (; currentIndex < operations.size(); currentIndex++) {
                     CompletableOperation o = operations.get(currentIndex);
@@ -302,9 +309,6 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
 
     /**
      * Cancels those Operations in the given list that have not yet completed with the given exception.
-     *
-     * @param operations
-     * @param failException
      */
     private void cancelIncompleteOperations(List<CompletableOperation> operations, Throwable failException) {
         assert failException != null : "no exception to set";
@@ -331,18 +335,18 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
         private final String traceObjectId;
         private final LinkedList<CompletableOperation> pendingOperations;
         private final OperationMetadataUpdater metadataUpdater;
-        private final MemoryLogUpdater logUpdater;
+        private final MemoryStateUpdater logUpdater;
         private final MetadataCheckpointPolicy checkpointPolicy;
 
-        QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, MetadataCheckpointPolicy checkpointPolicy, String traceObjectId) {
+        QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryStateUpdater stateUpdater, MetadataCheckpointPolicy checkpointPolicy, String traceObjectId) {
             assert metadataUpdater != null : "metadataUpdater is null";
-            assert logUpdater != null : "logUpdater is null";
+            assert stateUpdater != null : "stateUpdater is null";
             assert checkpointPolicy != null : "checkpointPolicy is null";
 
             this.traceObjectId = traceObjectId;
             this.pendingOperations = new LinkedList<>();
             this.metadataUpdater = metadataUpdater;
-            this.logUpdater = logUpdater;
+            this.logUpdater = stateUpdater;
             this.checkpointPolicy = checkpointPolicy;
         }
 
@@ -365,7 +369,7 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
             log.debug("{}: CommitSuccess (OperationCount = {}).", this.traceObjectId, this.pendingOperations.size());
 
             // Record the Truncation marker and then commit any changes to metadata.
-            this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getDataFrameSequence());
+            this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getLogAddress());
             this.metadataUpdater.commit();
 
             // Acknowledge all pending entries, in the order in which they are in the queue. It is important that we ack entries in order of increasing Sequence Number.
@@ -373,7 +377,7 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
                 CompletableOperation e = this.pendingOperations.removeFirst();
                 try {
                     this.logUpdater.process(e.getOperation());
-                } catch (DataCorruptionException ex) {
+                } catch (Throwable ex) {
                     log.error("{}: OperationCommitFailure ({}). {}", this.traceObjectId, e.getOperation(), ex);
                     e.fail(ex);
                     throw ex;

@@ -18,20 +18,25 @@
 
 package com.emc.pravega.common.util;
 
-import com.emc.pravega.common.util.BlockingDrainingQueue;
-import com.emc.pravega.testcommon.AssertExtensions;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicReference;
+import com.emc.pravega.testcommon.Async;
+
+import lombok.val;
 
 /**
  * Unit tests for BlockingDrainingQueue class.
  */
 public class BlockingDrainingQueueTests {
+    private static final int TIMEOUT_MILLIS = 10 * 1000;
+
     /**
      * Tests the basic ability to queue and dequeue items.
      */
@@ -58,16 +63,14 @@ public class BlockingDrainingQueueTests {
         AtomicReference<List<Integer>> result = new AtomicReference<>();
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
         CompletableFuture<Void> resultSet = new CompletableFuture<>();
-        Thread t = new Thread(() -> {
+        val completionFuture = CompletableFuture.runAsync(() -> {
             try {
                 result.set(queue.takeAllEntries());
                 resultSet.complete(null);
-            } catch (Exception ex) {
+            } catch (InterruptedException ex) {
                 resultSet.completeExceptionally(ex);
             }
         });
-
-        t.start();
 
         // Verify the queue hasn't returned before we actually set the result.
         Assert.assertNull("Queue unblocked before result was set.", result.get());
@@ -75,7 +78,9 @@ public class BlockingDrainingQueueTests {
         // Queue the value
         queue.add(valueToQueue);
 
-        resultSet.join();
+        // Wait for the completion future to finish. This will also pop any other exceptions that we did not anticipate.
+        completionFuture.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        resultSet.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
 
         // Verify result.
         Assert.assertNotNull("Queue did not unblock after adding a value.", result.get());
@@ -90,31 +95,23 @@ public class BlockingDrainingQueueTests {
     @Test
     public void testClose() throws Exception {
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
-        AtomicReference<List<Integer>> result = new AtomicReference<>();
-        CompletableFuture<Void> resultSet = new CompletableFuture<>();
-        Thread t = new Thread(() -> {
+        AtomicReference<List<Integer>> queueContents = new AtomicReference<>();
+        AtomicBoolean wasInterupted = new AtomicBoolean(false);
+
+        List<Integer> result = Async.testBlocking(() -> {
             try {
-                result.set(queue.takeAllEntries());
-                resultSet.complete(null);
-            } catch (Exception ex) {
-                resultSet.completeExceptionally(ex);
+                return queue.takeAllEntries();
+            } catch (InterruptedException e) {
+                wasInterupted.set(true);
+                return null;
             }
+        }, () -> {
+            queueContents.set(queue.close());
         });
 
-        t.start();
-
-        // Verify the queue hasn't returned before we actually set the result.
-        Assert.assertNull("Queue unblocked before result was set.", result.get());
-        Thread.sleep(10);
-        List<Integer> queueContents = queue.close();
-
         // Verify result.
-        AssertExtensions.assertThrows(
-                "Future was not cancelled with the correct exception.",
-                resultSet::join,
-                ex -> ex instanceof InterruptedException);
-
-        Assert.assertNull("Queue returned an item even if it got closed.", result.get());
-        Assert.assertEquals("Queue.close() returned an item even though it was empty.", 0, queueContents.size());
+        Assert.assertTrue("Future was not cancelled with the correct exception.", wasInterupted.get());
+        Assert.assertNull("Queue returned an item even if it got closed.", result);
+        Assert.assertEquals("Queue.close() returned an item even though it was empty.", 0, queueContents.get().size());
     }
 }

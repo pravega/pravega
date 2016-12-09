@@ -22,6 +22,8 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.io.EnhancedByteArrayOutputStream;
 import com.emc.pravega.common.util.CollectionHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.BadEventNumberException;
+import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -31,8 +33,7 @@ import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentMetadata;
-import com.emc.pravega.service.server.logs.operations.BatchMapOperation;
-import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
+import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
@@ -40,6 +41,8 @@ import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
+import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
+import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -162,17 +165,15 @@ class OperationMetadataUpdater implements ContainerMetadata {
      * Records a Truncation Marker.
      *
      * @param operationSequenceNumber The Sequence Number of the Operation that can be used as a truncation argument.
-     * @param dataFrameSequenceNumber The Sequence Number of the corresponding Data Frame that can be truncated (up to, and including).
+     * @param logAddress              The Address of the corresponding Data Frame that can be truncated (up to, and including).
      */
-    void recordTruncationMarker(long operationSequenceNumber, long dataFrameSequenceNumber) {
-        log.debug("{}: RecordTruncationMarker OperationSequenceNumber = {}, DataFrameSequenceNumber = {}.", this.traceObjectId, operationSequenceNumber, dataFrameSequenceNumber);
-        getCurrentTransaction().recordTruncationMarker(operationSequenceNumber, dataFrameSequenceNumber);
+    void recordTruncationMarker(long operationSequenceNumber, LogAddress logAddress) {
+        log.debug("{}: RecordTruncationMarker OperationSequenceNumber = {}, DataFrameAddress = {}.", this.traceObjectId, operationSequenceNumber, logAddress);
+        getCurrentTransaction().recordTruncationMarker(operationSequenceNumber, logAddress);
     }
 
     /**
      * Gets the next available Operation Sequence Number. Atomically increments the value by 1 with every call.
-     *
-     * @return
      */
     long nextOperationSequenceNumber() {
         Preconditions.checkState(!isRecoveryMode(), "Cannot request new Operation Sequence Number in Recovery Mode.");
@@ -181,8 +182,6 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
     /**
      * Sets the operation sequence number in the transaction.
-     *
-     * @param value
      */
     void setOperationSequenceNumber(long value) {
         Preconditions.checkState(this.isRecoveryMode(), "Can only set new Operation Sequence Number in Recovery Mode.");
@@ -198,7 +197,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
      * If the given operation is a MetadataCheckpointOperation, the current state of the metadata (including pending
      * transactions) is serialized to it.
      * <p/>
-     * For all other kinds of MetadataOperations (i.e., StreamSegmentMapOperation, BatchMapOperation) this method only
+     * For all other kinds of MetadataOperations (i.e., StreamSegmentMapOperation, TransactionMapOperation) this method only
      * does anything if the base Container Metadata is in Recovery Mode (in which case the given MetadataOperation) is
      * recorded in the pending transaction.
      *
@@ -251,7 +250,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
         private final HashMap<Long, UpdateableSegmentMetadata> newStreamSegments;
         private final HashMap<String, Long> newStreamSegmentNames;
         private final List<Long> newTruncationPoints;
-        private final HashMap<Long, Long> newTruncationMarkers;
+        private final HashMap<Long, LogAddress> newTruncationMarkers;
         private final UpdateableContainerMetadata containerMetadata;
         private final AtomicLong newSequenceNumber;
         private final String traceObjectId;
@@ -297,8 +296,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
             // Commit all temporary changes to their respective sources.
             this.streamSegmentUpdates.values().forEach(TemporaryStreamSegmentMetadata::apply);
 
-            // We must first copy the Standalone StreamSegments, and then the Batch StreamSegments. That's because
-            // the Batch StreamSegments may refer to one of these newly created StreamSegments, and the metadata
+            // We must first copy the Standalone StreamSegments, and then the Transaction StreamSegments. That's because
+            // the Transaction StreamSegments may refer to one of these newly created StreamSegments, and the metadata
             // will reject the operation if it can't find the parent.
             // We need this because HashMap does not necessarily preserve order when iterating via values().
             copySegmentMetadataToSource(newStreamSegments.values(), s -> s.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID);
@@ -315,8 +314,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
         /**
          * Gets all pending changes for the given StreamSegment.
          *
-         * @param streamSegmentId
-         * @return The result
+         * @param streamSegmentId The Id of the Segment to query.
          * @throws MetadataUpdateException If no metadata entry exists for the given StreamSegment Id.
          */
         TemporaryStreamSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) throws MetadataUpdateException {
@@ -341,19 +339,19 @@ class OperationMetadataUpdater implements ContainerMetadata {
         /**
          * Records the given Truncation Marker Mapping.
          *
-         * @param operationSequenceNumber
-         * @param dataFrameSequenceNumber
+         * @param operationSequenceNumber The Sequence Number of the Operation that can be used as a truncation argument.
+         * @param logAddress              The Address of the corresponding Data Frame that can be truncated (up to, and including).
          */
-        void recordTruncationMarker(long operationSequenceNumber, long dataFrameSequenceNumber) {
+        void recordTruncationMarker(long operationSequenceNumber, LogAddress logAddress) {
             Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber", "Operation Sequence Number must be a positive number.");
-            Exceptions.checkArgument(dataFrameSequenceNumber >= 0, "dataFrameSequenceNumber", "DataFrame Sequence Number must be a positive number.");
-            this.newTruncationMarkers.put(operationSequenceNumber, dataFrameSequenceNumber);
+            Preconditions.checkNotNull(logAddress, "logAddress");
+            this.newTruncationMarkers.put(operationSequenceNumber, logAddress);
         }
 
         /**
          * Sets the new Operation Sequence Number.
          *
-         * @param value
+         * @param value The new Operation Sequence number.
          */
         void setOperationSequenceNumber(long value) {
             Preconditions.checkState(this.newSequenceNumber != null, "Unable to set new Sequence Number");
@@ -382,17 +380,17 @@ class OperationMetadataUpdater implements ContainerMetadata {
                     streamMetadata.preProcessOperation((StreamSegmentAppendOperation) operation);
                 } else if (operation instanceof StreamSegmentSealOperation) {
                     streamMetadata.preProcessOperation((StreamSegmentSealOperation) operation);
-                } else if (operation instanceof MergeBatchOperation) {
-                    MergeBatchOperation mbe = (MergeBatchOperation) operation;
-                    TemporaryStreamSegmentMetadata batchStreamMetadata = getStreamSegmentMetadata(mbe.getBatchStreamSegmentId());
-                    batchStreamMetadata.preProcessAsBatchStreamSegment(mbe);
-                    streamMetadata.preProcessAsParentStreamSegment(mbe, batchStreamMetadata);
+                } else if (operation instanceof MergeTransactionOperation) {
+                    MergeTransactionOperation mbe = (MergeTransactionOperation) operation;
+                    TemporaryStreamSegmentMetadata transactionMetadata = getStreamSegmentMetadata(mbe.getTransactionSegmentId());
+                    transactionMetadata.preProcessAsTransactionSegment(mbe);
+                    streamMetadata.preProcessAsParentSegment(mbe, transactionMetadata);
                 }
             } else if (operation instanceof MetadataOperation) {
                 if (operation instanceof StreamSegmentMapOperation) {
                     preProcessMetadataOperation((StreamSegmentMapOperation) operation);
-                } else if (operation instanceof BatchMapOperation) {
-                    preProcessMetadataOperation((BatchMapOperation) operation);
+                } else if (operation instanceof TransactionMapOperation) {
+                    preProcessMetadataOperation((TransactionMapOperation) operation);
                 } else if (operation instanceof MetadataCheckpointOperation) {
                     // MetadataCheckpointOperations do not require preProcess and accept; they can be handled in a single stage.
                     processMetadataOperation((MetadataCheckpointOperation) operation);
@@ -411,16 +409,16 @@ class OperationMetadataUpdater implements ContainerMetadata {
          */
         void acceptOperation(Operation operation) throws MetadataUpdateException {
             if (operation instanceof StorageOperation) {
-                TemporaryStreamSegmentMetadata streamMetadata = getStreamSegmentMetadata(((StorageOperation) operation).getStreamSegmentId());
+                TemporaryStreamSegmentMetadata segmentMetadata = getStreamSegmentMetadata(((StorageOperation) operation).getStreamSegmentId());
                 if (operation instanceof StreamSegmentAppendOperation) {
-                    streamMetadata.acceptOperation((StreamSegmentAppendOperation) operation);
+                    segmentMetadata.acceptOperation((StreamSegmentAppendOperation) operation);
                 } else if (operation instanceof StreamSegmentSealOperation) {
-                    streamMetadata.acceptOperation((StreamSegmentSealOperation) operation);
-                } else if (operation instanceof MergeBatchOperation) {
-                    MergeBatchOperation mbe = (MergeBatchOperation) operation;
-                    TemporaryStreamSegmentMetadata batchStreamMetadata = getStreamSegmentMetadata(mbe.getBatchStreamSegmentId());
-                    batchStreamMetadata.acceptAsBatchStreamSegment(mbe);
-                    streamMetadata.acceptAsParentStreamSegment(mbe, batchStreamMetadata);
+                    segmentMetadata.acceptOperation((StreamSegmentSealOperation) operation);
+                } else if (operation instanceof MergeTransactionOperation) {
+                    MergeTransactionOperation mto = (MergeTransactionOperation) operation;
+                    TemporaryStreamSegmentMetadata transactionMetadata = getStreamSegmentMetadata(mto.getTransactionSegmentId());
+                    transactionMetadata.acceptAsTransactionSegment(mto);
+                    segmentMetadata.acceptAsParentSegment(mto, transactionMetadata);
                 }
             } else if (operation instanceof MetadataOperation) {
                 if (operation instanceof MetadataCheckpointOperation) {
@@ -428,8 +426,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
                     this.newTruncationPoints.add(operation.getSequenceNumber());
                 } else if (operation instanceof StreamSegmentMapOperation) {
                     acceptMetadataOperation((StreamSegmentMapOperation) operation);
-                } else if (operation instanceof BatchMapOperation) {
-                    acceptMetadataOperation((BatchMapOperation) operation);
+                } else if (operation instanceof TransactionMapOperation) {
+                    acceptMetadataOperation((TransactionMapOperation) operation);
                 }
             }
         }
@@ -447,17 +445,21 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
         }
 
-        private void preProcessMetadataOperation(BatchMapOperation operation) throws MetadataUpdateException {
+        private void preProcessMetadataOperation(TransactionMapOperation operation) throws MetadataUpdateException {
             // Verify Parent StreamSegment Exists.
             UpdateableSegmentMetadata parentMetadata = getExistingMetadata(operation.getParentStreamSegmentId());
             if (parentMetadata == null) {
-                throw new MetadataUpdateException(String.format("Operation %d wants to map a StreamSegment to a Parent StreamSegment Id that does not exist. Parent StreamSegmentId = %d, Batch StreamSegment Name = %s.", operation.getSequenceNumber(), operation.getParentStreamSegmentId(), operation.getStreamSegmentName()));
+                throw new MetadataUpdateException(String.format(
+                        "Operation %d wants to map a StreamSegment to a Parent StreamSegment Id that does not exist. Parent StreamSegmentId = %d, Transaction Name = %s.",
+                        operation.getSequenceNumber(), operation.getParentStreamSegmentId(), operation.getStreamSegmentName()));
             }
 
             // Verify StreamSegment Name is not already mapped somewhere else.
             long existingStreamId = getExistingStreamSegmentId(operation.getStreamSegmentName());
             if (existingStreamId != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                throw new MetadataUpdateException(String.format("Operation %d wants to map a Batch StreamSegment Name that is already mapped in the metadata. Batch StreamSegmentName = '%s', Existing Id = %d.", operation.getSequenceNumber(), operation.getStreamSegmentName(), existingStreamId));
+                throw new MetadataUpdateException(String.format(
+                        "Operation %d wants to map a Transaction StreamSegment Name that is already mapped in the metadata. Transaction Name = '%s', Existing Id = %d.",
+                        operation.getSequenceNumber(), operation.getStreamSegmentName(), existingStreamId));
             }
 
             // Assign the SegmentId.
@@ -504,21 +506,27 @@ class OperationMetadataUpdater implements ContainerMetadata {
             streamSegmentMetadata.setStorageLength(operation.getLength());
             streamSegmentMetadata.setDurableLogLength(operation.getLength()); // DurableLogLength must be at least StorageLength.
             if (operation.isSealed()) {
+                // MapOperations represent the state of the StreamSegment in Storage. If it is sealed in storage, both
+                // Seal flags need to be set.
                 streamSegmentMetadata.markSealed();
+                streamSegmentMetadata.markSealedInStorage();
             }
         }
 
-        private void acceptMetadataOperation(BatchMapOperation operation) throws MetadataUpdateException {
+        private void acceptMetadataOperation(TransactionMapOperation operation) throws MetadataUpdateException {
             if (operation.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                throw new MetadataUpdateException("BatchMapOperation does not have a StreamSegmentId assigned: " + operation.toString());
+                throw new MetadataUpdateException("TransactionMapOperation does not have a StreamSegmentId assigned: " + operation.toString());
             }
 
             // Create stream metadata here - we need to do this as part of the transaction.
-            UpdateableSegmentMetadata batchStreamSegmentMetadata = recordNewStreamSegment(operation.getStreamSegmentName(), operation.getStreamSegmentId(), operation.getParentStreamSegmentId());
-            batchStreamSegmentMetadata.setStorageLength(operation.getLength());
-            batchStreamSegmentMetadata.setDurableLogLength(0);
+            UpdateableSegmentMetadata transactionMetadata = recordNewStreamSegment(operation.getStreamSegmentName(), operation.getStreamSegmentId(), operation.getParentStreamSegmentId());
+            transactionMetadata.setStorageLength(operation.getLength());
+            transactionMetadata.setDurableLogLength(0);
             if (operation.isSealed()) {
-                batchStreamSegmentMetadata.markSealed();
+                // MapOperations represent the state of the StreamSegment in Storage. If it is sealed in storage, both
+                // Seal flags need to be set.
+                transactionMetadata.markSealed();
+                transactionMetadata.markSealedInStorage();
             }
         }
 
@@ -581,15 +589,14 @@ class OperationMetadataUpdater implements ContainerMetadata {
                     continue;
                 }
 
-                //TODO: should we check (again?) if the container metadata has knowledge of this stream?
+                UpdateableSegmentMetadata existingMetadata;
                 if (newMetadata.getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                    this.containerMetadata.mapStreamSegmentId(newMetadata.getName(), newMetadata.getId(), newMetadata.getParentId());
+                    existingMetadata = this.containerMetadata.mapStreamSegmentId(newMetadata.getName(), newMetadata.getId(), newMetadata.getParentId());
                 } else {
-                    this.containerMetadata.mapStreamSegmentId(newMetadata.getName(), newMetadata.getId());
+                    existingMetadata = this.containerMetadata.mapStreamSegmentId(newMetadata.getName(), newMetadata.getId());
                 }
 
                 // Update real metadata with all the information from the new metadata.
-                UpdateableSegmentMetadata existingMetadata = this.containerMetadata.getStreamSegmentMetadata(newMetadata.getId());
                 existingMetadata.copyFrom(newMetadata);
             }
         }
@@ -689,9 +696,11 @@ class OperationMetadataUpdater implements ContainerMetadata {
             stream.writeBoolean(sm.isMerged());
             // S7. Sealed.
             stream.writeBoolean(sm.isSealed());
-            // S8. Deleted.
+            // S8. SealedInStorage.
+            stream.writeBoolean(sm.isSealedInStorage());
+            // S9. Deleted.
             stream.writeBoolean(sm.isDeleted());
-            // S9. LastModified.
+            // S10. LastModified.
             stream.writeLong(sm.getLastModified().getTime());
 
             // TODO: determine if we want to snapshot the client ids and their offsets too. This might be a long list, especially if we don't clean it up.
@@ -722,12 +731,17 @@ class OperationMetadataUpdater implements ContainerMetadata {
             if (isSealed) {
                 metadata.markSealed();
             }
-            // S8. Deleted.
+            // S8. SealedInStorage.
+            boolean isSealedInStorage = stream.readBoolean();
+            if (isSealedInStorage) {
+                metadata.markSealedInStorage();
+            }
+            // S9. Deleted.
             boolean isDeleted = stream.readBoolean();
             if (isDeleted) {
                 metadata.markDeleted();
             }
-            // S9. LastModified.
+            // S10. LastModified.
             Date lastModified = new java.util.Date(stream.readLong());
             metadata.setLastModified(lastModified);
         }
@@ -759,8 +773,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
         /**
          * Creates a new instance of the TemporaryStreamSegmentMetadata class.
          *
-         * @param baseMetadata The base StreamSegment Metadata.
-         * @param isRecoveryMode        Whether the metadata is currently in recovery model
+         * @param baseMetadata   The base StreamSegment Metadata.
+         * @param isRecoveryMode Whether the metadata is currently in recovery model
          */
         TemporaryStreamSegmentMetadata(UpdateableSegmentMetadata baseMetadata, boolean isRecoveryMode) {
             assert baseMetadata != null : "baseMetadata is null";
@@ -827,6 +841,11 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         @Override
+        public boolean isSealedInStorage() {
+            return this.baseMetadata.isSealedInStorage();
+        }
+
+        @Override
         public long getStorageLength() {
             return this.baseMetadata.getStorageLength();
         }
@@ -858,10 +877,12 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @param operation The operation to pre-process.
          * @throws StreamSegmentSealedException If the StreamSegment is sealed.
          * @throws StreamSegmentMergedException If the StreamSegment is merged into another.
+         * @throws BadOffsetException           If the operation has an assigned offset, but it doesn't match the current
+         *                                      Segment DurableLogOffset.
          * @throws IllegalArgumentException     If the operation is for a different stream.
          */
-        void preProcessOperation(StreamSegmentAppendOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException {
-            ensureStreamId(operation);
+        void preProcessOperation(StreamSegmentAppendOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException, BadOffsetException, BadEventNumberException {
+            ensureSegmentId(operation);
             if (this.merged) {
                 // We do not allow any operation after merging (since after merging the StreamSegment disappears).
                 throw new StreamSegmentMergedException(this.baseMetadata.getName());
@@ -871,9 +892,27 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 throw new StreamSegmentSealedException(this.baseMetadata.getName());
             }
 
-            if (!isRecoveryMode) {
-                // Assign entry offset and update stream offset afterwards.
-                operation.setStreamSegmentOffset(this.currentDurableLogLength);
+            if (!this.isRecoveryMode) {
+                // Offset check (if append-with-offset).
+                long operationOffset = operation.getStreamSegmentOffset();
+                if (operationOffset >= 0) {
+                    // If the Operation already has an offset assigned, verify that it matches the current end offset of the Segment.
+                    if (operationOffset != this.currentDurableLogLength) {
+                        throw new BadOffsetException(this.baseMetadata.getName(), this.currentDurableLogLength, operationOffset);
+                    }
+                } else {
+                    // No pre-assigned offset. Put the Append at the end of the Segment.
+                    operation.setStreamSegmentOffset(this.currentDurableLogLength);
+                }
+
+                // Context Event-Number check (must be monotonically increasing).
+                AppendContext currentContext = operation.getAppendContext();
+                if (currentContext != null) {
+                    AppendContext lastContext = getLastAppendContext(operation.getAppendContext().getClientId());
+                    if (lastContext != null && currentContext.getEventNumber() <= lastContext.getEventNumber()) {
+                        throw new BadEventNumberException(this.baseMetadata.getName(), lastContext.getEventNumber(), currentContext.getEventNumber());
+                    }
+                }
             }
         }
 
@@ -887,7 +926,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @throws IllegalArgumentException     If the operation is for a different stream.
          */
         void preProcessOperation(StreamSegmentSealOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException {
-            ensureStreamId(operation);
+            ensureSegmentId(operation);
             if (this.merged) {
                 // We do not allow any operation after merging (since after merging the Stream disappears).
                 throw new StreamSegmentMergedException(this.baseMetadata.getName());
@@ -899,70 +938,70 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             if (!this.isRecoveryMode) {
-                // Assign entry Stream Length.
-                operation.setStreamSegmentLength(this.currentDurableLogLength);
+                // Assign entry StreamSegment Length.
+                operation.setStreamSegmentOffset(this.currentDurableLogLength);
             }
         }
 
         /**
-         * Pre-processes the given MergeBatchOperation as a Parent StreamSegment.
+         * Pre-processes the given MergeTransactionOperation as a Parent StreamSegment.
          * After this method returns, the operation will have its TargetStreamSegmentOffset set to the length of the Parent StreamSegment.
          *
          * @param operation           The operation to pre-process.
-         * @param batchStreamMetadata The metadata for the Batch Stream Segment to merge.
+         * @param transactionMetadata The metadata for the Transaction Stream Segment to merge.
          * @throws StreamSegmentSealedException If the parent stream is already sealed.
          * @throws MetadataUpdateException      If the operation cannot be processed because of the current state of the metadata.
          * @throws IllegalArgumentException     If the operation is for a different stream.
          */
-        void preProcessAsParentStreamSegment(MergeBatchOperation operation, TemporaryStreamSegmentMetadata batchStreamMetadata) throws StreamSegmentSealedException, MetadataUpdateException {
-            ensureStreamId(operation);
+        void preProcessAsParentSegment(MergeTransactionOperation operation, TemporaryStreamSegmentMetadata transactionMetadata) throws StreamSegmentSealedException, MetadataUpdateException {
+            ensureSegmentId(operation);
 
             if (this.sealed) {
-                // We do not allow merging into sealed streams.
+                // We do not allow merging into sealed Segments.
                 throw new StreamSegmentSealedException(this.baseMetadata.getName());
             }
 
             if (this.baseMetadata.getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                throw new MetadataUpdateException("Cannot merge a StreamSegment into a Batch StreamSegment.");
+                throw new MetadataUpdateException("Cannot merge a StreamSegment into a Transaction StreamSegment.");
             }
 
-            // Check that the batch has been properly sealed and has its length set.
-            if (!batchStreamMetadata.isSealed()) {
-                throw new MetadataUpdateException("Batch StreamSegment to be merged needs to be sealed.");
+            // Check that the Transaction has been properly sealed and has its length set.
+            if (!transactionMetadata.isSealed()) {
+                throw new MetadataUpdateException("Transaction StreamSegment to be merged needs to be sealed.");
             }
 
-            long batchLength = operation.getBatchStreamSegmentLength();
-            if (batchLength < 0) {
-                throw new MetadataUpdateException("MergeBatchOperation does not have its Batch StreamSegment Length set.");
+            long transLength = operation.getLength();
+            if (transLength < 0) {
+                throw new MetadataUpdateException("MergeTransactionOperation does not have its Transaction StreamSegment Length set.");
             }
 
             if (!this.isRecoveryMode) {
-                // Assign entry Stream offset and update stream offset afterwards.
-                operation.setTargetStreamSegmentOffset(this.currentDurableLogLength);
+                // Assign entry StreamSegment offset and update StreamSegment offset afterwards.
+                operation.setStreamSegmentOffset(this.currentDurableLogLength);
             }
         }
 
         /**
-         * Pre-processes the given operation as a Batch StreamSegment.
+         * Pre-processes the given operation as a Transaction StreamSegment.
          *
          * @param operation The operation
          * @throws IllegalArgumentException     If the operation is for a different stream segment.
          * @throws MetadataUpdateException      If the StreamSegment is not sealed.
          * @throws StreamSegmentMergedException If the StreamSegment is already merged.
          */
-        void preProcessAsBatchStreamSegment(MergeBatchOperation operation) throws MetadataUpdateException, StreamSegmentMergedException {
-            Exceptions.checkArgument(this.baseMetadata.getId() == operation.getBatchStreamSegmentId(), "operation", "Invalid Operation BatchStreamSegment Id.");
+        void preProcessAsTransactionSegment(MergeTransactionOperation operation) throws MetadataUpdateException, StreamSegmentMergedException {
+            Exceptions.checkArgument(this.baseMetadata.getId() == operation.getTransactionSegmentId(), "operation", "Invalid Operation Transaction StreamSegment Id.");
 
             if (this.merged) {
                 throw new StreamSegmentMergedException(this.baseMetadata.getName());
             }
 
             if (!this.sealed) {
-                throw new MetadataUpdateException("Batch StreamSegment to be merged needs to be sealed.");
+                throw new MetadataUpdateException("Transaction StreamSegment to be merged needs to be sealed.");
             }
 
             if (!this.isRecoveryMode) {
-                operation.setBatchStreamSegmentLength(this.currentDurableLogLength);
+                operation.setLength(this.currentDurableLogLength);
             }
         }
 
@@ -978,7 +1017,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @throws IllegalArgumentException If the operation is for a different stream.
          */
         void acceptOperation(StreamSegmentAppendOperation operation) throws MetadataUpdateException {
-            ensureStreamId(operation);
+            ensureSegmentId(operation);
             if (operation.getStreamSegmentOffset() != this.currentDurableLogLength) {
                 throw new MetadataUpdateException(String.format("StreamSegmentAppendOperation offset mismatch. Expected %d, actual %d.", this.currentDurableLogLength, operation.getStreamSegmentOffset()));
             }
@@ -996,8 +1035,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @throws IllegalArgumentException If the operation is for a different stream.
          */
         void acceptOperation(StreamSegmentSealOperation operation) throws MetadataUpdateException {
-            ensureStreamId(operation);
-            if (operation.getStreamSegmentLength() < 0) {
+            ensureSegmentId(operation);
+            if (operation.getStreamSegmentOffset() < 0) {
                 throw new MetadataUpdateException("StreamSegmentSealOperation cannot be accepted if it hasn't been pre-processed.");
             }
 
@@ -1006,37 +1045,37 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         /**
-         * Accepts the given MergeBatchOperation as a Parent StreamSegment.
+         * Accepts the given MergeTransactionOperation as a Parent StreamSegment.
          *
          * @param operation           The operation to accept.
-         * @param batchStreamMetadata The metadata for the Batch Stream Segment to merge.
+         * @param transactionMetadata The metadata for the Transaction Stream Segment to merge.
          * @throws MetadataUpdateException  If the operation cannot be processed because of the current state of the metadata.
          * @throws IllegalArgumentException If the operation is for a different stream.
          */
-         void acceptAsParentStreamSegment(MergeBatchOperation operation, TemporaryStreamSegmentMetadata batchStreamMetadata) throws MetadataUpdateException {
-            ensureStreamId(operation);
+        void acceptAsParentSegment(MergeTransactionOperation operation, TemporaryStreamSegmentMetadata transactionMetadata) throws MetadataUpdateException {
+            ensureSegmentId(operation);
 
-            if (operation.getTargetStreamSegmentOffset() != this.currentDurableLogLength) {
-                throw new MetadataUpdateException(String.format("MergeBatchOperation target offset mismatch. Expected %d, actual %d.", this.currentDurableLogLength, operation.getTargetStreamSegmentOffset()));
+            if (operation.getStreamSegmentOffset() != this.currentDurableLogLength) {
+                throw new MetadataUpdateException(String.format("MergeTransactionOperation target offset mismatch. Expected %d, actual %d.", this.currentDurableLogLength, operation.getStreamSegmentOffset()));
             }
 
-            long batchLength = operation.getBatchStreamSegmentLength();
-            if (batchLength < 0 || batchLength != batchStreamMetadata.currentDurableLogLength) {
-                throw new MetadataUpdateException("MergeBatchOperation does not seem to have been pre-processed.");
+            long transLength = operation.getLength();
+            if (transLength < 0 || transLength != transactionMetadata.currentDurableLogLength) {
+                throw new MetadataUpdateException("MergeTransactionOperation does not seem to have been pre-processed.");
             }
 
-            this.currentDurableLogLength += batchLength;
+            this.currentDurableLogLength += transLength;
             this.isChanged = true;
         }
 
         /**
-         * Accepts the given operation as a Batch Stream Segment.
+         * Accepts the given operation as a Transaction Stream Segment.
          *
          * @param operation The operation
          * @throws IllegalArgumentException If the operation is for a different stream segment.
          */
-        void acceptAsBatchStreamSegment(MergeBatchOperation operation) {
-            Exceptions.checkArgument(this.baseMetadata.getId() == operation.getBatchStreamSegmentId(), "operation", "Invalid Operation BatchStreamSegment Id.");
+        void acceptAsTransactionSegment(MergeTransactionOperation operation) {
+            Exceptions.checkArgument(this.baseMetadata.getId() == operation.getTransactionSegmentId(), "operation", "Invalid Operation Transaction StreamSegment Id.");
 
             this.sealed = true;
             this.merged = true;
@@ -1061,13 +1100,17 @@ class OperationMetadataUpdater implements ContainerMetadata {
             this.baseMetadata.setDurableLogLength(this.currentDurableLogLength);
             if (this.isSealed()) {
                 this.baseMetadata.markSealed();
+                if (this.isSealedInStorage()) {
+                    this.baseMetadata.isSealedInStorage();
+                }
             }
+
             if (this.isMerged()) {
                 this.baseMetadata.markMerged();
             }
         }
 
-        private void ensureStreamId(StorageOperation operation) {
+        private void ensureSegmentId(StorageOperation operation) {
             Exceptions.checkArgument(this.baseMetadata.getId() == operation.getStreamSegmentId(), "operation", "Invalid Log Operation StreamSegment Id.");
         }
 

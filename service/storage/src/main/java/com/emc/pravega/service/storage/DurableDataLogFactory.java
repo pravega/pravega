@@ -25,7 +25,7 @@ public interface DurableDataLogFactory extends AutoCloseable {
     /**
      * Creates a new instance of a DurableDataLog class.
      *
-     * @return The result.
+     * @param containerId The Id of the StreamSegmentContainer for the DurableDataLog.
      */
     DurableDataLog createDurableDataLog(int containerId);
 

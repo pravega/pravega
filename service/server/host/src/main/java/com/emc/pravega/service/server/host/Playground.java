@@ -18,7 +18,14 @@
 
 package com.emc.pravega.service.server.host;
 
+import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
+import com.emc.pravega.common.util.PropertyBag;
+import com.emc.pravega.service.server.CacheKey;
+import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
+import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
+import lombok.Cleanup;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -28,7 +35,43 @@ public class Playground {
 
     public static void main(String[] args) throws Exception {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        //context.getLoggerList().get(0).setLevel(Level.INFO);
-        context.reset();
+        context.getLoggerList().get(0).setLevel(Level.INFO);
+        //context.reset();
+
+        RocksDBConfig config = new RocksDBConfig(PropertyBag.create());
+
+        @Cleanup
+        RocksDBCacheFactory factory = new RocksDBCacheFactory(config);
+        final String cacheId = "MockCache";
+        Cache cache = factory.getCache(cacheId);
+
+        long maxSegmentId = 100;
+        long maxOffsetId = 100;
+
+        //byte[] data = String.format("SegmentId=%s,Offset=%s", maxSegmentId, maxOffsetId).getBytes();
+        long writeStart = System.nanoTime();
+        for (long segmentId = 0; segmentId < maxSegmentId; segmentId++) {
+            for (long offset = 0; offset < maxOffsetId; offset++) {
+                Cache.Key key = new CacheKey(segmentId, offset);
+                byte[] data = String.format("SegmentId=%s,Offset=%s", segmentId, offset).getBytes();
+                cache.insert(key, data);
+                System.out.println(String.format("SegmentId=%s,Offset=%s", segmentId, offset));
+            }
+        }
+
+        long writeElapsed = System.nanoTime() - writeStart;
+
+        long readStart = System.nanoTime();
+        for (long segmentId = 0; segmentId < maxSegmentId; segmentId++) {
+            for (long offset = 0; offset < maxOffsetId; offset++) {
+                Cache.Key key = new CacheKey(segmentId, offset);
+                byte[] readData = cache.get(key);
+                String dataString = readData == null ? "(null)" : new String(readData);
+                System.out.println(String.format("SegmentId=%s,Offset=%d - %s", segmentId, offset, dataString));
+            }
+        }
+
+        long readElapsed = System.nanoTime() - readStart;
+        System.out.println(String.format("Count = %s, Write = %sms, Read = %sms", maxSegmentId * maxOffsetId, writeElapsed / 1000 / 1000, readElapsed / 1000 / 1000));
     }
 }

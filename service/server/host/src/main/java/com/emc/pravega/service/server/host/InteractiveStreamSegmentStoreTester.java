@@ -20,7 +20,6 @@ package com.emc.pravega.service.server.host;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
@@ -28,7 +27,6 @@ import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.ExceptionHelpers;
-import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import org.slf4j.LoggerFactory;
@@ -81,22 +79,34 @@ public class InteractiveStreamSegmentStoreTester {
 
     public static void main(String[] args) {
         final boolean useDistributedLog = false;
+        final boolean useHDFS = true;
 
         // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.TRACE);
         context.reset();
 
-        ServiceBuilderConfig config = ServiceBuilderConfig.getDefaultConfig();
-        ServiceBuilder serviceBuilder;
+        ServiceBuilderConfig config = null;
+        try {
+            config = ServiceBuilderConfig.getConfigFromFile();
+        } catch (IOException e) {
+            System.out.println("Creation of ServiceBuilderConfig failed becaue of exception " + e);
+            config = ServiceBuilderConfig.getDefaultConfig();
+        }
+        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(config);
         if (useDistributedLog) {
-            serviceBuilder = new DistributedLogServiceBuilder(config);
-        } else {
-            serviceBuilder = new InMemoryServiceBuilder(config);
+            // Real (Distributed Log) Data Log.
+            ServiceStarter.attachDistributedLog(serviceBuilder);
+        }
+        if (useHDFS) {
+            // Real (HDFS) storage
+            ServiceStarter.attachHDFS(serviceBuilder);
         }
 
+        ServiceStarter.attachRocksDB(serviceBuilder);
+
         try {
-            serviceBuilder.getContainerManager().initialize(TIMEOUT).join();
+            serviceBuilder.initialize().join();
             InteractiveStreamSegmentStoreTester tester = new InteractiveStreamSegmentStoreTester(serviceBuilder, System.in, System.out, System.err);
             tester.run();
         } finally {
@@ -143,11 +153,11 @@ public class InteractiveStreamSegmentStoreTester {
                         case Commands.READ:
                             readFromStream(commandParser);
                             break;
-                        case Commands.CREATE_BATCH:
-                            createBatch(commandParser);
+                        case Commands.CREATE_TRANSACTION:
+                            createTransaction(commandParser);
                             break;
-                        case Commands.MERGE_BATCH:
-                            mergeBatch(commandParser);
+                        case Commands.MERGE_TRANSACTION:
+                            mergeTransaction(commandParser);
                             break;
                         default:
                             log("Unknown command '%s'.", commandName);
@@ -237,18 +247,18 @@ public class InteractiveStreamSegmentStoreTester {
                 }));
     }
 
-    private void createBatch(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
+    private void createTransaction(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
         String parentName = parsedCommand.getNext();
-        checkArguments(parentName != null && parentName.length() > 0, Commands.combine(Commands.CREATE_BATCH, Commands.PARENT_STREAM_SEGMENT_NAME));
+        checkArguments(parentName != null && parentName.length() > 0, Commands.combine(Commands.CREATE_TRANSACTION, Commands.PARENT_STREAM_SEGMENT_NAME));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.createBatch(parentName, defaultTimeout), r -> log(startTime, "Created BatchStreamSegment %s with parent %s.", r, parentName));
+        await(this.streamSegmentStore.createTransaction(parentName, UUID.randomUUID(), defaultTimeout), r -> log(startTime, "Created Transaction %s with parent %s.", r, parentName));
     }
 
-    private void mergeBatch(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
-        String batchStreamName = parsedCommand.getNext();
-        checkArguments(batchStreamName != null && batchStreamName.length() > 0, Commands.combine(Commands.MERGE_BATCH, Commands.BATCH_STREAM_SEGMENT_NAME));
+    private void mergeTransaction(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
+        String transactionName = parsedCommand.getNext();
+        checkArguments(transactionName != null && transactionName.length() > 0, Commands.combine(Commands.MERGE_TRANSACTION, Commands.TRANSACTION_STREAM_SEGMENT_NAME));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.mergeBatch(batchStreamName, defaultTimeout), r -> log(startTime, "Merged BatchStreamSegment %s into parent stream.", batchStreamName));
+        await(this.streamSegmentStore.mergeTransaction(transactionName, defaultTimeout), r -> log(startTime, "Merged Transaction %s into parent segment.", transactionName));
     }
 
     private <T> void await(CompletableFuture<T> future, Consumer<T> callback) {
@@ -294,7 +304,7 @@ public class InteractiveStreamSegmentStoreTester {
 
     private static class InvalidCommandSyntax extends RuntimeException {
         /**
-         * 
+         *
          */
         private static final long serialVersionUID = 1L;
 
@@ -314,8 +324,8 @@ public class InteractiveStreamSegmentStoreTester {
         public static final String GET = "get";
         public static final String APPEND = "append";
         public static final String READ = "read";
-        public static final String CREATE_BATCH = "batch-create";
-        public static final String MERGE_BATCH = "batch-merge";
+        public static final String CREATE_TRANSACTION = "transaction-create";
+        public static final String MERGE_TRANSACTION = "transaction-merge";
 
         public static final AbstractMap<String, String> SYNTAXES = new TreeMap<>();
 
@@ -326,12 +336,12 @@ public class InteractiveStreamSegmentStoreTester {
             SYNTAXES.put(READ, Commands.combine(READ, Commands.STREAM_SEGMENT_NAME));
             SYNTAXES.put(SEAL, Commands.combine(SEAL, Commands.STREAM_SEGMENT_NAME));
             SYNTAXES.put(GET, Commands.combine(GET, Commands.STREAM_SEGMENT_NAME, Commands.OFFSET, Commands.LENGTH));
-            SYNTAXES.put(CREATE_BATCH, Commands.combine(CREATE_BATCH, Commands.PARENT_STREAM_SEGMENT_NAME));
-            SYNTAXES.put(MERGE_BATCH, Commands.combine(MERGE_BATCH, Commands.BATCH_STREAM_SEGMENT_NAME));
+            SYNTAXES.put(CREATE_TRANSACTION, Commands.combine(CREATE_TRANSACTION, Commands.PARENT_STREAM_SEGMENT_NAME));
+            SYNTAXES.put(MERGE_TRANSACTION, Commands.combine(MERGE_TRANSACTION, Commands.TRANSACTION_STREAM_SEGMENT_NAME));
         }
 
         private static final String PARENT_STREAM_SEGMENT_NAME = "<parent-stream-segment-name>";
-        private static final String BATCH_STREAM_SEGMENT_NAME = "<batch-stream-segment-name>";
+        private static final String TRANSACTION_STREAM_SEGMENT_NAME = "<transaction-stream-segment-name>";
         private static final String STREAM_SEGMENT_NAME = "<stream-segment-name>";
         private static final String APPEND_DATA = "<append-string>";
         private static final String OFFSET = "<offset>";

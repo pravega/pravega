@@ -1,0 +1,15 @@
+FROM java:8
+
+MAINTAINER Arvind Kandhare [arvind.kandhare@emc.com]
+
+COPY service/server/host/build/distributions/ /opt
+
+WORKDIR /opt
+
+RUN tar -xf /opt/host.tar
+
+RUN rm /opt/host.tar
+RUN rm /opt/host.zip
+
+ENTRYPOINT [ "/opt/host/bin/host" ]
+

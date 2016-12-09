@@ -40,7 +40,7 @@ public class AppendsOnlyBenchmark extends Benchmark {
     private static final int APPEND_COUNT = 10000;
     private static final int MAX_APPEND_SIZE = ONE_MB;
     private static final int[] BURST_SIZES = new int[]{1, 100, 1000, Integer.MAX_VALUE};
-    private static final int[] APPEND_SIZES = new int[]{100, 1024, 10 * 1024, 100 * 1024, MAX_APPEND_SIZE};
+    private static final int[] APPEND_SIZES = new int[]{100, 1024, 10 * 1024, 100 * 1024}; //, MAX_APPEND_SIZE};
     private static final int[] SEGMENT_COUNTS = new int[]{1, 5, 10, 20};
     private static final List<TestInput> INPUTS;
 
@@ -95,7 +95,7 @@ public class AppendsOnlyBenchmark extends Benchmark {
     private TestOutput runSingleBenchmark(TestInput testInput, ServiceBuilder serviceBuilder) {
         log("Running %s", testInput);
 
-        serviceBuilder.getContainerManager().initialize(TIMEOUT).join();
+        serviceBuilder.initialize().join();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         List<String> segmentNames = createStreamSegments(store, testInput.segmentCount);
 
@@ -174,12 +174,12 @@ public class AppendsOnlyBenchmark extends Benchmark {
     //region TestOutput
 
     private static class TestOutput implements Comparable<TestOutput> {
-        public final TestInput input;
-        public long totalAppendLength;
-        public long totalDurationNanos;
-        public final SeriesStatistic latencies;
+        final TestInput input;
+        long totalAppendLength;
+        long totalDurationNanos;
+        final SeriesStatistic latencies;
 
-        public TestOutput(TestInput input, SeriesStatistic latencies) {
+        TestOutput(TestInput input, SeriesStatistic latencies) {
             this.input = input;
             this.latencies = latencies;
         }
@@ -200,12 +200,12 @@ public class AppendsOnlyBenchmark extends Benchmark {
     //region TestInput
 
     private static class TestInput implements Comparable<TestInput> {
-        public final int segmentCount;
-        public final int appendsPerSegment;
-        public final int appendSize;
-        public final int burstSize;
+        final int segmentCount;
+        final int appendsPerSegment;
+        final int appendSize;
+        final int burstSize;
 
-        public TestInput(int segmentCount, int appendsPerSegment, int appendSize, int burstSize) {
+        TestInput(int segmentCount, int appendsPerSegment, int appendSize, int burstSize) {
             this.segmentCount = segmentCount;
             this.appendsPerSegment = appendsPerSegment;
             this.appendSize = appendSize;

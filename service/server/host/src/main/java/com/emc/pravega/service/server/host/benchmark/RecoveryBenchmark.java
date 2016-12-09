@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -40,14 +40,14 @@ import java.util.function.Supplier;
  * StreamSegmentStore benchmark for Recovery.
  */
 public class RecoveryBenchmark extends Benchmark {
-    //region TestParameters
+    // region TestParameters
 
     private static final int[] SEGMENT_COUNTS = new int[]{1};
-    private static final int[] TOTAL_APPEND_LENGTH_MB = new int[]{128};
-    private static final int[] APPEND_SIZES = new int[]{ONE_MB};
-    //    private static final int[] SEGMENT_COUNTS = new int[]{1, 1000, 100 * 1000};
-    //    private static final int[] TOTAL_APPEND_LENGTH_MB = new int[]{128, 512, 1024, 2048};
-    //    private static final int[] APPEND_SIZES = new int[]{100, 10 * 1024, 100 * 1024, ONE_MB};
+    private static final int[] TOTAL_APPEND_LENGTH_MB = new int[]{512};
+    private static final int[] APPEND_SIZES = new int[]{100};
+    // private static final int[] SEGMENT_COUNTS = new int[]{1, 1000, 100 * 1000};
+    // private static final int[] TOTAL_APPEND_LENGTH_MB = new int[]{128, 512, 1024, 2048};
+    // private static final int[] APPEND_SIZES = new int[]{100, 10 * 1024, 100 * 1024, ONE_MB};
     private static final List<TestInput> INPUTS;
 
     static {
@@ -55,7 +55,8 @@ public class RecoveryBenchmark extends Benchmark {
         for (int segmentCount : SEGMENT_COUNTS) {
             for (long totalAppendMb : TOTAL_APPEND_LENGTH_MB) {
                 for (int appendSize : APPEND_SIZES) {
-                    // Calculate # of appends per segment, given total number of appends, their sizes, and # of segments.
+                    // Calculate # of appends per segment, given total number of appends, their sizes, and # of
+                    // segments.
                     int appendCount = (int) (totalAppendMb * ONE_MB / appendSize / segmentCount);
                     if (appendCount <= 0) {
                         // Some combinations really don't make sense, but that's what we get for doing a cross-product
@@ -69,17 +70,17 @@ public class RecoveryBenchmark extends Benchmark {
         }
     }
 
-    //endregion
+    // endregion
 
-    //region Constructor
+    // region Constructor
 
     public RecoveryBenchmark(Supplier<ServiceBuilder> serviceBuilderProvider) {
         super(serviceBuilderProvider);
     }
 
-    //endregion
+    // endregion
 
-    //region Benchmark Base Class Implementation
+    // region Benchmark Base Class Implementation
 
     @Override
     public void run() {
@@ -105,15 +106,15 @@ public class RecoveryBenchmark extends Benchmark {
         return "Recovery";
     }
 
-    //endregion
+    // endregion
 
-    //region Actual benchmark implementation
+    // region Actual benchmark implementation
 
     private TestOutput runSingleBenchmark(TestInput testInput, ServiceBuilder serviceBuilder) {
         final int containerId = 0;
         log("Running %s", testInput);
 
-        serviceBuilder.getContainerManager().initialize(TIMEOUT).join();
+        serviceBuilder.initialize().join();
         SegmentContainerRegistry containerRegistry = serviceBuilder.getSegmentContainerRegistry();
         if (containerRegistry.getContainerCount() != 1) {
             throw new IllegalStateException("This benchmark only works if there is exactly one container registered.");
@@ -135,12 +136,12 @@ public class RecoveryBenchmark extends Benchmark {
         final UUID clientId = UUID.randomUUID();
 
         // Do all the appends.
-        List<CompletableFuture<Long>> appendCompletions = new ArrayList<>();
+        List<CompletableFuture<Void>> appendCompletions = new ArrayList<>();
         for (int appendIndex = 0; appendIndex < testInput.appendsPerSegment; appendIndex++) {
             // Append context is unique per Append Index (we can share it with multiple StreamSegments).
             AppendContext appendContext = new AppendContext(clientId, appendIndex);
             for (String segmentName : segmentNames) {
-                CompletableFuture<Long> appendCompletion = store.append(segmentName, appendData, appendContext, TIMEOUT);
+                CompletableFuture<Void> appendCompletion = store.append(segmentName, appendData, appendContext, TIMEOUT);
                 appendCompletions.add(appendCompletion);
             }
         }
@@ -151,6 +152,13 @@ public class RecoveryBenchmark extends Benchmark {
         // Stop the service and do a recovery.
         container.stopAsync().awaitTerminated();
         container.close();
+
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException ex) {
+            throw new RuntimeStreamingException(ex);
+        }
+
         TestOutput result = new TestOutput(testInput);
         final long testStartTime = System.nanoTime();
         ContainerHandle handle = serviceBuilder.getSegmentContainerRegistry().startContainer(containerId, TIMEOUT).join();
@@ -165,8 +173,7 @@ public class RecoveryBenchmark extends Benchmark {
             int appendCount = result.input.segmentCount * result.input.appendsPerSegment;
             double duration = result.totalDurationNanos / 1000.0 / 1000 / 1000;
             double mbps = (double) result.input.totalAppendLength / ONE_MB / duration;
-            printResultLine(
-                    result.input.segmentCount,
+            printResultLine(result.input.segmentCount,
                     appendCount,
                     result.input.appendSize,
                     result.input.totalAppendLength / ONE_MB,
@@ -174,9 +181,9 @@ public class RecoveryBenchmark extends Benchmark {
                     duration);
         }
     }
-    //endregion
+    // endregion
 
-    //region TestOutput
+    // region TestOutput
 
     private static class TestOutput implements Comparable<TestOutput> {
         public final TestInput input;
@@ -188,7 +195,10 @@ public class RecoveryBenchmark extends Benchmark {
 
         @Override
         public String toString() {
-            return String.format("%s, Tput = %.1f MB/s, Latencies = %s", this.input, (double) this.input.totalAppendLength / ONE_MB , (this.totalDurationNanos / 1000000000));
+            return String.format("%s, Tput = %.1f MB/s, Latencies = %s",
+                    this.input,
+                    (double) this.input.totalAppendLength / ONE_MB,
+                    this.totalDurationNanos / 1000000000);
         }
 
         @Override
@@ -197,9 +207,9 @@ public class RecoveryBenchmark extends Benchmark {
         }
     }
 
-    //endregion
+    // endregion
 
-    //region TestInput
+    // region TestInput
 
     private static class TestInput implements Comparable<TestInput> {
         public final int segmentCount;
@@ -216,7 +226,11 @@ public class RecoveryBenchmark extends Benchmark {
 
         @Override
         public String toString() {
-            return String.format("Segments = %d, App/Seg = %d, App.Size = %d, TotalAppendLength = %d", this.segmentCount, this.appendsPerSegment, this.appendSize, this.totalAppendLength);
+            return String.format("Segments = %d, App/Seg = %d, App.Size = %d, TotalAppendLength = %d",
+                    this.segmentCount,
+                    this.appendsPerSegment,
+                    this.appendSize,
+                    this.totalAppendLength);
         }
 
         @Override
@@ -236,5 +250,5 @@ public class RecoveryBenchmark extends Benchmark {
         }
     }
 
-    //endregion
+    // endregion
 }

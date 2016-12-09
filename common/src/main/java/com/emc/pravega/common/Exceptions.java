@@ -19,11 +19,66 @@
 package com.emc.pravega.common;
 
 import com.google.common.base.Preconditions;
+import lombok.SneakyThrows;
 
 /**
  * Helper methods that perform various checks and throw exceptions if certain conditions are met.
  */
 public final class Exceptions {
+
+    @FunctionalInterface
+    public interface InterruptibleRun<ExceptionT extends Exception> {
+        void run() throws InterruptedException, ExceptionT;
+    }
+
+    @FunctionalInterface
+    public interface InterruptibleCall<ExceptionT extends Exception, ResultT> {
+        ResultT call() throws InterruptedException, ExceptionT;
+    }
+
+    /**
+     * Eliminates boilerplate code of catching and re-interrupting the thread.
+     * <p>
+     * NOTE: This method currently has the limitation that it can only handle functions that throw up to one additional
+     * exception besides {@link InterruptedException}. This is a limitation of the Compiler.
+     *
+     * @param run          A method that should be run handling interrupts automatically
+     * @param <ExceptionT> The type of exception.
+     * @throws ExceptionT If thrown by run.
+     */
+    @SneakyThrows(InterruptedException.class)
+    public static <ExceptionT extends Exception> void handleInterrupted(InterruptibleRun<ExceptionT> run)
+            throws ExceptionT {
+        try {
+            run.run();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
+        }
+    }
+
+    /**
+     * Eliminates boilerplate code of catching and re-interrupting the thread.
+     * <p>
+     * NOTE: This method currently has the limitation that it can only handle functions that throw up to one additional
+     * exception besides {@link InterruptedException}. This is a limitation of the Compiler.
+     *
+     * @param call         A method that should be run handling interrupts automatically
+     * @param <ExceptionT> The type of exception.
+     * @param <ResultT>    The type of the result.
+     * @throws ExceptionT If thrown by call.
+     */
+    @SneakyThrows(InterruptedException.class)
+    public static <ExceptionT extends Exception, ResultT> ResultT handleInterrupted(InterruptibleCall<ExceptionT, ResultT> call)
+            throws ExceptionT {
+        try {
+            return call.call();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
+        }
+    }
+
     /**
      * Throws a NullPointerException if the arg argument is null. Throws an IllegalArgumentException if the String arg
      * argument has a length of zero.

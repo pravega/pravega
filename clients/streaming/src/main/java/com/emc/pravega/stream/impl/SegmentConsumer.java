@@ -18,19 +18,22 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.stream.Consumer;
-import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 
 /**
  * The mirror of {@link Consumer} but that is specific to a single segment.
  */
 public interface SegmentConsumer<Type> extends AutoCloseable {
-    SegmentId getSegmentId();
+    Segment getSegmentId();
 
     /**
      * Return the next event, blocking for at most timeout.
      * If there is no event after timeout null will be returned.
      * EndOfSegmentException indicates the segment has ended an no more events may be read.
+     *
+     * @param timeout Timeout for the operation, in milliseconds.
+     * @throws EndOfSegmentException If we reached the end of the segment.
      */
     Type getNextEvent(long timeout) throws EndOfSegmentException;
 
@@ -41,6 +44,8 @@ public interface SegmentConsumer<Type> extends AutoCloseable {
 
     /**
      * Given an offset obtained from {@link SegmentConsumer#getOffset()} reset consumption to that position.
+     *
+     * @param offset The offset to set.
      */
     void setOffset(long offset);
 

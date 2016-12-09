@@ -30,14 +30,11 @@ import java.util.concurrent.CompletableFuture;
 public interface SegmentContainerRegistry extends AutoCloseable {
     /**
      * Gets the number of registered containers.
-     *
-     * @return
      */
     int getContainerCount();
 
     /**
      * Gets a read-only collection of registered container ids.
-     * @return
      */
     Collection<Integer> getRegisteredContainerIds();
 
@@ -46,6 +43,7 @@ public interface SegmentContainerRegistry extends AutoCloseable {
      *
      * @param containerId The Id of the SegmentContainer.
      * @return The requested SegmentContainer, or null if no such container is started.
+     * @throws ContainerNotFoundException If no container with the given Id is registered.
      */
     SegmentContainer getContainer(int containerId) throws ContainerNotFoundException;
 

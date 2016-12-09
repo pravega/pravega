@@ -17,14 +17,14 @@
  */
 package com.emc.pravega.common.netty;
 
-import com.emc.pravega.common.netty.WireCommands.Append;
-
-import com.emc.pravega.common.netty.WireCommands.CreateBatch;
+import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
+import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
+import com.emc.pravega.common.netty.WireCommands.DropTransaction;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
-import com.emc.pravega.common.netty.WireCommands.MergeBatch;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SealSegment;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
@@ -56,22 +56,32 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
     public void getStreamSegmentInfo(GetStreamSegmentInfo getStreamInfo) {
         getNextRequestProcessor().getStreamSegmentInfo(getStreamInfo);
     }
-
+    
+    @Override
+    public void getTransactionInfo(GetTransactionInfo getTransactionInfo) {
+        getNextRequestProcessor().getTransactionInfo(getTransactionInfo);
+    }
+    
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         getNextRequestProcessor().createSegment(createStreamsSegment);
     }
 
     @Override
-    public void createBatch(CreateBatch createBatch) {
-        getNextRequestProcessor().createBatch(createBatch);
+    public void createTransaction(CreateTransaction createTransaction) {
+        getNextRequestProcessor().createTransaction(createTransaction);
     }
 
     @Override
-    public void mergeBatch(MergeBatch mergeBatch) {
-        getNextRequestProcessor().mergeBatch(mergeBatch);
+    public void commitTransaction(CommitTransaction commitTransaction) {
+        getNextRequestProcessor().commitTransaction(commitTransaction);
     }
 
+    @Override
+    public void dropTransaction(DropTransaction dropTransaction) {
+        getNextRequestProcessor().dropTransaction(dropTransaction);
+    }
+    
     @Override
     public void sealSegment(SealSegment sealSegment) {
         getNextRequestProcessor().sealSegment(sealSegment);

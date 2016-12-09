@@ -18,11 +18,11 @@
 
 package com.emc.pravega.service.server.mocks;
 
+import java.util.HashMap;
+
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
-
-import java.util.HashMap;
 
 /**
  * In-Memory mock for Metadata Repository. Contents is lost once object is garbage collected.

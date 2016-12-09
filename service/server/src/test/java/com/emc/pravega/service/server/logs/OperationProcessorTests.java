@@ -25,6 +25,7 @@ import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
+import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestDurableDataLog;
@@ -37,12 +38,14 @@ import com.emc.pravega.service.server.logs.operations.OperationFactory;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
+import com.emc.pravega.service.server.reading.CacheManager;
 import com.emc.pravega.service.server.reading.ContainerReadIndex;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
+import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
@@ -72,6 +75,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
     private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
+    private static final int THREAD_POOL_SIZE = 10;
 
     /**
      * Tests the ability of the OperationProcessor to process Operations in a failure-free environment.
@@ -79,9 +83,9 @@ public class OperationProcessorTests extends OperationLogTestBase {
     @Test
     public void testWithNoFailures() throws Exception {
         int streamSegmentCount = 50;
-        int batchesPerStreamSegment = 2;
+        int transactionsPerStreamSegment = 2;
         int appendsPerStreamSegment = 20;
-        boolean mergeBatches = true;
+        boolean mergeTransactions = true;
         boolean sealStreamSegments = true;
 
         @Cleanup
@@ -89,15 +93,15 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Generate some test data.
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
-        AbstractMap<Long, Long> batches = LogTestHelpers.createBatchesInMetadata(streamSegmentIds, batchesPerStreamSegment, context.metadata);
-        List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, batches, appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, mergeBatches, sealStreamSegments);
+        AbstractMap<Long, Long> transactions = LogTestHelpers.createTransactionsInMetadata(streamSegmentIds, transactionsPerStreamSegment, context.metadata);
+        List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, mergeTransactions, sealStreamSegments);
 
         // Setup an OperationProcessor and start it.
         @Cleanup
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.logUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -110,7 +114,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         operationProcessor.stopAsync().awaitTerminated();
 
         performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata, context.cache);
-        performMetadataChecks(streamSegmentIds, new HashSet<>(), batches, completionFutures, context.metadata, mergeBatches, sealStreamSegments);
+        performMetadataChecks(streamSegmentIds, new HashSet<>(), transactions, completionFutures, context.metadata, mergeTransactions, sealStreamSegments);
         performReadIndexChecks(completionFutures, context.readIndex);
     }
 
@@ -132,7 +136,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         @Cleanup
         TestContext context = new TestContext();
 
-        // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
+        // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         nonExistentStreamSegmentId = streamSegmentIds.size();
         streamSegmentIds.add(nonExistentStreamSegmentId);
@@ -145,7 +149,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.logUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -206,7 +210,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         @Cleanup
         TestContext context = new TestContext();
 
-        // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
+        // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
@@ -228,7 +232,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.logUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -275,7 +279,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         @Cleanup
         TestContext context = new TestContext();
 
-        // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
+        // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
@@ -284,7 +288,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.logUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
         operationProcessor.startAsync().awaitRunning();
 
         ErrorInjector<Exception> syncErrorInjector = new ErrorInjector<>(
@@ -317,6 +321,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
      * is generated.
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testWithDataCorruptionFailures() throws Exception {
         // If a DataCorruptionException is thrown for a particular Operation, the OperationQueueProcessor should
         // immediately shut down and stop accepting other ops.
@@ -327,11 +332,11 @@ public class OperationProcessorTests extends OperationLogTestBase {
         @Cleanup
         TestContext context = new TestContext();
 
-        // Create a different log updater and Memory log - and use these throughout this test.
+        // Create a different state updater and Memory log - and use these throughout this test.
         CorruptedMemoryOperationLog corruptedMemoryLog = new CorruptedMemoryOperationLog(failAtOperationIndex);
-        MemoryLogUpdater logUpdater = new MemoryLogUpdater(corruptedMemoryLog, new CacheUpdater(context.cache, context.readIndex));
+        MemoryStateUpdater stateUpdater = new MemoryStateUpdater(corruptedMemoryLog, new CacheUpdater(context.cache, context.readIndex));
 
-        // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
+        // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
@@ -340,7 +345,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, logUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, stateUpdater, dataLog, getNoOpCheckpointPolicy());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -442,20 +447,20 @@ public class OperationProcessorTests extends OperationLogTestBase {
             OperationComparer.DEFAULT.assertEquals(expectedOp, readResult.getItem()); // We are reading the raw operation from the DataFrame, so expect different objects (but same contents).
 
             // Check truncation markers if this is the last Operation to be written.
-            long dataFrameSeq = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());
-            if (readResult.getLastFullDataFrameSequence() >= 0 && readResult.getLastFullDataFrameSequence() != readResult.getLastUsedDataFrameSequence()) {
+            LogAddress dataFrameAddress = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());
+            if (readResult.getLastFullDataFrameAddress() != null && readResult.getLastFullDataFrameAddress().getSequence() != readResult.getLastUsedDataFrameAddress().getSequence()) {
                 // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame
                 // that ends with a part of it.
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it spans multiple DataFrames.", readResult.getLastFullDataFrameSequence(), dataFrameSeq);
+                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it spans multiple DataFrames.", readResult.getLastFullDataFrameAddress(), dataFrameAddress);
             } else if (readResult.isLastFrameEntry()) {
                 // The operation was the last one in the frame. This is a Truncation Marker.
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is the last entry in a DataFrame.", readResult.getLastUsedDataFrameSequence(), dataFrameSeq);
+                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is the last entry in a DataFrame.", readResult.getLastUsedDataFrameAddress(), dataFrameAddress);
             } else {
                 // The operation is not the last in the frame, and it doesn't span multiple frames either.
                 // There could be data after it that is not safe to truncate. The correct Truncation Marker is the
                 // same as the one for the previous operation.
-                long expectedTruncationMarkerSeqNo = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber() - 1);
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is in the middle of a DataFrame.", expectedTruncationMarkerSeqNo, dataFrameSeq);
+                LogAddress expectedTruncationMarker = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber() - 1);
+                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is in the middle of a DataFrame.", expectedTruncationMarker, dataFrameAddress);
             }
         }
     }
@@ -476,22 +481,28 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
     private static class TestContext implements AutoCloseable {
         final CloseableExecutorService executorService;
+        final CacheManager cacheManager;
         final Storage storage;
         final MemoryOperationLog memoryLog;
         final Cache cache;
         final UpdateableContainerMetadata metadata;
         final ReadIndex readIndex;
-        final MemoryLogUpdater logUpdater;
+        final MemoryStateUpdater stateUpdater;
 
         TestContext() {
-            this.executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(10));
+            this.executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
             this.storage = new InMemoryStorage(this.executorService.get());
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-            ReadIndexConfig readIndexConfig = ConfigHelpers.createReadIndexConfig(100, 1024);
-            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.executorService.get());
+            ReadIndexConfig readIndexConfig = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
+                    PropertyBag.create()
+                               .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
+                               .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
+
+            this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), this.executorService.get());
+            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, this.executorService.get());
             this.memoryLog = new MemoryOperationLog();
-            this.logUpdater = new MemoryLogUpdater(this.memoryLog, new CacheUpdater(this.cache, this.readIndex));
+            this.stateUpdater = new MemoryStateUpdater(this.memoryLog, new CacheUpdater(this.cache, this.readIndex));
         }
 
         @Override
@@ -499,6 +510,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.readIndex.close();
             this.storage.close();
             this.cache.close();
+            this.cacheManager.close();
             this.executorService.close();
         }
     }

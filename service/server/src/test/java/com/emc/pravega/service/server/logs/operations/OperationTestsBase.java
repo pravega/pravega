@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
+import com.emc.pravega.common.MathHelpers;
 import com.emc.pravega.testcommon.AssertExtensions;
 import org.junit.Test;
 
@@ -25,18 +26,17 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Random;
 
-import org.junit.Test;
-
-import com.emc.pravega.common.MathHelpers;
-import com.emc.pravega.testcommon.AssertExtensions;
-
 /**
  * Base class for all Log Operation test.
  */
+@SuppressWarnings("checkstyle:JavadocMethod")
 public abstract class OperationTestsBase<T extends Operation> {
     private static final int MAX_CONFIG_ITERATIONS = 10;
     private static final OperationFactory OPERATION_FACTORY = new OperationFactory();
 
+    /**
+     * Tests the ability of an Operation to serialize/deserialize itself.
+     */
     @Test
     public void testSerialization() throws Exception {
         Random random = new Random();
@@ -68,16 +68,11 @@ public abstract class OperationTestsBase<T extends Operation> {
 
     /**
      * Creates a new operation of a given type.
-     *
-     * @return
      */
     protected abstract T createOperation(Random random);
 
     /**
      * Gets a value indicating whether we need to do anything special (i.e., assign offsets) before serializing.
-     *
-     * @param operation
-     * @return
      */
     protected boolean isPreSerializationConfigRequired(T operation) {
         return false;
@@ -85,15 +80,12 @@ public abstract class OperationTestsBase<T extends Operation> {
 
     /**
      * Performs any necessary pre-serialization configuration (one step at a time - as long as isPreSerializationConfigRequired returns true).
-     *
-     * @param operation
-     * @param random
      */
     protected void configurePreSerialization(T operation, Random random) {
         // Base method intentionally left blank.
     }
 
-    protected String getStreamSegmentName(long id) {
+    String getStreamSegmentName(long id) {
         return "StreamSegment_" + id;
     }
 

@@ -18,12 +18,11 @@
 package com.emc.pravega.common.netty;
 
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
-import com.emc.pravega.common.netty.WireCommands.BatchCreated;
-import com.emc.pravega.common.netty.WireCommands.BatchMerged;
+import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
-import com.emc.pravega.common.netty.WireCommands.NoSuchBatch;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
+import com.emc.pravega.common.netty.WireCommands.NoSuchTransaction;
 import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.SegmentDeleted;
@@ -31,6 +30,10 @@ import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
+import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
+import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
+import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 
 /**
@@ -59,7 +62,7 @@ public class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void noSuchBatch(NoSuchBatch noSuchBatch) {
+    public void noSuchBatch(NoSuchTransaction noSuchBatch) {
         throw new IllegalStateException("Unexpected operation");
     }
 
@@ -70,6 +73,11 @@ public class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void dataAppended(DataAppended dataAppended) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+    
+    @Override
+    public void conditionalCheckFailed(ConditionalCheckFailed dataNotAppended) {
         throw new IllegalStateException("Unexpected operation");
     }
 
@@ -84,20 +92,31 @@ public class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
+    public void transactionInfo(TransactionInfo transactionInfo) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    
+    @Override
     public void segmentCreated(SegmentCreated streamsSegmentCreated) {
         throw new IllegalStateException("Unexpected operation");
     }
 
     @Override
-    public void batchCreated(BatchCreated batchCreated) {
+    public void transactionCreated(TransactionCreated transactionCreated) {
         throw new IllegalStateException("Unexpected operation");
     }
 
     @Override
-    public void batchMerged(BatchMerged batchMerged) {
+    public void transactionCommitted(TransactionCommitted batchMerged) {
         throw new IllegalStateException("Unexpected operation");
     }
 
+    @Override
+    public void transactionDropped(TransactionDropped transactionDropped) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+    
     @Override
     public void segmentSealed(SegmentSealed segmentSealed) {
         throw new IllegalStateException("Unexpected operation");
@@ -112,5 +131,11 @@ public class FailingReplyProcessor implements ReplyProcessor {
     public void keepAlive(KeepAlive keepAlive) {
         throw new IllegalStateException("Unexpected operation");
     }
+
+    @Override
+    public void connectionDropped() {
+        throw new IllegalStateException("Unexpected operation");
+    }
+    
 
 }

@@ -47,8 +47,6 @@ public class ReadResultEntryContents {
 
     /**
      * Gets an InputStream representing the Data that was retrieved.
-     *
-     * @return
      */
     public InputStream getData() {
         return this.data;

@@ -22,31 +22,33 @@ import java.util.stream.Collectors;
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
 import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.RateChangeListener;
-import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
-import com.emc.pravega.stream.impl.segment.SegmentManager;
+import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactory;
 
 public class ConsumerImpl<Type> implements Consumer<Type> {
 
     private final Serializer<Type> deserializer;
-    private final SegmentManager segmentManager;
+    private final SegmentInputStreamFactory inputStreamFactory;
 
     private final Stream stream;
     private final Orderer<Type> orderer;
     private final RateChangeListener rateChangeListener;
     private final ConsumerConfig config;
     private final List<SegmentConsumer<Type>> consumers = new ArrayList<>();
-    private final Map<SegmentId, Long> futureOwnedLogs = new HashMap<>();
+    private final Map<Segment, Long> completedSegments = new HashMap<>();
+    private final Map<FutureSegment, Long> futureOwnedSegments = new HashMap<>();
 
-    ConsumerImpl(Stream stream, SegmentManager segmentManager, Serializer<Type> deserializer, PositionImpl position,
+    ConsumerImpl(Stream stream, SegmentInputStreamFactory inputStreamFactory, Serializer<Type> deserializer, PositionInternal position,
             Orderer<Type> orderer, RateChangeListener rateChangeListener, ConsumerConfig config) {
         this.deserializer = deserializer;
         this.stream = stream;
-        this.segmentManager = segmentManager;
+        this.inputStreamFactory = inputStreamFactory;
         this.orderer = orderer;
         this.rateChangeListener = rateChangeListener;
         this.config = config;
@@ -72,12 +74,13 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
      */
     private void handleEndOfSegment(SegmentConsumer<Type> oldSegment) {
         consumers.remove(oldSegment);
-        SegmentId oldLogId = oldSegment.getSegmentId();
-        Optional<SegmentId> replacment = futureOwnedLogs.keySet().stream().filter(l -> l.succeeds(oldLogId)).findAny();
+        completedSegments.put(oldSegment.getSegmentId(), oldSegment.getOffset());
+        Segment oldLogId = oldSegment.getSegmentId();
+        Optional<FutureSegment> replacment = futureOwnedSegments.keySet().stream().filter(future -> future.getPrecedingNumber() == oldLogId.getSegmentNumber()).findAny();
         if (replacment.isPresent()) {
-            SegmentId segmentId = replacment.get();
-            Long position = futureOwnedLogs.remove(segmentId);
-            SegmentInputStream in = segmentManager.openSegmentForReading(segmentId.getQualifiedName(), config.getSegmentConfig());
+            FutureSegment segmentId = replacment.get();
+            Long position = futureOwnedSegments.remove(segmentId);
+            SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(segmentId, config.getSegmentConfig());
             in.setOffset(position);
             consumers.add(new SegmentConsumerImpl<>(segmentId, in, deserializer));
             rateChangeListener.rateChanged(stream, false);
@@ -89,9 +92,10 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
     @Override
     public Position getPosition() {
         synchronized (consumers) {
-            Map<SegmentId, Long> positions = consumers.stream()
+            Map<Segment, Long> positions = consumers.stream()
                 .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
-            return new PositionImpl(positions, futureOwnedLogs);
+            positions.putAll(completedSegments);
+            return new PositionImpl(positions, futureOwnedSegments);
         }
     }
 
@@ -102,13 +106,14 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
 
     @Override
     public void setPosition(Position state) {
-        PositionImpl position = state.asImpl();
+        PositionInternal position = state.asImpl();
         synchronized (consumers) {
-            futureOwnedLogs.clear();
-            futureOwnedLogs.putAll(position.getFutureOwnedLogs());
-            for (SegmentId s : position.getOwnedSegments()) {
-                SegmentInputStream in = segmentManager.openSegmentForReading(s.getQualifiedName(), config.getSegmentConfig());
-                in.setOffset(position.getOffsetForOwnedLog(s));
+            completedSegments.clear();
+            futureOwnedSegments.clear();
+            futureOwnedSegments.putAll(position.getFutureOwnedSegmentsWithOffsets());
+            for (Segment s : position.getOwnedSegments()) {
+                SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(s, config.getSegmentConfig());
+                in.setOffset(position.getOffsetForOwnedSegment(s));
                 consumers.add(new SegmentConsumerImpl<>(s, in, deserializer));
             }
         }
@@ -122,5 +127,4 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
             }
         }
     }
-
 }

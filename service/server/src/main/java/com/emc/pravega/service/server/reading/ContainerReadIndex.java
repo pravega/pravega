@@ -20,7 +20,6 @@ package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.ReadResult;
-import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
@@ -30,6 +29,7 @@ import com.emc.pravega.service.storage.ReadOnlyStorage;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -38,8 +38,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
-
-import javax.annotation.concurrent.GuardedBy;
 
 /**
  * StreamSegment Container Read Index. Provides access to Read Indices for all StreamSegments within this Container.
@@ -64,6 +62,7 @@ public class ContainerReadIndex implements ReadIndex {
     private final ReadOnlyStorage storage;
     private final Executor executor;
     private final ReadIndexConfig config;
+    private final CacheManager cacheManager;
     private ContainerMetadata metadata;
     @GuardedBy("lock")
     private ContainerMetadata preRecoveryMetadata;
@@ -77,18 +76,20 @@ public class ContainerReadIndex implements ReadIndex {
     /**
      * Creates a new instance of the ContainerReadIndex class.
      *
-     * @param config   Configuration for the ReadIndex.
-     * @param metadata The ContainerMetadata to attach to.
-     * @param cache    The cache to store data into.
-     * @param storage  Storage to read data not in the ReadIndex from.
-     * @param executor An Executor to run async callbacks on.
+     * @param config       Configuration for the ReadIndex.
+     * @param metadata     The ContainerMetadata to attach to.
+     * @param cache        The cache to store data into.
+     * @param storage      Storage to read data not in the ReadIndex from.
+     * @param cacheManager The CacheManager to use for cache lifecycle management.
+     * @param executor     An Executor to run async callbacks on.
      */
-    public ContainerReadIndex(ReadIndexConfig config, ContainerMetadata metadata, Cache cache, ReadOnlyStorage storage, Executor executor) {
+    public ContainerReadIndex(ReadIndexConfig config, ContainerMetadata metadata, Cache cache, ReadOnlyStorage storage, CacheManager cacheManager, Executor executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(cache, "cache");
-        Preconditions.checkNotNull(cache, "storage");
-        Preconditions.checkNotNull(cache, "executor");
+        Preconditions.checkNotNull(storage, "storage");
+        Preconditions.checkNotNull(cacheManager, "cacheManager");
+        Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkArgument(!metadata.isRecoveryMode(), "Given ContainerMetadata is in Recovery Mode.");
 
         this.traceObjectId = String.format("ReadIndex[%s]", metadata.getContainerId());
@@ -97,6 +98,7 @@ public class ContainerReadIndex implements ReadIndex {
         this.cache = cache;
         this.metadata = metadata;
         this.storage = storage;
+        this.cacheManager = cacheManager;
         this.executor = executor;
         this.preRecoveryMetadata = null;
     }
@@ -124,14 +126,14 @@ public class ContainerReadIndex implements ReadIndex {
     //region ReadIndex Implementation
 
     @Override
-    public void append(CacheKey cacheKey, int length) {
+    public void append(long streamSegmentId, long offset, byte[] data) {
         Exceptions.checkNotClosed(this.closed, this);
-        log.debug("{}: append (StreamSegmentId = {}, Offset = {}, DataLength = {}).", this.traceObjectId, cacheKey.getStreamSegmentId(), cacheKey.getOffset(), length);
+        log.debug("{}: append (StreamSegmentId = {}, Offset = {}, DataLength = {}).", this.traceObjectId, streamSegmentId, offset, data.length);
 
         // Append the data to the StreamSegment Index. It performs further validation with respect to offsets, etc.
-        StreamSegmentReadIndex index = getReadIndex(cacheKey.getStreamSegmentId(), true);
+        StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
         Exceptions.checkArgument(!index.isMerged(), "streamSegmentId", "StreamSegment is merged. Cannot append to it anymore.");
-        index.append(cacheKey, length);
+        index.append(offset, data);
     }
 
     @Override
@@ -201,22 +203,32 @@ public class ContainerReadIndex implements ReadIndex {
     }
 
     @Override
-    public void performGarbageCollection() {
+    public void cleanup(Collection<Long> segmentIds) {
         Exceptions.checkNotClosed(this.closed, this);
 
-        List<Long> toRemove = new ArrayList<>();
+        List<Long> removed = new ArrayList<>();
+        List<Long> notRemoved = new ArrayList<>();
         synchronized (this.lock) {
-            for (Long streamSegmentId : this.readIndices.keySet()) {
+            for (long streamSegmentId : segmentIds) {
                 SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+                boolean wasRemoved = false;
                 if (segmentMetadata == null || segmentMetadata.isDeleted()) {
-                    toRemove.add(streamSegmentId);
+                    wasRemoved = removeReadIndex(streamSegmentId);
+                }
+
+                if (wasRemoved) {
+                    removed.add(streamSegmentId);
+                } else {
+                    notRemoved.add(streamSegmentId);
                 }
             }
-
-            toRemove.forEach(streamSegmentId -> this.readIndices.remove(streamSegmentId).close());
         }
 
-        log.info("{}: Garbage Collection Complete (Removed {}).", this.traceObjectId, toRemove);
+        if (notRemoved.size() > 0) {
+            log.debug("{}: Unable to clean up ReadIndex for Segments {} because no such index exists or the Segments are not deleted.", this.traceObjectId, notRemoved);
+        }
+
+        log.info("{}: Cleaned up ReadIndices for deleted Segments {}.", this.traceObjectId, removed);
     }
 
     @Override
@@ -273,9 +285,8 @@ public class ContainerReadIndex implements ReadIndex {
     /**
      * Gets a reference to the existing StreamSegmentRead index for the given StreamSegment Id.
      *
-     * @param streamSegmentId
+     * @param streamSegmentId    The Id of the StreamSegment whose ReadIndex to get.
      * @param createIfNotPresent If no Read Index is loaded, creates a new one.
-     * @return
      */
     private StreamSegmentReadIndex getReadIndex(long streamSegmentId, boolean createIfNotPresent) {
         StreamSegmentReadIndex index;
@@ -293,6 +304,7 @@ public class ContainerReadIndex implements ReadIndex {
             Exceptions.checkArgument(!segmentMetadata.isDeleted(), "streamSegmentId", "StreamSegmentId {} exists in the metadata but is marked as deleted.", streamSegmentId);
 
             index = new StreamSegmentReadIndex(this.config, segmentMetadata, this.cache, this.storage, this.executor, isRecoveryMode());
+            this.cacheManager.register(index);
             this.readIndices.put(streamSegmentId, index);
         }
 
@@ -304,6 +316,7 @@ public class ContainerReadIndex implements ReadIndex {
             StreamSegmentReadIndex index = this.readIndices.remove(streamSegmentId);
             if (index != null) {
                 index.close();
+                this.cacheManager.unregister(index);
             }
 
             return index != null;
