@@ -94,6 +94,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
+    public CompletableFuture<Boolean> isTransactionOngoing() {
+        return getChildren(activeTxPath).thenApply(list -> list != null && !list.isEmpty());
+    }
+
+    @Override
     public void refresh() {
         cache.invalidateAll();
     }

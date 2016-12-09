@@ -208,6 +208,11 @@ class InMemoryStream implements Stream {
     }
 
     @Override
+    public CompletableFuture<Boolean> isTransactionOngoing() {
+        throw new NotImplementedException();
+    }
+
+    @Override
     public void refresh() {
 
     }

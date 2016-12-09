@@ -186,14 +186,18 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         // 3. Transaction is active on the stream (todo)-- return ScaleStreamStatus.CONFLICT status in this case
         CompletableFuture<Boolean> checkValidity =
                 streamMetadataStore.getActiveSegments(stream)
-                        .thenApply(activeSegments ->
-                                activeSegments
-                                        .stream()
-                                        .anyMatch(segment -> segment.getStart() > scaleTimestamp));
+                        .thenCompose(activeSegments ->
+                                        streamMetadataStore
+                                                .isTransactionOngoing(scope, stream)
+                                                .thenApply(active -> active ||
+                                                                activeSegments
+                                                                        .stream()
+                                                                        .anyMatch(segment ->
+                                                                                segment.getStart() > scaleTimestamp)));
 
         return checkValidity.thenCompose(result -> {
 
-                    if (result) {
+                    if (!result) {
                         return notifySealedSegments(scope, stream, sealedSegments)
 
                                 .thenCompose(results ->
