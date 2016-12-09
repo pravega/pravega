@@ -12,3 +12,5 @@ log/
 .metadata/
 .recommenders/
 *.log
+*.iws
+*.ipr
