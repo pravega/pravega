@@ -48,9 +48,10 @@ class TestState {
     private final AtomicLong verifiedTailLength;
     private final AtomicLong verifiedCatchupLength;
     private final AtomicLong verifiedStorageLength;
-    @GuardedBy("allSegmentNames")
     private final ConcurrentHashMap<String, SegmentInfo> allSegments;
+    @GuardedBy("allSegmentNames")
     private final ArrayList<String> allSegmentNames;
+    @GuardedBy("durations")
     private final AbstractMap<OperationType, List<Integer>> durations;
 
     //endregion
@@ -249,9 +250,9 @@ class TestState {
         }
 
         synchronized (this.durations) {
-            List<Integer> durations = this.durations.getOrDefault(operationType, null);
-            if (durations != null) {
-                durations.add((int) duration.toMillis());
+            List<Integer> operationTypeDurations = this.durations.getOrDefault(operationType, null);
+            if (operationTypeDurations != null) {
+                operationTypeDurations.add((int) duration.toMillis());
             }
         }
 
