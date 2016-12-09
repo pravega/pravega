@@ -71,8 +71,10 @@ class TestState {
         this.verifiedStorageLength = new AtomicLong();
         this.durations = new HashMap<>();
 
-        for (OperationType ot : SUMMARY_OPERATION_TYPES) {
-            this.durations.put(ot, new ArrayList<>());
+        synchronized (this.durations) {
+            for (OperationType ot : SUMMARY_OPERATION_TYPES) {
+                this.durations.put(ot, new ArrayList<>());
+            }
         }
     }
 
@@ -211,14 +213,14 @@ class TestState {
      * @return A pointer to the list of durations.
      */
     List<Integer> getSortedDurations(OperationType operationType) {
-        List<Integer> durations = this.durations.getOrDefault(operationType, null);
-        if (durations != null) {
-            synchronized (this.durations) {
-                durations.sort(Integer::compare);
+        synchronized (this.durations) {
+            List<Integer> operationTypeDurations = this.durations.getOrDefault(operationType, null);
+            if (operationTypeDurations != null) {
+                operationTypeDurations.sort(Integer::compare);
             }
-        }
 
-        return durations;
+            return operationTypeDurations;
+        }
     }
 
     //endregion
@@ -246,9 +248,9 @@ class TestState {
             si.operationCompleted();
         }
 
-        List<Integer> durations = this.durations.getOrDefault(operationType, null);
-        if (durations != null) {
-            synchronized (this.durations) {
+        synchronized (this.durations) {
+            List<Integer> durations = this.durations.getOrDefault(operationType, null);
+            if (durations != null) {
                 durations.add((int) duration.toMillis());
             }
         }
