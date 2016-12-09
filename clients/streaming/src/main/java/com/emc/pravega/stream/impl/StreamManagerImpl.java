@@ -18,6 +18,8 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.stream.ConsumerGroup;
+import com.emc.pravega.stream.ConsumerGroupConfig;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamManager;
@@ -26,6 +28,8 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
 import java.net.URI;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.apache.commons.lang.NotImplementedException;
 
 
 /**
@@ -73,5 +77,25 @@ public class StreamManagerImpl implements StreamManager {
     @Override
     public void close() throws Exception {
 
+    }
+    
+    @Override
+    public ConsumerGroup createConsumerGroup(String groupName, String streamName, ConsumerGroupConfig config) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public ConsumerGroup getConsumerGroup(String groupName, String streamName) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public void deleteConsumerGroup(ConsumerGroup group) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public void delteStream(Stream toDelete) {
+        throw new NotImplementedException();
     }
 }

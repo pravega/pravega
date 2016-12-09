@@ -20,14 +20,41 @@ package com.emc.pravega.stream;
 public interface StreamManager extends AutoCloseable {
 
     /**
+     * Creates a new ConsumerGroup
+     * 
+     * Note: This method is idempotent assuming called with the same name and config. This method
+     * may block.
+     * 
+     * @param groupName The name of the group to be created.
+     * @param streamName The name of the stream the consumer will read from.
+     * @param config The configuration for the new ConsumerGroup.
+     */
+    ConsumerGroup createConsumerGroup(String groupName, String streamName, ConsumerGroupConfig config);
+    
+    /**
+     * Returns the requested consumer group.
+     * 
+     * @param groupName The name of the group
+     * @param streamName The name of the stream the group is associated with.
+     */
+    ConsumerGroup getConsumerGroup(String groupName, String streamName);
+    
+    /**
+     * Deletes the provided consumer group. No more operations may be performed.
+     * Resources used by this group will be freed.
+     * 
+     * @param group The group to be deleted.
+     */
+    void deleteConsumerGroup(ConsumerGroup group);
+    
+    /**
      * Creates a new stream
      * <p>
-     * Note:
-     * This method is idempotent assuming called with the same name and config.
-     * This method may block.
+     * Note: This method is idempotent assuming called with the same name and config. This method
+     * may block.
      *
      * @param streamName The name of the stream to be created.
-     * @param config     The configuration the stream should use.
+     * @param config The configuration the stream should use.
      * @return The stream object representing the new stream.
      */
     Stream createStream(String streamName, StreamConfiguration config);
@@ -50,4 +77,11 @@ public interface StreamManager extends AutoCloseable {
      * @param streamName The name of the stream to get.
      */
     Stream getStream(String streamName);
+    
+    /**
+     * Deletes the provided stream. No more events may be written or read.
+     * Resources used by the stream will be freed.
+     * @param toDelete The stream to be deleted.
+     */
+    void delteStream(Stream toDelete);
 }

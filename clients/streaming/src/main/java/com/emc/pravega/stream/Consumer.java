@@ -50,7 +50,9 @@ public interface Consumer<T> extends AutoCloseable {
     void setPosition(Position state);
 
     /**
-     * Close the consumer. No further actions may be performed.
+     * Close the consumer. No further actions may be performed. If this consumer is part of a
+     * consumer group, this will automatically invoke
+     * {@link ConsumerGroup#consumerOffline(String, Position)}
      *
      * @see java.lang.AutoCloseable#close()
      */

@@ -82,7 +82,7 @@ public interface Stream {
      *
      * @param config The producer configuration.
      * @param s      The Serializer.
-     * @param <T>    The producer data type.
+     * @param <T>    The type of events.
      */
     <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config);
 
@@ -97,11 +97,26 @@ public interface Stream {
      * @param config           The consumer configuration.
      * @param l                The RateChangeListener to use.
      * @param startingPosition The StartingPosition to use.
-     * @param <T>              The consumer data type.
+     * @param <T>              The type of events.
      */
     <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition, RateChangeListener l);
     
-    
+    /**
+     * Creates (or recreates) a new consumer on this stream that is part of a {@link ConsumerGroup}.
+     * The consumer will join the group and the members of the group will automatically rebalance
+     * amoung themselves. In the event that the consumer dies, the method
+     * {@link ConsumerGroup#consumerOffline(String, Position)} should be called, passing the last
+     * position of the consumer. This will automatically redistribute the events among the remaining
+     * consumers. Note that calling consumer offline while the consumer is still online may result in
+     * multiple consumers within the group receiving the same events.
+     * 
+     * @param consumerId        A unique name (within the group) for this consumer.
+     * @param consumerGroup     The name of the group to join.
+     * @param s                 The serializer for events.
+     * @param config            The consumer configuration. 
+     * @param <T>               The type of events.
+     */
+    <T> Consumer<T> createConsumer(String consumerId, String consumerGroup, Serializer<T> s, ConsumerConfig config);
 
     /**
      * Creates a new Synchronizer that will work on this stream.

@@ -46,6 +46,8 @@ import lombok.Getter;
 
 import java.util.Collection;
 
+import org.apache.commons.lang.NotImplementedException;
+
 /**
  * An implementation of a stream for the special case where the stream is only ever composed of one segment.
  */
@@ -124,5 +126,11 @@ public class StreamImpl implements Stream {
             throw new CorruptedStateException("Attempted to create synchronizer on sealed segment", e);
         }
         return new SynchronizerImpl<StateT, UpdateT, InitT>(this, in, out, updateSerializer, initialSerializer);
+    }
+
+    @Override
+    public <T> Consumer<T> createConsumer(String consumerId, String consumerGroup, Serializer<T> s,
+            ConsumerConfig config) {
+        throw new NotImplementedException();
     }
 }

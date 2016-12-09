@@ -18,6 +18,8 @@
 package com.emc.pravega.stream.mock;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.stream.ConsumerGroup;
+import com.emc.pravega.stream.ConsumerGroupConfig;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.ScalingPolicy.Type;
@@ -33,6 +35,8 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.apache.commons.lang.NotImplementedException;
 
 public class MockStreamManager implements StreamManager {
 
@@ -88,5 +92,25 @@ public class MockStreamManager implements StreamManager {
 
     public Position getInitialPosition(String stream) {
         return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
+    }
+
+    @Override
+    public ConsumerGroup createConsumerGroup(String groupName, String streamName, ConsumerGroupConfig config) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public ConsumerGroup getConsumerGroup(String groupName, String streamName) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public void deleteConsumerGroup(ConsumerGroup group) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public void delteStream(Stream toDelete) {
+        throw new NotImplementedException();
     }
 }
