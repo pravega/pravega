@@ -28,22 +28,22 @@ import java.util.Set;
 public interface ConsumerGroup {
 
     /**
-     * @return The scope of the stream which the group is associated with.
+     * Returns the scope of the stream which the group is associated with.
      */
     String getScope();
 
     /**
-     * @return The name of the stream the group is associated with.
+     * Returns the name of the stream the group is associated with.
      */
     String getStreamName();
 
     /**
-     * @return The name of the group.
+     * Returns the name of the group.
      */
     String getGroupName();
 
     /**
-     * @return The configuration of the consumer group.
+     * Returns the configuration of the consumer group.
      */
     ConsumerGroupConfig getConfig();
 
@@ -61,9 +61,9 @@ public interface ConsumerGroup {
     void consumerOffline(String consumerId, Position lastPosition);
     
     /**
-     * @return A set of consumerIds for the consumers that are considered to be online by the group. IE:
-     *         {@link Stream#createConsumer(String, String, Serializer, ConsumerConfig)} was called
-     *         but {@link #consumerOffline(String, Position)} was not called subsequently.
+     * Returns a set of consumerIds for the consumers that are considered to be online by the group.
+     * IE: {@link Stream#createConsumer(String, String, Serializer, ConsumerConfig)} was called but
+     * {@link #consumerOffline(String, Position)} was not called subsequently.
      */
     Set<String> getOnlineConsumers();
 }

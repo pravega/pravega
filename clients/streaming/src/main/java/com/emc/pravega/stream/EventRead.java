@@ -25,12 +25,12 @@ package com.emc.pravega.stream;
 public interface EventRead<T> {
     
     /**
-     * @return The time associated with the event. (Specified during publish)
+     * Returns the time associated with the event. (Specified during publish)
      */
     long getEventTime();
 
     /**
-     * @return The event itself.
+     * Returns the event itself.
      */
     T getValue();
 
@@ -42,8 +42,8 @@ public interface EventRead<T> {
     Position getPosition();
 
     /**
-     * @return A pointer to this event. This can be used to read the event again by calling
-     *         {@link Consumer#read(EventPointer)}
+     * Returns a pointer to this event. This can be used to read the event again by calling
+     * {@link Consumer#read(EventPointer)}
      */
     EventPointer getEventPointer();
 

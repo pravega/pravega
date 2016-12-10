@@ -100,6 +100,12 @@ public class StreamImpl implements Stream {
                 l,
                 config);
     }
+    
+    @Override
+    public <T> Consumer<T> createConsumer(String consumerId, String consumerGroup, Serializer<T> s,
+            ConsumerConfig config) {
+        throw new NotImplementedException();
+    }
 
     @Override
     public String getScopedName() {
@@ -126,11 +132,5 @@ public class StreamImpl implements Stream {
             throw new CorruptedStateException("Attempted to create synchronizer on sealed segment", e);
         }
         return new SynchronizerImpl<StateT, UpdateT, InitT>(this, in, out, updateSerializer, initialSerializer);
-    }
-
-    @Override
-    public <T> Consumer<T> createConsumer(String consumerId, String consumerGroup, Serializer<T> s,
-            ConsumerConfig config) {
-        throw new NotImplementedException();
     }
 }

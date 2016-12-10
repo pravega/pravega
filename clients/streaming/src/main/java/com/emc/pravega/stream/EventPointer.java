@@ -23,7 +23,7 @@ import java.io.Serializable;
 
 /**
  * A pointer to an individual event. This can be used to re-read an event by calling
- * {@link Consumer#read(EventPointer)}
+ * {@link Consumer#read(EventPointer)}.
  */
 public interface EventPointer extends Serializable {
     
@@ -33,12 +33,14 @@ public interface EventPointer extends Serializable {
     EventPointerImpl asImpl();
     
     /**
+     * Serializes this object.
      * @return This object serialized into a string
      */
     String asString();
     
     /**
-     * Reconstructs an EventPointer given a string that was produced from {@link #asString()}
+     * Reconstructs an EventPointer given a string that was produced from {@link #asString()}.
+     * @param asString A string produced by {@link #asString()}
      */
     static EventPointer fromString(String asString) {
         return EventPointerImpl.fromString(asString);
