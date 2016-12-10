@@ -28,7 +28,7 @@ public class StartLocalService {
     
     static final int PORT = 9090;
     static final String SCOPE = "Scope";
-    static final String STREAM_NAME = "tmp";
+    static final String STREAM_NAME = "xyz";
 
     public static void main(String[] args) throws Exception {
         @Cleanup
