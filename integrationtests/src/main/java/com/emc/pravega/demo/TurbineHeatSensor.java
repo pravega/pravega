@@ -17,14 +17,21 @@
  */
 package com.emc.pravega.demo;
 
+import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.Producer;
+import com.emc.pravega.stream.StreamManager;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import com.emc.pravega.stream.impl.StreamManagerImpl;
 import lombok.Cleanup;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockStreamManager;
+
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -43,11 +50,11 @@ public class TurbineHeatSensor {
         String[] locations = {"Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming", "Montgomery", "Juneau", "Phoenix", "Little Rock", "Sacramento", "Denver", "Hartford", "Dover", "Tallahassee", "Atlanta", "Honolulu", "Boise", "Springfield", "Indianapolis", "Des Moines", "Topeka", "Frankfort", "Baton Rouge", "Augusta", "Annapolis", "Boston", "Lansing", "St. Paul", "Jackson", "Jefferson City", "Helena", "Lincoln", "Carson City", "Concord", "Trenton", "Santa Fe", "Albany", "Raleigh", "Bismarck", "Columbus", "Oklahoma City", "Salem", "Harrisburg", "Providence", "Columbia", "Pierre", "Nashville", "Austin", "Salt Lake City", "Montpelier", "Richmond", "Olympia", "Charleston", "Madison", "Cheyenne"};
 
         // How many producers should we run concurrently
-        int producerCount = 20;
+        int producerCount = 1/*20*/;
         // How many events each producer has to produce per seconds
-        int eventsPerSec = 1000;
+        int eventsPerSec = 10/*00*/;
         // How long it needs to run
-        int runtimeSec = 20;
+        int runtimeSec = 2/*0*/;
         // Should producers use Transaction or not
         boolean isTransaction = false;
 
@@ -112,57 +119,67 @@ public class TurbineHeatSensor {
 
         @Override
         public void run() {
+            try {
+                @Cleanup StreamManager streamManager = null;
+                try {
+                    streamManager = new StreamManagerImpl(StartLocalService.SCOPE, new URI
+                            ("http://10.249.250.154:9090"));
+                } catch (URISyntaxException e) {
+                    e.printStackTrace();
+                }
+                Stream stream = streamManager.createStream(StartLocalService.STREAM_NAME,
+                        new StreamConfigurationImpl("hi", StartLocalService.STREAM_NAME,
+                                new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2)));
 
-            @Cleanup
-            MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,
-                    "localhost",
-                    StartLocalService.PORT);
-            Stream stream = streamManager.createStream(StartLocalService.STREAM_NAME, null);
+                @Cleanup Producer<String> producer = stream.createProducer(new JavaSerializer<>(),
+                        new ProducerConfig(null));
+                Transaction<String> transaction = null;
 
-            @Cleanup
-            Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
-            Transaction<String> transaction = null;
+                if (isTransaction) {
+                    transaction = producer.startTransaction(60000);
+                }
 
-            if (isTransaction) {
-                transaction = producer.startTransaction(60000);
-            }
+                for (int i = 0; i < secondsToRun; i++) {
+                    int currentEventsPerSec = 0;
 
-            for (int i = 0; i < secondsToRun; i++) {
-                int currentEventsPerSec = 0;
+                    long oneSecondTimer = System.currentTimeMillis() + 1000;
+                    while (System.currentTimeMillis() < oneSecondTimer && currentEventsPerSec <= eventsPerSec) {
+                        currentEventsPerSec++;
 
-                long oneSecondTimer = System.currentTimeMillis() + 1000;
-                while (System.currentTimeMillis() < oneSecondTimer && currentEventsPerSec <= eventsPerSec) {
-                    currentEventsPerSec++;
-
-                    // wait for next event
-                    try {
-                        Thread.sleep(1000 / eventsPerSec);
-                    } catch (InterruptedException e) {
-                        // log exception
-                    }
-
-                    // Construct event payload
-                    String payload = System.currentTimeMillis() + ", " + producerId + ", " + city + ", " +  (int) (Math.random() * 200);
-
-                    // event ingestion
-                    if (isTransaction) {
+                        // wait for next event
                         try {
-                            transaction.publish(city, payload);
-                            transaction.flush();
-                        } catch (TxFailedException e) { }
-                    } else {
-                        producer.publish(city, payload);
-                        producer.flush();
+                            Thread.sleep(1000 / eventsPerSec);
+                        } catch (InterruptedException e) {
+                            // log exception
+                        }
+
+                        // Construct event payload
+                        String payload = System.currentTimeMillis() + ", " + producerId + ", " + city + ", " + (int) (Math.random() * 200);
+
+
+                        // event ingestion
+                        if (isTransaction) {
+                            try {
+                                transaction.publish(city, payload);
+                                transaction.flush();
+                            } catch (TxFailedException e) {
+                            }
+                        } else {
+                            producer.publish(city, payload);
+                            producer.flush();
+                        }
                     }
                 }
-            }
 
-            if (isTransaction) {
-                try {
-                    transaction.commit();
-                } catch (TxFailedException e) { }
+                if (isTransaction) {
+                    try {
+                        transaction.commit();
+                    } catch (TxFailedException e) {
+                    }
+                }
+            } catch (Exception e){
+                e.printStackTrace();
             }
-
         }
     }
 }

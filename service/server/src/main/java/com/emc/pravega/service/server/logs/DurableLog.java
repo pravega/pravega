@@ -153,7 +153,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                     this.operationProcessor.stopAsync();
                 }
 
-                notifyFailed(ExceptionHelpers.getRealException(ex));
+              //  notifyFailed(ExceptionHelpers.getRealException(ex));
                 return;
             }
 
