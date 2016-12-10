@@ -12,15 +12,10 @@
  */
 package com.emc.pravega.stream.impl;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
-
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
+import com.emc.pravega.stream.EventPointer;
+import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.RateChangeListener;
@@ -30,6 +25,15 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactory;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.apache.commons.lang.NotImplementedException;
 
 public class ConsumerImpl<Type> implements Consumer<Type> {
 
@@ -56,16 +60,25 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
     }
 
     @Override
-    public Type getNextEvent(long timeout) {
+    public EventRead<Type> readNextEvent(long timeout) {
+        Type result;
+        Position position;
+        EventPointer pointer;
         synchronized (consumers) {
             SegmentConsumer<Type> segment = orderer.nextConsumer(consumers);
             try {
-                return segment.getNextEvent(timeout);
+                result = segment.getNextEvent(timeout);
             } catch (EndOfSegmentException e) {
                 handleEndOfSegment(segment);
-                return null;
+                result = null;
             }
+            Map<Segment, Long> positions = consumers.stream()
+                    .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
+            positions.putAll(completedSegments);
+            position =  new PositionImpl(positions, futureOwnedSegments);
+            pointer = new EventPointerImpl(segment.getSegmentId(), segment.getOffset());
         }
+        return new EventReadImpl<>(0, result, position, pointer, result == null);
     }
 
     /**
@@ -90,22 +103,11 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
     }
 
     @Override
-    public Position getPosition() {
-        synchronized (consumers) {
-            Map<Segment, Long> positions = consumers.stream()
-                .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
-            positions.putAll(completedSegments);
-            return new PositionImpl(positions, futureOwnedSegments);
-        }
-    }
-
-    @Override
     public ConsumerConfig getConfig() {
         return config;
     }
 
-    @Override
-    public void setPosition(Position state) {
+    private void setPosition(Position state) {
         PositionInternal position = state.asImpl();
         synchronized (consumers) {
             completedSegments.clear();
@@ -126,5 +128,11 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
                 consumer.close();
             }
         }
+    }
+
+
+    @Override
+    public Type read(EventPointer pointer) {
+        throw new NotImplementedException();
     }
 }

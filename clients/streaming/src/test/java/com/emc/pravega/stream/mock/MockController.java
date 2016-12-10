@@ -70,7 +70,7 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {
         Segment segmentId = new Segment(streamConfig.getScope(), streamConfig.getName(), 0);
-        createSegment(segmentId.getQualifiedName(), new PravegaNodeUri(endpoint, port));
+        createSegment(segmentId.getScopedName(), new PravegaNodeUri(endpoint, port));
         return CompletableFuture.completedFuture(CreateStreamStatus.SUCCESS);
     }
 
@@ -145,7 +145,7 @@ public class MockController implements Controller {
                 result.completeExceptionally(new TxFailedException("Transaction already dropped."));
             }
         };
-        sendRequestOverNewConnection(new CommitTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
+        sendRequestOverNewConnection(new CommitTransaction(Segment.getScopedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
         return result;
     }
 
@@ -174,7 +174,7 @@ public class MockController implements Controller {
                 result.complete(TransactionStatus.SUCCESS);
             }
         };
-        sendRequestOverNewConnection(new DropTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
+        sendRequestOverNewConnection(new DropTransaction(Segment.getScopedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
         return result;
     }
 
@@ -204,7 +204,7 @@ public class MockController implements Controller {
                 result.complete(txId);
             }
         };
-        sendRequestOverNewConnection(new CreateTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
+        sendRequestOverNewConnection(new CreateTransaction(Segment.getScopedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
         return result;
     }
 

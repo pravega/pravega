@@ -104,21 +104,21 @@ public class TransactionTest {
         AssertExtensions.assertThrows(IllegalStateException.class,
                                       () -> transaction.publish(routingKey, txnEvent));
         Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
-        assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
+        assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getValue());
+        assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getValue());
+        assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getValue());
+        assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getValue());
+        assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getValue());
+        assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getValue());
 
-        assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
-        assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
+        assertEquals(txnEvent, consumer.readNextEvent(readTimeout).getValue());
+        assertEquals(txnEvent, consumer.readNextEvent(readTimeout).getValue());
+        assertEquals(txnEvent, consumer.readNextEvent(readTimeout).getValue());
+        assertEquals(txnEvent, consumer.readNextEvent(readTimeout).getValue());
+        assertEquals(txnEvent, consumer.readNextEvent(readTimeout).getValue());
+        assertEquals(txnEvent, consumer.readNextEvent(readTimeout).getValue());
 
-        assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
+        assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getValue());
     }
     
     @Test
@@ -171,6 +171,6 @@ public class TransactionTest {
         Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
         producer.publish(routingKey, nonTxEvent);
         producer.flush();
-        assertEquals(nonTxEvent, consumer.getNextEvent(1500));
+        assertEquals(nonTxEvent, consumer.readNextEvent(1500).getValue());
     }
 }

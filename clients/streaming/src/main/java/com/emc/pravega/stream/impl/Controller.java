@@ -133,7 +133,7 @@ public interface Controller {
      * The result of this function can be cached until the endpoint is unreachable or indicates it
      * is no longer the owner.
      *
-     * @param qualifiedSegmentName The name of the segment. Usually obtained from {@link Segment#getQualifiedName()}.
+     * @param qualifiedSegmentName The name of the segment. Usually obtained from {@link Segment#getScopedName()}.
      */
     CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName);
 

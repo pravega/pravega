@@ -82,7 +82,7 @@ public class SegmentHelper {
         };
 
         return sendRequestOverNewConnection(
-                new WireCommands.CreateSegment(Segment.getQualifiedName(scope, stream, segmentNumber)),
+                new WireCommands.CreateSegment(Segment.getScopedName(scope, stream, segmentNumber)),
                 replyProcessor,
                 clientCF,
                 uri)
@@ -132,7 +132,7 @@ public class SegmentHelper {
         };
 
         return sendRequestOverNewConnection(
-                new WireCommands.SealSegment(Segment.getQualifiedName(scope, stream, segmentNumber)),
+                new WireCommands.SealSegment(Segment.getScopedName(scope, stream, segmentNumber)),
                 replyProcessor,
                 clientCF,
                 ModelHelper.encode(uri))
@@ -168,7 +168,7 @@ public class SegmentHelper {
         };
 
         return sendRequestOverNewConnection(
-                new WireCommands.CreateTransaction(Segment.getQualifiedName(scope, stream, segmentNumber), txId),
+                new WireCommands.CreateTransaction(Segment.getScopedName(scope, stream, segmentNumber), txId),
                 replyProcessor,
                 clientCF,
                 ModelHelper.encode(uri))
@@ -212,7 +212,7 @@ public class SegmentHelper {
         };
 
         return sendRequestOverNewConnection(
-                new WireCommands.CommitTransaction(Segment.getQualifiedName(scope, stream, segmentNumber), txId),
+                new WireCommands.CommitTransaction(Segment.getScopedName(scope, stream, segmentNumber), txId),
                 replyProcessor,
                 clientCF,
                 ModelHelper.encode(uri))
@@ -252,7 +252,7 @@ public class SegmentHelper {
         };
 
         return sendRequestOverNewConnection(
-                new WireCommands.DropTransaction(Segment.getQualifiedName(scope, stream, segmentNumber), txId),
+                new WireCommands.DropTransaction(Segment.getScopedName(scope, stream, segmentNumber), txId),
                 replyProcessor,
                 clientCF,
                 ModelHelper.encode(uri))

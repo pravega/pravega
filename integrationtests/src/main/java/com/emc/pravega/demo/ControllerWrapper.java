@@ -160,7 +160,7 @@ public class ControllerWrapper implements Controller {
 
     @Override
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
-        Segment segment = Segment.fromQualifiedName(qualifiedSegmentName);
+        Segment segment = Segment.fromScopedName(qualifiedSegmentName);
         try {
             return controller.getURI(new SegmentId(segment.getScope(), segment.getStreamName(),
                     segment.getSegmentNumber())).thenApply(ModelHelper::encode);

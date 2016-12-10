@@ -164,7 +164,7 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName) {
         final ThriftAsyncCallback<ControllerService.AsyncClient.getURI_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            Segment segment = Segment.fromQualifiedName(qualifiedSegmentName);
+            Segment segment = Segment.fromScopedName(qualifiedSegmentName);
             client.getURI(new SegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber()), callback);
             return callback.getResult();
         });
