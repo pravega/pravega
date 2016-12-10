@@ -27,6 +27,7 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ExceptionHelpers;
 
+import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -104,6 +105,7 @@ class Producer extends Actor {
         }
 
         this.iterationCount.incrementAndGet();
+        long startNanos = System.nanoTime();
         return executeOperation(op)
                 .exceptionally(ex -> {
                     // Log & throw every exception.
@@ -113,7 +115,7 @@ class Producer extends Actor {
                     op.failed(ex);
                     throw new CompletionException(ex);
                 })
-                .thenRun(op::completed);
+                .thenRun(() -> op.completed(Duration.ofNanos(System.nanoTime() - startNanos)));
     }
 
     /**
@@ -141,6 +143,7 @@ class Producer extends Actor {
             case Append:
                 // Generate some random data, then append it.
                 byte[] appendContent = this.dataSource.generateAppendContent(operation.getTarget());
+                operation.setLength(appendContent.length);
                 AppendContext context = new AppendContext(this.clientId, this.iterationCount.get());
                 return this.store.append(operation.getTarget(), appendContent, context, timer.getRemaining())
                                  .exceptionally(ex -> attemptReconcile(ex, operation, timer));
