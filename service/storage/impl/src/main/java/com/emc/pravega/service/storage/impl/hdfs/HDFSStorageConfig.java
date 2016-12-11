@@ -20,6 +20,9 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
 
+import java.math.BigInteger;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Properties;
 
 
@@ -77,7 +80,14 @@ public class HDFSStorageConfig extends ComponentConfig {
     }
 
     public int getPravegaID() {
-        return this.pravegaId;
+        InetAddress addr = null;
+        try {
+            addr = InetAddress.getLocalHost();
+            BigInteger in = new BigInteger(addr.getAddress());
+            return in.intValue();
+        } catch (UnknownHostException e) {
+            return this.pravegaId;
+        }
     }
 
     /**
