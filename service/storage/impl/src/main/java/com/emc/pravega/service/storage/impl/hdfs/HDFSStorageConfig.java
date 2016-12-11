@@ -82,9 +82,7 @@ public class HDFSStorageConfig extends ComponentConfig {
     public int getPravegaID() {
         InetAddress addr = null;
         try {
-            addr = InetAddress.getLocalHost();
-            BigInteger in = new BigInteger(addr.getAddress()).abs();
-            return in.intValue();
+            return InetAddress.getLocalHost().getHostName().hashCode();
         } catch (UnknownHostException e) {
             return this.pravegaId;
         }

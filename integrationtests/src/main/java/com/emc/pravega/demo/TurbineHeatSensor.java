@@ -132,7 +132,7 @@ public class TurbineHeatSensor {
                 }
                 Stream stream = streamManager.createStream(StartLocalService.STREAM_NAME,
                         new StreamConfigurationImpl("hi", StartLocalService.STREAM_NAME,
-                                new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2)));
+                                new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 5, 5)));
 
                 @Cleanup Producer<String> producer = stream.createProducer(new JavaSerializer<>(),
                         new ProducerConfig(null));
