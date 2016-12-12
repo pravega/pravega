@@ -20,7 +20,6 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.DataCorruptionException;
@@ -40,8 +39,6 @@ import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 /**
  * Test version of a WriterDataSource that can accumulate operations in memory (just like the real DurableLog) and only
@@ -56,10 +53,9 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     private final UpdateableContainerMetadata metadata;
     private final MemoryOperationLog log;
     private final Cache cache;
-    private Consumer<AcknowledgeArgs> acknowledgeCallback;
-    private BiConsumer<Long, Long> completeMergeCallback;
     private final ScheduledExecutorService executor;
     private final DataSourceConfig config;
+    private CompletableFuture<Void> waitFullyAcked;
     private CompletableFuture<Void> addProcessed;
     private long lastAddedCheckpoint;
     @Getter
@@ -93,6 +89,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         this.config = config;
         this.log = new MemoryOperationLog();
         this.lastAddedCheckpoint = 0;
+        this.waitFullyAcked = null;
         this.ackEffective = true;
     }
 
@@ -177,12 +174,18 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
                         this.metadata.removeTruncationMarkers(upToSequenceNumber);
                     }
 
-                    // Invoke the truncation callback.
-                    Consumer<AcknowledgeArgs> callback = this.acknowledgeCallback;
+                    // See if anyone is waiting for the DataSource to be emptied out; if so, notify them.
+                    CompletableFuture<Void> callback = null;
+                    synchronized (this.log) {
+                        // We need to check both log size and last seq no (that's because of ackEffective that may not actually trim the log).
+                        if (this.waitFullyAcked != null && (this.log.size() == 0 || this.log.getLast().getSequenceNumber() <= upToSequenceNumber)) {
+                            callback = this.waitFullyAcked;
+                            this.waitFullyAcked = null;
+                        }
+                    }
+
                     if (callback != null) {
-                        Operation lastOperation = this.log.getLast();
-                        long highestSeqNo = lastOperation == null ? upToSequenceNumber : lastOperation.getSequenceNumber();
-                        CallbackHelpers.invokeSafely(callback, new AcknowledgeArgs(upToSequenceNumber, highestSeqNo), null);
+                        callback.complete(null);
                     }
                 }, this.executor);
     }
@@ -209,10 +212,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     @Override
     public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
-        BiConsumer<Long, Long> callback = this.completeMergeCallback;
-        if (callback != null) {
-            callback.accept(targetStreamSegmentId, sourceStreamSegmentId);
-        }
+        // This method intentionally left empty.
     }
 
     @Override
@@ -246,22 +246,24 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     //region Other Properties
 
     /**
-     * Sets a callback that will invoked on every call to acknowledge.
-     *
-     * @param callback The callback to set.
+     * Returns a CompletableFuture that will be completed when the TestWriterDataSource becomes empty.
      */
+    CompletableFuture<Void> waitFullyAcked() {
+        synchronized (this.log) {
+            if (this.waitFullyAcked == null) {
+                // Nobody else is waiting for the DataSource to empty out.
 
-    public void setAcknowledgeCallback(Consumer<AcknowledgeArgs> callback) {
-        this.acknowledgeCallback = callback;
-    }
+                if (this.log.size() == 0) {
+                    // We are already empty; return a completed future.
+                    return CompletableFuture.completedFuture(null);
+                } else {
+                    // Not empty yet; create an uncompleted Future and store it.
+                    this.waitFullyAcked = new CompletableFuture<>();
+                }
+            }
 
-    /**
-     * Sets a callback that will invoked on every call to completeMerge.
-     *
-     * @param callback The callback to set.
-     */
-    public void setCompleteMergeCallback(BiConsumer<Long, Long> callback) {
-        this.completeMergeCallback = callback;
+            return this.waitFullyAcked;
+        }
     }
 
     //endregion
@@ -309,29 +311,6 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     //endregion
-
-    static class AcknowledgeArgs {
-        private final long highestSequenceNumber;
-        private final long ackSequenceNumber;
-
-        AcknowledgeArgs(long ackSequenceNumber, long highestSequenceNumber) {
-            this.ackSequenceNumber = ackSequenceNumber;
-            this.highestSequenceNumber = highestSequenceNumber;
-        }
-
-        long getHighestSequenceNumber() {
-            return this.highestSequenceNumber;
-        }
-
-        long getAckSequenceNumber() {
-            return this.ackSequenceNumber;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("AckSeqNo = %d, HighSeqNo = %d", this.ackSequenceNumber, this.highestSequenceNumber);
-        }
-    }
 
     static class DataSourceConfig {
         static final int NO_METADATA_CHECKPOINT = -1;
