@@ -261,7 +261,6 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         synchronized (this.log) {
             if (this.waitFullyAcked == null) {
                 // Nobody else is waiting for the DataSource to empty out.
-
                 if (this.log.size() == 0) {
                     // We are already empty; return a completed future.
                     return CompletableFuture.completedFuture(null);
