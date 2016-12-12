@@ -20,7 +20,6 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.DataCorruptionException;
@@ -33,15 +32,15 @@ import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
-import lombok.Getter;
 import lombok.Setter;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Test version of a WriterDataSource that can accumulate operations in memory (just like the real DurableLog) and only
@@ -56,16 +55,15 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     private final UpdateableContainerMetadata metadata;
     private final MemoryOperationLog log;
     private final Cache cache;
-    private Consumer<AcknowledgeArgs> acknowledgeCallback;
-    private BiConsumer<Long, Long> completeMergeCallback;
     private final ScheduledExecutorService executor;
     private final DataSourceConfig config;
+    @GuardedBy("log")
+    private CompletableFuture<Void> waitFullyAcked;
+    @GuardedBy("log")
     private CompletableFuture<Void> addProcessed;
-    private long lastAddedCheckpoint;
-    @Getter
-    @Setter
-    private boolean ackEffective;
-    private boolean closed;
+    private final AtomicLong lastAddedCheckpoint;
+    private final AtomicBoolean ackEffective;
+    private final AtomicBoolean closed;
     @Setter
     private ErrorInjector<Exception> readSyncErrorInjector;
     @Setter
@@ -92,8 +90,10 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         this.executor = executor;
         this.config = config;
         this.log = new MemoryOperationLog();
-        this.lastAddedCheckpoint = 0;
-        this.ackEffective = true;
+        this.lastAddedCheckpoint = new AtomicLong(0);
+        this.waitFullyAcked = null;
+        this.ackEffective = new AtomicBoolean(true);
+        this.closed = new AtomicBoolean(false);
     }
 
     //endregion
@@ -102,9 +102,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     @Override
     public void close() {
-        if (!this.closed) {
-            this.closed = true;
-
+        if (!this.closed.getAndSet(true)) {
             // Cancel any pending adds.
             CompletableFuture<Void> addProcessed;
             synchronized (this.log) {
@@ -123,15 +121,16 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     //region add
 
     public long add(Operation operation) {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkArgument(operation.getSequenceNumber() < 0, "Given operation already has a sequence number.");
 
         // If not a checkpoint op, see if we need to auto-add one.
         boolean isCheckpoint = operation instanceof MetadataCheckpointOperation;
         if (!isCheckpoint) {
-            if (this.config.autoInsertCheckpointFrequency != DataSourceConfig.NO_METADATA_CHECKPOINT && this.metadata.getOperationSequenceNumber() - this.lastAddedCheckpoint >= this.config.autoInsertCheckpointFrequency) {
+            if (this.config.autoInsertCheckpointFrequency != DataSourceConfig.NO_METADATA_CHECKPOINT
+                    && this.metadata.getOperationSequenceNumber() - this.lastAddedCheckpoint.get() >= this.config.autoInsertCheckpointFrequency) {
                 MetadataCheckpointOperation checkpointOperation = new MetadataCheckpointOperation();
-                this.lastAddedCheckpoint = add(checkpointOperation);
+                this.lastAddedCheckpoint.set(add(checkpointOperation));
             }
         }
 
@@ -164,32 +163,38 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     @Override
     public CompletableFuture<Void> acknowledge(long upToSequenceNumber, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkArgument(this.metadata.isValidTruncationPoint(upToSequenceNumber), "Invalid Truncation Point. Must refer to a MetadataCheckpointOperation.");
         ErrorInjector.throwSyncExceptionIfNeeded(this.ackSyncErrorInjector);
 
         return ErrorInjector
                 .throwAsyncExceptionIfNeeded(this.ackAsyncErrorInjector)
                 .thenRunAsync(() -> {
-                    if (this.ackEffective) {
+                    if (this.ackEffective.get()) {
                         // ackEffective determines whether the ack operation has any effect or not.
                         this.log.truncate(o -> o.getSequenceNumber() <= upToSequenceNumber);
                         this.metadata.removeTruncationMarkers(upToSequenceNumber);
                     }
 
-                    // Invoke the truncation callback.
-                    Consumer<AcknowledgeArgs> callback = this.acknowledgeCallback;
+                    // See if anyone is waiting for the DataSource to be emptied out; if so, notify them.
+                    CompletableFuture<Void> callback = null;
+                    synchronized (this.log) {
+                        // We need to check both log size and last seq no (that's because of ackEffective that may not actually trim the log).
+                        if (this.waitFullyAcked != null && (this.log.size() == 0 || this.log.getLast().getSequenceNumber() <= upToSequenceNumber)) {
+                            callback = this.waitFullyAcked;
+                            this.waitFullyAcked = null;
+                        }
+                    }
+
                     if (callback != null) {
-                        Operation lastOperation = this.log.getLast();
-                        long highestSeqNo = lastOperation == null ? upToSequenceNumber : lastOperation.getSequenceNumber();
-                        CallbackHelpers.invokeSafely(callback, new AcknowledgeArgs(upToSequenceNumber, highestSeqNo), null);
+                        callback.complete(null);
                     }
                 }, this.executor);
     }
 
     @Override
     public CompletableFuture<Iterator<Operation>> read(long afterSequenceNumber, int maxCount, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         ErrorInjector.throwSyncExceptionIfNeeded(this.readSyncErrorInjector);
 
         return ErrorInjector
@@ -209,10 +214,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     @Override
     public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
-        BiConsumer<Long, Long> callback = this.completeMergeCallback;
-        if (callback != null) {
-            callback.accept(targetStreamSegmentId, sourceStreamSegmentId);
-        }
+        // This method intentionally left empty.
     }
 
     @Override
@@ -246,22 +248,30 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     //region Other Properties
 
     /**
-     * Sets a callback that will invoked on every call to acknowledge.
-     *
-     * @param callback The callback to set.
+     * Sets whether the acknowledgements have any effect of actually truncating the inner log.
      */
-
-    public void setAcknowledgeCallback(Consumer<AcknowledgeArgs> callback) {
-        this.acknowledgeCallback = callback;
+    void setAckEffective(boolean value) {
+        this.ackEffective.set(value);
     }
 
     /**
-     * Sets a callback that will invoked on every call to completeMerge.
-     *
-     * @param callback The callback to set.
+     * Returns a CompletableFuture that will be completed when the TestWriterDataSource becomes empty.
      */
-    public void setCompleteMergeCallback(BiConsumer<Long, Long> callback) {
-        this.completeMergeCallback = callback;
+    CompletableFuture<Void> waitFullyAcked() {
+        synchronized (this.log) {
+            if (this.waitFullyAcked == null) {
+                // Nobody else is waiting for the DataSource to empty out.
+                if (this.log.size() == 0) {
+                    // We are already empty; return a completed future.
+                    return CompletableFuture.completedFuture(null);
+                } else {
+                    // Not empty yet; create an uncompleted Future and store it.
+                    this.waitFullyAcked = new CompletableFuture<>();
+                }
+            }
+
+            return this.waitFullyAcked;
+        }
     }
 
     //endregion
@@ -310,36 +320,13 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     //endregion
 
-    static class AcknowledgeArgs {
-        private final long highestSequenceNumber;
-        private final long ackSequenceNumber;
-
-        AcknowledgeArgs(long ackSequenceNumber, long highestSequenceNumber) {
-            this.ackSequenceNumber = ackSequenceNumber;
-            this.highestSequenceNumber = highestSequenceNumber;
-        }
-
-        long getHighestSequenceNumber() {
-            return this.highestSequenceNumber;
-        }
-
-        long getAckSequenceNumber() {
-            return this.ackSequenceNumber;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("AckSeqNo = %d, HighSeqNo = %d", this.ackSequenceNumber, this.highestSequenceNumber);
-        }
-    }
-
     static class DataSourceConfig {
         static final int NO_METADATA_CHECKPOINT = -1;
         int autoInsertCheckpointFrequency;
     }
 
     private static class TestLogAddress extends LogAddress {
-        public TestLogAddress(long sequence) {
+        TestLogAddress(long sequence) {
             super(sequence);
         }
     }
