@@ -26,7 +26,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -65,10 +64,11 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
      * Creates a new instance of the CacheManager class.
      *
      * @param policy          The policy to use with this CacheManager.
-     * @param executorService (Optional) An executorService to use for scheduled tasks.
+     * @param executorService An executorService to use for scheduled tasks.
      */
-    public CacheManager(CachePolicy policy, @Nullable ScheduledExecutorService executorService) {
+    public CacheManager(CachePolicy policy, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(policy, "policy");
+        Preconditions.checkNotNull(executorService, "executorService");
         this.policy = policy;
         this.clients = new HashSet<>();
         this.oldestGeneration = 0;
@@ -99,7 +99,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     @Override
     protected ScheduledExecutorService executor() {
-        return this.executorService != null ? this.executorService : super.executor();
+        return this.executorService;
     }
 
     @Override

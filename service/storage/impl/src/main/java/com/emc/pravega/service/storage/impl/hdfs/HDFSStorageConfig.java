@@ -22,23 +22,29 @@ import com.emc.pravega.common.util.ConfigurationException;
 
 import java.util.Properties;
 
-
 /**
  * Configuration for the HDFS Storage component.
  */
 public class HDFSStorageConfig extends ComponentConfig {
 
     public static final String COMPONENT_CODE = "hdfs";
-    private static final String PROPERTY_HDFSURL = "fs.default.name";
-    private static final String PROPERTY_HDFSROOT = "hdfsRoot";
-    private static final String PROPERTY_PRAVEGAID = "pravegaId";
-    private static final String PROPERTY_REPLICATION = "replication";
-    private static final String PROPERTY_BLOCKSIZE = "blockSize";
+    public static final String PROPERTY_HDFS_URL = "fs.default.name";
+    public static final String PROPERTY_HDFS_ROOT = "hdfsRoot";
+    public static final String PROPERTY_PRAVEGA_ID = "pravegaId";
+    public static final String PROPERTY_REPLICATION = "replication";
+    public static final String PROPERTY_BLOCK_SIZE = "blockSize";
+
+    private static final String DEFAULT_HDFS_URL = "localhost:9000";
+    private static final String DEFAULT_HDFS_ROOT = "";
+    private static final int DEFAULT_PRAVEGA_ID = 0;
+    private static final int DEFAULT_REPLICATION = 1;
+    private static final int DEFAULT_BLOCK_SIZE = 1048576;
+
     private String hdfsHostURL;
     private String hdfsRoot;
     private int pravegaId;
     private short replication;
-    private long blocksize;
+    private long blockSize;
 
     /**
      * Creates a new instance of the HDFSStorageConfig class.
@@ -52,15 +58,16 @@ public class HDFSStorageConfig extends ComponentConfig {
 
     @Override
     protected void refresh() throws ConfigurationException {
-        this.hdfsHostURL = getProperty(PROPERTY_HDFSURL);
-        this.hdfsRoot    = getProperty(PROPERTY_HDFSROOT);
-        this.pravegaId   = getInt32Property(PROPERTY_PRAVEGAID);
-        this.replication = (short) getInt32Property(PROPERTY_REPLICATION);
-        this.blocksize   = getInt32Property(PROPERTY_BLOCKSIZE);
+        this.hdfsHostURL = getProperty(PROPERTY_HDFS_URL, DEFAULT_HDFS_URL);
+        this.hdfsRoot = getProperty(PROPERTY_HDFS_ROOT, DEFAULT_HDFS_ROOT);
+        this.pravegaId = getInt32Property(PROPERTY_PRAVEGA_ID, DEFAULT_PRAVEGA_ID);
+        this.replication = (short) getInt32Property(PROPERTY_REPLICATION, DEFAULT_REPLICATION);
+        this.blockSize = getInt32Property(PROPERTY_BLOCK_SIZE, DEFAULT_BLOCK_SIZE);
     }
 
     /**
      * HDFS host URL. This is generally in host:port format
+     *
      * @return URL pointing to the HDFS host.
      */
     public String getHDFSHostURL() {
@@ -70,6 +77,7 @@ public class HDFSStorageConfig extends ComponentConfig {
     /**
      * Root of the Pravega owned HDFS path. All the directories/files under this path will be exclusively
      * owned by Pravega.
+     *
      * @return path at which all the HDFS data is stored.
      */
     public String getHdfsRoot() {
@@ -83,6 +91,7 @@ public class HDFSStorageConfig extends ComponentConfig {
     /**
      * Decides the replication factor of the data stored on HDFS.
      * This can be used to control availability of HDFS data.
+     *
      * @return Replication factor for HDFS storage
      */
     public short getReplication() {
@@ -90,10 +99,11 @@ public class HDFSStorageConfig extends ComponentConfig {
     }
 
     /**
-     * The default blocksize that will be used to exchange data with HDFS.
-     * @return blocksize for HDFS
+     * The default block size that will be used to exchange data with HDFS.
+     *
+     * @return block size for HDFS
      */
     public long getBlockSize() {
-        return this.blocksize;
+        return this.blockSize;
     }
 }

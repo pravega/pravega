@@ -16,20 +16,23 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.reading;
-
-import java.util.concurrent.ScheduledExecutorService;
+package com.emc.pravega.service.server.host.selftest;
 
 /**
- * Exposes the applyCachePolicy method in the CacheManager.
+ * Defines various types of Producer Operations.
  */
-class TestCacheManager extends CacheManager {
-    TestCacheManager(CachePolicy policy, ScheduledExecutorService executorService) {
-        super(policy, executorService);
-    }
+final class ConsumerOperationType extends OperationType {
+    /**
+     * A Tail Read processed on the Consumer.
+     */
+    static final ConsumerOperationType END_TO_END = new ConsumerOperationType("End to End");
 
-    @Override
-    public void applyCachePolicy() {
-        super.applyCachePolicy();
+    /**
+     * A Catch-up Read processed on the Consumer.
+     */
+    static final ConsumerOperationType CATCHUP_READ = new ConsumerOperationType("Catchup Read");
+
+    private ConsumerOperationType(String name) {
+        super(name);
     }
 }

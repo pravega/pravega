@@ -35,7 +35,7 @@ class ProducerOperation {
     //region Members
 
     @Getter
-    private final OperationType type;
+    private final ProducerOperationType type;
     @Getter
     private final String target;
     @Getter
@@ -61,7 +61,7 @@ class ProducerOperation {
      * @param type   The type of the operation.
      * @param target The target (Segment name) of the operation.
      */
-    ProducerOperation(OperationType type, String target) {
+    ProducerOperation(ProducerOperationType type, String target) {
         Preconditions.checkNotNull(type, "type");
         Exceptions.checkNotNullOrEmpty(target, "target");
         this.type = type;

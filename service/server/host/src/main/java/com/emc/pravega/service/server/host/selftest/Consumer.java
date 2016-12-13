@@ -37,6 +37,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -344,6 +346,7 @@ public class Consumer extends Actor {
     }
 
     private void triggerTailReadValidation() {
+        List<ValidationResult> successfulValidations = new ArrayList<>();
         synchronized (this.lock) {
             // Repeatedly validate the contents of the buffer, until we found a non-successful result or until it is completely drained.
             ValidationResult validationResult;
@@ -356,7 +359,7 @@ public class Consumer extends Actor {
                 if (validationResult.isSuccess()) {
                     // Successful validation; advance the tail-read validated offset.
                     this.tailReadValidatedOffset += validationResult.getLength();
-                    this.testState.recordTailRead(validationResult.getLength());
+                    successfulValidations.add(validationResult);
                     logState(SOURCE_TAIL_READ, null);
                 } else if (validationResult.isFailed()) {
                     // Validation failed. Invoke callback.
@@ -365,12 +368,20 @@ public class Consumer extends Actor {
             }
             while (validationResult.isSuccess() && this.readBufferSegmentOffset + this.readBuffer.getLength() > this.tailReadValidatedOffset);
         }
+
+        // Record statistics, outside of the sync block above.
+        successfulValidations.forEach(v -> {
+            this.testState.recordTailRead(v.getLength());
+            Duration elapsed = v.getElapsed();
+            if (elapsed != null) {
+                this.testState.recordDuration(ConsumerOperationType.END_TO_END, elapsed);
+            }
+        });
     }
 
     private void triggerCatchupReadValidation() {
         // Issue a read from Store from the first offset in the read buffer up to the validated offset
         // Verify, byte-by-byte, that the data matches.
-        // If success, truncate data (TBD: later, we will truncate only when we read from storage).
         long segmentStartOffset;
         int length;
         InputStream expectedData;
@@ -390,6 +401,7 @@ public class Consumer extends Actor {
             expectedData = this.readBuffer.getReader(bufferOffset, length);
         }
 
+        long startTime = System.nanoTime();
         this.store.read(this.segmentName, segmentStartOffset, length, this.config.getTimeout())
                   .thenAcceptAsync(readResult -> {
                       try {
@@ -398,6 +410,8 @@ public class Consumer extends Actor {
                               validationFailed(validationResult);
                               return;
                           }
+
+                          this.testState.recordDuration(ConsumerOperationType.CATCHUP_READ, Duration.ofNanos(System.nanoTime() - startTime));
 
                           // Validation is successful, update current state.
                           int verifiedLength;
