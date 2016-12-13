@@ -37,6 +37,7 @@ import org.apache.zookeeper.data.Stat;
 
 import java.util.AbstractMap;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -382,6 +383,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return client.getChildren().forPath(path);
+            } catch (KeeperException.NoNodeException nne) {
+                return Collections.emptyList();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
