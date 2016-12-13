@@ -236,6 +236,12 @@ project('integrationtests') {
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
+
+    task startScaleTest(type: JavaExec) {
+        main = "com.emc.pravega.demo.ScaleTest"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+    }
 }
 
 project('controller') {
