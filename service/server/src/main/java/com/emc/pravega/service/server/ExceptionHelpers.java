@@ -36,6 +36,10 @@ public class ExceptionHelpers {
      * @return True if a fatal error which must be rethrown, false otherwise (it can be handled in a catch block).
      */
     public static boolean mustRethrow(Throwable ex) {
+        if( ex instanceof OutOfMemoryError
+                || ex instanceof StackOverflowError) {
+            ex.printStackTrace();
+        }
         return ex instanceof OutOfMemoryError
                 || ex instanceof StackOverflowError;
     }

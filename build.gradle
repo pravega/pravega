@@ -288,6 +288,7 @@ project('controller:server') {
     }
 
     startScripts {
+        defaultJvmOpts = ["-Xmx500m"]
         doLast {
             unixScript.text = unixScript.text.replace('CONTROLLER_APP_HOME', '\$APP_HOME')
             windowsScript.text = windowsScript.text.replace('CONTROLLER_APP_HOME', '%~dp0..')

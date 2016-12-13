@@ -7,7 +7,7 @@
       { 
           "id": "/pravega/bkgroup/bookie", 
           "cpus": 1,
-          "mem": 1024,
+          "mem": 500,
           "instances": 3,
           "constraints": [["hostname", "UNIQUE"]],
           "container": {
@@ -39,7 +39,7 @@
               ],
 
               "docker": {
-                  "image": "zhaijia/bookie",
+                  "image": "zhaijia/bookkeeper",
                   "network": "HOST"
               }
           },
@@ -66,18 +66,6 @@
               "ZK": "master.mesos:2181"
           },
 
-          "healthChecks": [
-          {
-              "protocol": "TCP",
-              "port": 3181,
-              "gracePeriodSeconds": 900,
-              "intervalSeconds": 60,
-              "timeoutSeconds": 20,
-              "maxConsecutiveFailures": 0,
-              "ignoreHttp1xx": false
-          }
-          ],
-
           "upgradeStrategy": {
               "maximumOverCapacity": 0,
               "minimumHealthCapacity": 0
@@ -89,18 +77,21 @@
     {
       "id": "/pravega/hostgroup",
       "dependencies": ["/pravega/bkgroup"],
+      "dependencies": ["/pravega/controllergroup"],
       "apps": [
       { 
-          "id": "/pravega/hostgroup/host", 
+          "id": "/pravega/hostgroup/host",
+	  "backoffSeconds": 7200, 
           "cpus": 0.4,
-          "mem": 500,
-          "instances": 1,
+          "mem": 1000,
+          "instances": 2,
           "constraints": [["hostname", "UNIQUE"]],
           "container": {
               "type": "DOCKER",
               "docker": {
-                  "image": "zhaijia/pravega_host",
-                  "network": "HOST"
+                  "image": "arvindkandhare/pravega_host",
+                  "network": "HOST",
+		  "forcePullImage": true
               }
           },
 
@@ -113,18 +104,6 @@
 
           "requirePorts": true,
 
-          "healthChecks": [
-          {
-              "protocol": "TCP",
-              "port": 12345,
-              "gracePeriodSeconds": 900,
-              "intervalSeconds": 60,
-              "timeoutSeconds": 20,
-              "maxConsecutiveFailures": 0,
-              "ignoreHttp1xx": false
-          }
-          ],
-
           "upgradeStrategy": {
               "maximumOverCapacity": 0,
               "minimumHealthCapacity": 0
@@ -134,18 +113,18 @@
     },
     {
       "id": "/pravega/controllergroup",
-      "dependencies": ["/pravega/hostgroup"],
+      "dependencies": ["/pravega/bkgroup"],
       "apps": [
       { 
           "id": "/pravega/controllergroup/controller", 
           "cpus": 0.4,
           "mem": 500,
-          "instances": 1,
+          "instances": 2,
           "constraints": [["hostname", "UNIQUE"]],
           "container": {
               "type": "DOCKER",
               "docker": {
-                  "image": "zhaijia/pravega_controller",
+                  "image": "arvindkandhare/pravega_controller",
                   "network": "HOST"
               }
           },
@@ -158,18 +137,6 @@
           ],
 
           "requirePorts": true,
-
-          "healthChecks": [
-          {
-              "protocol": "TCP",
-              "port": 9090,
-              "gracePeriodSeconds": 900,
-              "intervalSeconds": 60,
-              "timeoutSeconds": 20,
-              "maxConsecutiveFailures": 0,
-              "ignoreHttp1xx": false
-          }
-          ],
 
           "upgradeStrategy": {
               "maximumOverCapacity": 0,
