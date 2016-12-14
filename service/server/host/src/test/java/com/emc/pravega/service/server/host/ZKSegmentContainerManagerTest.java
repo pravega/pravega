@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -99,27 +100,6 @@ public class ZKSegmentContainerManagerTest {
         zkClient.close();
     }
 
-    @Test(timeout = TEST_TIMEOUT)
-    public void initializeTest() throws Exception {
-        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
-                RETRY_SLEEP_MS, MAX_RETRY));
-        zkClient.start();
-
-        initializeSegmentMapping(zkClient);
-
-        segmentToContainerMapper = new SegmentToContainerMapper(8);
-        ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(createMockContainerRegistry(),
-                segmentToContainerMapper, zkClient,
-                PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
-
-        CompletableFuture<Void> result = segManager.initialize();
-
-        assertEquals(1, segManager.getHandles().size());
-        assertEquals(1, segManager.getHandles().get(1).getContainerId());
-        assertEquals(false, result.isCompletedExceptionally());
-
-        zkClient.close();
-    }
 
     @Test(timeout = TEST_TIMEOUT)
     public void listenerTest() throws Exception {
@@ -127,7 +107,6 @@ public class ZKSegmentContainerManagerTest {
                 RETRY_SLEEP_MS, MAX_RETRY));
         zkClient.start();
 
-        initializeSegmentMapping(zkClient);
         SegmentContainerRegistry containerRegistry = createMockContainerRegistry();
 
         segmentToContainerMapper = new SegmentToContainerMapper(8);
@@ -137,6 +116,7 @@ public class ZKSegmentContainerManagerTest {
                 PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
 
         CompletableFuture<Void> result = segManager.initialize();
+        initializeSegmentMapping(zkClient);
 
         ContainerHandle containerHandle2 = mock(ContainerHandle.class);
         when(containerHandle2.getContainerId()).thenReturn(2);
@@ -146,13 +126,13 @@ public class ZKSegmentContainerManagerTest {
         //now modify the ZK entry
         HashMap<Host, Set<Integer>> currentData =
                 (HashMap<Host, Set<Integer>>) SerializationUtils.deserialize(zkClient.getData().forPath(PATH));
-        currentData.put(PRAVEGA_SERVICE_ENDPOINT, new HashSet(Arrays.asList(2)));
+        currentData.put(PRAVEGA_SERVICE_ENDPOINT, new HashSet(Arrays.asList(1, 2)));
         zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
 
         verify(containerHandle2, after(500).atMost(5)).getContainerId();
         assertEquals(2, segManager.getHandles().size());
-        assertEquals(1, segManager.getHandles().get(1).getContainerId());
-        assertEquals(2, segManager.getHandles().get(2).getContainerId());
+        assertTrue(segManager.getHandles().containsKey(1));
+        assertTrue(segManager.getHandles().containsKey(2));
 
         zkClient.close();
     }

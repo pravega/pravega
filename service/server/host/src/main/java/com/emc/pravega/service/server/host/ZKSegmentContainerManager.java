@@ -21,7 +21,9 @@ package com.emc.pravega.service.server.host;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
+import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
@@ -77,6 +79,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     private final NodeCache segContainerHostMapping;
     private final CuratorFramework client;
     private final String clusterPath;
+    private final Cluster cluster;
 
     /**
      * Creates a new instance of the ZKSegmentContainerManager class.
@@ -106,7 +109,8 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
         this.client = zkClient;
         this.clusterPath = ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping");
-        segContainerHostMapping = new NodeCache(zkClient, this.clusterPath);
+        this.segContainerHostMapping = new NodeCache(zkClient, this.clusterPath);
+        this.cluster = new ClusterZKImpl(zkClient, clusterName);
 
         this.host = pravegaServiceEndpoint;
     }
@@ -115,16 +119,13 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     public CompletableFuture<Void> initialize() {
         long traceId = LoggerHelpers.traceEnter(log, "initialize");
         ensureNotClosed();
-        try {
-            List<CompletableFuture<Void>> futures = initializeFromZK(host, INIT_TIMEOUT_PER_CONTAINER);
-            CompletableFuture<Void> initResult = FutureHelpers.allOf(futures)
-                    // Add the node cache listener which watches ZK for changes in segment container mapping.
-                    .thenRun(() -> addListenerSegContainerMapping(INIT_TIMEOUT_PER_CONTAINER, host))
-                    .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
-            return initResult;
-        } catch (Exception ex) {
-            throw new RuntimeStreamingException("Unable to initialize from Zookeeper", ex);
-        }
+        CompletableFuture<Void> initResult = CompletableFuture.runAsync(() -> {
+            // Add the node cache listener which watches ZK for changes in segment container mapping.
+            addListenerSegContainerMapping(INIT_TIMEOUT_PER_CONTAINER, host);
+            cluster.registerHost(host);
+        }).thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
+
+        return initResult;
     }
 
     @Override
