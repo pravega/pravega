@@ -45,6 +45,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -244,7 +245,14 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
                 .collect(Collectors.toList());
 
         futures.addAll(containersToBeStopped.stream()
+                .peek(c -> log.debug("Container to be stopped is {}", c))
                 .map(handles::get)
+                .peek(h -> {
+                    if(h == null) {
+                        log.warn("Container handle is null, container has been already unregistered");
+                    }
+                })
+                .filter(Objects::nonNull)
                 .map(containerHandle -> registry.stopContainer(containerHandle, timer.getRemaining())
                         .thenAccept(v -> unregisterHandle(containerHandle.getContainerId())))
                 .collect(Collectors.toList()));
