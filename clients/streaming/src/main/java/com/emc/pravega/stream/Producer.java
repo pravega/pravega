@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.stream;
 
+import java.util.UUID;
 import java.util.concurrent.Future;
 
 /**
@@ -53,6 +54,13 @@ public interface Producer<Type> extends AutoCloseable {
      * @return A transaction through which multiple events can be written atomically.
      */
     Transaction<Type> startTransaction(long transactionTimeout);
+    
+    /**
+     * Returns a previously created transaction.
+     * 
+     * @param transactionId The result retained from calling {@link Transaction#getTransactionId()}
+     */
+    Transaction<Type> getTransaction(UUID transactionId);
 
     /**
      * Returns the configuration that this producer was create with.

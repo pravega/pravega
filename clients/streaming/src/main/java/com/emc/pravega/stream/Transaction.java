@@ -17,21 +17,18 @@
  */
 package com.emc.pravega.stream;
 
-import java.io.Serializable;
+import java.util.UUID;
 
 /**
  * Provides a mechanism for publishing many events atomically.
  * A Transaction is unbounded in size but is bounded in time. If it has not been committed within a time window
  * specified  at the time of its creation it will be automatically dropped.
- * <p>
- * Note that transactions are serializable (to a small reference). So they can be stored in an external store or passed
- * between processes if desired.
- * <p>
+ * 
  * All methods on this class may block.
  *
  * @param <Type> The type of events in the associated stream.
  */
-public interface Transaction<Type> extends Serializable {
+public interface Transaction<Type> {
     enum Status {
         OPEN,
         SEALED,
@@ -39,6 +36,11 @@ public interface Transaction<Type> extends Serializable {
         DROPPED
     }
 
+    /**
+     * Returns a unique ID that can be used to identify this transaction.
+     */
+    UUID getTransactionId();
+    
     /**
      * Sends an event to the stream just like {@link Producer#publish} but with the caveat that the message will not be
      * visible to anyone until {@link #commit()} is called.

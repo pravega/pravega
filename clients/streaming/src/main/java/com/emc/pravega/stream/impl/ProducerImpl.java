@@ -228,6 +228,11 @@ public class ProducerImpl<Type> implements Producer<Type> {
             }
         }
 
+        @Override
+        public UUID getTransactionId() {
+            return txId;
+        }
+
     }
 
     @Override
@@ -238,6 +243,21 @@ public class ProducerImpl<Type> implements Producer<Type> {
             segmentIds = new ArrayList<>(producers.keySet());
         }
         UUID txId = FutureHelpers.getAndHandleExceptions(controller.createTransaction(stream, timeout), RuntimeException::new);
+        for (Segment s : segmentIds) {
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
+            SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
+            transactions.put(s, impl);
+        }
+        return new TransactionImpl<Type>(txId, transactions, router, controller, stream);
+    }
+    
+    @Override
+    public Transaction<Type> getTransaction(UUID txId) {
+        Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
+        ArrayList<Segment> segmentIds;
+        synchronized (lock) {
+            segmentIds = new ArrayList<>(producers.keySet());
+        }
         for (Segment s : segmentIds) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
