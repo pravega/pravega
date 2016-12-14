@@ -25,10 +25,24 @@ package com.emc.pravega.stream;
 public interface EventRead<T> {
     
     /**
-     * Returns the time the event was written.
-     * If T is null, the time below which there are no events. (Exclusive)
+     * Returns a value that events are ordered by. This can be used to align consumers from
+     * different streams.
+     * 
+     * The value is approximately the time the event was written to the stream. (For events written
+     * as part of transactions this is the time it was committed). But has the guarantee that it
+     * will always increase or stay the same for consecutive calls to
+     * {@link Consumer#readNextEvent(long)} unless the previous call set
+     * {@link #isRoutingRebalance()} to true. (When rebalancing occurs on a consumer in a
+     * {@link ConsumerGroup} this consumer could have acquired more segments of the stream from
+     * another consumer that was behind) If all of the consumers in a group have passed a certain
+     * value, it is guaranteed that no event will ever be read below that level.
+     *
+     * The value will be populated on all calls to {@link Consumer#readNextEvent(long)} even if
+     * {@link #getValue()} is null because no events are available. The value will continue to
+     * increase even when no events are available. This is useful as it can bound the values
+     * associated with future events.
      */
-    long getWriteTime();
+    long getWriteTimeCounter();
 
     /**
      * Returns the event itself.
