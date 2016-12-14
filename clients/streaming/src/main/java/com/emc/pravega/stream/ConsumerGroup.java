@@ -50,7 +50,8 @@ public interface ConsumerGroup {
     /**
      * Invoked when a consumer that was added to the group is no longer consuming events. This will
      * cause the events that were going to that consumer to be redistributed among the other
-     * consumers. Events after the lastPosition provided will be (re)read by other consumers.
+     * consumers. Events after the lastPosition provided will be (re)read by other consumers in the
+     * {@link ConsumerGroup}.
      * 
      * Note that this method is automatically invoked by {@link Consumer#close()}
      * 
