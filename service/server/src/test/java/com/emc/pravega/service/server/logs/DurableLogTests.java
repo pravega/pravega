@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -31,7 +32,6 @@ import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.OperationLog;
-import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestDurableDataLog;
@@ -519,7 +519,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a read operation, and make sure it is blocked (since there is no data).
         CompletableFuture<Iterator<Operation>> readFuture = durableLog.read(1, 1, shortTimeout);
-        Assert.assertFalse("read() returned a completed future when there is no data available.", readFuture.isDone());
+        Assert.assertFalse("read() returned a completed future when there is no data available.", FutureHelpers.isSuccessful(readFuture));
 
         CompletableFuture<Void> controlFuture = FutureHelpers.delayedFuture(Duration.ofMillis(2000), setup.executorService.get());
         AssertExtensions.assertThrows(
