@@ -25,14 +25,11 @@ import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.ModelHelper;
-import com.emc.pravega.stream.impl.PositionImpl;
-import com.emc.pravega.stream.impl.PositionInternal;
-
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 

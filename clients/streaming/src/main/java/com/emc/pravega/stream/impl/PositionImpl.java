@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
-@EqualsAndHashCode(callSuper=false)
+@EqualsAndHashCode(callSuper = false)
 @ToString
 public class PositionImpl extends PositionInternal {
 
