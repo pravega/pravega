@@ -121,40 +121,41 @@ public class InMemoryStorage implements TruncateableStorage {
 
     @Override
     public CompletableFuture<Void> open(String streamSegmentName) {
-        return getStreamSegmentData(streamSegmentName)
-                .thenAccept(StreamSegmentData::open);
+        return CompletableFuture.runAsync(() -> getStreamSegmentData(streamSegmentName).open(), this.executor);
     }
 
     @Override
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
-        CompletableFuture<Void> result = getStreamSegmentData(streamSegmentName)
-                .thenAccept(ssd -> ssd.write(offset, data, length));
+        CompletableFuture<Void> result = CompletableFuture.runAsync(() ->
+                getStreamSegmentData(streamSegmentName).write(offset, data, length), this.executor);
         result.thenRunAsync(() -> fireOffsetTriggers(streamSegmentName, offset + length), this.executor);
         return result;
     }
 
     @Override
     public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-        return getStreamSegmentData(streamSegmentName)
-                .thenApply(ssd -> ssd.read(offset, buffer, bufferOffset, length));
+        return CompletableFuture.supplyAsync(() ->
+                getStreamSegmentData(streamSegmentName).read(offset, buffer, bufferOffset, length), this.executor);
     }
 
     @Override
     public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
-        CompletableFuture<SegmentProperties> result = getStreamSegmentData(streamSegmentName)
-                .thenApply(StreamSegmentData::markSealed);
+        CompletableFuture<SegmentProperties> result =
+                CompletableFuture.supplyAsync(() ->
+                        getStreamSegmentData(streamSegmentName).markSealed(), this.executor);
         result.thenRunAsync(() -> fireSealTrigger(streamSegmentName), this.executor);
         return result;
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        return getStreamSegmentData(streamSegmentName)
-                .thenApply(StreamSegmentData::getInfo);
+        Exceptions.checkNotClosed(this.closed, this);
+        return CompletableFuture.supplyAsync(() -> getStreamSegmentData(streamSegmentName).getInfo(), this.executor);
     }
 
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed, this);
         boolean exists;
         synchronized (this.lock) {
             exists = this.streamSegments.containsKey(streamSegmentName);
@@ -164,15 +165,19 @@ public class InMemoryStorage implements TruncateableStorage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName,
-                                          Duration timeout) {
-        CompletableFuture<StreamSegmentData> sourceData = getStreamSegmentData(sourceStreamSegmentName);
-        CompletableFuture<StreamSegmentData> targetData = getStreamSegmentData(targetStreamSegmentName);
-        CompletableFuture<Void> result = CompletableFuture.allOf(sourceData, targetData)
-                                                          .thenAccept(v -> targetData.join().concat(sourceData.join(), offset))
-                                                          .thenCompose(v -> delete(sourceStreamSegmentName, timeout));
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed, this);
+        AtomicLong newLength = new AtomicLong();
+        CompletableFuture<Void> result = CompletableFuture.runAsync(() -> {
+            StreamSegmentData sourceData = getStreamSegmentData(sourceStreamSegmentName);
+            StreamSegmentData targetData = getStreamSegmentData(targetStreamSegmentName);
+            targetData.concat(sourceData, offset);
+            deleteInternal(sourceStreamSegmentName);
+            newLength.set(targetData.getInfo().getLength());
+        }, this.executor);
+
         result.thenRunAsync(() -> {
-            fireOffsetTriggers(targetStreamSegmentName, targetData.join().getInfo().getLength());
+            fireOffsetTriggers(targetStreamSegmentName, newLength.get());
             fireSealTrigger(sourceStreamSegmentName);
         }, this.executor);
         return result;
@@ -181,21 +186,13 @@ public class InMemoryStorage implements TruncateableStorage {
     @Override
     public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
-        return CompletableFuture
-                .runAsync(() -> {
-                    synchronized (this.lock) {
-                        if (!this.streamSegments.containsKey(streamSegmentName)) {
-                            throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
-                        }
-                        this.streamSegments.remove(streamSegmentName);
-                    }
-                }, this.executor);
+        return CompletableFuture.runAsync(() -> deleteInternal(streamSegmentName), this.executor);
     }
 
     @Override
     public CompletableFuture<Void> truncate(String streamSegmentName, long offset, Duration timeout) {
-        return getStreamSegmentData(streamSegmentName)
-                .thenAccept(ssd -> ssd.truncate(offset));
+        Exceptions.checkNotClosed(this.closed, this);
+        return CompletableFuture.runAsync(() -> getStreamSegmentData(streamSegmentName).truncate(offset), this.executor);
     }
 
     /**
@@ -206,19 +203,25 @@ public class InMemoryStorage implements TruncateableStorage {
         this.currentOwnerId.incrementAndGet();
     }
 
-    private CompletableFuture<StreamSegmentData> getStreamSegmentData(String streamSegmentName) {
-        Exceptions.checkNotClosed(this.closed, this);
-        return CompletableFuture
-                .supplyAsync(() -> {
-                    synchronized (this.lock) {
-                        StreamSegmentData data = this.streamSegments.getOrDefault(streamSegmentName, null);
-                        if (data == null) {
-                            throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
-                        }
+    private StreamSegmentData getStreamSegmentData(String streamSegmentName) {
+        synchronized (this.lock) {
+            StreamSegmentData data = this.streamSegments.getOrDefault(streamSegmentName, null);
+            if (data == null) {
+                throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+            }
 
-                        return data;
-                    }
-                }, this.executor);
+            return data;
+        }
+    }
+
+    private void deleteInternal(String streamSegmentName) {
+        synchronized (this.lock) {
+            if (!this.streamSegments.containsKey(streamSegmentName)) {
+                throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+            }
+
+            this.streamSegments.remove(streamSegmentName);
+        }
     }
 
     //endregion

@@ -258,7 +258,7 @@ public class Consumer extends Actor {
         return this.store
                 .getStorageAdapter()
                 .read(this.segmentName, segmentStartOffset, storageReadBuffer, 0, length, this.config.getTimeout())
-                .thenAccept(l -> {
+                .thenAcceptAsync(l -> {
                     ValidationResult validationResult = validateStorageRead(expectedData, storageReadBuffer, segmentStartOffset);
                     validationResult.setSource(SOURCE_STORAGE_READ);
                     if (!validationResult.isSuccess()) {
@@ -276,8 +276,8 @@ public class Consumer extends Actor {
 
                     this.testState.recordStorageRead((int) diff);
                     logState(SOURCE_STORAGE_READ, "StorageLength=%s", segmentLength);
-                })
-                .thenCompose(v -> this.store.getStorageAdapter().truncate(this.segmentName, this.storageReadValidatedOffset, this.config.getTimeout()))
+                }, this.executorService)
+                .thenComposeAsync(v -> this.store.getStorageAdapter().truncate(this.segmentName, this.storageReadValidatedOffset, this.config.getTimeout()), this.executorService)
                 .whenComplete((r, ex) -> {
                     if (ex != null) {
                         processingFuture.completeExceptionally(ex);

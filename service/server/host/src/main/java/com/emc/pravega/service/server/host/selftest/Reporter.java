@@ -94,7 +94,7 @@ class Reporter extends AbstractScheduledService {
                 LOG_ID,
                 "Ops = %s+%s/%s, Produced = %.2f MB, Verified: T = %.2f MB, C = %.2f MB, S = %.2f MB",
                 completedOperationCount,
-                (generatedOperationCount - completedOperationCount),
+                generatedOperationCount - completedOperationCount,
                 this.testConfig.getOperationCount(),
                 producedLength,
                 verifiedTailLength,
@@ -125,7 +125,7 @@ class Reporter extends AbstractScheduledService {
     }
 
     private void outputRow(Object opType, Object count, Object lAvg, Object l50, Object l90, Object l99, Object l999) {
-        TestLogger.log(LOG_ID, "%18s | %6s | %5s | %5s | %5s | %5s | %5s", opType, count, lAvg, l50, l90, l99, l999);
+        TestLogger.log(LOG_ID, "%18s | %7s | %5s | %5s | %5s | %5s | %5s", opType, count, lAvg, l50, l90, l99, l999);
     }
 
     private <T> T getPercentile(List<T> list, double percentile) {

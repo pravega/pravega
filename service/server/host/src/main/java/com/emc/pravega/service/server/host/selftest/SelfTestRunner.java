@@ -60,7 +60,7 @@ public class SelfTestRunner {
         Properties p = new Properties();
 
         // Change Number of containers and Thread Pool Size for each test.
-        ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "10");
+        ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "2");
         ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "50");
 
         // All component configs should have defaults built-in, so no need to override them here
@@ -77,7 +77,7 @@ public class SelfTestRunner {
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
                            .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 50)
-                           .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 200)
+                           .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 150)
                            .with(TestConfig.PROPERTY_TIMEOUT_MILLIS, 3000)));
     }
 }
