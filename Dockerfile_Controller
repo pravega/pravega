@@ -2,7 +2,6 @@ FROM java:8
 
 MAINTAINER Prabha Veerubhotla [Vijayalakshmi.Veerubhotla@emc.com]
 
-COPY entrypoint_controller.sh /opt/
 COPY /controller/server/build/distributions/   /opt/controller/
 
 WORKDIR /opt/controller/
@@ -12,6 +11,7 @@ RUN tar -xvf /opt/controller/server.tar
 RUN rm /opt/controller/server.tar
 RUN rm /opt/controller/server.zip
 
-ENTRYPOINT [ "/opt/entrypoint_controller.sh" ]
+ENTRYPOINT [ "/opt/controller/server/bin/server" ]
+
 
 
