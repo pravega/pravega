@@ -22,6 +22,7 @@ import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.stream.PositionInternal;
+import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -63,6 +64,11 @@ public class ModelHelperTest {
             @Override
             public ScalingPolicy getScalingPolicy() {
                 return createScalingPolicy();
+            }
+
+            @Override
+            public RetentionPolicy getRetentionPolicy() {
+                return new RetentionPolicy(Long.MAX_VALUE);
             }
         };
     }
