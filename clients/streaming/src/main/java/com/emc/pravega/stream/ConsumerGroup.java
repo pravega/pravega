@@ -18,7 +18,7 @@ import java.util.Set;
 
 /**
  * A consumer group is a collection of consumers that collectively read all the events in the
- * stream. The events are distributed among the the consumers in the group such that each event goes
+ * stream. The events are distributed among the consumers in the group such that each event goes
  * to only one consumer.
  * 
  * The consumers in the group may change over time. Consumers are added to the group by calling

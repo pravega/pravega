@@ -12,7 +12,19 @@
  */
 package com.emc.pravega.stream.impl;
 
-import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.stream.Producer;
+import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.Serializer;
+import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
+import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
+import com.emc.pravega.stream.impl.segment.SegmentSealedException;
+import com.google.common.base.Preconditions;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -28,20 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.concurrent.GuardedBy;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.stream.EventRouter;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
-import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.Serializer;
-import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxFailedException;
-import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
-import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
-import com.emc.pravega.stream.impl.segment.SegmentSealedException;
-import com.google.common.base.Preconditions;
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 import lombok.extern.slf4j.Slf4j;
 

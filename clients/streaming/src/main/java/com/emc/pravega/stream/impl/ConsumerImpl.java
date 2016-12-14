@@ -14,11 +14,9 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
-import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.PositionInternal;
-import com.emc.pravega.stream.RateChangeListener;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
@@ -42,30 +40,28 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
 
     private final Stream stream;
     private final Orderer<Type> orderer;
-    private final RateChangeListener rateChangeListener;
     private final ConsumerConfig config;
     private final List<SegmentConsumer<Type>> consumers = new ArrayList<>();
     private final Map<Segment, Long> completedSegments = new HashMap<>();
     private final Map<FutureSegment, Long> futureOwnedSegments = new HashMap<>();
 
     ConsumerImpl(Stream stream, SegmentInputStreamFactory inputStreamFactory, Serializer<Type> deserializer, PositionInternal position,
-            Orderer<Type> orderer, RateChangeListener rateChangeListener, ConsumerConfig config) {
+            Orderer<Type> orderer, ConsumerConfig config) {
         this.deserializer = deserializer;
         this.stream = stream;
         this.inputStreamFactory = inputStreamFactory;
         this.orderer = orderer;
-        this.rateChangeListener = rateChangeListener;
         this.config = config;
         setPosition(position);
     }
 
     @Override
     public EventRead<Type> readNextEvent(long timeout) {
-        Type result;
-        Position position;
-        EventPointer pointer;
         synchronized (consumers) {
+            Type result;
             SegmentConsumer<Type> segment = orderer.nextConsumer(consumers);
+            Segment segmentId = segment.getSegmentId();
+            long offset = segment.getOffset();
             try {
                 result = segment.getNextEvent(timeout);
             } catch (EndOfSegmentException e) {
@@ -75,10 +71,9 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
             Map<Segment, Long> positions = consumers.stream()
                     .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
             positions.putAll(completedSegments);
-            position =  new PositionImpl(positions, futureOwnedSegments);
-            pointer = new EventPointerImpl(segment.getSegmentId(), segment.getOffset());
+            Position position = new PositionImpl(positions, futureOwnedSegments);
+            return new EventReadImpl<>(0, result, position, segmentId, offset, result == null);
         }
-        return new EventReadImpl<>(0, result, position, pointer, result == null);
     }
 
     /**
@@ -96,9 +91,6 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
             SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(segmentId, config.getSegmentConfig());
             in.setOffset(position);
             consumers.add(new SegmentConsumerImpl<>(segmentId, in, deserializer));
-            rateChangeListener.rateChanged(stream, false);
-        } else {
-            rateChangeListener.rateChanged(stream, true);
         }
     }
 
@@ -130,9 +122,9 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
         }
     }
 
-
     @Override
-    public Type read(EventPointer pointer) {
+    public Type read(Segment segment, long offset) {
         throw new NotImplementedException();
     }
+
 }

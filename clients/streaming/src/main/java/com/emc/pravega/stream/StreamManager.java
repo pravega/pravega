@@ -83,5 +83,5 @@ public interface StreamManager extends AutoCloseable {
      * Resources used by the stream will be freed.
      * @param toDelete The stream to be deleted.
      */
-    void delteStream(Stream toDelete);
+    void deleteStream(Stream toDelete);
 }

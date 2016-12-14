@@ -38,8 +38,7 @@ public class StartConsumer {
         Consumer<String> consumer = stream
             .createConsumer(new JavaSerializer<>(),
                             new ConsumerConfig(),
-                            streamManager.getInitialPosition(StartLocalService.STREAM_NAME),
-                            null);
+                            streamManager.getInitialPosition(StartLocalService.STREAM_NAME));
         for (int i = 0; i < 20; i++) {
             String event = consumer.readNextEvent(60000).getValue();
             System.err.println("Read event: " + event);

@@ -95,7 +95,7 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
-    public void delteStream(Stream toDelete) {
+    public void deleteStream(Stream toDelete) {
         throw new NotImplementedException();
     }
 }

@@ -22,7 +22,6 @@ import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Synchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
-import com.emc.pravega.stream.impl.Orderer;
 
 /**
  * A stream can be thought of as an infinite sequence of events.
@@ -42,11 +41,9 @@ import com.emc.pravega.stream.impl.Orderer;
  * Because events being processed in parallel on different hosts cannot have ordering semantics a few things are done.
  * Events published to a stream have a routingKey see {@link Producer#publish}.
  * Events within a routing key are strictly ordered (IE: They must go the the same consumer or its replacement).
- * For other events, within a single consumer, the ordering is dictated by the {@link Orderer}
- * If the Orderer used by the consumer is consistent, order of all events seen by that consumer is strict.
- * IE: the stream can be multiple times from the same position and the events will always be in the same order.
- * Other implementations of Orderer are used to try to lower latency etc. But none of them will change the semantic that
- * within a routingKey ordering is strict.
+ * For other events, within a single consumer, the ordering is dictated by {@link EventRead#getWriteTime()} 
+ * However as {@link ConsumerGroup}s process events in parallel there is no ordering between different consumers.
+ * 
  * <p>
  * A note on scaling:
  * Because a stream can grow in its event rate, streams are divided into Segments. For the most part this is an
@@ -87,19 +84,20 @@ public interface Stream {
     <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config);
 
     /**
-     * Creates a new consumer that will consumer from this stream at the startingPosition.
-     * To obtain an initial position use {@link RebalancerUtils#getInitialPositions}
-     * Consumers are responsible for their own failure management. In the event that a consumer dies the system will do
-     * nothing about it until you do so manually. (Usually by getting its last {@link Position}) object and either
-     * calling this method again or invoking: {@link RebalancerUtils#rebalance} and then invoking this method.
+     * Creates a new manually managed consumer that will consume from this stream at the
+     * startingPosition. To obtain an initial position use
+     * {@link RebalancerUtils#getInitialPositions} Consumers are responsible for their own failure
+     * management and rebalancing. In the event that a consumer dies the system will do nothing
+     * about it until you do so manually. (Usually by getting its last {@link Position} and either
+     * calling this method again or invoking: {@link RebalancerUtils#rebalance} and then invoking
+     * this method.
      *
-     * @param s                The Serializer.
-     * @param config           The consumer configuration.
-     * @param l                The RateChangeListener to use.
+     * @param s The Serializer.
+     * @param config The consumer configuration.
      * @param startingPosition The StartingPosition to use.
-     * @param <T>              The type of events.
+     * @param <T> The type of events.
      */
-    <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition, RateChangeListener l);
+    <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition);
     
     /**
      * Creates (or recreates) a new consumer on this stream that is part of a {@link ConsumerGroup}.

@@ -127,7 +127,7 @@
       <property name="allowMissingParamTags" value="false"/>
       <property name="allowMissingReturnTag" value="true"/>
       <property name="allowMissingJavadoc" value="true"/> <!--TODO: this should be enabled at one point. -->
-	  <property name="ignoreMethodNamesRegex" value="^get.*$"/> <!--TODO: It would be prefrable if we could allow checking that the doc exists without also verifying the @returns is there also -->
+      <property name="ignoreMethodNamesRegex" value="^get.*$"/> <!--It would be nice if we could allow checking that the doc exists without also verifying the @returns is there also, but checkstyle does not allow that. -->
       <property name="suppressLoadErrors" value="true"/>
     </module>
   </module>

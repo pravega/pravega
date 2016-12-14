@@ -25,9 +25,10 @@ package com.emc.pravega.stream;
 public interface EventRead<T> {
     
     /**
-     * Returns the time associated with the event. (Specified during publish)
+     * Returns the time the event was written.
+     * If T is null, the time below which there are no events. (Exclusive)
      */
-    long getEventTime();
+    long getWriteTime();
 
     /**
      * Returns the event itself.
@@ -42,22 +43,31 @@ public interface EventRead<T> {
     Position getPosition();
 
     /**
-     * Returns a pointer to this event. This can be used to read the event again by calling
-     * {@link Consumer#read(EventPointer)}
+     * Returns the segment the event came from.
      */
-    EventPointer getEventPointer();
+    Segment getSegment();
+    
+    /**
+     * Returns the byte offset within the segment the event was read from.
+     */
+    Long getOffsetInSegment();
 
     /**
      * Returns a boolean indicating if a rebalance of which events are being routed to which
-     * consumers is about to occur. Meaning that on the next call to
+     * consumers is about to or needs to occur. 
+     * 
+     * For a consumer that is part of a {@link ConsumerGroup} this means the next call to
      * {@link Consumer#readNextEvent(long)} this consumer may receive events from a different set of
      * RoutingKeys. Once this consumer calls {@link Consumer#readNextEvent(long)} some of the
      * routing keys it was previously reading may be taken over by another consumer.
-     * 
      * This is relevant if the consumers process events in a way that involves holding state in
      * memory. For example an app that is maintaining counters in memory for different types of
      * events should interpret this boolean as an indication that it should flush its values to
      * external storage, as the set routing keys it is working with are about to change.
+     * 
+     * For a consumer that is not part of a {@link ConsumerGroup} and is rebalanced manually, 
+     * this means the application should call {@link RebalancerUtils#rebalance()} with the positions
+     * of its consumers and recreate new consumers from the resulting positions. 
      * 
      * It is the goal of the implementation to not set this to true unless it is required.
      */

@@ -26,11 +26,9 @@ import com.emc.pravega.state.impl.CorruptedStateException;
 import com.emc.pravega.state.impl.SynchronizerImpl;
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
-import com.emc.pravega.stream.EventRouter;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
-import com.emc.pravega.stream.RateChangeListener;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
@@ -42,11 +40,12 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.base.Preconditions;
-import lombok.Getter;
 
 import java.util.Collection;
 
 import org.apache.commons.lang.NotImplementedException;
+
+import lombok.Getter;
 
 /**
  * An implementation of a stream for the special case where the stream is only ever composed of one segment.
@@ -81,7 +80,7 @@ public class StreamImpl implements Stream {
         this.config = config;
         this.controller = controller;
         this.connectionFactory = connectionFactory;
-        this.router = new EventRouterImpl(this, controller);
+        this.router = new EventRouter(this, controller);
     }
 
     @Override
@@ -90,14 +89,12 @@ public class StreamImpl implements Stream {
     }
 
     @Override
-    public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition,
-                                          RateChangeListener l) {
+    public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition) {
         return new ConsumerImpl<T>(this,
                 new SegmentInputStreamFactoryImpl(controller, connectionFactory),
                 s,
                 startingPosition.asImpl(),
                 new SingleStreamOrderer<T>(),
-                l,
                 config);
     }
     
