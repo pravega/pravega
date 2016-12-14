@@ -26,9 +26,11 @@ import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.TruncateableStorage;
 import com.google.common.base.Preconditions;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.ToString;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.ByteArrayInputStream;
@@ -48,7 +50,7 @@ import java.util.function.Supplier;
 /**
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
  */
-public class InMemoryStorage implements Storage {
+public class InMemoryStorage implements TruncateableStorage {
     //region Members
 
     private final HashMap<String, HashMap<Long, CompletableFuture<Void>>> offsetTriggers;
@@ -188,6 +190,12 @@ public class InMemoryStorage implements Storage {
                         this.streamSegments.remove(streamSegmentName);
                     }
                 }, this.executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> truncate(String streamSegmentName, long offset, Duration timeout) {
+        return getStreamSegmentData(streamSegmentName)
+                .thenAccept(ssd -> ssd.truncate(offset));
     }
 
     /**
@@ -354,12 +362,18 @@ public class InMemoryStorage implements Storage {
     private static class StreamSegmentData {
         private static final int BUFFER_SIZE = 1024 * 1024;
         private final String name;
+        @GuardedBy("lock")
         private final ArrayList<byte[]> data;
         private final Object lock = new Object();
         private final SyncContext context;
+        @GuardedBy("lock")
         private long currentOwnerId;
+        @GuardedBy("lock")
         private long length;
+        @GuardedBy("lock")
         private boolean sealed;
+        private long truncateOffset;
+        private int firstBufferOffset;
 
         StreamSegmentData(String name, SyncContext context) {
             this.name = name;
@@ -368,6 +382,8 @@ public class InMemoryStorage implements Storage {
             this.sealed = false;
             this.context = context;
             this.currentOwnerId = Long.MIN_VALUE;
+            this.truncateOffset = 0;
+            this.firstBufferOffset = 0;
         }
 
         void open() {
@@ -388,15 +404,15 @@ public class InMemoryStorage implements Storage {
             synchronized (this.lock) {
                 Exceptions.checkArrayRange(targetOffset, length, target.length, "targetOffset", "length");
                 Exceptions.checkArrayRange(startOffset, length, this.length, "startOffset", "length");
+                Preconditions.checkArgument(startOffset >= this.truncateOffset, "startOffset (%s) is before the truncation offset (%s).", startOffset, this.truncateOffset);
                 checkOpened();
 
                 long offset = startOffset;
                 int readBytes = 0;
                 while (readBytes < length) {
-                    int bufferSeq = getBufferSequence(offset);
-                    int bufferOffset = getBufferOffset(offset);
-                    int bytesToCopy = Math.min(BUFFER_SIZE - bufferOffset, length - readBytes);
-                    System.arraycopy(this.data.get(bufferSeq), bufferOffset, target, targetOffset + readBytes, bytesToCopy);
+                    OffsetLocation ol = getOffsetLocation(offset);
+                    int bytesToCopy = Math.min(BUFFER_SIZE - ol.bufferOffset, length - readBytes);
+                    System.arraycopy(this.data.get(ol.bufferSequence), ol.bufferOffset, target, targetOffset + readBytes, bytesToCopy);
 
                     readBytes += bytesToCopy;
                     offset += bytesToCopy;
@@ -423,6 +439,7 @@ public class InMemoryStorage implements Storage {
                 // on SyncContext.syncRoot.
                 synchronized (other.lock) {
                     Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not sealed.", other.name, this.name);
+                    Preconditions.checkState(other.truncateOffset == 0, "Cannot concat segment '%s' into '%s' because it is truncated.", other.name, this.name);
                     other.checkOpened();
                     synchronized (this.lock) {
                         checkOpened();
@@ -445,6 +462,25 @@ public class InMemoryStorage implements Storage {
             }
         }
 
+        void truncate(long offset) {
+            synchronized (this.lock) {
+                Preconditions.checkArgument(offset >= 0 && offset <= this.length, "Offset (%s) must be non-negative and less than or equal to the Segment's length (%s).", offset, this.length);
+                checkOpened();
+
+                // Adjust the 'firstBufferOffset' to point to the first byte that will not be truncated after this is done.
+                this.firstBufferOffset += offset - this.truncateOffset;
+
+                // Trim away, from the beginning, all data buffers until we can no longer trim.
+                while (this.firstBufferOffset >= BUFFER_SIZE && this.data.size() > 0) {
+                    this.data.remove(0);
+                    this.firstBufferOffset -= BUFFER_SIZE;
+                }
+
+                assert this.firstBufferOffset < BUFFER_SIZE : "Not all bytes were correctly truncated";
+                this.truncateOffset = offset;
+            }
+        }
+
         SegmentProperties getInfo() {
             synchronized (this.lock) {
                 checkOpened();
@@ -454,18 +490,16 @@ public class InMemoryStorage implements Storage {
 
         private void ensureAllocated(long startOffset, int length) {
             long endOffset = startOffset + length;
-            int desiredSize = getBufferSequence(endOffset) + 1;
+            int desiredSize = getOffsetLocation(endOffset).bufferSequence + 1;
             while (this.data.size() < desiredSize) {
                 this.data.add(new byte[BUFFER_SIZE]);
             }
         }
 
-        private int getBufferSequence(long offset) {
-            return (int) (offset / BUFFER_SIZE);
-        }
-
-        private int getBufferOffset(long offset) {
-            return (int) (offset % BUFFER_SIZE);
+        private OffsetLocation getOffsetLocation(long offset) {
+            // Adjust for truncation offset and first buffer offset.
+            offset += this.firstBufferOffset - this.truncateOffset;
+            return new OffsetLocation((int) (offset / BUFFER_SIZE), (int) (offset % BUFFER_SIZE));
         }
 
         private void writeInternal(long startOffset, InputStream data, int length) {
@@ -484,9 +518,8 @@ public class InMemoryStorage implements Storage {
             try {
                 int writtenBytes = 0;
                 while (writtenBytes < length) {
-                    int bufferSeq = getBufferSequence(offset);
-                    int bufferOffset = getBufferOffset(offset);
-                    int readBytes = data.read(this.data.get(bufferSeq), bufferOffset, BUFFER_SIZE - bufferOffset);
+                    OffsetLocation ol = getOffsetLocation(offset);
+                    int readBytes = data.read(this.data.get(ol.bufferSequence), ol.bufferOffset, BUFFER_SIZE - ol.bufferOffset);
                     if (readBytes < 0) {
                         throw new IOException("reached end of stream while still expecting data");
                     }
@@ -508,6 +541,13 @@ public class InMemoryStorage implements Storage {
         @Override
         public String toString() {
             return String.format("%s: Length = %d, Sealed = %s", this.name, this.length, this.sealed);
+        }
+
+        @AllArgsConstructor
+        @ToString
+        private static class OffsetLocation {
+            final int bufferSequence;
+            final int bufferOffset;
         }
     }
 

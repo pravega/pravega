@@ -33,6 +33,7 @@ import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
 import com.google.common.base.Preconditions;
 import lombok.val;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -61,30 +62,37 @@ public class Consumer extends Actor {
     private final String segmentName;
     private final AtomicBoolean canContinue;
     private final TestState testState;
+    @GuardedBy("lock")
     private final TruncateableArray readBuffer;
+    @GuardedBy("lock")
+    private CompletableFuture<Void> storageReadQueueTail;
 
     /**
      * The offset in the Segment of the first byte that we have in readBuffer.
      * This value will always be at an append boundary.
      */
+    @GuardedBy("lock")
     private long readBufferSegmentOffset;
 
     /**
      * The offset in the Segment up to which we performed Tail-Read validation.
      * This value will always be at an append boundary.
      */
+    @GuardedBy("lock")
     private long tailReadValidatedOffset;
 
     /**
      * The offset in the Segment up to which we performed catch-up read validation.
      * This value will always be at an append boundary.
      */
+    @GuardedBy("lock")
     private long catchupReadValidatedOffset;
 
     /**
      * The offset in the Segment up to which we performed Storage read validation.
      * This value will always be at an append boundary.
      */
+    @GuardedBy("lock")
     private long storageReadValidatedOffset;
     private final Object lock = new Object();
 
@@ -113,6 +121,7 @@ public class Consumer extends Actor {
         this.readBufferSegmentOffset = -1;
         this.tailReadValidatedOffset = 0;
         this.catchupReadValidatedOffset = 0;
+        this.storageReadQueueTail = CompletableFuture.completedFuture(null);
     }
 
     //endregion
@@ -185,10 +194,21 @@ public class Consumer extends Actor {
         val listener = new VerificationStorage.SegmentUpdateListener(
                 this.segmentName,
                 (length, sealed) -> {
-                    try {
-                        storageSegmentChangedHandler(length, sealed, result);
-                    } catch (Throwable ex) {
-                        result.completeExceptionally(ex); // Make sure we catch exceptions; otherwise this will be stuck in a loop forever.
+                    synchronized (this.lock) {
+                        // Poor man's queueing system. This callback may be invoked again before the previous callback
+                        // finished executing. This may cause overlapping requests to Storage, and cause issues with truncation.
+                        // Since we cannot run this sync (the VerificationStorage waits for this method to return), we
+                        // need a way to serialize all these verifications. For this, we make use of the CompletableFuture
+                        // chaining, which executes them one after the other. We only keep the 'tail' of this queue
+                        // in the 'storageReadQueueTail' member, so we know where to queue up later.
+                        this.storageReadQueueTail = this.storageReadQueueTail.thenComposeAsync(v -> {
+                            try {
+                                return storageSegmentChangedHandler(length, sealed, result);
+                            } catch (Throwable ex) {
+                                result.completeExceptionally(ex); // Make sure we catch exceptions; otherwise this will be stuck in a loop forever.
+                                throw ex;
+                            }
+                        }, this.executorService);
                     }
                 });
         this.store.getStorageAdapter().registerListener(listener);
@@ -204,12 +224,12 @@ public class Consumer extends Actor {
         return result;
     }
 
-    private void storageSegmentChangedHandler(long segmentLength, boolean sealed, CompletableFuture<Void> processingFuture) {
+    private CompletableFuture<Void> storageSegmentChangedHandler(long segmentLength, boolean sealed, CompletableFuture<Void> processingFuture) {
         if (sealed) {
             // We reached the end of the Segment (this callback is the result of a Seal operation), so no point in listening further.
             logState(SOURCE_STORAGE_READ, "StorageLength=%s, Sealed=True", segmentLength);
             processingFuture.complete(null);
-            return;
+            return CompletableFuture.completedFuture(null);
         }
 
         long segmentStartOffset;
@@ -227,7 +247,7 @@ public class Consumer extends Actor {
 
             if (length <= 0) {
                 // Nothing to do (yet).
-                return;
+                return CompletableFuture.completedFuture(null);
             }
 
             expectedData = this.readBuffer.getReader(bufferOffset, length);
@@ -235,32 +255,34 @@ public class Consumer extends Actor {
 
         // Execute a Storage Read, then validate that the read data matches what was in there.
         byte[] storageReadBuffer = new byte[length];
-        this.store.getStorageAdapter()
-                  .read(this.segmentName, segmentStartOffset, storageReadBuffer, 0, length, this.config.getTimeout())
-                  .thenAccept(l -> {
-                      ValidationResult validationResult = validateStorageRead(expectedData, storageReadBuffer, segmentStartOffset);
-                      validationResult.setSource(SOURCE_STORAGE_READ);
-                      if (!validationResult.isSuccess()) {
-                          validationFailed(validationResult);
-                          return;
-                      }
+        return this.store
+                .getStorageAdapter()
+                .read(this.segmentName, segmentStartOffset, storageReadBuffer, 0, length, this.config.getTimeout())
+                .thenAccept(l -> {
+                    ValidationResult validationResult = validateStorageRead(expectedData, storageReadBuffer, segmentStartOffset);
+                    validationResult.setSource(SOURCE_STORAGE_READ);
+                    if (!validationResult.isSuccess()) {
+                        validationFailed(validationResult);
+                        return;
+                    }
 
-                      // After a successful validation, update the state and truncate the buffer.
-                      int verifiedDiff;
-                      synchronized (this.lock) {
-                          verifiedDiff = (int) (segmentLength - this.storageReadValidatedOffset);
-                          this.storageReadValidatedOffset = segmentLength;
-                          truncateBuffer();
-                      }
+                    // After a successful validation, update the state and truncate the buffer.
+                    long diff;
+                    synchronized (this.lock) {
+                        diff = segmentStartOffset + length - this.storageReadValidatedOffset;
+                        this.storageReadValidatedOffset += diff;
+                        truncateBuffer();
+                    }
 
-                      this.testState.recordStorageRead(verifiedDiff);
-                      logState(SOURCE_STORAGE_READ, "StorageLength=%s", segmentLength);
-                  })
-                  .whenComplete((r, ex) -> {
-                      if (ex != null) {
-                          processingFuture.completeExceptionally(ex);
-                      }
-                  });
+                    this.testState.recordStorageRead((int) diff);
+                    logState(SOURCE_STORAGE_READ, "StorageLength=%s", segmentLength);
+                })
+                .thenCompose(v -> this.store.getStorageAdapter().truncate(this.segmentName, this.storageReadValidatedOffset, this.config.getTimeout()))
+                .whenComplete((r, ex) -> {
+                    if (ex != null) {
+                        processingFuture.completeExceptionally(ex);
+                    }
+                });
     }
 
     private ValidationResult validateStorageRead(InputStream expectedData, byte[] storageReadBuffer, long segmentOffset) {

@@ -36,7 +36,7 @@ public class SelfTestRunner {
     public static void main(String[] args) throws Exception {
         // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        context.getLoggerList().get(0).setLevel(Level.TRACE);
+        context.getLoggerList().get(0).setLevel(Level.INFO);
         context.reset();
 
         TestConfig testConfig = getTestConfig();
@@ -72,12 +72,12 @@ public class SelfTestRunner {
                 PropertyBag.create()
                            .with(TestConfig.PROPERTY_SEGMENT_COUNT, 100)
                            .with(TestConfig.PROPERTY_PRODUCER_COUNT, 100)
-                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 100000)
+                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 3000000)
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
                            .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 50)
-                           .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 100)
+                           .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 200)
                            .with(TestConfig.PROPERTY_TIMEOUT_MILLIS, 3000)));
     }
 }

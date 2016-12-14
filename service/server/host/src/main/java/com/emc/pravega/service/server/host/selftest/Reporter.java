@@ -63,22 +63,8 @@ class Reporter extends AbstractScheduledService {
     //region AbstractScheduledService Implementation
 
     @Override
-    protected void runOneIteration() throws Exception {
-        long generatedOperationCount = this.testState.getGeneratedOperationCount();
-        double producedLength = toMB(this.testState.getProducedLength());
-        double verifiedTailLength = toMB(this.testState.getVerifiedTailLength());
-        double verifiedCatchupLength = toMB(this.testState.getVerifiedCatchupLength());
-        double verifiedStorageLength = toMB(this.testState.getVerifiedStorageLength());
-
-        TestLogger.log(
-                LOG_ID,
-                "Ops = %s/%s, Produced = %.2f MB, Verified: T = %.2f MB, C = %.2f MB, S = %.2f MB",
-                generatedOperationCount,
-                this.testConfig.getOperationCount(),
-                producedLength,
-                verifiedTailLength,
-                verifiedCatchupLength,
-                verifiedStorageLength);
+    protected void runOneIteration() {
+        outputState();
     }
 
     @Override
@@ -92,6 +78,29 @@ class Reporter extends AbstractScheduledService {
     }
 
     //endregion
+
+    /**
+     * Outputs the current state of the test.
+     */
+    void outputState() {
+        long generatedOperationCount = this.testState.getGeneratedOperationCount();
+        long completedOperationCount = this.testState.getSuccessfulOperationCount();
+        double producedLength = toMB(this.testState.getProducedLength());
+        double verifiedTailLength = toMB(this.testState.getVerifiedTailLength());
+        double verifiedCatchupLength = toMB(this.testState.getVerifiedCatchupLength());
+        double verifiedStorageLength = toMB(this.testState.getVerifiedStorageLength());
+
+        TestLogger.log(
+                LOG_ID,
+                "Ops = %s+%s/%s, Produced = %.2f MB, Verified: T = %.2f MB, C = %.2f MB, S = %.2f MB",
+                completedOperationCount,
+                (generatedOperationCount - completedOperationCount),
+                this.testConfig.getOperationCount(),
+                producedLength,
+                verifiedTailLength,
+                verifiedCatchupLength,
+                verifiedStorageLength);
+    }
 
     /**
      * Outputs a summary for all the operation types (Count + Latencies).

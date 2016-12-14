@@ -19,8 +19,8 @@
 package com.emc.pravega.service.storage.mocks;
 
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
+import com.emc.pravega.service.storage.TruncateableStorage;
 
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -36,7 +36,7 @@ public class InMemoryStorageFactory implements StorageFactory {
     }
 
     @Override
-    public Storage getStorageAdapter() {
+    public TruncateableStorage getStorageAdapter() {
         Exceptions.checkNotClosed(this.closed, this);
         return storage;
     }

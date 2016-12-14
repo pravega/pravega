@@ -72,12 +72,12 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.state = new TestState();
         this.closed = new AtomicBoolean();
         this.actors = new ArrayList<>();
-        this.store = new StreamSegmentStoreAdapter(builderConfig);
-        this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
-        this.testCompletion = new AtomicReference<>();
         this.executor = Executors.newScheduledThreadPool(
                 testConfig.getThreadPoolSize(),
                 new ThreadFactoryBuilder().setNameFormat("self-test-%d").build());
+        this.store = new StreamSegmentStoreAdapter(builderConfig, this.executor);
+        this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
+        this.testCompletion = new AtomicReference<>();
         addListener(new ServiceShutdownListener(this::shutdownCallback, this::shutdownCallback), this.executor);
         this.reporter = new Reporter(this.state, this.testConfig, this.executor);
     }
@@ -207,7 +207,8 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.actors.forEach(Actor::close);
         this.actors.clear();
 
-        // Output Summary, whether successful or not.
+        // Output final state and summary, whether successful or not.
+        this.reporter.outputState();
         this.reporter.outputSummary();
 
         // Complete Test Completion Future

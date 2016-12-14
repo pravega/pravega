@@ -98,6 +98,13 @@ class TestState {
     }
 
     /**
+     * Gets a value indicating the total number of operations that were successfully completed..
+     */
+    int getSuccessfulOperationCount() {
+        return this.successfulOperationCount.get();
+    }
+
+    /**
      * Gets a value indicating the total number of bytes produced (that were accepted by the Store).
      */
     long getProducedLength() {
