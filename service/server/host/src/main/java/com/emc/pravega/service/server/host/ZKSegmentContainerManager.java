@@ -118,11 +118,9 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         try {
             List<CompletableFuture<Void>> futures = initializeFromZK(host, INIT_TIMEOUT_PER_CONTAINER);
             CompletableFuture<Void> initResult = FutureHelpers.allOf(futures)
+                    // Add the node cache listener which watches ZK for changes in segment container mapping.
+                    .thenRun(() -> addListenerSegContainerMapping(INIT_TIMEOUT_PER_CONTAINER, host))
                     .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
-
-            // Add the node cache listener which watches ZK for changes in segment container mapping.
-            addListenerSegContainerMapping(INIT_TIMEOUT_PER_CONTAINER, host);
-
             return initResult;
         } catch (Exception ex) {
             throw new RuntimeStreamingException("Unable to initialize from Zookeeper", ex);
@@ -248,7 +246,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
                 .peek(c -> log.debug("Container to be stopped is {}", c))
                 .map(handles::get)
                 .peek(h -> {
-                    if(h == null) {
+                    if (h == null) {
                         log.warn("Container handle is null, container has been already unregistered");
                     }
                 })
