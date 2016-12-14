@@ -182,20 +182,4 @@ public final class ServiceStarter {
             }
         });
     }
-
-    /**
-     * Attaches a DistributedlogDataLogFactory to the given ServiceBuilder.
-     */
-    static void attachMetrics(ServiceBuilder builder) {
-        builder.withDataLogFactory(setup -> {
-            try {
-                DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::new);
-                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console", dlConfig);
-                factory.initialize();
-                return factory;
-            } catch (Exception ex) {
-                throw new CompletionException(ex);
-            }
-        });
-    }
 }

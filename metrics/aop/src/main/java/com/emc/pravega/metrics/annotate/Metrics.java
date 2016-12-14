@@ -14,16 +14,18 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.emc.pravega.metrics;
+package com.emc.pravega.metrics.annotate;
 
-public class YammerOpStatsTest {
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-    @org.junit.Test
-    public void testToOpStatsData() {
-        OpStatsLogger logger = new YammerStatsProvider().getStatsLogger("test").getOpStatsLogger("testLogger");
-        logger.registerSuccessfulValue(1);
-        // the following should not throw any exception
-        OpStatsData statsData = logger.toOpStatsData();
-        assertEquals(1, statsData.getNumSuccessfulEvents());
-    }
+/**
+ * The interface Metric for a class
+ */
+@Retention(RetentionPolicy.CLASS)
+@Target(ElementType.TYPE)
+public @interface Metrics {
+
 }

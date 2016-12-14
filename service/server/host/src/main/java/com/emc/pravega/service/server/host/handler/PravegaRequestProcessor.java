@@ -71,7 +71,10 @@ import com.google.common.base.Preconditions;
 
 import com.emc.pravega.metrics.StatsLogger;
 import com.emc.pravega.metrics.OpStatsLogger;
-import com.emc.pravega.metrics.Counter;
+import com.emc.pravega.metrics.annotate.Metrics;
+import com.emc.pravega.metrics.annotate.Counter;
+import com.emc.pravega.metrics.annotate.OpStats;
+
 import static com.emc.pravega.service.server.host.PravegaRequestStats.CREATE_SEGMENT;
 import static com.emc.pravega.service.server.host.PravegaRequestStats.DELETE_SEGMENT;
 import static com.emc.pravega.service.server.host.PravegaRequestStats.READ_SEGMENT;
@@ -82,6 +85,7 @@ import lombok.extern.slf4j.Slf4j;
 
 
 @Slf4j
+@Metrics
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
@@ -95,8 +99,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     final OpStatsLogger createStreamSegmentStats;
     final OpStatsLogger deleteStreamSegmentStats;
     final OpStatsLogger readStreamSegmentStats;
-    final OpStatsLogger readBytesStats;
-    final Counter readBytes;
+   // final OpStatsLogger readBytesStats;
+   // final Counter readBytes;
 
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, StatsLogger statsLogger) {
         this.segmentStore = segmentStore;
@@ -105,9 +109,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         this.createStreamSegmentStats = statsLogger.getOpStatsLogger(CREATE_SEGMENT);
         this.deleteStreamSegmentStats = statsLogger.getOpStatsLogger(DELETE_SEGMENT);
         this.readStreamSegmentStats = statsLogger.getOpStatsLogger(READ_SEGMENT);
-        this.readBytesStats = statsLogger.getOpStatsLogger(SEGMENT_READ_BYTES);
-        this.readBytes = statsLogger.getCounter(ALL_READ_BYTES);
-        readBytes.clear();
+     //   this.readBytesStats = statsLogger.getOpStatsLogger(SEGMENT_READ_BYTES);
+      //  this.readBytes = statsLogger.getCounter(ALL_READ_BYTES);
+      //  readBytes.clear();
     }
 
     @Override
@@ -132,6 +136,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * If there are cached entries that can be returned without blocking only these are returned.
      * Otherwise the call will request the data and setup a callback to return the data when it is available. 
      */
+    @OpStats(name="readBytesStats")
+    @Counter(name="readBytes")
     private void handleReadResult(ReadSegment request, ReadResult result) {
         String segment = request.getSegment();
         ArrayList<ReadResultEntryContents> cachedEntries = new ArrayList<>();
@@ -142,8 +148,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         if (!cachedEntries.isEmpty()) {
             int totalSize = cachedEntries.stream().mapToInt(ReadResultEntryContents::getLength).sum();
-            readBytesStats.registerSuccessfulValue(totalSize);
-            readBytes.add(totalSize);
+            //readBytesStats.registerSuccessfulValue(totalSize);
+            //readBytes.add(totalSize);
             ByteBuffer data = copyData(cachedEntries);
             SegmentRead reply =  new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
             connection.send(reply);

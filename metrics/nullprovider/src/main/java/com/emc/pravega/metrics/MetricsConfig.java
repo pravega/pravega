@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.metrics.stats;
+package com.emc.pravega.metrics;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;

@@ -299,15 +299,36 @@ project('controller:server') {
     }
 }
 
-project('metrics') {
+project('metrics:aop') {
     dependencies {
         compile project(':common')
+        testCompile project(':testcommon')
+    }
+}
+project('metrics:nullprovider') {
+    dependencies {
+        compile project(':common')
+    }
+}
+project('metrics:yammerprovider') {
+    dependencies {
+        compile project(':common')
+        compile project(':metrics:nullprovider')
         // for Metrics 3.x
         compile('com.readytalk:metrics3-statsd:4.1.0')
         // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
         compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: '3.1.0'
         // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-jvm
         compile group: 'io.dropwizard.metrics', name: 'metrics-jvm', version: '3.1.0'
+        testCompile project(':testcommon')
+    }
+}
+project('metrics') {
+    dependencies {
+        compile project(':common')
+        compile project(':metrics:aop')
+        compile project(':metrics:nullprovider')
+        compile project(':metrics:yammerprovider')
         testCompile project(':testcommon')
     }
 }
