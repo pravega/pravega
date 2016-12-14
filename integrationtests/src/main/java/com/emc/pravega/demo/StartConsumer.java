@@ -40,7 +40,7 @@ public class StartConsumer {
                             new ConsumerConfig(),
                             streamManager.getInitialPosition(StartLocalService.STREAM_NAME));
         for (int i = 0; i < 20; i++) {
-            String event = consumer.readNextEvent(60000).getValue();
+            String event = consumer.readNextEvent(60000).getEvent();
             System.err.println("Read event: " + event);
         }
         System.exit(0);

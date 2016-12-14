@@ -38,7 +38,7 @@ public interface EventRead<T> {
      * value, it is guaranteed that no event will ever be read below that level.
      *
      * The value will be populated on all calls to {@link Consumer#readNextEvent(long)} even if
-     * {@link #getValue()} is null because no events are available. The value will continue to
+     * {@link #getEvent()} is null because no events are available. The value will continue to
      * increase even when no events are available. This is useful as it can bound the values
      * associated with future events.
      */
@@ -47,7 +47,7 @@ public interface EventRead<T> {
     /**
      * Returns the event itself.
      */
-    T getValue();
+    T getEvent();
 
     /**
      * The position in the stream that represents where the consumer is immediately following this

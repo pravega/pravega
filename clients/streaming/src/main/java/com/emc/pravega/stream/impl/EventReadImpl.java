@@ -26,7 +26,7 @@ import lombok.Data;
 @Data
 public class EventReadImpl<T> implements EventRead<T> {
     private final long writeTimeCounter;
-    private final T value;
+    private final T event;
     private final Position position;
     private final Segment segment;
     private final Long offsetInSegment;
