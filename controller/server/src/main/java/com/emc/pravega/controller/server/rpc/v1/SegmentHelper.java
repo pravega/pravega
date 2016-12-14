@@ -36,9 +36,9 @@ import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
-import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.impl.model.ModelHelper;
+import com.emc.pravega.stream.impl.ConnectionClosedException;
+import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 
 

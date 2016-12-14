@@ -22,12 +22,10 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
-import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxFailedException;
 

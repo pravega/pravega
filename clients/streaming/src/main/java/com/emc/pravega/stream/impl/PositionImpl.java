@@ -17,22 +17,20 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.stream.Segment;
+import com.google.common.base.Preconditions;
+
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.emc.pravega.stream.Position;
-import com.emc.pravega.stream.PositionInternal;
-import com.emc.pravega.stream.Segment;
-import com.google.common.base.Preconditions;
-
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper=false)
 @ToString
-public class PositionImpl implements Position, PositionInternal {
+public class PositionImpl extends PositionInternal {
 
     private static final long serialVersionUID = 1L;
     private final Map<Segment, Long> ownedSegments;

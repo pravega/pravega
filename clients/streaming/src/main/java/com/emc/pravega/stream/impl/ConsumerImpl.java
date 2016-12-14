@@ -16,7 +16,6 @@ import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.Position;
-import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;

@@ -40,13 +40,10 @@ import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.util.ThriftAsyncCallback;
 import com.emc.pravega.controller.util.ThriftHelper;
-import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.impl.model.ModelHelper;
 
 import lombok.extern.slf4j.Slf4j;
 

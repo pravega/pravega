@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream;
+package com.emc.pravega.stream.impl;
 
 public class ConnectionClosedException extends RuntimeException {
     private static final long serialVersionUID = 1L;
