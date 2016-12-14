@@ -25,7 +25,7 @@ import java.util.List;
  * This is the mirror of Producer but that only deals with one segment.
  */
 public interface SegmentProducer<Type> extends AutoCloseable {
-    void publish(WriterEvent<Type> m) throws SegmentSealedException;
+    void publish(PendingEvent<Type> m) throws SegmentSealedException;
 
     /**
      * Blocks on all outstanding writes.
@@ -42,5 +42,5 @@ public interface SegmentProducer<Type> extends AutoCloseable {
     /**
      * Gets all events that have been sent to publish but are not yet acknowledged.
      */
-    List<WriterEvent<Type>> getUnackedEvents();
+    List<PendingEvent<Type>> getUnackedEvents();
 }
