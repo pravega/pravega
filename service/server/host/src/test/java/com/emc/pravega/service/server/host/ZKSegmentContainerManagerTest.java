@@ -135,7 +135,7 @@ public class ZKSegmentContainerManagerTest {
         currentData.put(PRAVEGA_SERVICE_ENDPOINT, new HashSet(Arrays.asList(2)));
         zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
 
-        verify(containerRegistry, timeout(1000)).startContainer(eq(2), any());
+        verify(containerRegistry, timeout(10000)).startContainer(eq(2), any());
         assertTrue(segManager.getHandles().containsKey(2));
 
         zkClient.close();
