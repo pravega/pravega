@@ -11,9 +11,13 @@
 buildscript {
     repositories {
         jcenter()
+        maven {
+            url "https://maven.eveoh.nl/content/repositories/releases"
+        }
     }
     dependencies {
         classpath 'com.bmuschko:gradle-docker-plugin:3.0.3'
+        classpath "nl.eveoh:gradle-aspectj:1.6"
     }
 }
 
@@ -300,16 +304,36 @@ project('controller:server') {
 }
 
 project('metrics:aop') {
+    project.ext {
+        aspectjVersion = '1.8.4'
+    }
+    apply plugin: 'aspectj'
+
     dependencies {
+//        def hostPath = project(':service:server:host').projectDir
+        
         compile project(':common')
         testCompile project(':testcommon')
-    }
+        
+        //aspectj dependencies
+        aspectpath "org.aspectj:aspectjtools:${aspectjVersion}"
+        compile "org.aspectj:aspectjrt:${aspectjVersion}"
+
+//        compileAspect {
+//            additionalAjcArgs = ['encoding': 'UTF-8', 
+//                                 'showWeaveInfo': true,
+//                                 'srcdir' : "${hostPath}/src/main"]
+//        }
+        ajInpath project(path: ':service:server:host', transitive: false)
+   }
 }
+
 project('metrics:nullprovider') {
     dependencies {
         compile project(':common')
     }
 }
+
 project('metrics:yammerprovider') {
     dependencies {
         compile project(':common')
@@ -326,7 +350,7 @@ project('metrics:yammerprovider') {
 project('metrics') {
     dependencies {
         compile project(':common')
-        compile project(':metrics:aop')
+//        compile project(':metrics:aop')
         compile project(':metrics:nullprovider')
         compile project(':metrics:yammerprovider')
         testCompile project(':testcommon')
