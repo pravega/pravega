@@ -48,8 +48,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -112,6 +112,7 @@ public class ZKSegmentContainerManagerTest {
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
                 RETRY_SLEEP_MS, MAX_RETRY));
         zkClient.start();
+        initializeSegmentMapping(zkClient);
 
         SegmentContainerRegistry containerRegistry = createMockContainerRegistry();
 
@@ -122,7 +123,6 @@ public class ZKSegmentContainerManagerTest {
                 PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
 
         CompletableFuture<Void> result = segManager.initialize();
-        initializeSegmentMapping(zkClient);
 
         ContainerHandle containerHandle2 = mock(ContainerHandle.class);
         when(containerHandle2.getContainerId()).thenReturn(2);
@@ -132,12 +132,10 @@ public class ZKSegmentContainerManagerTest {
         //now modify the ZK entry
         HashMap<Host, Set<Integer>> currentData =
                 (HashMap<Host, Set<Integer>>) SerializationUtils.deserialize(zkClient.getData().forPath(PATH));
-        currentData.put(PRAVEGA_SERVICE_ENDPOINT, new HashSet(Arrays.asList(1, 2)));
+        currentData.put(PRAVEGA_SERVICE_ENDPOINT, new HashSet(Arrays.asList(2)));
         zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
 
-        verify(containerRegistry, after(500).atMost(5)).startContainer(anyInt(), any());
-        assertEquals(2, segManager.getHandles().size());
-        assertTrue(segManager.getHandles().containsKey(1));
+        verify(containerRegistry, timeout(1000)).startContainer(eq(2), any());
         assertTrue(segManager.getHandles().containsKey(2));
 
         zkClient.close();
