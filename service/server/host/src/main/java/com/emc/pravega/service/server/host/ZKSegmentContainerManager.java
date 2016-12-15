@@ -124,7 +124,12 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
             addListenerSegContainerMapping(INIT_TIMEOUT_PER_CONTAINER, host);
             cluster.registerHost(host);
             log.info("Initialization of ZK based segment container manager completed.");
-        }).thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
+        }).whenComplete((v, ex) -> {
+            if (ex != null) {
+                log.error("Error during initialization of ZK based segment container manager", ex);
+            }
+            LoggerHelpers.traceLeave(log, "initialize", traceId);
+        });
 
         return initResult;
     }
