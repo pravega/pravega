@@ -200,7 +200,6 @@ public class Consumer extends Actor {
                 (length, sealed) ->
                         this.storageVerificationExecutor.queue(() -> {
                             try {
-                                System.out.println("Q");
                                 return storageSegmentChangedHandler(length, sealed, result);
                             } catch (Throwable ex) {
                                 // Make sure we catch sync exceptions; otherwise this will be stuck in a loop forever.
@@ -589,7 +588,7 @@ public class Consumer extends Actor {
      */
     @RequiredArgsConstructor
     private static class FutureExecutionSerializer {
-        private CompletableFuture<Void> storageReadQueueTail = new CompletableFuture<>();
+        private CompletableFuture<Void> storageReadQueueTail = CompletableFuture.completedFuture(null);
         private final Executor executorService;
 
         /**
