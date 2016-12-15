@@ -18,22 +18,26 @@ package com.emc.pravega.metrics;
 
 import org.junit.Test;
 import org.junit.Before;
-import com.codahale.metrics.Gauge;
+import static org.junit.Assert.assertEquals;
 
+//import com.codahale.metrics.Gauge;
+import java.util.concurrent.TimeUnit;
 
-public class YammerOpStatsTest {
-    private YammerStatsLogger statsLogger;
+public class YammerProviderTest {
+    private StatsLogger statsLogger;
+    private YammerStatsProvider statsProvider;
 
     @Before
     public void createLogger() {
         // statsLogger example: "hostOperations"
-        statsLogger = new YammerStatsProvider().getStatsLogger("testLogger");
+        statsProvider = new YammerStatsProvider();
+        statsLogger = statsProvider.getStatsLogger("testLogger");
     }
 
     @Test
     public void testToOpStatsData() {
         long startTime = System.nanoTime();
-        YammerOpStatsLogger opStatsLogger = statsLogger.getOpStatsLogger("testOpStatsLogger");
+        OpStatsLogger opStatsLogger = statsLogger.getOpStatsLogger("testOpStatsLogger");
         // register 2 event: 1 success, 1 fail.
         opStatsLogger.registerSuccessfulEvent((System.nanoTime() - startTime), TimeUnit.NANOSECONDS);
         opStatsLogger.registerFailedEvent((System.nanoTime() - startTime), TimeUnit.NANOSECONDS);
@@ -51,12 +55,12 @@ public class YammerOpStatsTest {
     public void testToCounter() {
         Counter testCounter = statsLogger.getCounter("testCounter");
         testCounter.add(17);
-        assertEquals(17, testCounter.get());
+        assertEquals(Long.valueOf(17), testCounter.get());
     }
 
     @Test
     public void testToGauge() {
-        statsLogger.registerGauge("testGauge", new Gauge<Integer>() {
+        Gauge gauge = new Gauge<Integer>() {
             @Override
             public Integer getDefaultValue() {
                 return 0;
@@ -66,9 +70,10 @@ public class YammerOpStatsTest {
             public Integer getSample() {
                 return 27;
             }
-        });
+        };
+        statsLogger.registerGauge("testGauge", gauge);
 
-        Gauge<Integer> gauge = statsLogger.getMetrics().getGauges().get("testLogger.testGauge");
-        assertEquals(27, gauge.getValue());
+        //Gauge<Integer> gauge = statsLogger.getMetrics().getGauges().get("testLogger.testGauge");
+        assertEquals(27, statsProvider.getMetrics().getGauges().get("testLogger.testGauge").getValue());
     }
 }
