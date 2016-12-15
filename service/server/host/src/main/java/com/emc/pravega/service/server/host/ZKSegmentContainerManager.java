@@ -261,7 +261,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
                 })
                 .filter(Objects::nonNull)
                 .map(containerHandle -> registry.stopContainer(containerHandle, timer.getRemaining())
-                        .thenAccept(v -> unregisterHandle(containerHandle.getContainerId())))
+                        .thenRun(() -> unregisterHandle(containerHandle.getContainerId())))
                 .collect(Collectors.toList()));
         return futures;
     }
