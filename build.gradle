@@ -196,6 +196,9 @@ project('integrationtests') {
         compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
+        // https://mvnrepository.com/artifact/commons-cli/commons-cli
+        compile group: 'commons-cli', name: 'commons-cli', version: '1.2'
+
     }
 
     task startServer(type: JavaExec) {
