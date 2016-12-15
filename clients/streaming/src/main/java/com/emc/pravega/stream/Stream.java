@@ -41,7 +41,7 @@ import com.emc.pravega.state.Update;
  * Because events being processed in parallel on different hosts cannot have ordering semantics a few things are done.
  * Events published to a stream have a routingKey see {@link Producer#publish}.
  * Events within a routing key are strictly ordered (IE: They must go the the same consumer or its replacement).
- * For other events, within a single consumer, the ordering is dictated by {@link EventRead#getWriteTime()} 
+ * For other events, within a single consumer, the ordering is dictated by {@link EventRead#getWriteTimeCounter()} 
  * However as {@link ConsumerGroup}s process events in parallel there is no ordering between different consumers.
  * 
  * <p>
