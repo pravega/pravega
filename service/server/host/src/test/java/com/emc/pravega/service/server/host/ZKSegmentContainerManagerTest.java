@@ -29,7 +29,9 @@ import org.apache.curator.test.TestingServer;
 import org.apache.curator.utils.ZKPaths;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.mockito.Mock;
 
 import java.io.IOException;
@@ -65,6 +67,10 @@ public class ZKSegmentContainerManagerTest {
 
     private static TestingServer zkTestServer;
 
+    @Rule
+    public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT); // timeout per method tested
+
+
     @Mock
     private SegmentToContainerMapper segmentToContainerMapper;
 
@@ -80,7 +86,7 @@ public class ZKSegmentContainerManagerTest {
     }
 
     //Test if no mapping is present is present in zk.
-    @Test(timeout = TEST_TIMEOUT)
+    @Test
     public void initializeErrorTest() throws Exception {
 
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
@@ -101,7 +107,7 @@ public class ZKSegmentContainerManagerTest {
     }
 
 
-    @Test(timeout = TEST_TIMEOUT)
+    @Test
     public void listenerTest() throws Exception {
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
                 RETRY_SLEEP_MS, MAX_RETRY));
@@ -137,7 +143,7 @@ public class ZKSegmentContainerManagerTest {
         zkClient.close();
     }
 
-    @Test(timeout = TEST_TIMEOUT)
+    @Test
     public void closeMethodTest() throws Exception {
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
                 RETRY_SLEEP_MS, MAX_RETRY));
