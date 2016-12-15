@@ -122,7 +122,7 @@ public class ZKSegmentContainerManagerTest {
                 segmentToContainerMapper, zkClient,
                 PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
 
-        CompletableFuture<Void> result = segManager.initialize();
+        segManager.initialize().get();
 
         ContainerHandle containerHandle2 = mock(ContainerHandle.class);
         when(containerHandle2.getContainerId()).thenReturn(2);
