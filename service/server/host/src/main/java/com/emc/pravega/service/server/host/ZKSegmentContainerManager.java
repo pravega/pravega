@@ -238,17 +238,18 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         log.debug("Containers that need to be stopped {}.", containersToBeStopped);
 
         List<CompletableFuture<Void>> futures = containersToBeStarted.stream()
+                .peek(containerId -> log.info("Container to be started is {}", containerId))
                 .map(containerId ->
                         this.registry.startContainer(containerId, timer.getRemaining())
                                 .thenAccept(this::registerHandle))
                 .collect(Collectors.toList());
 
         futures.addAll(containersToBeStopped.stream()
-                .peek(c -> log.debug("Container to be stopped is {}", c))
+                .peek(containerId -> log.info("Container to be stopped is {}", containerId))
                 .map(handles::get)
-                .peek(h -> {
-                    if (h == null) {
-                        log.warn("Container handle is null, container has been already unregistered");
+                .peek(handle -> {
+                    if (handle == null) {
+                        log.error("Container handle is null, container has been already unregistered");
                     }
                 })
                 .filter(Objects::nonNull)
