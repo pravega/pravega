@@ -18,12 +18,16 @@
 
 package com.emc.pravega.service.server.host.selftest;
 
+import com.emc.pravega.common.concurrent.ExecutorServiceHelpers;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
+import lombok.val;
 
 import java.util.List;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * Reports Test State on a periodic basis.
@@ -36,6 +40,7 @@ class Reporter extends AbstractScheduledService {
     private static final int REPORT_INTERVAL_MILLIS = 1000;
     private final TestState testState;
     private final TestConfig testConfig;
+    private final Supplier<ExecutorServiceHelpers.Snapshot> storePoolSnapshotProvider;
     private final ScheduledExecutorService executorService;
 
     //endregion
@@ -45,16 +50,19 @@ class Reporter extends AbstractScheduledService {
     /**
      * Creates a new instance of the Reporter class.
      *
-     * @param testState       The TestState to attach to.
-     * @param testConfig      The TestConfig to use.
-     * @param executorService The executor service to use.
+     * @param testState                 The TestState to attach to.
+     * @param testConfig                The TestConfig to use.
+     * @param storePoolSnapshotProvider A Supplier that can return a Snapshot of the Store Executor Pool.
+     * @param executorService           The executor service to use.
      */
-    Reporter(TestState testState, TestConfig testConfig, ScheduledExecutorService executorService) {
+    Reporter(TestState testState, TestConfig testConfig, Supplier<ExecutorServiceHelpers.Snapshot> storePoolSnapshotProvider, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(testState, "testState");
         Preconditions.checkNotNull(testConfig, "testConfig");
+        Preconditions.checkNotNull(storePoolSnapshotProvider, "storePoolSnapshotProvider");
         Preconditions.checkNotNull(executorService, "executorService");
         this.testState = testState;
         this.testConfig = testConfig;
+        this.storePoolSnapshotProvider = storePoolSnapshotProvider;
         this.executorService = executorService;
     }
 
@@ -83,23 +91,30 @@ class Reporter extends AbstractScheduledService {
      * Outputs the current state of the test.
      */
     void outputState() {
-        long generatedOperationCount = this.testState.getGeneratedOperationCount();
-        long completedOperationCount = this.testState.getSuccessfulOperationCount();
-        double producedLength = toMB(this.testState.getProducedLength());
-        double verifiedTailLength = toMB(this.testState.getVerifiedTailLength());
-        double verifiedCatchupLength = toMB(this.testState.getVerifiedCatchupLength());
-        double verifiedStorageLength = toMB(this.testState.getVerifiedStorageLength());
+        val testPoolSnapshot = ExecutorServiceHelpers.getSnapshot(this.executorService);
+        val joinPoolSnapshot = ExecutorServiceHelpers.getSnapshot(ForkJoinPool.commonPool());
+        val storePoolSnapshot = this.storePoolSnapshotProvider.get();
 
         TestLogger.log(
                 LOG_ID,
-                "Ops = %s+%s/%s, Produced = %.2f MB, Verified: T = %.2f MB, C = %.2f MB, S = %.2f MB",
-                completedOperationCount,
-                generatedOperationCount - completedOperationCount,
+                "Ops = %s/%s, Data (P/T/C/S): %.1f/%.1f/%.1f/%.1f MB, TPools (Q/T/S): %s, %s, %s.",
+                this.testState.getSuccessfulOperationCount(),
                 this.testConfig.getOperationCount(),
-                producedLength,
-                verifiedTailLength,
-                verifiedCatchupLength,
-                verifiedStorageLength);
+                toMB(this.testState.getProducedLength()),
+                toMB(this.testState.getVerifiedTailLength()),
+                toMB(this.testState.getVerifiedCatchupLength()),
+                toMB(this.testState.getVerifiedStorageLength()),
+                formatSnapshot(storePoolSnapshot, "Store"),
+                formatSnapshot(testPoolSnapshot, "Test"),
+                formatSnapshot(joinPoolSnapshot, "ForkJoin"));
+    }
+
+    private String formatSnapshot(ExecutorServiceHelpers.Snapshot s, String name) {
+        if (s == null) {
+            return String.format("%s = ?/?/?", name);
+        }
+
+        return String.format("%s = %d/%d/%d", name, s.getQueueSize(), s.getActiveThreadCount(), s.getPoolSize());
     }
 
     /**

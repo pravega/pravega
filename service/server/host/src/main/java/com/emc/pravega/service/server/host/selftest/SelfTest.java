@@ -79,7 +79,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
         this.testCompletion = new AtomicReference<>();
         addListener(new ServiceShutdownListener(this::shutdownCallback, this::shutdownCallback), this.executor);
-        this.reporter = new Reporter(this.state, this.testConfig, this.executor);
+        this.reporter = new Reporter(this.state, this.testConfig, this.store::getStorePoolSnapshot, this.executor);
     }
 
     //endregion
