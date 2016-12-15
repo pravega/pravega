@@ -230,7 +230,7 @@ class RocksDBCache implements Cache {
     private void clear() {
         File dbDir = new File(this.dbDir);
         if (FileHelpers.deleteFileOrDirectory(dbDir)) {
-            log.debug("{}: Deleted existing database directory '%s'.", this.logId, dbDir.getAbsolutePath());
+            log.debug("{}: Deleted existing database directory '{}'.", this.logId, dbDir.getAbsolutePath());
         }
 
         if (dbDir.mkdirs()) {
