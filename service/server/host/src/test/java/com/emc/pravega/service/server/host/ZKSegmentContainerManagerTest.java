@@ -48,8 +48,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -135,7 +135,7 @@ public class ZKSegmentContainerManagerTest {
         currentData.put(PRAVEGA_SERVICE_ENDPOINT, new HashSet(Arrays.asList(2)));
         zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
 
-        verify(containerRegistry, timeout(10000)).startContainer(eq(2), any());
+        verify(containerRegistry, after(10000)).startContainer(eq(2), any());
         assertTrue(segManager.getHandles().containsKey(2));
 
         zkClient.close();
