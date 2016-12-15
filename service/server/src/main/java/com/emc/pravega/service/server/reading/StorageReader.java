@@ -108,6 +108,7 @@ class StorageReader implements AutoCloseable {
      */
     void execute(Request request) {
         log.debug("{}: StorageRead.Queue {}", this.traceObjectId, request);
+        System.out.println(String.format("%s: StorageRead.Queue (%s) %s", this.traceObjectId, this.segmentName, request));
         synchronized (this.lock) {
             Exceptions.checkNotClosed(this.closed, this);
             Request existingRequest = findOverlappingRequest(request);

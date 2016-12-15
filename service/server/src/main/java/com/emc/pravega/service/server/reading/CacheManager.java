@@ -187,6 +187,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
         // Notify clients that something changed (if any of the above got changed). Run in a loop, until either we can't
         // adjust the oldest anymore or we are unable to trigger any changes to the clients.
+        long totalSizeReduction = 0;
         long sizeReduction;
         do {
             sizeReduction = updateClients();
@@ -195,7 +196,9 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 logCurrentStatus(currentStatus);
                 oldestChanged = adjustOldestGeneration(currentStatus);
             }
+            totalSizeReduction += sizeReduction;
         } while (sizeReduction > 0 && oldestChanged);
+        System.out.println(String.format("%s: Status=%s, Trimmed=%s", TRACE_OBJECT_ID, currentStatus, totalSizeReduction));
     }
 
     private CacheStatus collectStatus() {
@@ -386,7 +389,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         private CacheStatus withUpdatedSize(long sizeDelta) {
             long newSize = this.size + sizeDelta;
             assert newSize >= 0 : "given sizeDelta would result in a negative size";
-            return new CacheStatus(newSize, oldestGeneration, newestGeneration);
+            return new CacheStatus(newSize, this.oldestGeneration, this.newestGeneration);
         }
 
         @Override

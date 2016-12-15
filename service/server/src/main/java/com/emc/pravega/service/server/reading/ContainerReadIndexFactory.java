@@ -54,6 +54,7 @@ public class ContainerReadIndexFactory implements ReadIndexFactory {
         this.storageFactory = storageFactory;
         this.executorService = executorService;
         this.cacheManager = new CacheManager(config.getCachePolicy(), this.executorService);
+        this.cacheManager.startAsync().awaitRunning(); // TODO: monitor if it really started.
     }
 
     @Override

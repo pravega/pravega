@@ -21,6 +21,8 @@ package com.emc.pravega.service.server.host.selftest;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.util.PropertyBag;
+import com.emc.pravega.service.server.logs.DurableLogConfig;
+import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import lombok.Cleanup;
@@ -63,6 +65,14 @@ public class SelfTestRunner {
         ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "2");
         ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "50");
 
+        // TODO: consider setting the following as defaults in their config classes.
+        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, "100");
+        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, "100");
+        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, "104857600");
+
+        ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, Integer.toString(60 * 1000));
+        ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.toString(128 * 1024 * 1024));
+
         // All component configs should have defaults built-in, so no need to override them here
         return new ServiceBuilderConfig(p);
     }
@@ -72,7 +82,7 @@ public class SelfTestRunner {
                 PropertyBag.create()
                            .with(TestConfig.PROPERTY_SEGMENT_COUNT, 100)
                            .with(TestConfig.PROPERTY_PRODUCER_COUNT, 100)
-                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 3000000)
+                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 10000000)
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
