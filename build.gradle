@@ -183,6 +183,8 @@ project('service:server:host') {
 }
 
 project('integrationtests') {
+    apply plugin: 'application'
+    mainClassName = "com.emc.pravega.demo.TurbineHeatSensor"
     dependencies {
         compile project(':common')
         compile project(':clients:streaming')
