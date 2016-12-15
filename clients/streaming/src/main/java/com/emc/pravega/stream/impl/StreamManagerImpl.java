@@ -27,6 +27,7 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
 import java.net.URI;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.lang.NotImplementedException;
@@ -80,12 +81,12 @@ public class StreamManagerImpl implements StreamManager {
     }
     
     @Override
-    public ConsumerGroup createConsumerGroup(String groupName, String streamName, ConsumerGroupConfig config) {
+    public ConsumerGroup createConsumerGroup(String groupName, ConsumerGroupConfig config, List<String> streams) {
         throw new NotImplementedException();
     }
 
     @Override
-    public ConsumerGroup getConsumerGroup(String groupName, String streamName) {
+    public ConsumerGroup getConsumerGroup(String groupName) {
         throw new NotImplementedException();
     }
 

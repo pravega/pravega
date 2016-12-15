@@ -14,6 +14,7 @@
  */
 package com.emc.pravega.stream;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -33,9 +34,9 @@ public interface ConsumerGroup {
     String getScope();
 
     /**
-     * Returns the name of the stream the group is associated with.
+     * Returns the names of the streams the group is associated with.
      */
-    String getStreamName();
+    List<String> getStreamNames();
 
     /**
      * Returns the name of the group.

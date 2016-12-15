@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.stream;
 
+import java.util.List;
+
 public interface StreamManager extends AutoCloseable {
 
     /**
@@ -26,18 +28,17 @@ public interface StreamManager extends AutoCloseable {
      * may block.
      * 
      * @param groupName The name of the group to be created.
-     * @param streamName The name of the stream the consumer will read from.
      * @param config The configuration for the new ConsumerGroup.
+     * @param streamNames The name of the streams the consumer will read from.
      */
-    ConsumerGroup createConsumerGroup(String groupName, String streamName, ConsumerGroupConfig config);
+    ConsumerGroup createConsumerGroup(String groupName, ConsumerGroupConfig config, List<String> streamNames);
     
     /**
      * Returns the requested consumer group.
      * 
      * @param groupName The name of the group
-     * @param streamName The name of the stream the group is associated with.
      */
-    ConsumerGroup getConsumerGroup(String groupName, String streamName);
+    ConsumerGroup getConsumerGroup(String groupName);
     
     /**
      * Deletes the provided consumer group. No more operations may be performed.
