@@ -46,6 +46,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
         final int appendCount = 10;
         final byte[] writeBuffer = new byte[512 * 1024]; // We write 5MB in total.
         final int smallTruncate = writeBuffer.length / 3;
+        final Random dataGenerator = new Random();
 
         try (TruncateableStorage s = createStorage()) {
             s.create(segmentName, TIMEOUT).join();
@@ -59,7 +60,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
             ByteArrayOutputStream writeStream = new ByteArrayOutputStream();
             long offset = 0;
             for (int j = 0; j < appendCount; j++) {
-                new Random().nextBytes(writeBuffer); // Generate new write data every time.
+                dataGenerator.nextBytes(writeBuffer); // Generate new write data every time.
                 s.write(segmentName, offset, new ByteArrayInputStream(writeBuffer), writeBuffer.length, TIMEOUT).join();
                 writeStream.write(writeBuffer);
                 offset += writeBuffer.length;
