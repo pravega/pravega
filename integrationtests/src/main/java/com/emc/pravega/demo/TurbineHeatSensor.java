@@ -95,8 +95,7 @@ public class TurbineHeatSensor {
         try {
             @Cleanup
             StreamManager streamManager = null;
-            streamManager = new StreamManagerImpl(StartLocalService.SCOPE, new URI
-                    ("http://10.249.250.154:9090"));
+            streamManager = new StreamManagerImpl(StartLocalService.SCOPE, new URI("http://10.249.250.154:9090"));
 
             stream = streamManager.createStream(StartLocalService.STREAM_NAME,
                     new StreamConfigurationImpl("hi", StartLocalService.STREAM_NAME,
@@ -104,7 +103,7 @@ public class TurbineHeatSensor {
             producer = stream.createProducer(new JavaSerializer<>(),
                     new ProducerConfig(null));
 
-            stats = new Stats(producerCount * eventsPerSec * runtimeSec,2);
+            stats = new Stats(producerCount * eventsPerSec * runtimeSec, 2);
 
         } catch (URISyntaxException e) {
             e.printStackTrace();
