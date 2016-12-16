@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.host.selftest;
 
 import com.emc.pravega.common.TimeoutTimer;
+import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.SegmentProperties;
@@ -27,7 +28,6 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ExceptionHelpers;
 
-import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -105,7 +105,7 @@ class Producer extends Actor {
         }
 
         this.iterationCount.incrementAndGet();
-        long startNanos = System.nanoTime();
+        final Timer timer = new Timer();
         return executeOperation(op)
                 .exceptionally(ex -> {
                     // Log & throw every exception.
@@ -115,7 +115,7 @@ class Producer extends Actor {
                     op.failed(ex);
                     throw new CompletionException(ex);
                 })
-                .thenRun(() -> op.completed(Duration.ofNanos(System.nanoTime() - startNanos)));
+                .thenRun(() -> op.completed(timer.getElapsed()));
     }
 
     /**

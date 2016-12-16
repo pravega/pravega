@@ -375,7 +375,9 @@ public class InMemoryStorage implements TruncateableStorage {
         private long length;
         @GuardedBy("lock")
         private boolean sealed;
+        @GuardedBy("lock")
         private long truncateOffset;
+        @GuardedBy("lock")
         private int firstBufferOffset;
 
         StreamSegmentData(String name, SyncContext context) {

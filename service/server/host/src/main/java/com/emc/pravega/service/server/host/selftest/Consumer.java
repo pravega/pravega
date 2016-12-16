@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.host.selftest;
 
+import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.service.contracts.ReadResult;
@@ -31,6 +32,7 @@ import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.reading.AsyncReadResultEntryHandler;
 import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
 import com.google.common.base.Preconditions;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -42,6 +44,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -62,10 +65,9 @@ public class Consumer extends Actor {
     private final String segmentName;
     private final AtomicBoolean canContinue;
     private final TestState testState;
+    private final FutureExecutionSerializer storageVerificationExecutor;
     @GuardedBy("lock")
     private final TruncateableArray readBuffer;
-    @GuardedBy("lock")
-    private CompletableFuture<Void> storageReadQueueTail;
 
     /**
      * The offset in the Segment of the first byte that we have in readBuffer.
@@ -121,7 +123,7 @@ public class Consumer extends Actor {
         this.readBufferSegmentOffset = -1;
         this.tailReadValidatedOffset = 0;
         this.catchupReadValidatedOffset = 0;
-        this.storageReadQueueTail = CompletableFuture.completedFuture(null);
+        this.storageVerificationExecutor = new FutureExecutionSerializer(this.executorService);
     }
 
     //endregion
@@ -191,26 +193,21 @@ public class Consumer extends Actor {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
         // Register an update listener with the storage.
+        // We use the FutureExecutionSerializer here because we may get new callbacks while the previous one(s) are still
+        // running, and any overlap in execution will cause repeated reads to the same locations, as well as complications
+        // with respect to verification and state updates.
         val listener = new VerificationStorage.SegmentUpdateListener(
                 this.segmentName,
-                (length, sealed) -> {
-                    synchronized (this.lock) {
-                        // Poor man's queueing system. This callback may be invoked again before the previous callback
-                        // finished executing. This may cause overlapping requests to Storage, and cause issues with truncation.
-                        // Since we cannot run this sync (the VerificationStorage waits for this method to return), we
-                        // need a way to serialize all these verifications. For this, we make use of the CompletableFuture
-                        // chaining, which executes them one after the other. We only keep the 'tail' of this queue
-                        // in the 'storageReadQueueTail' member, so we know where to queue up later.
-                        this.storageReadQueueTail = this.storageReadQueueTail.thenComposeAsync(v -> {
+                (length, sealed) ->
+                        this.storageVerificationExecutor.queue(() -> {
                             try {
                                 return storageSegmentChangedHandler(length, sealed, result);
                             } catch (Throwable ex) {
-                                result.completeExceptionally(ex); // Make sure we catch exceptions; otherwise this will be stuck in a loop forever.
+                                // Make sure we catch sync exceptions; otherwise this will be stuck in a loop forever.
+                                result.completeExceptionally(ex);
                                 throw ex;
                             }
-                        }, this.executorService);
-                    }
-                });
+                        }));
         this.store.getStorageAdapter().registerListener(listener);
 
         // Make sure the listener is closed (and thus unregistered) when we are done, whether successfully or not.
@@ -278,10 +275,9 @@ public class Consumer extends Actor {
                     logState(SOURCE_STORAGE_READ, "StorageLength=%s", segmentLength);
                 }, this.executorService)
                 .thenComposeAsync(v -> this.store.getStorageAdapter().truncate(this.segmentName, this.storageReadValidatedOffset, this.config.getTimeout()), this.executorService)
-                .whenComplete((r, ex) -> {
-                    if (ex != null) {
-                        processingFuture.completeExceptionally(ex);
-                    }
+                .exceptionally(ex -> {
+                    processingFuture.completeExceptionally(ex);
+                    return null;
                 });
     }
 
@@ -423,7 +419,7 @@ public class Consumer extends Actor {
             expectedData = this.readBuffer.getReader(bufferOffset, length);
         }
 
-        long startTime = System.nanoTime();
+        final Timer timer = new Timer();
         this.store.read(this.segmentName, segmentStartOffset, length, this.config.getTimeout())
                   .thenAcceptAsync(readResult -> {
                       try {
@@ -433,7 +429,7 @@ public class Consumer extends Actor {
                               return;
                           }
 
-                          this.testState.recordDuration(ConsumerOperationType.CATCHUP_READ, Duration.ofNanos(System.nanoTime() - startTime));
+                          this.testState.recordDuration(ConsumerOperationType.CATCHUP_READ, timer.getElapsed());
 
                           // Validation is successful, update current state.
                           int verifiedLength;
@@ -579,6 +575,34 @@ public class Consumer extends Actor {
         @FunctionalInterface
         private interface TailReadConsumer {
             void accept(InputStream data, long segmentOffset, int length);
+        }
+    }
+
+    //endregion
+
+    //region FutureExecutionSerializer
+
+    /**
+     * Helps execute futures sequentially, ensuring that they do never overlap in execution. This uses the CompletableFuture's
+     * chaining, which executes the given futures one after another. Note that if one future in the chain resulted in an
+     * exception, the subsequent futures will not execute.
+     */
+    @RequiredArgsConstructor
+    private static class FutureExecutionSerializer {
+        private CompletableFuture<Void> storageReadQueueTail = CompletableFuture.completedFuture(null);
+        private final Executor executorService;
+
+        /**
+         * Adds the given future at the 'end' of the current queue of future to execute. If no future is currently
+         * queued up, it should be invoked immediately.
+         *
+         * @param future The future to queue up.
+         */
+        synchronized void queue(Supplier<CompletableFuture<Void>> future) {
+            Preconditions.checkState(
+                    !this.storageReadQueueTail.isCompletedExceptionally(),
+                    "Unable to queue any more futures because at least one preceding future failed.");
+            this.storageReadQueueTail = this.storageReadQueueTail.thenComposeAsync(v -> future.get(), this.executorService);
         }
     }
 
