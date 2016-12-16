@@ -78,6 +78,21 @@ project('common') {
     dependencies {
         testCompile project(':testcommon')
     }
+    uploadArchives {
+        dependsOn 'jar'
+        repositories{
+            ivy{
+                credentials {
+                    username="$repoUser"
+                    password="$repoPass"
+                }
+
+                url="$repoUrl"
+
+            }
+        }
+    }
+
 }
 
 
@@ -87,6 +102,21 @@ project('clients:streaming') {
         compile project(":controller:contract")
         testCompile project(':testcommon')
     }
+    uploadArchives {
+        dependsOn 'jar'
+        repositories{
+            ivy{
+                credentials {
+                    username="$repoUser"
+                    password="$repoPass"
+                }
+
+                url="$repoUrl"
+
+            }
+        }
+    }
+
 }
 
 project('testcommon') {
@@ -260,6 +290,21 @@ project('controller:contract') {
         compile group: 'org.apache.thrift', name: 'libthrift', version: '0.9.3'
         compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
     }
+    uploadArchives {
+        dependsOn 'jar'
+        repositories{
+            ivy{
+                credentials {
+                    username="$repoUser"
+                    password="$repoPass"
+                }
+
+                url="$repoUrl"
+
+            }
+        }
+    }
+
 }
 
 project('controller:server') {
