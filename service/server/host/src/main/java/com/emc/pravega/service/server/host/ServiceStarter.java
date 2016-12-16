@@ -69,7 +69,7 @@ public final class ServiceStarter {
         opt.hdfs = true;
         opt.rocksDb = true;
         opt.zkSegmentManager = true;
-        this.serviceBuilder = createServiceBuilder(this.serviceConfig, opt);
+        this.serviceBuilder = createServiceBuilder(opt);
     }
 
     private ServiceBuilder createServiceBuilder(Options options) {
