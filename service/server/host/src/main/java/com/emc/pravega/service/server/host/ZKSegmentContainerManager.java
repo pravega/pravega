@@ -124,13 +124,10 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
             addListenerSegContainerMapping(INIT_TIMEOUT_PER_CONTAINER, host);
             cluster.registerHost(host);
             log.info("Initialization of ZK based segment container manager completed.");
-        }).whenComplete((v, ex) -> {
-            if (ex != null) {
-                log.error("Error during initialization of ZK based segment container manager", ex);
-            }
-            LoggerHelpers.traceLeave(log, "initialize", traceId);
-        });
-
+        }).exceptionally(ex -> {
+            log.error("Error during initialization of ZK based segment container manager", ex);
+            return null;
+        }).thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
         return initResult;
     }
 
@@ -200,7 +197,6 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
             segContainerHostMapping.start(); //NodeCache recipe is used listen to events on the mapping data.
             segContainerHostMapping.getListenable().addListener(getSegmentContainerListener(timeout, host));
         } catch (Exception e) {
-            log.error("Error while adding listener to segment container to host mapping", e);
             throw new RuntimeStreamingException(
                     "Unable to start zk based cache which has the segContainer to Host mapping", e);
         }
