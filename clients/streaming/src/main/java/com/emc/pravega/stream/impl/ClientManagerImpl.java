@@ -54,6 +54,8 @@ public class ClientManagerImpl implements ClientManager {
     private final StreamManager streamManager;
 
     public ClientManagerImpl(String scope, URI controllerUri) {
+        Preconditions.checkNotNull(scope);
+        Preconditions.checkNotNull(controllerUri);
         this.scope = scope;
         this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
         this.connectionFactory = new ConnectionFactoryImpl(false);
@@ -63,6 +65,10 @@ public class ClientManagerImpl implements ClientManager {
     @VisibleForTesting
     public ClientManagerImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
             StreamManager streamManager) {
+        Preconditions.checkNotNull(scope);
+        Preconditions.checkNotNull(controller);
+        Preconditions.checkNotNull(connectionFactory);
+        Preconditions.checkNotNull(streamManager);
         this.scope = scope;
         this.controller = controller;
         this.connectionFactory = connectionFactory;

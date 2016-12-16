@@ -36,7 +36,9 @@ public class StreamImpl implements Stream {
     private final StreamConfiguration config;
 
     public StreamImpl(String scope, String streamName, StreamConfiguration config) {
+        Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(streamName);
+        Preconditions.checkNotNull(config);
         this.scope = scope;
         this.streamName = streamName;
         this.config = config;

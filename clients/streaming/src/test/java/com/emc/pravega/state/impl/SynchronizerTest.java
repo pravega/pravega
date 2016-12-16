@@ -21,6 +21,7 @@ import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
@@ -98,7 +99,8 @@ public class SynchronizerTest {
     @Test(timeout = 20000)
     public void testLocking() throws EndOfSegmentException {
         String streamName = "streamName";
-        Stream stream = new StreamImpl("scope", streamName, null);
+        String scope = "scope";
+        Stream stream = new StreamImpl(scope, streamName, new StreamConfigurationImpl(scope, streamName, null));
 
         BlockingUpdate[] blocking = new BlockingUpdate[] { new BlockingUpdate(1), new BlockingUpdate(2),
                 new BlockingUpdate(3), new BlockingUpdate(4) };

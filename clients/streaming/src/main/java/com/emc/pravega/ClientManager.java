@@ -39,7 +39,7 @@ import java.net.URI;
  * with exactly once semantics provided the consumer has the ability to restore to the correct
  * position upon failure. See {@link Consumer#getPosition}
  * <p>
- * A note on ordering: Events inside of a stream have a strict order, but may need to be devised
+ * A note on ordering: Events inside of a stream have a strict order, but may need to be divided
  * between multiple consumers for scaling. Because events being processed in parallel on different
  * hosts cannot have ordering semantics a few things are done. Events published to a stream have a
  * routingKey see {@link Producer#publish}. Events within a routing key are strictly ordered (IE:
