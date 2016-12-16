@@ -22,6 +22,7 @@ import com.emc.pravega.common.util.ArrayView;
 import com.emc.pravega.common.util.BitConverter;
 import com.google.common.base.Preconditions;
 
+import java.time.Duration;
 import java.util.Random;
 
 /**
@@ -32,12 +33,15 @@ class AppendContentGenerator {
 
     private static final int PREFIX_LENGTH = Integer.BYTES;
     private static final int OWNER_ID_LENGTH = Integer.BYTES;
+    private static final int START_TIME_LENGTH = Long.BYTES;
     private static final int KEY_LENGTH = Integer.BYTES;
     private static final int LENGTH_LENGTH = Integer.BYTES;
-    static final int HEADER_LENGTH = PREFIX_LENGTH + OWNER_ID_LENGTH + KEY_LENGTH + LENGTH_LENGTH;
+    static final int HEADER_LENGTH = PREFIX_LENGTH + OWNER_ID_LENGTH + START_TIME_LENGTH + KEY_LENGTH + LENGTH_LENGTH;
     private static final int PREFIX = (int) Math.pow(Math.E, 20);
+
     private final Random keyGenerator;
     private final int ownerId;
+    private final boolean recordStartTime;
 
     //endregion
 
@@ -46,11 +50,13 @@ class AppendContentGenerator {
     /**
      * Creates a new instance of the AppendContentGenerator class.
      *
-     * @param ownerId The Id to attach to all appends generated with this instance.
+     * @param ownerId         The Id to attach to all appends generated with this instance.
+     * @param recordStartTime Whether to record start times in the appends.
      */
-    AppendContentGenerator(int ownerId) {
+    AppendContentGenerator(int ownerId, boolean recordStartTime) {
         this.ownerId = ownerId;
         this.keyGenerator = new Random(ownerId);
+        this.recordStartTime = recordStartTime;
     }
 
     //endregion
@@ -73,20 +79,22 @@ class AppendContentGenerator {
         int key = this.keyGenerator.nextInt();
         byte[] result = new byte[length];
 
-        // Header: PREFIX + ownerId + Key + Length
+        // Header: PREFIX + ownerId + start time + Key + Length
         int offset = 0;
         offset += BitConverter.writeInt(result, offset, PREFIX);
         offset += BitConverter.writeInt(result, offset, this.ownerId);
+        offset += BitConverter.writeLong(result, offset, this.recordStartTime ? getCurrentTimeNanos() : Long.MIN_VALUE);
         offset += BitConverter.writeInt(result, offset, key);
         int contentLength = length - HEADER_LENGTH;
         offset += BitConverter.writeInt(result, offset, contentLength);
+        assert offset == HEADER_LENGTH : "Append header has a different length than expected";
 
         // Content
         writeContent(result, offset, contentLength, key);
         return result;
     }
 
-    private static void writeContent(byte[] result, int offset, int length, int key) {
+    private void writeContent(byte[] result, int offset, int length, int key) {
         Random contentGenerator = new Random(key);
         while (offset < length) {
             int value = contentGenerator.nextInt();
@@ -95,6 +103,10 @@ class AppendContentGenerator {
                 result[offset++] = (byte) value;
             }
         }
+    }
+
+    private static long getCurrentTimeNanos() {
+        return System.nanoTime();
     }
 
     //endregion
@@ -120,6 +132,10 @@ class AppendContentGenerator {
         int ownerId = BitConverter.readInt(view, offset);
         offset += OWNER_ID_LENGTH;
 
+        // Extract start time.
+        long startTimeNanos = BitConverter.readLong(view, offset);
+        offset += START_TIME_LENGTH;
+
         // Extract key.
         int key = BitConverter.readInt(view, offset);
         offset += KEY_LENGTH;
@@ -136,7 +152,13 @@ class AppendContentGenerator {
             return ValidationResult.moreDataNeeded();
         }
 
-        return validateContent(view, offset, length, key);
+        ValidationResult result = validateContent(view, offset, length, key);
+        if (result.isSuccess() && startTimeNanos >= 0) {
+            // Set the elapsed time, but only for successful operations that did encode the start time.
+            result.setElapsed(Duration.ofNanos(getCurrentTimeNanos() - startTimeNanos));
+        }
+
+        return result;
     }
 
     private static ValidationResult validateContent(ArrayView view, int offset, int length, int key) {
@@ -157,5 +179,4 @@ class AppendContentGenerator {
     }
 
     //endregion
-
 }

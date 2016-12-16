@@ -41,7 +41,14 @@ import java.util.stream.Collectors;
 class TestState {
     //region Members
 
-    static final OperationType[] SUMMARY_OPERATION_TYPES = {OperationType.Append, OperationType.CreateTransaction, OperationType.MergeTransaction, OperationType.Seal};
+    static final OperationType[] SUMMARY_OPERATION_TYPES = {
+            ProducerOperationType.APPEND,
+            ProducerOperationType.CREATE_TRANSACTION,
+            ProducerOperationType.MERGE_TRANSACTION,
+            ProducerOperationType.SEAL,
+            ConsumerOperationType.END_TO_END,
+            ConsumerOperationType.CATCHUP_READ};
+
     private final AtomicInteger generatedOperationCount;
     private final AtomicInteger successfulOperationCount;
     private final AtomicLong producedLength;
@@ -88,6 +95,13 @@ class TestState {
      */
     int getGeneratedOperationCount() {
         return this.generatedOperationCount.get();
+    }
+
+    /**
+     * Gets a value indicating the total number of operations that were successfully completed..
+     */
+    int getSuccessfulOperationCount() {
+        return this.successfulOperationCount.get();
     }
 
     /**
@@ -243,17 +257,10 @@ class TestState {
      * @param segmentName The name of the Segment for which the operation completed.
      * @return The number of total successful operations so far.
      */
-    int operationCompleted(String segmentName, OperationType operationType, Duration duration) {
+    int operationCompleted(String segmentName) {
         SegmentInfo si = this.getSegment(segmentName);
         if (si != null) {
             si.operationCompleted();
-        }
-
-        synchronized (this.durations) {
-            List<Integer> operationTypeDurations = this.durations.getOrDefault(operationType, null);
-            if (operationTypeDurations != null) {
-                operationTypeDurations.add((int) duration.toMillis());
-            }
         }
 
         return this.successfulOperationCount.incrementAndGet();
@@ -266,6 +273,21 @@ class TestState {
      */
     void operationFailed(String segmentName) {
         this.generatedOperationCount.decrementAndGet();
+    }
+
+    /**
+     * Records the duration of a single operation of the given type.
+     *
+     * @param operationType The type of the operation.
+     * @param duration The duration to record.
+     */
+    void recordDuration(OperationType operationType, Duration duration) {
+        synchronized (this.durations) {
+            List<Integer> operationTypeDurations = this.durations.getOrDefault(operationType, null);
+            if (operationTypeDurations != null) {
+                operationTypeDurations.add((int) duration.toMillis());
+            }
+        }
     }
 
     /**
