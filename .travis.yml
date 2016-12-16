@@ -3,7 +3,7 @@ jdk:
   - oraclejdk8
 env:
   global:
-    - GRADLE_OPTS="-Xms256m, -Xmx512m"
+    - GRADLE_OPTS="-Xms128m"
 
 sudo: required
 
