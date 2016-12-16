@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -29,7 +30,6 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
-import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -616,6 +616,81 @@ public class ContainerReadIndexTests {
         }
     }
 
+    /**
+     * Tests the following Scenario, where the ReadIndex would either read from a bad offset or fail with an invalid offset
+     * when reading in certain conditions:
+     * * A segment has a transaction, which has N bytes written to it.
+     * * The transaction is merged into its parent segment at offset M > N.
+     * * At least one byte of the transaction is evicted from the cache
+     * * A read is issued to the parent segment for that byte that was evicted
+     * * The ReadIndex is supposed to issue a Storage Read with an offset inside the transaction range (so translate
+     * from the parent's offset to the transaction's offset). However, after the read, it is supposed to look like the
+     * data was read from the parent segment, so it should not expose the adjusted offset at all.
+     * <p>
+     * This very specific unit test is a result of a regression found during testing.
+     */
+    @Test
+    public void testStorageReadTransactionNoCache() throws Exception {
+        CachePolicy cachePolicy = new CachePolicy(1, Duration.ZERO, Duration.ofMillis(1));
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG, cachePolicy);
+
+        // Create parent segment and one transaction
+        long parentId = createSegment(0, context);
+        UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
+        long transactionId = createTransaction(parentMetadata, 1, context);
+        UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
+        createSegmentsInStorage(context);
+        ByteArrayOutputStream writtenStream = new ByteArrayOutputStream();
+
+        // Write something to the transaction, and make sure it also makes its way to Storage.
+        byte[] transactionWriteData = getAppendData(transactionMetadata.getName(), transactionId, 0, 0);
+        appendSingleWrite(transactionId, transactionWriteData, context);
+        context.storage.write(transactionMetadata.getName(), 0, new ByteArrayInputStream(transactionWriteData), transactionWriteData.length, TIMEOUT).join();
+        transactionMetadata.setStorageLength(transactionMetadata.getDurableLogLength());
+
+        // Write some data to the parent, and make sure it is more than what we write to the transaction (hence the 10).
+        for (int i = 0; i < 10; i++) {
+            byte[] parentWriteData = getAppendData(parentMetadata.getName(), parentId, i, i);
+            appendSingleWrite(parentId, parentWriteData, context);
+            writtenStream.write(parentWriteData);
+        }
+
+        // Seal & Begin-merge the transaction (do not seal in storage).
+        transactionMetadata.markSealed();
+        long mergeOffset = parentMetadata.getDurableLogLength();
+        parentMetadata.setDurableLogLength(mergeOffset + transactionMetadata.getDurableLogLength());
+        context.readIndex.beginMerge(parentId, mergeOffset, transactionId);
+        transactionMetadata.markMerged();
+        writtenStream.write(transactionWriteData);
+
+        // Clear the cache.
+        context.cacheManager.applyCachePolicy();
+
+        // Issue read from parent.
+        ReadResult rr = context.readIndex.read(parentId, mergeOffset, transactionWriteData.length, TIMEOUT);
+        Assert.assertTrue("Parent Segment read indicates no data available.", rr.hasNext());
+        ByteArrayOutputStream readStream = new ByteArrayOutputStream();
+        long expectedOffset = mergeOffset;
+        while (rr.hasNext()) {
+            ReadResultEntry entry = rr.next();
+            Assert.assertEquals("Unexpected offset for read result entry.", expectedOffset, entry.getStreamSegmentOffset());
+            Assert.assertEquals("Served read result entry is not from storage.", ReadResultEntryType.Storage, entry.getType());
+
+            // Request contents and store for later use.
+            Thread.sleep(100);
+            entry.requestContent(TIMEOUT);
+            ReadResultEntryContents contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            byte[] readBuffer = new byte[contents.getLength()];
+            StreamHelpers.readAll(contents.getData(), readBuffer, 0, readBuffer.length);
+            readStream.write(readBuffer);
+            expectedOffset += contents.getLength();
+        }
+
+        byte[] readData = readStream.toByteArray();
+        Assert.assertArrayEquals("Unexpected data read back.", transactionWriteData, readData);
+    }
+
     //region Helpers
 
     private void checkOffsets(List<CacheKey> removedKeys, long segmentId, int startIndex, int count, int startOffset, int stepIncrease) {
@@ -660,6 +735,15 @@ public class ContainerReadIndexTests {
                 }
             }
         }
+    }
+
+    private void appendSingleWrite(long segmentId, byte[] data, TestContext context) {
+        UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
+
+        // Make sure we increase the DurableLogLength prior to appending; the ReadIndex checks for this.
+        long offset = segmentMetadata.getDurableLogLength();
+        segmentMetadata.setDurableLogLength(offset + data.length);
+        context.readIndex.append(segmentId, offset, data);
     }
 
     private void appendDataInStorage(TestContext context, HashMap<Long, ByteArrayOutputStream> segmentContents) {
@@ -784,13 +868,17 @@ public class ContainerReadIndexTests {
     private ArrayList<Long> createSegments(TestContext context) {
         ArrayList<Long> segmentIds = new ArrayList<>();
         for (int i = 0; i < SEGMENT_COUNT; i++) {
-            String name = getSegmentName(i);
-            context.metadata.mapStreamSegmentId(name, i);
-            initializeSegment(i, context);
-            segmentIds.add((long) i);
+            segmentIds.add(createSegment(i, context));
         }
 
         return segmentIds;
+    }
+
+    private long createSegment(int id, TestContext context) {
+        String name = getSegmentName(id);
+        context.metadata.mapStreamSegmentId(name, id);
+        initializeSegment(id, context);
+        return id;
     }
 
     private HashMap<Long, ArrayList<Long>> createTransactions(Collection<Long> segmentIds, TestContext context) {
@@ -803,15 +891,19 @@ public class ContainerReadIndexTests {
             SegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
 
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
-                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentMetadata.getName(), UUID.randomUUID());
-                context.metadata.mapStreamSegmentId(transactionName, transactionId, parentId);
-                initializeSegment(transactionId, context);
-                segmentTransactions.add(transactionId);
+                segmentTransactions.add(createTransaction(parentMetadata, transactionId, context));
                 transactionId++;
             }
         }
 
         return transactions;
+    }
+
+    private long createTransaction(SegmentMetadata parentMetadata, long transactionId, TestContext context) {
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentMetadata.getName(), UUID.randomUUID());
+        context.metadata.mapStreamSegmentId(transactionName, transactionId, parentMetadata.getId());
+        initializeSegment(transactionId, context);
+        return transactionId;
     }
 
     private String getSegmentName(int id) {

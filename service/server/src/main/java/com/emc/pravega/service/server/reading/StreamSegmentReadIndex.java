@@ -493,7 +493,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param maxLength         The maximum number of bytes to return.
      * @return A ReadResultEntry representing the data to return.
      */
-    private ReadResultEntryBase getFirstReadResultEntry(long resultStartOffset, int maxLength) {
+    private CompletableReadResultEntry getFirstReadResultEntry(long resultStartOffset, int maxLength) {
         Exceptions.checkNotClosed(this.closed, this);
 
         if (maxLength < 0) {
@@ -506,7 +506,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             return new EndOfStreamSegmentReadResultEntry(resultStartOffset, maxLength);
         }
 
-        ReadResultEntryBase result = null;
+        CompletableReadResultEntry result;
         synchronized (this.lock) {
             if (this.indexEntries.size() == 0) {
                 // We have no entries in the Read Index.
@@ -547,7 +547,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         return result;
     }
 
-    private ReadResultEntryBase getRedirectedReadResultEntry(long streamSegmentOffset, int maxLength, RedirectReadIndexEntry entry) {
+    private CompletableReadResultEntry getRedirectedReadResultEntry(long streamSegmentOffset, int maxLength, RedirectReadIndexEntry entry) {
         StreamSegmentReadIndex redirectedIndex = entry.getRedirectReadIndex();
         long redirectOffset = streamSegmentOffset - entry.getStreamSegmentOffset();
         assert redirectOffset >= 0 && redirectOffset < entry.getLength() :
@@ -562,9 +562,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             maxLength = (int) entry.getLength();
         }
 
-        ReadResultEntryBase result = redirectedIndex.getFirstReadResultEntry(redirectOffset, maxLength);
+        CompletableReadResultEntry result = redirectedIndex.getFirstReadResultEntry(redirectOffset, maxLength);
         if (result != null) {
-            result.adjustOffset(entry.getStreamSegmentOffset());
+            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset());
         }
 
         return result;
@@ -640,6 +640,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         // Queue the request for async processing.
         length = getReadAlignedLength(offset, length);
+
+        System.out.println(String.format("%s: ReadIndex.StorageRead N=%s, M=%s, D=%s, O=%s", this.traceObjectId, this.metadata.getName(), this.metadata.isMerged(), this.metadata.isDeleted(), offset));
         this.storageReader.execute(new StorageReader.Request(offset, length, doneCallback, failureCallback, timeout));
     }
 

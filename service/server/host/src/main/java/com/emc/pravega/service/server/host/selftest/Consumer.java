@@ -551,6 +551,7 @@ public class Consumer extends Actor {
 
         @Override
         public boolean processEntry(ReadResultEntry entry) {
+            entry.requestContent(this.config.getTimeout());
             val contents = entry.getContent().join();
             this.readOffset.addAndGet(contents.getLength());
             this.tailReadConsumer.accept(contents.getData(), entry.getStreamSegmentOffset(), contents.getLength());
