@@ -20,13 +20,6 @@ package com.emc.pravega.service.server.host;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-import com.emc.pravega.common.util.PropertyBag;
-import com.emc.pravega.service.server.CacheKey;
-import com.emc.pravega.service.storage.Cache;
-import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
-import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
-import com.twitter.common.util.Timer;
-import lombok.Cleanup;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -38,6 +31,5 @@ public class Playground {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.INFO);
         //context.reset();
-
     }
 }
