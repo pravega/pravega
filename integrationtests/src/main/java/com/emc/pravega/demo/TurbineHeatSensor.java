@@ -90,7 +90,6 @@ public class TurbineHeatSensor {
         // Should producers use Transaction or not
         boolean isTransaction = false;
 
-
         // create Options object
         Options options = new Options();
 
@@ -101,7 +100,6 @@ public class TurbineHeatSensor {
         options.addOption("transaction", true, "Producers use transactions or not");
         options.addOption("size", true, "Size of each message");
         options.addOption("stream", true, "Stream name");
-
 
         options.addOption("help", false, "Help message");
 
