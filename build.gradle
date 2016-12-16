@@ -153,7 +153,7 @@ project('service:server:host') {
 
 
 
-    applicationDefaultJvmArgs = ["-server", "-Xms128m", "-Xmx512m", "-XX:+HeapDumpOnOutOfMemoryError"]
+    applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError"]
 
     dependencies {
         compile project(':common')
