@@ -78,7 +78,7 @@ public interface Controller {
 
     /**
      * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}.
-     * Will fail with {@link TxFailedException} if the transaction has already been committed or dropped.
+     * Will fail with {@link TxFailedException} if the transaction has already been committed or aborted.
      * @param stream stream name
      * @param txId transaction id
      * @return

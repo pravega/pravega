@@ -205,7 +205,7 @@ public class SegmentHelper {
             }
 
             @Override
-            public void transactionDropped(WireCommands.TransactionDropped transactionDropped) {
+            public void transactionAborted(WireCommands.TransactionAborted transactionAborted) {
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.PreconditionFailed));
             }
@@ -246,7 +246,7 @@ public class SegmentHelper {
             }
 
             @Override
-            public void transactionDropped(WireCommands.TransactionDropped transactionDropped) {
+            public void transactionAborted(WireCommands.TransactionAborted transactionDropped) {
                 result.complete(TransactionStatus.SUCCESS);
             }
         };

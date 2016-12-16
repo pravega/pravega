@@ -39,7 +39,7 @@ import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
 import com.emc.pravega.common.netty.WireCommands.DropTransaction;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
-import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
+import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
@@ -141,8 +141,8 @@ public class MockController implements Controller {
             }
 
             @Override
-            public void transactionDropped(TransactionDropped transactionDropped) {
-                result.completeExceptionally(new TxFailedException("Transaction already dropped."));
+            public void transactionAborted(TransactionAborted transactionAborted) {
+                result.completeExceptionally(new TxFailedException("Transaction already aborted."));
             }
         };
         sendRequestOverNewConnection(new CommitTransaction(Segment.getScopedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
@@ -170,7 +170,7 @@ public class MockController implements Controller {
             }
 
             @Override
-            public void transactionDropped(TransactionDropped transactionDropped) {
+            public void transactionAborted(TransactionAborted transactionAborted) {
                 result.complete(TransactionStatus.SUCCESS);
             }
         };

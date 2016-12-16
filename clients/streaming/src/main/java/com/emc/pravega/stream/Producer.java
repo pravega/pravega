@@ -48,7 +48,7 @@ public interface Producer<Type> extends AutoCloseable {
      * Start a new transaction on this stream.
      * 
      * @param transactionTimeout The number of milliseconds after now, that if commit has not been called by, the
-     *            transaction may be dropped. Note that this should not be set unnecessarily high, as having long running
+     *            transaction may be aborted. Note that this should not be set unnecessarily high, as having long running
      *            transactions may interfere with a streams to scale in response to a change in rate. For this reason
      *            streams may configure an upper limit to this value.
      * @return A transaction through which multiple events can be written atomically.

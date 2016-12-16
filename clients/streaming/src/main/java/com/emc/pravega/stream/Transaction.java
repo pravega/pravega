@@ -22,7 +22,7 @@ import java.util.UUID;
 /**
  * Provides a mechanism for publishing many events atomically.
  * A Transaction is unbounded in size but is bounded in time. If it has not been committed within a time window
- * specified  at the time of its creation it will be automatically dropped.
+ * specified  at the time of its creation it will be automatically aborted.
  * 
  * All methods on this class may block.
  *
@@ -33,7 +33,7 @@ public interface Transaction<Type> {
         OPEN,
         SEALED,
         COMMITTED,
-        DROPPED
+        ABORTED
     }
 
     /**

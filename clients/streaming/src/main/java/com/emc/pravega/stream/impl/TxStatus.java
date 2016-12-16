@@ -22,5 +22,5 @@ public enum TxStatus {
     OPEN,
     SEALED,
     COMMITTED,
-    DROPPED;
+    ABORTED;
 }

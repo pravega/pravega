@@ -51,7 +51,7 @@ import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
-import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
+import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.google.common.base.Preconditions;
@@ -99,7 +99,7 @@ public enum WireCommandType {
     TRANSACTION_COMMITTED(25, TransactionCommitted::readFrom),
 
     DROP_TRANSACTION(26, DropTransaction::readFrom),
-    TRANSACTION_DROPPED(27, TransactionDropped::readFrom),
+    TRANSACTION_ABORTED(27, TransactionAborted::readFrom),
     
     SEAL_SEGMENT(28, SealSegment::readFrom),
     SEGMENT_SEALED(29, SegmentSealed::readFrom),

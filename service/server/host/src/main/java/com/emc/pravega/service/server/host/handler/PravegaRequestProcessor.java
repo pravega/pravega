@@ -51,7 +51,7 @@ import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
-import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
+import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
@@ -290,11 +290,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(dropTx.getSegment(), dropTx.getTxid());
         CompletableFuture<Void> future = segmentStore.deleteStreamSegment(transactionName, TIMEOUT);
         future.thenApply((Void v) -> {
-            connection.send(new TransactionDropped(dropTx.getSegment(), dropTx.getTxid()));
+            connection.send(new TransactionAborted(dropTx.getSegment(), dropTx.getTxid()));
             return null;
         }).exceptionally((Throwable e) -> {
             if (e instanceof CompletionException && e.getCause() instanceof StreamSegmentNotExistsException) {
-                connection.send(new TransactionDropped(dropTx.getSegment(), dropTx.getTxid()));
+                connection.send(new TransactionAborted(dropTx.getSegment(), dropTx.getTxid()));
             } else {
                 handleException(transactionName, "Drop transaction", e);
             }
