@@ -61,6 +61,8 @@ public class TurbineHeatSensor {
     private static Producer<String> producer;
     private static Stats stats;
     private static String controllerUri = "http://10.249.250.154:9090";
+    private static int messageSize = 100;
+    private static String streamName = StartLocalService.STREAM_NAME;
 
     public static void main(String[] args) throws Exception {
 
@@ -88,6 +90,7 @@ public class TurbineHeatSensor {
         // Should producers use Transaction or not
         boolean isTransaction = false;
 
+
         // create Options object
         Options options = new Options();
 
@@ -96,6 +99,10 @@ public class TurbineHeatSensor {
         options.addOption("eventspersec", true, "number events per sec");
         options.addOption("runtime", true, "number of seconds the code runs");
         options.addOption("transaction", true, "Producers use transactions or not");
+        options.addOption("size", true, "Size of each message");
+        options.addOption("stream", true, "Stream name");
+
+
         options.addOption("help", false, "Help message");
 
         CommandLineParser parser = new BasicParser();
@@ -130,6 +137,14 @@ public class TurbineHeatSensor {
                     producerCount = Integer.parseInt(commandline.getOptionValue("transaction"));
                 }
 
+                if (commandline.hasOption("size")) {
+                    messageSize = Integer.parseInt(commandline.getOptionValue("size"));
+                }
+
+                if (commandline.hasOption("stream")) {
+                    streamName = commandline.getOptionValue("stream");
+                }
+
             } catch (Exception nfe) {
                 System.out.println("Invalid arguments. Starting with default values");
                 nfe.printStackTrace();
@@ -149,7 +164,7 @@ public class TurbineHeatSensor {
             StreamManager streamManager = null;
             streamManager = new StreamManagerImpl(StartLocalService.SCOPE, new URI(controllerUri));
 
-            stream = streamManager.createStream(StartLocalService.STREAM_NAME,
+            stream = streamManager.createStream(streamName,
                     new StreamConfigurationImpl("hi", StartLocalService.STREAM_NAME,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 5,
                                     NUM_SEGMENTS)));
@@ -220,9 +235,9 @@ public class TurbineHeatSensor {
                     }
 
                     // Construct event payload
-                    String payload = System.currentTimeMillis() + ", " + producerId + ", " + city + ", " +
+                    String val = System.currentTimeMillis() + ", " + producerId + ", " + city + ", " +
                             (int) (Math.random() * 200);
-
+                    String payload = String.format("%-" + messageSize + "s", val);
                     // event ingestion
                     if (isTransaction) {
                         try {
