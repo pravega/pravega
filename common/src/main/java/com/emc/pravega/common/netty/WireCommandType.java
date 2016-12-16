@@ -24,6 +24,8 @@ import com.emc.pravega.common.netty.WireCommands.AppendBlock;
 import com.emc.pravega.common.netty.WireCommands.AppendBlockEnd;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
+import com.emc.pravega.common.netty.WireCommands.ConditionalAppend;
+import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
 import com.emc.pravega.common.netty.WireCommands.Constructor;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
@@ -66,7 +68,6 @@ public enum WireCommandType {
 
     PARTIAL_EVENT(-2, PartialEvent::readFrom),
 
-    APPEND(0, null), // Does not go over the wire, is converted to an event.
     EVENT(0, null), // Is read manually.
 
     SETUP_APPEND(1, SetupAppend::readFrom),
@@ -74,17 +75,19 @@ public enum WireCommandType {
 
     APPEND_BLOCK(3, AppendBlock::readFrom),
     APPEND_BLOCK_END(4, AppendBlockEnd::readFrom),
+    CONDITIONAL_APPEND(5, ConditionalAppend::readFrom),
 
-    DATA_APPENDED(5, DataAppended::readFrom),
+    DATA_APPENDED(7, DataAppended::readFrom),
+    CONDITIONAL_CHECK_FAILED(8, ConditionalCheckFailed::readFrom),
 
-    READ_SEGMENT(6, ReadSegment::readFrom),
-    SEGMENT_READ(7, SegmentRead::readFrom),
+    READ_SEGMENT(9, ReadSegment::readFrom),
+    SEGMENT_READ(10, SegmentRead::readFrom),
 
-    GET_STREAM_SEGMENT_INFO(8, GetStreamSegmentInfo::readFrom),
-    STREAM_SEGMENT_INFO(9, StreamSegmentInfo::readFrom),
+    GET_STREAM_SEGMENT_INFO(11, GetStreamSegmentInfo::readFrom),
+    STREAM_SEGMENT_INFO(12, StreamSegmentInfo::readFrom),
     
-    GET_TRANSACTION_INFO(10, GetTransactionInfo::readFrom),
-    TRANSACTION_INFO(11, TransactionInfo::readFrom),
+    GET_TRANSACTION_INFO(13, GetTransactionInfo::readFrom),
+    TRANSACTION_INFO(14, TransactionInfo::readFrom),
 
     CREATE_SEGMENT(20, CreateSegment::readFrom),
     SEGMENT_CREATED(21, SegmentCreated::readFrom),

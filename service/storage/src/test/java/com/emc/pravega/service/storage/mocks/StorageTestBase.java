@@ -43,7 +43,7 @@ import static com.emc.pravega.testcommon.AssertExtensions.assertThrows;
 public abstract class StorageTestBase {
     //region General Test arguments
 
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int SEGMENT_COUNT = 4;
     private static final int APPENDS_PER_SEGMENT = 10;
 
@@ -184,20 +184,20 @@ public abstract class StorageTestBase {
     public void testSeal() throws Exception {
         final String context = "Seal";
         try (Storage s = createStorage()) {
-            // Check invalid handle.
-            assertThrows("seal() did not throw for invalid handle.",
-                    () -> s.seal(createInvalidHandle("foo"), TIMEOUT),
+            // Check invalid segment name.
+            assertThrows("seal() did not throw for non-existent segment name.",
+                    () -> s.seal("foo", TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
             for (String segmentName : appendData.keySet()) {
-                val handle = s.open(segmentName).join();
+                s.open(segmentName).join();
                 val segmentInfo = s.seal(segmentName, TIMEOUT).join();
-                Assert.assertTrue("seal() did not return a segmentInfo with isSealed == true", segmentInfo.isSealed());
+                Assert.assertTrue("seal() did not return a segmentInfo with isSealed == true.", segmentInfo.isSealed());
 
-                //Seal is reentrant. Resealing an already sealed segment should work
+                //Seal is reentrant. Resealing an already sealed segment should work.
                 val segmentInfo1 = s.seal(segmentName, TIMEOUT).join();
-                Assert.assertTrue("seal() is reentrant returns with isSealed == true", segmentInfo1.isSealed());
+                Assert.assertTrue("seal() did not return a segmentInfo with isSealed == true for an already sealed segment.", segmentInfo1.isSealed());
 
                 assertThrows("write() did not throw for a sealed StreamSegment.",
                         () -> s.write(segmentName, s.getStreamSegmentInfo(segmentName, TIMEOUT).
@@ -224,39 +224,39 @@ public abstract class StorageTestBase {
         try (Storage s = createStorage()) {
             HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
 
-            // Check invalid handle.
-            val firstSegmentHandle = getSegmentName(0, context);
-            s.open(firstSegmentHandle).join();
-            AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentHandle,
+            // Check invalid segment name.
+            val firstSegmentName = getSegmentName(0, context);
+            s.open(firstSegmentName).join();
+            AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentName,
                     TIMEOUT).join().getLength());
-            assertThrows("concat() did not throw invalid target StreamSegment handle.",
-                    () -> s.concat(createInvalidHandle("foo1"), 0, firstSegmentHandle, TIMEOUT),
+            assertThrows("concat() did not throw for non-existent target segment name.",
+                    () -> s.concat("foo1", 0, firstSegmentName, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
-            assertThrows("concat() did not throw for invalid source StreamSegment handle.",
-                    () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), createInvalidHandle("foo2"), TIMEOUT),
+            assertThrows("concat() did not throw for invalid source StreamSegment name.",
+                    () -> s.concat(firstSegmentName, firstSegmentLength.get(), "foo2", TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             ArrayList<String> concatOrder = new ArrayList<>();
-            concatOrder.add(firstSegmentHandle);
+            concatOrder.add(firstSegmentName);
             for (String sourceSegment : appendData.keySet()) {
-                if (sourceSegment.equals(firstSegmentHandle)) {
+                if (sourceSegment.equals(firstSegmentName)) {
                     // FirstSegment is where we'll be concatenating to.
                     continue;
                 }
 
                 s.open(sourceSegment).join();
                 assertThrows("Concat allowed when source segment is not sealed.",
-                        () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceSegment, TIMEOUT),
+                        () -> s.concat(firstSegmentName, firstSegmentLength.get(), sourceSegment, TIMEOUT),
                         ex -> ex instanceof IllegalStateException);
                 // Seal the source segment and then re-try the concat
                 s.seal(sourceSegment, TIMEOUT).join();
-                SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentHandle, TIMEOUT).join();
+                SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
                 SegmentProperties sourceProps = s.getStreamSegmentInfo(sourceSegment, TIMEOUT).join();
 
-                s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceSegment, TIMEOUT).join();
+                s.concat(firstSegmentName, firstSegmentLength.get(), sourceSegment, TIMEOUT).join();
                 concatOrder.add(sourceSegment);
-                SegmentProperties postConcatTargetProps = s.getStreamSegmentInfo(firstSegmentHandle, TIMEOUT).join();
+                SegmentProperties postConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
                 Assert.assertFalse("concat() did not delete source segment", s.exists(sourceSegment, TIMEOUT).join());
 
                 // Only check lengths here; we'll check the contents at the end.
@@ -266,11 +266,11 @@ public abstract class StorageTestBase {
             }
 
             // Check the contents of the first StreamSegment. We already validated that the length is correct.
-            SegmentProperties segmentProperties = s.getStreamSegmentInfo(firstSegmentHandle, TIMEOUT).join();
+            SegmentProperties segmentProperties = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
             byte[] readBuffer = new byte[(int) segmentProperties.getLength()];
 
             // Read the entire StreamSegment.
-            int bytesRead = s.read(firstSegmentHandle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+            int bytesRead = s.read(firstSegmentName, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
             Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, bytesRead);
 
             // Check, concat-by-concat, that the final data is correct.
@@ -321,13 +321,6 @@ public abstract class StorageTestBase {
      * test termination.
      */
     protected abstract Storage createStorage();
-
-    /**
-     * Creates a SegmentHandle that is known to be bad invalid.
-     *
-     * @param segmentName The name of the segment to create a handle for.
-     */
-    protected abstract String createInvalidHandle(String segmentName);
 
     //endregion
 }

@@ -77,6 +77,9 @@ def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
 project('common') {
     dependencies {
         testCompile project(':testcommon')
+        testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
+        compile group: 'org.apache.curator', name: 'curator-recipes', version: '2.11.0'
+        compile group: 'commons-io', name: 'commons-io', version: '2.5'
     }
     uploadArchives {
         dependsOn 'jar'
@@ -184,6 +187,7 @@ project('service:server:host') {
         compile project(':service:storage:impl')
         compile project(':service:server')
         testCompile project(':testcommon')
+        testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
     }
     task buildPravegaHostImage(type: DockerBuildImage) {
         dependsOn 'distTar','distZip'
@@ -220,14 +224,12 @@ project('integrationtests') {
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
     }
+
     task startServer(type: JavaExec) {
         main = "com.emc.pravega.service.server.host.ServiceStarter"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
-
-
-
 
     task startServerInteractive(type: JavaExec) {
         main = "com.emc.pravega.service.server.host.InteractiveStreamSegmentStoreTester"
@@ -255,6 +257,12 @@ project('integrationtests') {
 	
     task startConsumer(type: JavaExec) {
         main = "com.emc.pravega.demo.StartConsumer"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+    }
+
+    task startController(type: JavaExec) {
+        main = "com.emc.pravega.controller.server.Main"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }

@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.controller.store;
 
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import org.apache.commons.lang.NotImplementedException;
 
 /**
@@ -33,10 +32,10 @@ public class StoreClientFactory {
         HDFS
     }
 
-    public static StoreClient createStoreClient(final StoreType type, final StoreConfiguration config) {
+    public static StoreClient createStoreClient(final StoreType type) {
         switch (type) {
             case Zookeeper:
-                return new ZKStoreClient(config);
+                return new ZKStoreClient();
             case InMemory:
             case ECS:
             case S3:

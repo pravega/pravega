@@ -33,9 +33,21 @@ public class ServiceConfig extends ComponentConfig {
     public static final String PROPERTY_CONTAINER_COUNT = "containerCount";
     public static final String PROPERTY_THREAD_POOL_SIZE = "threadPoolSize";
     public static final String PROPERTY_LISTENING_PORT = "listeningPort";
+    public static final String PROPERTY_LISTENING_IP_ADDRESS = "listeningIPAddress";
+    public static final String PROPERTY_ZK_HOSTNAME = "zkHostName";
+    public static final String PROPERTY_ZK_PORT = "zkPort";
+    public static final String PROPERTY_ZK_RETRY_SLEEP_MS = "zkRetrySleepMs";
+    public static final String PROPERTY_ZK_RETRY_COUNT = "zkRetryCount";
+    public static final String PROPERTY_CLUSTER_NAME = "clusterName";
     private int containerCount;
     private int threadPoolSize;
     private int listeningPort;
+    private String listeningIPAddress;
+    private String zkHostName;
+    private int zkPort;
+    private int zkRetrySleepMs;
+    private int zkRetryCount;
+    private String clusterName;
 
     //endregion
 
@@ -46,7 +58,8 @@ public class ServiceConfig extends ComponentConfig {
      *
      * @param properties The java.util.Properties object to read Properties from.
      * @throws ConfigurationException   When a configuration issue has been detected. This can be:
-     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
+     *                                  MissingPropertyException (a required Property is missing from the given
+     *                                  properties collection),
      *                                  NumberFormatException (a Property has a value that is invalid for it).
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If componentCode is an empty string.
@@ -74,10 +87,52 @@ public class ServiceConfig extends ComponentConfig {
     }
 
     /**
-     * Gets a value indicating the TCP Port number to listed to.
+     * Gets a value indicating the TCP Port number to listen to.
      */
     public int getListeningPort() {
         return this.listeningPort;
+    }
+
+    /**
+     * Gets a value indicating the IP address to listen to.
+     */
+    public String getListeningIPAddress() {
+        return this.listeningIPAddress;
+    }
+
+    /**
+     * Gets a value indicating the Zookeeper host name.
+     */
+    public String getZkHostName() {
+        return zkHostName;
+    }
+
+    /**
+     * Gets a value indicating the Zookeeper port.
+     */
+    public int getZkPort() {
+        return zkPort;
+    }
+
+    /**
+     * Gets a value indicating the sleep duration before retrying for Zookeeper connection.
+     */
+    public int getZkRetrySleepMs() {
+        return zkRetrySleepMs;
+    }
+
+    /**
+     * Gets a value indicating the retry count for a failed Zookeeper connection.
+     */
+    public int getZkRetryCount() {
+        return zkRetryCount;
+    }
+
+    /**
+     * Gets a value indicating the cluster name.
+     */
+    public String getClusterName() {
+        return clusterName;
     }
 
     //endregion
@@ -89,6 +144,12 @@ public class ServiceConfig extends ComponentConfig {
         this.containerCount = getInt32Property(PROPERTY_CONTAINER_COUNT);
         this.threadPoolSize = getInt32Property(PROPERTY_THREAD_POOL_SIZE);
         this.listeningPort = getInt32Property(PROPERTY_LISTENING_PORT);
+        this.listeningIPAddress = getProperty(PROPERTY_LISTENING_IP_ADDRESS);
+        this.zkHostName = getProperty(PROPERTY_ZK_HOSTNAME);
+        this.zkPort = getInt32Property(PROPERTY_ZK_PORT);
+        this.zkRetrySleepMs = getInt32Property(PROPERTY_ZK_RETRY_SLEEP_MS);
+        this.zkRetryCount = getInt32Property(PROPERTY_ZK_RETRY_COUNT);
+        this.clusterName = getProperty(PROPERTY_CLUSTER_NAME);
     }
 
     //endregion

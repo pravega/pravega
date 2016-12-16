@@ -19,6 +19,8 @@ package com.emc.pravega.stream.impl.segment;
 
 import static com.emc.pravega.testcommon.Async.testBlocking;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.nio.ByteBuffer;
@@ -35,6 +37,7 @@ import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.WireCommandType;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
+import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.util.ByteBufferUtils;
 
 import lombok.Cleanup;
@@ -94,6 +97,11 @@ public class SegmentInputStreamTest {
                 read.attempt++;
                 return FutureHelpers.getAndHandleExceptions(future, RuntimeException::new);
             }
+        }
+
+        @Override
+        public CompletableFuture<StreamSegmentInfo> getSegmentInfo() {
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -182,6 +190,34 @@ public class SegmentInputStreamTest {
         }
         ByteBuffer read = stream.read();
         assertEquals(ByteBuffer.wrap(data), read);
+    }
+    
+    @Test
+    public void testReadWithoutBlocking() throws EndOfSegmentException {
+        byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        int numEntries = SegmentInputStreamImpl.BUFFER_SIZE / data.length;
+
+        ByteBuffer wireData = ByteBuffer.allocate((data.length + WireCommands.TYPE_PLUS_LENGTH_SIZE) * numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            wireData.putInt(WireCommandType.EVENT.getCode());
+            wireData.putInt(data.length);
+            wireData.put(data);
+        }
+        wireData.flip();
+        TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(3);
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
+        assertFalse(stream.canReadWithoutBlocking());
+        fakeNetwork.complete(0, new SegmentRead("Foo", 0, true, false, wireData.slice()));
+        for (int i = 0; i < numEntries; i++) {
+            assertTrue(stream.canReadWithoutBlocking());
+            assertEquals(ByteBuffer.wrap(data), stream.read());
+        }
+        assertFalse(stream.canReadWithoutBlocking());
+        testBlocking(() -> stream.read(), () -> {
+            fakeNetwork.complete(1, new SegmentRead("Foo", wireData.capacity(), false, false, createEventFromData(data)));
+        });
+        assertFalse(stream.canReadWithoutBlocking());
     }
 
     @Test

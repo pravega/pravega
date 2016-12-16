@@ -29,15 +29,10 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Set of tasks for test purposes.
  */
-public class TestTasks extends TaskBase implements Cloneable {
+public class TestTasks extends TaskBase {
 
     public TestTasks(TaskMetadataStore taskMetadataStore, ScheduledExecutorService executor, String hostId) {
         super(taskMetadataStore, executor, hostId);
-    }
-
-    @Override
-    public TestTasks clone() throws CloneNotSupportedException {
-        return (TestTasks) super.clone();
     }
 
     @Task(name = "test", version = "1.0", resource = "{scope}/{stream}")
