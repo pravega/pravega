@@ -17,33 +17,9 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.state.InitialUpdate;
-import com.emc.pravega.state.Revisioned;
-import com.emc.pravega.state.Synchronizer;
-import com.emc.pravega.state.SynchronizerConfig;
-import com.emc.pravega.state.Update;
-import com.emc.pravega.state.impl.CorruptedStateException;
-import com.emc.pravega.state.impl.SynchronizerImpl;
-import com.emc.pravega.stream.Consumer;
-import com.emc.pravega.stream.ConsumerConfig;
-import com.emc.pravega.stream.Position;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
-import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.netty.ConnectionFactory;
-import com.emc.pravega.stream.impl.segment.SegmentInputStream;
-import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactoryImpl;
-import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
-import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
-import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.base.Preconditions;
-
-import java.util.Collection;
-
-import org.apache.commons.lang.NotImplementedException;
 
 import lombok.Getter;
 
@@ -58,50 +34,12 @@ public class StreamImpl implements Stream {
     private final String streamName;
     @Getter
     private final StreamConfiguration config;
-    private final Controller controller;
-    private final ConnectionFactory connectionFactory;
 
-    private final EventRouter router;
-
-    private static final class SingleStreamOrderer<T> implements Orderer<T> {
-        @Override
-        public SegmentConsumer<T> nextConsumer(Collection<SegmentConsumer<T>> logs) {
-            Preconditions.checkState(logs.size() == 1);
-            return logs.iterator().next();
-        }
-    }
-
-    public StreamImpl(String scope, String streamName, StreamConfiguration config, Controller controller, ConnectionFactory connectionFactory) {
+    public StreamImpl(String scope, String streamName, StreamConfiguration config) {
         Preconditions.checkNotNull(streamName);
-        Preconditions.checkNotNull(controller);
-        Preconditions.checkNotNull(connectionFactory);
         this.scope = scope;
         this.streamName = streamName;
         this.config = config;
-        this.controller = controller;
-        this.connectionFactory = connectionFactory;
-        this.router = new EventRouter(this, controller);
-    }
-
-    @Override
-    public <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config) {
-        return new ProducerImpl<T>(this, controller, new SegmentOutputStreamFactoryImpl(controller, connectionFactory), router, s, config);
-    }
-
-    @Override
-    public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition) {
-        return new ConsumerImpl<T>(this,
-                new SegmentInputStreamFactoryImpl(controller, connectionFactory),
-                s,
-                startingPosition.asImpl(),
-                new SingleStreamOrderer<T>(),
-                config);
-    }
-    
-    @Override
-    public <T> Consumer<T> createConsumer(String consumerId, String consumerGroup, Serializer<T> s,
-            ConsumerConfig config) {
-        throw new NotImplementedException();
     }
 
     @Override
@@ -113,21 +51,5 @@ public class StreamImpl implements Stream {
         }
         sb.append(streamName);
         return sb.toString();
-    }
-
-    @Override
-    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> Synchronizer<StateT, UpdateT, InitT> createSynchronizer(
-            Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer, SynchronizerConfig config) {       
-        Segment segment = new Segment(scope, streamName, 0);
-        SegmentInputStreamFactoryImpl inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
-        SegmentInputStream in = inFactory.createInputStreamForSegment(segment, config.getInputConfig());
-        SegmentOutputStreamFactoryImpl outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
-        SegmentOutputStream out;
-        try {
-            out = outFactory.createOutputStreamForSegment(segment, config.getOutputConfig());
-        } catch (SegmentSealedException e) {
-            throw new CorruptedStateException("Attempted to create synchronizer on sealed segment", e);
-        }
-        return new SynchronizerImpl<StateT, UpdateT, InitT>(this, in, out, updateSerializer, initialSerializer);
     }
 }

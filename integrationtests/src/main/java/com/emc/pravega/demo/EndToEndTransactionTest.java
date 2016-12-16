@@ -23,17 +23,19 @@ import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
-import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.mock.MockStreamManager;
-import lombok.Cleanup;
-import org.apache.curator.test.TestingServer;
+import com.emc.pravega.stream.mock.MockClientManager;
 
 import java.util.concurrent.CompletableFuture;
 
+import org.apache.curator.test.TestingServer;
+
+import lombok.Cleanup;
+
 public class EndToEndTransactionTest {
     public static void main(String[] args) throws Exception {
+        @Cleanup
         TestingServer zkTestServer = new TestingServer();
         ControllerWrapper controller = new ControllerWrapper(zkTestServer.getConnectString());
 
@@ -44,12 +46,10 @@ public class EndToEndTransactionTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.PORT, store);
         server.startListening();
 
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE, controller);
-        Stream stream = streamManager.createStream(StartLocalService.STREAM_NAME, null);
+        MockClientManager clientManager = new MockClientManager(StartLocalService.SCOPE, controller);
 
         @Cleanup
-        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
+        Producer<String> producer = clientManager.createProducer(StartLocalService.STREAM_NAME, new JavaSerializer<>(), new ProducerConfig(null));
         Transaction<String> transaction = producer.startTransaction(60000);
 
         for (int i = 0; i < 1; i++) {

@@ -18,7 +18,6 @@ import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
-import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactory;
@@ -37,17 +36,15 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
     private final Serializer<Type> deserializer;
     private final SegmentInputStreamFactory inputStreamFactory;
 
-    private final Stream stream;
     private final Orderer<Type> orderer;
     private final ConsumerConfig config;
     private final List<SegmentConsumer<Type>> consumers = new ArrayList<>();
     private final Map<Segment, Long> completedSegments = new HashMap<>();
     private final Map<FutureSegment, Long> futureOwnedSegments = new HashMap<>();
 
-    ConsumerImpl(Stream stream, SegmentInputStreamFactory inputStreamFactory, Serializer<Type> deserializer, PositionInternal position,
+    ConsumerImpl(SegmentInputStreamFactory inputStreamFactory, Serializer<Type> deserializer, PositionInternal position,
             Orderer<Type> orderer, ConsumerConfig config) {
         this.deserializer = deserializer;
-        this.stream = stream;
         this.inputStreamFactory = inputStreamFactory;
         this.orderer = orderer;
         this.config = config;

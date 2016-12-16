@@ -15,12 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream;
+package com.emc.pravega;
 
+import com.emc.pravega.stream.ConsumerGroup;
+import com.emc.pravega.stream.ConsumerGroupConfig;
+import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.StreamManagerImpl;
+
+import java.net.URI;
 import java.util.List;
 
 public interface StreamManager extends AutoCloseable {
 
+    public static StreamManager withScope(String scope, URI controllerUri) {
+        return new StreamManagerImpl(scope, controllerUri);
+    }
+    
     /**
      * Creates a new ConsumerGroup
      * 

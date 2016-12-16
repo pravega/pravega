@@ -29,22 +29,23 @@ import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxFailedException;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.StreamImpl;
-import com.emc.pravega.stream.mock.MockStreamManager;
+import com.emc.pravega.stream.mock.MockClientManager;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.TestUtils;
+
+import java.io.Serializable;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import lombok.Cleanup;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import java.io.Serializable;
-
-import static org.junit.Assert.assertEquals;
 
 public class TransactionTest {
     private Level originalLevel;
@@ -78,11 +79,13 @@ public class TransactionTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
+
+        MockClientManager clientManager = new MockClientManager("scope", endpoint, port);
+        clientManager.createStream(streamName, null);
         @Cleanup
-        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        StreamImpl stream = (StreamImpl) streamManager.createStream(streamName, null);
-        @Cleanup
-        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
+        Producer<String> producer = clientManager.createProducer(streamName,
+                                                                 new JavaSerializer<>(),
+                                                                 new ProducerConfig(null));
         producer.publish(routingKey, nonTxEvent);
         Transaction<String> transaction = producer.startTransaction(60000);
         producer.publish(routingKey, nonTxEvent);
@@ -103,7 +106,12 @@ public class TransactionTest {
         producer.publish(routingKey, nonTxEvent);
         AssertExtensions.assertThrows(IllegalStateException.class,
                                       () -> transaction.publish(routingKey, txnEvent));
-        Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(), streamManager.getInitialPosition(streamName));
+
+        Consumer<Serializable> consumer = clientManager.createConsumer(streamName,
+                                                                       new JavaSerializer<>(),
+                                                                       new ConsumerConfig(),
+                                                                       clientManager.getInitialPosition(streamName));
+
         assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getEvent());
         assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getEvent());
         assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getEvent());
@@ -132,11 +140,10 @@ public class TransactionTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
+        MockClientManager clientManager = new MockClientManager("scope", endpoint, port);
+        clientManager.createStream(streamName, null);
         @Cleanup
-        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        StreamImpl stream = (StreamImpl) streamManager.createStream(streamName, null);
-        @Cleanup
-        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
+        Producer<String> producer = clientManager.createProducer(streamName, new JavaSerializer<>(), new ProducerConfig(null));
         Transaction<String> transaction = producer.startTransaction(60000);
         transaction.publish(routingKey, event);
         transaction.commit();
@@ -155,11 +162,11 @@ public class TransactionTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
+        MockClientManager clientManager = new MockClientManager("scope", endpoint, port);
+        clientManager.createStream(streamName, null);
         @Cleanup
-        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        StreamImpl stream = (StreamImpl) streamManager.createStream(streamName, null);
-        @Cleanup
-        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
+        Producer<String> producer = clientManager.createProducer(streamName, new JavaSerializer<>(), new ProducerConfig(null));
+   
         Transaction<String> transaction = producer.startTransaction(60000);
         transaction.publish(routingKey, txnEvent);
         transaction.flush();
@@ -168,7 +175,10 @@ public class TransactionTest {
         AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.publish(routingKey, txnEvent));
         AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit());
         
-        Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(), streamManager.getInitialPosition(streamName));
+        Consumer<Serializable> consumer = clientManager.createConsumer(streamName,
+                                                                       new JavaSerializer<>(),
+                                                                       new ConsumerConfig(),
+                                                                       clientManager.getInitialPosition(streamName));
         producer.publish(routingKey, nonTxEvent);
         producer.flush();
         assertEquals(nonTxEvent, consumer.readNextEvent(1500).getEvent());

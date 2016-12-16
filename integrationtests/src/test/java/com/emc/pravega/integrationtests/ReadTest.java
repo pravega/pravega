@@ -18,22 +18,6 @@
 
 package com.emc.pravega.integrationtests;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.time.Duration;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
@@ -54,7 +38,6 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
@@ -64,9 +47,25 @@ import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
+import com.emc.pravega.stream.mock.MockClientManager;
 import com.emc.pravega.stream.mock.MockController;
-import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.TestUtils;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ResourceLeakDetector;
@@ -191,23 +190,23 @@ public class ReadTest {
         String testString = "Hello world\n";
         String scope = "Scope1";
 
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        MockClientManager clientManager = new MockClientManager(scope, endpoint, port);
 
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-        StreamImpl stream = (StreamImpl) streamManager.createStream(streamName, null);
-
+        
+        clientManager.createStream(streamName, null);
         JavaSerializer<String> serializer = new JavaSerializer<>();
-        @Cleanup
-        Producer<String> producer = stream.createProducer(serializer, new ProducerConfig(null));
+        Producer<String> producer = clientManager.createProducer(streamName, serializer, new ProducerConfig(null));
+        
         producer.publish("RoutingKey", testString);
         producer.flush();
 
         @Cleanup
-        Consumer<String> consumer = stream.createConsumer(serializer, new ConsumerConfig(), streamManager.getInitialPosition(streamName));
+        Consumer<String> consumer = clientManager
+            .createConsumer(streamName, serializer, new ConsumerConfig(), clientManager.getInitialPosition(streamName));
         String read = consumer.readNextEvent(5000).getEvent();
         assertEquals(testString, read);
     }

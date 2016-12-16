@@ -19,24 +19,23 @@ package com.emc.pravega.demo;
 
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
-import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.mock.MockStreamManager;
+import com.emc.pravega.stream.mock.MockClientManager;
 
 import lombok.Cleanup;
 
 public class StartProducer {
 
     public static void main(String[] args) throws Exception {
+        MockClientManager clientManager = new MockClientManager(StartLocalService.SCOPE,
+                                                                "localhost",
+                                                                StartLocalService.PORT);
+        clientManager.createStream(StartLocalService.STREAM_NAME, null);
         @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,
-                "localhost",
-                StartLocalService.PORT);
-        Stream stream = streamManager.createStream(StartLocalService.STREAM_NAME, null);
-
-        @Cleanup
-        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
+        Producer<String> producer = clientManager.createProducer(StartLocalService.STREAM_NAME,
+                                                                new JavaSerializer<>(),
+                                                                new ProducerConfig(null));
         Transaction<String> transaction = producer.startTransaction(60000);
         for (int i = 0; i < 10; i++) {
             String event = "\n Transactional Publish \n";
