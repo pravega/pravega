@@ -22,6 +22,8 @@ import com.emc.pravega.common.Exceptions;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.Duration;
+
 import static com.emc.pravega.service.server.host.selftest.AppendContentGenerator.HEADER_LENGTH;
 
 /**
@@ -32,6 +34,9 @@ class ValidationResult {
     @Getter
     @Setter
     private String source;
+    @Getter
+    @Setter
+    private Duration elapsed;
     @Getter
     @Setter
     private long segmentOffset;
@@ -66,6 +71,7 @@ class ValidationResult {
         this.moreDataNeeded = false;
         this.length = HEADER_LENGTH;
         this.failureMessage = null;
+        this.elapsed = null;
     }
 
     /**

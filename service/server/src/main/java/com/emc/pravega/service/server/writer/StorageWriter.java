@@ -252,7 +252,7 @@ class StorageWriter extends AbstractService implements Writer {
                             // TimeoutExceptions are acceptable for Reads. In that case we just return null as opposed from
                             // killing the entire Iteration. Even if we were unable to read, we may still need to flush
                             // in this iteration or do other tasks.
-                            logErrorHandled(ex);
+                            log.warn("{}: Iteration[{}] No items were read during allotted timeout of {}ms", this.traceObjectId, this.state.getIterationId(), readTimeout.toMillis());
                             return null;
                         } else {
                             throw new CompletionException(ex);
@@ -437,8 +437,11 @@ class StorageWriter extends AbstractService implements Writer {
     }
 
     /**
-     * Calculates the amount of time until the first SegmentAggregator will expire (needs to flush). If no Aggregator
-     * is registered, a default (large) value is returned.
+     * Calculates the amount of time that should be used as a timeout for WriterDataSource reads. The following rules
+     * are taken into consideration:
+     * * If at least one SegmentAggregator needs to flush right away, the timeout returned is 0.
+     * * The returned timeout is the amount of time until the first SegmentAggregator is due to flush.
+     * * The returned timeout (except in the first case) is bounded by WriterConfig.MinReadTimeout and WriterConfig.MaxReadTimeout.
      */
     private Duration getReadTimeout() {
         // Find the minimum expiration time among all SegmentAggregators.
@@ -448,7 +451,7 @@ class StorageWriter extends AbstractService implements Writer {
         for (SegmentAggregator a : this.aggregators.values()) {
             if (a.mustFlush()) {
                 // We found a SegmentAggregator that needs to flush right away. No need to search anymore.
-                timeMillis = minTimeMillis;
+                timeMillis = 0;
                 break;
             }
 

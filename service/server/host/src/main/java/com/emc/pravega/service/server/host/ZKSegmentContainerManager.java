@@ -21,7 +21,9 @@ package com.emc.pravega.service.server.host;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
+import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
@@ -45,6 +47,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -76,6 +79,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     private final NodeCache segContainerHostMapping;
     private final CuratorFramework client;
     private final String clusterPath;
+    private final Cluster cluster;
 
     /**
      * Creates a new instance of the ZKSegmentContainerManager class.
@@ -105,7 +109,8 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
         this.client = zkClient;
         this.clusterPath = ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping");
-        segContainerHostMapping = new NodeCache(zkClient, this.clusterPath);
+        this.segContainerHostMapping = new NodeCache(zkClient, this.clusterPath);
+        this.cluster = new ClusterZKImpl(zkClient, clusterName);
 
         this.host = pravegaServiceEndpoint;
     }
@@ -114,18 +119,16 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     public CompletableFuture<Void> initialize() {
         long traceId = LoggerHelpers.traceEnter(log, "initialize");
         ensureNotClosed();
-        try {
-            List<CompletableFuture<Void>> futures = initializeFromZK(host, INIT_TIMEOUT_PER_CONTAINER);
-            CompletableFuture<Void> initResult = FutureHelpers.allOf(futures)
-                    .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
-
+        CompletableFuture<Void> initResult = CompletableFuture.runAsync(() -> {
             // Add the node cache listener which watches ZK for changes in segment container mapping.
             addListenerSegContainerMapping(INIT_TIMEOUT_PER_CONTAINER, host);
-
-            return initResult;
-        } catch (Exception ex) {
-            throw new RuntimeStreamingException("Unable to initialize from Zookeeper", ex);
-        }
+            cluster.registerHost(host);
+            log.info("Initialization of ZK based segment container manager completed.");
+        }).exceptionally(ex -> {
+            log.error("Error during initialization of ZK based segment container manager", ex);
+            return null;
+        }).thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
+        return initResult;
     }
 
     @Override
@@ -226,22 +229,35 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
                 .filter(ep -> ep.getKey().equals(hostId))
                 .map(Map.Entry::getValue)
                 .findFirst().orElse(Collections.<Integer>emptySet());
+        log.debug("Desired list of running containers {}.", desiredContainerList);
 
         Collection<Integer> runningContainers = this.registry.getRegisteredContainerIds();
+        log.debug("Current list of running containers {}.", runningContainers);
 
         Collection<Integer> containersToBeStarted = getComplement(desiredContainerList, runningContainers);
+        log.debug("Containers that need to be started {}.", containersToBeStarted);
+
         Collection<Integer> containersToBeStopped = getComplement(runningContainers, desiredContainerList);
+        log.debug("Containers that need to be stopped {}.", containersToBeStopped);
 
         List<CompletableFuture<Void>> futures = containersToBeStarted.stream()
+                .peek(containerId -> log.info("Container to be started is {}", containerId))
                 .map(containerId ->
                         this.registry.startContainer(containerId, timer.getRemaining())
                                 .thenAccept(this::registerHandle))
                 .collect(Collectors.toList());
 
         futures.addAll(containersToBeStopped.stream()
+                .peek(containerId -> log.info("Container to be stopped is {}", containerId))
                 .map(handles::get)
+                .peek(handle -> {
+                    if (handle == null) {
+                        log.error("Container handle is null, container has been already unregistered");
+                    }
+                })
+                .filter(Objects::nonNull)
                 .map(containerHandle -> registry.stopContainer(containerHandle, timer.getRemaining())
-                        .thenAccept(v -> unregisterHandle(containerHandle.getContainerId())))
+                        .thenRun(() -> unregisterHandle(containerHandle.getContainerId())))
                 .collect(Collectors.toList()));
         return futures;
     }
@@ -256,11 +272,15 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
     @SuppressWarnings("unchecked")
     private Map<Host, Set<Integer>> getSegmentContainerMapping() throws Exception {
-        Optional<byte[]> containerToHostMapSer = Optional.of(client.getData().forPath(clusterPath));
-        if (containerToHostMapSer.isPresent()) {
-            return (Map<Host, Set<Integer>>) SerializationUtils.deserialize(containerToHostMapSer.get());
-        } else {
-            return Collections.<Host, Set<Integer>>emptyMap();
+        Map<Host, Set<Integer>> segContainerMapping = Collections.<Host, Set<Integer>>emptyMap();
+        if (client.checkExists().forPath(clusterPath) != null) { //Check if path exists.
+            //read data from zk.
+            Optional<byte[]> containerToHostMapSer = Optional.ofNullable(client.getData().forPath(clusterPath));
+            if (containerToHostMapSer.isPresent()) {
+                segContainerMapping = (Map<Host, Set<Integer>>)
+                        SerializationUtils.deserialize(containerToHostMapSer.get());
+            }
         }
+        return segContainerMapping;
     }
 }

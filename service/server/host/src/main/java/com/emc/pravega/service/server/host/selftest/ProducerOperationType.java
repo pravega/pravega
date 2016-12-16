@@ -18,21 +18,31 @@
 
 package com.emc.pravega.service.server.host.selftest;
 
-import com.emc.pravega.common.Exceptions;
-
 /**
- * Defines the base for an Operation Type.
+ * Defines various types of Producer Operations.
  */
-abstract class OperationType {
-    private final String name;
+final class ProducerOperationType extends OperationType {
+    /**
+     * An Append Operation triggered by a Producer.
+     */
+    static final ProducerOperationType APPEND = new ProducerOperationType("Append");
 
-    OperationType(String name) {
-        Exceptions.checkNotNullOrEmpty(name, "name");
-        this.name = name;
-    }
+    /**
+     * A Seal Operation triggered by a Producer.
+     */
+    static final ProducerOperationType SEAL = new ProducerOperationType("Seal");
 
-    @Override
-    public String toString() {
-        return this.name;
+    /**
+     * A Create Transaction Operation triggered by a Producer.
+     */
+    static final ProducerOperationType CREATE_TRANSACTION = new ProducerOperationType("Create Transaction");
+
+    /**
+     * A Merge Transaction Operation triggered by a Producer.
+     */
+    static final ProducerOperationType MERGE_TRANSACTION = new ProducerOperationType("Merge Transaction");
+
+    private ProducerOperationType(String name) {
+        super(name);
     }
 }
