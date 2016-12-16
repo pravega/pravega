@@ -39,7 +39,7 @@ import com.emc.pravega.common.netty.WireCommands.WrongHost;
 /**
  * A ReplyProcessor that throws on every method. (Useful to subclass)
  */
-public class FailingReplyProcessor implements ReplyProcessor {
+public abstract class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void wrongHost(WrongHost wrongHost) {
@@ -131,11 +131,5 @@ public class FailingReplyProcessor implements ReplyProcessor {
     public void keepAlive(KeepAlive keepAlive) {
         throw new IllegalStateException("Unexpected operation");
     }
-
-    @Override
-    public void connectionDropped() {
-        throw new IllegalStateException("Unexpected operation");
-    }
-    
 
 }
