@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.host.selftest;
 
+import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.service.contracts.ReadResult;
@@ -418,7 +419,7 @@ public class Consumer extends Actor {
             expectedData = this.readBuffer.getReader(bufferOffset, length);
         }
 
-        long startTime = System.nanoTime();
+        final Timer timer = new Timer();
         this.store.read(this.segmentName, segmentStartOffset, length, this.config.getTimeout())
                   .thenAcceptAsync(readResult -> {
                       try {
@@ -428,7 +429,7 @@ public class Consumer extends Actor {
                               return;
                           }
 
-                          this.testState.recordDuration(ConsumerOperationType.CATCHUP_READ, Duration.ofNanos(System.nanoTime() - startTime));
+                          this.testState.recordDuration(ConsumerOperationType.CATCHUP_READ, timer.getElapsed());
 
                           // Validation is successful, update current state.
                           int verifiedLength;
