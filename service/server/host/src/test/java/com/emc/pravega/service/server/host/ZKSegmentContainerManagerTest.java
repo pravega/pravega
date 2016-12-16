@@ -29,7 +29,9 @@ import org.apache.curator.test.TestingServer;
 import org.apache.curator.utils.ZKPaths;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.mockito.Mock;
 
 import java.io.IOException;
@@ -42,6 +44,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -64,6 +67,10 @@ public class ZKSegmentContainerManagerTest {
 
     private static TestingServer zkTestServer;
 
+    @Rule
+    public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT); // timeout per method tested
+
+
     @Mock
     private SegmentToContainerMapper segmentToContainerMapper;
 
@@ -79,7 +86,7 @@ public class ZKSegmentContainerManagerTest {
     }
 
     //Test if no mapping is present is present in zk.
-    @Test(timeout = TEST_TIMEOUT)
+    @Test
     public void initializeErrorTest() throws Exception {
 
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
@@ -99,35 +106,14 @@ public class ZKSegmentContainerManagerTest {
         zkClient.close();
     }
 
-    @Test(timeout = TEST_TIMEOUT)
-    public void initializeTest() throws Exception {
-        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
-                RETRY_SLEEP_MS, MAX_RETRY));
-        zkClient.start();
 
-        initializeSegmentMapping(zkClient);
-
-        segmentToContainerMapper = new SegmentToContainerMapper(8);
-        ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(createMockContainerRegistry(),
-                segmentToContainerMapper, zkClient,
-                PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
-
-        CompletableFuture<Void> result = segManager.initialize();
-
-        assertEquals(1, segManager.getHandles().size());
-        assertEquals(1, segManager.getHandles().get(1).getContainerId());
-        assertEquals(false, result.isCompletedExceptionally());
-
-        zkClient.close();
-    }
-
-    @Test(timeout = TEST_TIMEOUT)
+    @Test
     public void listenerTest() throws Exception {
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
                 RETRY_SLEEP_MS, MAX_RETRY));
         zkClient.start();
-
         initializeSegmentMapping(zkClient);
+
         SegmentContainerRegistry containerRegistry = createMockContainerRegistry();
 
         segmentToContainerMapper = new SegmentToContainerMapper(8);
@@ -136,7 +122,7 @@ public class ZKSegmentContainerManagerTest {
                 segmentToContainerMapper, zkClient,
                 PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
 
-        CompletableFuture<Void> result = segManager.initialize();
+        segManager.initialize().get();
 
         ContainerHandle containerHandle2 = mock(ContainerHandle.class);
         when(containerHandle2.getContainerId()).thenReturn(2);
@@ -149,15 +135,13 @@ public class ZKSegmentContainerManagerTest {
         currentData.put(PRAVEGA_SERVICE_ENDPOINT, new HashSet(Arrays.asList(2)));
         zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
 
-        verify(containerHandle2, after(500).atMost(5)).getContainerId();
-        assertEquals(2, segManager.getHandles().size());
-        assertEquals(1, segManager.getHandles().get(1).getContainerId());
-        assertEquals(2, segManager.getHandles().get(2).getContainerId());
+        verify(containerRegistry, after(10000).atLeastOnce()).startContainer(eq(2), any());
+        assertTrue(segManager.getHandles().containsKey(2));
 
         zkClient.close();
     }
 
-    @Test(timeout = TEST_TIMEOUT)
+    @Test
     public void closeMethodTest() throws Exception {
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
                 RETRY_SLEEP_MS, MAX_RETRY));
