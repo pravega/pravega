@@ -28,6 +28,7 @@ import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -165,7 +166,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
         ex = ExceptionHelpers.getRealException(ex);
         if (this.firstAttempt.getAndSet(false) && isRetryable(ex)) {
             CompletableReadResultEntry oldEntry = this.baseEntry.get();
-            CompletableReadResultEntry newEntry = this.retryGetEntry.apply(oldEntry.getStreamSegmentOffset(), oldEntry.getRequestedReadLength());
+            CompletableReadResultEntry newEntry = this.retryGetEntry.apply(getStreamSegmentOffset(), oldEntry.getRequestedReadLength());
             if (!(newEntry instanceof RedirectedReadResultEntry)) {
                 newEntry.requestContent(timeout);
                 switchBase(newEntry);
@@ -182,7 +183,9 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
      * @param ex The exception to inspect.
      */
     private boolean isRetryable(Throwable ex) {
-        return ex instanceof ObjectClosedException || ex instanceof StreamSegmentNotExistsException;
+        return ex instanceof ObjectClosedException // StorageReader was closed before execution began.
+                || ex instanceof CancellationException // StorageReader was closed during execution (or queueing).
+                || ex instanceof StreamSegmentNotExistsException; // Transaction Segment has already been deleted.
     }
 
     /**

@@ -274,7 +274,10 @@ public class Consumer extends Actor {
                     this.testState.recordStorageRead((int) diff);
                     logState(SOURCE_STORAGE_READ, "StorageLength=%s", segmentLength);
                 }, this.executorService)
-                .thenComposeAsync(v -> this.store.getStorageAdapter().truncate(this.segmentName, this.storageReadValidatedOffset, this.config.getTimeout()), this.executorService)
+                .thenComposeAsync(v -> {
+                    long truncateOffset = Math.min(this.storageReadValidatedOffset, this.catchupReadValidatedOffset);
+                    return this.store.getStorageAdapter().truncate(this.segmentName, truncateOffset, this.config.getTimeout());
+                }, this.executorService)
                 .exceptionally(ex -> {
                     processingFuture.completeExceptionally(ex);
                     return null;

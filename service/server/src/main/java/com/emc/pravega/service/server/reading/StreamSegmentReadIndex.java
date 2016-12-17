@@ -635,6 +635,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private void queueStorageRead(long offset, int length, Consumer<ReadResultEntryContents> successCallback, Consumer<Throwable> failureCallback, Duration timeout) {
         // Create a callback that inserts into the ReadIndex (and cache) and invokes the success callback.
         Consumer<StorageReader.Result> doneCallback = result -> {
+            System.out.println(String.format("[%s]%s: ReadIndex.StorageRead(complete) N=%s, M=%s, D=%s, O=%s, L=%s", Thread.currentThread().getName(), this.traceObjectId, this.metadata.getName(), this.metadata.isMerged(), this.metadata.isDeleted(), offset, result.getData().getLength()));
             ByteArraySegment data = result.getData();
             if (!result.isDerived()) {
                 // Only insert primary results into the cache. Derived results are always sub-portions of primaries
@@ -648,7 +649,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // Queue the request for async processing.
         length = getReadAlignedLength(offset, length);
 
-        System.out.println(String.format("%s: ReadIndex.StorageRead N=%s, M=%s, D=%s, O=%s", this.traceObjectId, this.metadata.getName(), this.metadata.isMerged(), this.metadata.isDeleted(), offset));
+        System.out.println(String.format("[%s]%s: ReadIndex.StorageRead(begin) N=%s, M=%s, D=%s, O=%s", Thread.currentThread().getName(), this.traceObjectId, this.metadata.getName(), this.metadata.isMerged(), this.metadata.isDeleted(), offset));
         this.storageReader.execute(new StorageReader.Request(offset, length, doneCallback, failureCallback, timeout));
     }
 
