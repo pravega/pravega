@@ -29,7 +29,7 @@ public class OpStatsData {
     private final double avgLatencyMillis;
     // 10.0 50.0, 90.0, 99.0, 99.9, 99.99 in that order.
     private final long[] percentileLatenciesMillis;
-    public OpStatsData (long numSuccessfulEvents, long numFailedEvents,
+    public OpStatsData(long numSuccessfulEvents, long numFailedEvents,
                         double avgLatencyMillis, long[] percentileLatenciesMillis) {
         this.numSuccessfulEvents = numSuccessfulEvents;
         this.numFailedEvents = numFailedEvents;
@@ -41,6 +41,7 @@ public class OpStatsData {
     public long getP10Latency() {
         return this.percentileLatenciesMillis[0];
     }
+
     public long getP50Latency() {
         return this.percentileLatenciesMillis[1];
     }

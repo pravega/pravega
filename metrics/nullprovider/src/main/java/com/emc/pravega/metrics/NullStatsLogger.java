@@ -55,6 +55,7 @@ public class NullStatsLogger implements StatsLogger {
             // nop
         }
     }
+
     static NullOpStatsLogger nullOpStatsLogger = new NullOpStatsLogger();
 
     static class NullCounter implements Counter {
@@ -83,6 +84,7 @@ public class NullStatsLogger implements StatsLogger {
             return 0L;
         }
     }
+
     static NullCounter nullCounter = new NullCounter();
 
     @Override

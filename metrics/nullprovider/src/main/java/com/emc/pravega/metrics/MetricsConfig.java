@@ -36,19 +36,19 @@ public class MetricsConfig extends ComponentConfig {
     public final static String STATSD_HOST = "yammerStatsDHost";
     public final static String STATSD_PORT = "yammerStatsDPort";
 
-    private boolean enableStatistics;
-    private int yammerStatsOutputFrequencySeconds;
-    private String yammerMetricsPrefix;
-    private String yammerCSVEndpoint;
-    private String yammerStatsDHost;
-    private int yammerStatsDPort;
-
     public final static boolean DEFAULT_ENABLE_STATISTICS = true;
     public final static int DEFAULT_OUTPUT_FREQUENCY = 60;
     public final static String DEFAULT_METRICS_PREFIX = "host";
     public final static String DEFAULT_CSV_ENDPOINT = "/tmp/csv";
     public final static String DEFAULT_STATSD_HOST = "localhost";
     public final static int DEFAULT_STATSD_PORT = 8125;
+
+    private boolean enableStatistics;
+    private int yammerStatsOutputFrequencySeconds;
+    private String yammerMetricsPrefix;
+    private String yammerCSVEndpoint;
+    private String yammerStatsDHost;
+    private int yammerStatsDPort;
 
     /**
      * Creates a new instance of the MetricsConfig class.
@@ -101,7 +101,9 @@ public class MetricsConfig extends ComponentConfig {
     /**
      * Gets a value indicating the host name (no port) where StatsD is listening.
      */
-    public String getStatsDHost() { return this.yammerStatsDHost; }
+    public String getStatsDHost() {
+        return this.yammerStatsDHost;
+    }
 
     /**
      * Gets a value indicating the port where StatsD is listening.

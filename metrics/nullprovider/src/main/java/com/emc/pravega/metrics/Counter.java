@@ -39,12 +39,15 @@ public interface Counter {
 
     /**
      * Add delta to the value associated with this stat.
-     * @param delta
+     *
+     * @param delta the delta
      */
     public void add(long delta);
 
     /**
      * Get the value associated with this stat.
+     *
+     * @return the long
      */
     public Long get();
 }

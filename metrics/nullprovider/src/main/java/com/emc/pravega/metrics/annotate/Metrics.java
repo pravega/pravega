@@ -22,7 +22,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * The interface Metric for a class
+ * The interface Metric for a class.
  */
 @Retention(RetentionPolicy.CLASS)
 @Target(ElementType.TYPE)

@@ -28,15 +28,15 @@ public interface StatsProvider {
     public void start(MetricsConfig conf);
 
     /**
-     * Close the stats provider
+     * Close the stats provider.
      */
     public void stop();
 
     /**
-     * Return the stats logger to a given <i>scope</i>
+     * Return the stats logger to a given <i>scope</i>.
      *
-     * @param scope Scope for the given stats
-     * @return stats logger for the given <i>scope</i>
+     * @param scope Scope for the given stats.
+     * @return stats logger for the given <i>scope</i>.
      */
     public StatsLogger getStatsLogger(String scope);
 }

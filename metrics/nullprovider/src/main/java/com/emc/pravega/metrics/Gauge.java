@@ -21,8 +21,21 @@ package com.emc.pravega.metrics;
  * A guage is a value that has only one value at a specific point in time.
  * An example is the number of elements in a queue. The value of T must be
  * some numeric type.
+ *
+ * @param <T> the type parameter
  */
 public interface Gauge<T extends Number> {
+    /**
+     * Gets default value.
+     *
+     * @return the default value
+     */
     public T getDefaultValue();
+
+    /**
+     * Gets sample.
+     *
+     * @return the sample
+     */
     public T getSample();
 }

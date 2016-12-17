@@ -19,8 +19,7 @@ package com.emc.pravega.metrics;
 import java.util.concurrent.TimeUnit;
 
 /**
- * This interface handles logging of statistics related to each operation (PUBLISH,
- * CONSUME etc.)
+ * This interface handles logging of statistics related to each operation (PUBLISH, CONSUME etc.).
  */
 public interface OpStatsLogger {
 
@@ -41,14 +40,14 @@ public interface OpStatsLogger {
     public void registerSuccessfulEvent(long eventLatency, TimeUnit unit);
 
     /**
-     * An operation with the given value succeeded
+     * An operation with the given value succeeded.
      *
      * @param value the value
      */
     public void registerSuccessfulValue(long value);
 
     /**
-     * An operation with the given value failed
+     * An operation with the given value failed.
      *
      * @param value the value
      */

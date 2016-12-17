@@ -17,7 +17,7 @@
 package com.emc.pravega.metrics;
 
 /**
- *  Base interface for AspectJ use case
+ *  Base interface for AspectJ use case.
  *  will declare parents : (@Metrics *) extends Profiled in AspectJ;
  */
 public interface Profiled {
