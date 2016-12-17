@@ -564,7 +564,14 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         CompletableReadResultEntry result = redirectedIndex.getFirstReadResultEntry(redirectOffset, maxLength);
         if (result != null) {
-            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset());
+            // Since this is a redirect to a (merged) Transaction, it is possible that between now and when the caller
+            // invokes the requestContent() on the entry the Transaction may be fully merged (in Tier2). If that's the
+            // case, then this entry will fail with either ObjectClosedException or StreamSegmentNotFoundException, since
+            // it is pointing to the now defunct Transaction segment. At that time, a simple retry of the read would
+            // yield the right result. However, in order to recover from this without the caller's intervention, we pass
+            // a pointer to getFirstReadResultEntry to the RedirectedReadResultEntry in case it fails with such an exception;
+            // that class has logic in it to invoke it if needed and get the right entry.
+            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(), this::getFirstReadResultEntry);
         }
 
         return result;

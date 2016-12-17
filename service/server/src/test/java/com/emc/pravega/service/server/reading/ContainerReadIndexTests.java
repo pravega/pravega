@@ -616,6 +616,8 @@ public class ContainerReadIndexTests {
         }
     }
 
+    // region Scenario-based tests
+
     /**
      * Tests the following Scenario, where the ReadIndex would either read from a bad offset or fail with an invalid offset
      * when reading in certain conditions:
@@ -667,7 +669,7 @@ public class ContainerReadIndexTests {
         // Clear the cache.
         context.cacheManager.applyCachePolicy();
 
-        // Issue read from parent.
+        // Issue read from the parent.
         ReadResult rr = context.readIndex.read(parentId, mergeOffset, transactionWriteData.length, TIMEOUT);
         Assert.assertTrue("Parent Segment read indicates no data available.", rr.hasNext());
         ByteArrayOutputStream readStream = new ByteArrayOutputStream();
@@ -678,7 +680,6 @@ public class ContainerReadIndexTests {
             Assert.assertEquals("Served read result entry is not from storage.", ReadResultEntryType.Storage, entry.getType());
 
             // Request contents and store for later use.
-            Thread.sleep(100);
             entry.requestContent(TIMEOUT);
             ReadResultEntryContents contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             byte[] readBuffer = new byte[contents.getLength()];
@@ -690,6 +691,73 @@ public class ContainerReadIndexTests {
         byte[] readData = readStream.toByteArray();
         Assert.assertArrayEquals("Unexpected data read back.", transactionWriteData, readData);
     }
+
+    /**
+     * Tests the following scenario, where the Read Index has a read from a portion in a parent segment where a transaction
+     * was just merged (fully in storage), but the read request might result in either an ObjectClosedException or
+     * StreamSegmentNotExistsException:
+     * * A Parent Segment has a Transaction with some data in it, and at least 1 byte of data not in cache.
+     * * The Transaction is begin-merged in the parent (Tier 1 only).
+     * * A Read Request is issued to the Parent for the range of data from the Transaction, which includes the 1 byte not in cache.
+     * * The Transaction is fully merged (Tier 2).
+     * * The Read Request is invoked and its content requested. This should correctly retrieve the data from the Parent
+     * Segment in Storage, and not attempt to access the now-defunct Transaction segment.
+     */
+    @Test
+    public void testConcurrentReadTransactionStorageMerge() throws Exception {
+        CachePolicy cachePolicy = new CachePolicy(1, Duration.ZERO, Duration.ofMillis(1));
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG, cachePolicy);
+
+        // Create parent segment and one transaction
+        long parentId = createSegment(0, context);
+        UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
+        long transactionId = createTransaction(parentMetadata, 1, context);
+        UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
+        createSegmentsInStorage(context);
+
+        // Write something to the transaction, and make sure it also makes its way to Storage.
+        byte[] writeData = getAppendData(transactionMetadata.getName(), transactionId, 0, 0);
+        appendSingleWrite(transactionId, writeData, context);
+        context.storage.write(transactionMetadata.getName(), 0, new ByteArrayInputStream(writeData), writeData.length, TIMEOUT).join();
+        transactionMetadata.setStorageLength(transactionMetadata.getDurableLogLength());
+
+        // Seal & Begin-merge the transaction (do not seal in storage).
+        transactionMetadata.markSealed();
+        parentMetadata.setDurableLogLength(transactionMetadata.getDurableLogLength());
+        context.readIndex.beginMerge(parentId, 0, transactionId);
+        transactionMetadata.markMerged();
+
+        // Clear the cache.
+        context.cacheManager.applyCachePolicy();
+
+        // Issue read from the parent and fetch the first entry (there should only be one).
+        ReadResult rr = context.readIndex.read(parentId, 0, writeData.length, TIMEOUT);
+        Assert.assertTrue("Parent Segment read indicates no data available.", rr.hasNext());
+        ReadResultEntry entry = rr.next();
+        Assert.assertEquals("Unexpected offset for read result entry.", 0, entry.getStreamSegmentOffset());
+        Assert.assertEquals("Served read result entry is not from storage.", ReadResultEntryType.Storage, entry.getType());
+
+        // Merge the transaction in storage & complete-merge it.
+        transactionMetadata.markSealed();
+        transactionMetadata.markSealedInStorage();
+        transactionMetadata.markDeleted();
+        context.storage.seal(transactionMetadata.getName(), TIMEOUT).join();
+        context.storage.concat(parentMetadata.getName(), 0, transactionMetadata.getName(), TIMEOUT).join();
+        parentMetadata.setStorageLength(parentMetadata.getDurableLogLength());
+
+        context.readIndex.completeMerge(parentId, transactionId);
+
+        // Attempt to extract data from the read.
+        entry.requestContent(TIMEOUT);
+        ReadResultEntryContents contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        byte[] readData = new byte[contents.getLength()];
+        StreamHelpers.readAll(contents.getData(), readData, 0, readData.length);
+
+        Assert.assertArrayEquals("Unexpected data read from parent segment.", writeData, readData);
+    }
+
+    //endregion
 
     //region Helpers
 

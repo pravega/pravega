@@ -98,6 +98,11 @@ public abstract class ReadResultEntryBase implements CompletableReadResultEntry 
         }
     }
 
+    @Override
+    public CompletionConsumer getCompletionCallback() {
+        return this.completionCallback;
+    }
+
     //endregion
 
     /**

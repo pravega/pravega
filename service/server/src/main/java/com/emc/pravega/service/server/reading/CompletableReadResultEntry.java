@@ -33,6 +33,11 @@ interface CompletableReadResultEntry extends ReadResultEntry {
      */
     void setCompletionCallback(CompletionConsumer completionCallback);
 
+    /**
+     * Gets the CompletionConsumer that was set using setCompletionCallback.
+     */
+    CompletionConsumer getCompletionCallback();
+
     @FunctionalInterface
     interface CompletionConsumer extends Consumer<Integer> {
     }
