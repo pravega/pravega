@@ -24,8 +24,6 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.mock.MockStreamManager;
 import lombok.Cleanup;
 
-import java.time.Duration;
-
 import com.emc.pravega.metrics.StatsProvider;
 import com.emc.pravega.metrics.NullStatsProvider;
 
