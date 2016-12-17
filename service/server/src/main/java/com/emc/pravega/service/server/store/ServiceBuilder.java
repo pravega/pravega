@@ -96,6 +96,7 @@ public final class ServiceBuilder implements AutoCloseable {
      * Creates a new instance of the ServiceBuilder class.
      *
      * @param serviceBuilderConfig The ServiceBuilderConfig to use.
+     * @param executorService The executor to use for backrgound tasks.
      */
     public ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(serviceBuilderConfig, "config");
@@ -337,7 +338,9 @@ public final class ServiceBuilder implements AutoCloseable {
     }
     
     /**
-     * Same as {@link #newInMemoryBuilder(ServiceBuilderConfig)} but executes non-delayed tasks inline.
+     * Same as {@link #newInMemoryBuilder(ServiceBuilderConfig)} but executes all non-delayed tasks in-line.
+     * 
+     * @param config The ServiceBuilderConfig to use.
      */
     public static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
         ServiceBuilder serviceBuilder = new ServiceBuilder(config, new InlineExecutor());
