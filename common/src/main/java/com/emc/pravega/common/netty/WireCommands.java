@@ -871,6 +871,7 @@ public final class WireCommands {
     @Data
     public static final class SegmentSealed implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_SEALED;
+        final String segment;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -878,39 +879,41 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) {
-            // TODO Auto-generated method stub
-
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) {
-            return null;
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            String segment = in.readUTF();
+            return new SealSegment(segment);
         }
     }
 
     @Data
     public static final class DeleteSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
-
+        final String segment;
+        
         @Override
         public void process(RequestProcessor cp) {
             cp.deleteSegment(this);
         }
 
         @Override
-        public void writeFields(DataOutput out) {
-            // TODO Auto-generated method stub
-
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) {
-            return null;
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            String segment = in.readUTF();
+            return new SealSegment(segment);
         }
     }
 
     @Data
     public static final class SegmentDeleted implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_DELETED;
+        final String segment;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -918,13 +921,13 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) {
-            // TODO Auto-generated method stub
-
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) {
-            return null;
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            String segment = in.readUTF();
+            return new SealSegment(segment);
         }
     }
 

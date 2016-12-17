@@ -18,36 +18,24 @@
 
 package com.emc.pravega.service.server.host.handler;
 
-import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
-import static com.emc.pravega.service.contracts.ReadResultEntryType.Cache;
-import static com.emc.pravega.service.contracts.ReadResultEntryType.EndOfStreamSegment;
-import static com.emc.pravega.service.contracts.ReadResultEntryType.Future;
-import static java.lang.Math.max;
-import static java.lang.Math.min;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-
 import com.emc.pravega.common.netty.FailingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
 import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
+import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
 import com.emc.pravega.common.netty.WireCommands.DropTransaction;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
+import com.emc.pravega.common.netty.WireCommands.SealSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
+import com.emc.pravega.common.netty.WireCommands.SegmentDeleted;
 import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
+import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
@@ -65,6 +53,22 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
 import com.google.common.base.Preconditions;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+
+import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
+import static com.emc.pravega.service.contracts.ReadResultEntryType.Cache;
+import static com.emc.pravega.service.contracts.ReadResultEntryType.EndOfStreamSegment;
+import static com.emc.pravega.service.contracts.ReadResultEntryType.Future;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -302,4 +306,27 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         });
     }
 
+    @Override
+    public void sealSegment(SealSegment sealSegment) {
+        String segment = sealSegment.getSegment();
+        CompletableFuture<Long> future = segmentStore.sealStreamSegment(segment, TIMEOUT);
+        future.thenAccept(size -> {
+            connection.send(new SegmentSealed(segment));
+        }).exceptionally(e -> {
+            handleException(segment, "Seal segment", e);
+            return null;
+        });
+    }
+
+    @Override
+    public void deleteSegment(DeleteSegment deleteSegment) {
+        String segment = deleteSegment.getSegment();
+        CompletableFuture<Void> future = segmentStore.deleteStreamSegment(segment, TIMEOUT);
+        future.thenAccept(size -> {
+            connection.send(new SegmentDeleted(segment));
+        }).exceptionally(e -> {
+            handleException(segment, "Delete segment", e);
+            return null;
+        });
+    }
 }

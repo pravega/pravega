@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.store;
 
+import com.emc.pravega.common.concurrent.InlineExecutor;
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
@@ -45,8 +46,6 @@ import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
@@ -55,6 +54,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Helps create StreamSegmentStore Instances.
@@ -85,18 +87,22 @@ public final class ServiceBuilder implements AutoCloseable {
     //endregion
 
     //region Constructor
-
+    
+    public ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig) {
+        this(serviceBuilderConfig, createExecutorService(serviceBuilderConfig.getConfig(ServiceConfig::new)));
+    }
+    
     /**
      * Creates a new instance of the ServiceBuilder class.
      *
      * @param serviceBuilderConfig The ServiceBuilderConfig to use.
      */
-    public ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig) {
+    public ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(serviceBuilderConfig, "config");
         this.serviceBuilderConfig = serviceBuilderConfig;
         ServiceConfig serviceConfig = this.serviceBuilderConfig.getConfig(ServiceConfig::new);
         this.segmentToContainerMapper = new SegmentToContainerMapper(serviceConfig.getContainerCount());
-        this.executorService = createExecutorService(serviceConfig);
+        this.executorService = executorService;
         this.operationLogFactory = new AtomicReference<>();
         this.readIndexFactory = new AtomicReference<>();
         this.dataLogFactory = new AtomicReference<>();
@@ -116,7 +122,7 @@ public final class ServiceBuilder implements AutoCloseable {
         this.cacheFactoryCreator = notConfiguredCreator(CacheFactory.class);
     }
 
-    private ScheduledExecutorService createExecutorService(ServiceConfig serviceConfig) {
+    private static ScheduledExecutorService createExecutorService(ServiceConfig serviceConfig) {
         val tf = new ThreadFactoryBuilder()
                 .setNameFormat("segment-store-%d")
                 .build();
@@ -322,6 +328,19 @@ public final class ServiceBuilder implements AutoCloseable {
      */
     public static ServiceBuilder newInMemoryBuilder(ServiceBuilderConfig config) {
         ServiceBuilder serviceBuilder = new ServiceBuilder(config);
+        return serviceBuilder
+                .withCacheFactory(setup -> new InMemoryCacheFactory())
+                .withContainerManager(setup -> new LocalSegmentContainerManager(setup.getContainerRegistry(), setup.getSegmentToContainerMapper()))
+                .withMetadataRepository(setup -> new InMemoryMetadataRepository())
+                .withStorageFactory(setup -> new InMemoryStorageFactory(setup.getExecutor()))
+                .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory());
+    }
+    
+    /**
+     * Same as {@link #newInMemoryBuilder(ServiceBuilderConfig)} but executes non-delayed tasks inline.
+     */
+    public static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
+        ServiceBuilder serviceBuilder = new ServiceBuilder(config, new InlineExecutor());
         return serviceBuilder
                 .withCacheFactory(setup -> new InMemoryCacheFactory())
                 .withContainerManager(setup -> new LocalSegmentContainerManager(setup.getContainerRegistry(), setup.getSegmentToContainerMapper()))
