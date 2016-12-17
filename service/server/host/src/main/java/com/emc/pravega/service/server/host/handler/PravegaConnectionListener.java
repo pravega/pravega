@@ -52,6 +52,7 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 
 import com.emc.pravega.metrics.StatsLogger;
+import com.emc.pravega.metrics.NullStatsProvider;
 
 /**
  * Hands off any received data from a client to the CommandProcessor.
@@ -72,6 +73,10 @@ public final class PravegaConnectionListener implements AutoCloseable {
         this.store = streamSegmentStore;
         this.statsLogger = statsLogger;
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
+    }
+
+    public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
+        this(ssl, port, streamSegmentStore, (new NullStatsProvider()).getStatsLogger(""));
     }
 
     public void startListening() {

@@ -32,9 +32,6 @@ import org.apache.curator.test.TestingServer;
 
 import java.util.concurrent.CompletableFuture;
 
-import com.emc.pravega.metrics.StatsProvider;
-import com.emc.pravega.metrics.NullStatsProvider;
-
 public class EndToEndTransactionTest {
     public static void main(String[] args) throws Exception {
         TestingServer zkTestServer = new TestingServer();
@@ -43,9 +40,8 @@ public class EndToEndTransactionTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        StatsProvider nullProvider = new NullStatsProvider();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.PORT, store, nullProvider.getStatsLogger(""));
+        PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.PORT, store);
         server.startListening();
 
         @Cleanup

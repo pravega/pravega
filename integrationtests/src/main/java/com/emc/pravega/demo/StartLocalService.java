@@ -24,9 +24,6 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.mock.MockStreamManager;
 import lombok.Cleanup;
 
-import com.emc.pravega.metrics.StatsProvider;
-import com.emc.pravega.metrics.NullStatsProvider;
-
 public class StartLocalService {
     
     static final int PORT = 9090;
@@ -38,9 +35,8 @@ public class StartLocalService {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        StatsProvider nullProvider = new NullStatsProvider();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, PORT, store, nullProvider.getStatsLogger(""));
+        PravegaConnectionListener server = new PravegaConnectionListener(false, PORT, store);
         server.startListening();
         
         @Cleanup

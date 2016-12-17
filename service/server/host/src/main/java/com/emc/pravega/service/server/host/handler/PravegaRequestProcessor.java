@@ -71,6 +71,7 @@ import com.google.common.base.Preconditions;
 import com.emc.pravega.metrics.Counter;
 import com.emc.pravega.metrics.StatsLogger;
 import com.emc.pravega.metrics.OpStatsLogger;
+import com.emc.pravega.metrics.NullStatsProvider;
 //import com.emc.pravega.metrics.annotate.Metrics;
 //import com.emc.pravega.metrics.annotate.Countered;
 //import com.emc.pravega.metrics.annotate.OpStats;
@@ -112,6 +113,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         this.readBytesStats = statsLogger.getOpStatsLogger(SEGMENT_READ_BYTES);
         this.readBytes = statsLogger.getCounter(ALL_READ_BYTES);
         readBytes.clear();
+    }
+
+    public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
+        this(segmentStore, connection, (new NullStatsProvider()).getStatsLogger(""));
     }
 
     @Override
