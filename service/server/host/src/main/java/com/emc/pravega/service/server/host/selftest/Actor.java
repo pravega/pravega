@@ -115,6 +115,8 @@ abstract class Actor extends AbstractService implements AutoCloseable {
                 } catch (Throwable ex) {
                     ex = ExceptionHelpers.getRealException(ex);
                     if (failureCause != null) {
+                        TestLogger.log(getLogId(), "Original Failure: %s.", failureCause);
+                        failureCause.printStackTrace();
                         failureCause = ex;
                     }
                 }
@@ -123,7 +125,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
             if (failureCause == null) {
                 notifyStopped();
             } else {
-                TestLogger.log(getLogId(), "Failed (%s).", failureCause);
+                TestLogger.log(getLogId(), "Failed: %s.", failureCause);
                 notifyFailed(failureCause);
             }
         });

@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.store;
 
+import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.MetadataRepository;
@@ -26,7 +27,6 @@ import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainerFactory;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
-import com.emc.pravega.service.server.SegmentToContainerMapper;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
@@ -44,9 +44,10 @@ import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
-import java.time.Duration;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -95,7 +96,7 @@ public final class ServiceBuilder implements AutoCloseable {
         this.serviceBuilderConfig = serviceBuilderConfig;
         ServiceConfig serviceConfig = this.serviceBuilderConfig.getConfig(ServiceConfig::new);
         this.segmentToContainerMapper = new SegmentToContainerMapper(serviceConfig.getContainerCount());
-        this.executorService = Executors.newScheduledThreadPool(serviceConfig.getThreadPoolSize());
+        this.executorService = createExecutorService(serviceConfig);
         this.operationLogFactory = new AtomicReference<>();
         this.readIndexFactory = new AtomicReference<>();
         this.dataLogFactory = new AtomicReference<>();
@@ -113,6 +114,13 @@ public final class ServiceBuilder implements AutoCloseable {
         this.metadataRepositoryCreator = notConfiguredCreator(MetadataRepository.class);
         this.segmentContainerManagerCreator = notConfiguredCreator(SegmentContainerManager.class);
         this.cacheFactoryCreator = notConfiguredCreator(CacheFactory.class);
+    }
+
+    private ScheduledExecutorService createExecutorService(ServiceConfig serviceConfig) {
+        val tf = new ThreadFactoryBuilder()
+                .setNameFormat("segment-store-%d")
+                .build();
+        return Executors.newScheduledThreadPool(serviceConfig.getThreadPoolSize(), tf);
     }
 
     //endregion
@@ -213,12 +221,10 @@ public final class ServiceBuilder implements AutoCloseable {
 
     /**
      * Initializes the ServiceBuilder.
-     *
-     * @param timeout Timeout for the operation.
      */
-    public CompletableFuture<Void> initialize(Duration timeout) {
+    public CompletableFuture<Void> initialize() {
         return getSingleton(this.containerManager, this.segmentContainerManagerCreator)
-                .initialize(timeout);
+                .initialize();
     }
 
     /**

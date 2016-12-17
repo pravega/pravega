@@ -258,32 +258,22 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
         void acquireLock(String clientId) throws DataLogWriterNotPrimaryException {
             Exceptions.checkNotNullOrEmpty(clientId, "clientId");
-            synchronized (this.writeLock) {
-                String existingLockOwner = this.writeLock.get();
-                if (existingLockOwner != null) {
-                    throw new DataLogWriterNotPrimaryException("Unable to acquire exclusive write lock because is already owned by " + clientId);
-                }
-
-                this.writeLock.set(clientId);
+            if (!writeLock.compareAndSet(null, clientId)) {
+                throw new DataLogWriterNotPrimaryException("Unable to acquire exclusive write lock because is already owned by " + clientId);
             }
         }
 
         void forceAcquireLock(String clientId) {
             Exceptions.checkNotNullOrEmpty(clientId, "clientId");
-            synchronized (this.writeLock) {
-                this.writeLock.set(clientId);
-            }
+            this.writeLock.set(clientId);
         }
 
         void releaseLock(String clientId) throws DataLogWriterNotPrimaryException {
             Exceptions.checkNotNullOrEmpty(clientId, "clientId");
-            synchronized (this.writeLock) {
-                String existingLockOwner = this.writeLock.get();
-                if (existingLockOwner == null || !existingLockOwner.equals(clientId)) {
-                    throw new DataLogWriterNotPrimaryException("Unable to release exclusive write lock because the current client does not own it. Current owner: " + clientId);
-                }
-
-                this.writeLock.set(null);
+            if (!writeLock.compareAndSet(clientId, null)) {
+                throw new DataLogWriterNotPrimaryException(
+                        "Unable to release exclusive write lock because the current client does not own it. Current owner: "
+                                + clientId);
             }
         }
 

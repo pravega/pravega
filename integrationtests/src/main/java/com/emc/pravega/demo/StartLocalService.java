@@ -38,7 +38,7 @@ public class StartLocalService {
     public static void main(String[] args) throws Exception {
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize(Duration.ofMinutes(1)).get();
+        serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         StatsProvider nullProvider = new NullStatsProvider();
         @Cleanup

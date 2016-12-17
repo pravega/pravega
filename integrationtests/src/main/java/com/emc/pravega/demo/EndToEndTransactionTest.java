@@ -30,7 +30,6 @@ import com.emc.pravega.stream.mock.MockStreamManager;
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 
-import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 import com.emc.pravega.metrics.StatsProvider;
@@ -42,7 +41,7 @@ public class EndToEndTransactionTest {
         ControllerWrapper controller = new ControllerWrapper(zkTestServer.getConnectString());
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize(Duration.ofMinutes(1)).get();
+        serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         StatsProvider nullProvider = new NullStatsProvider();
         @Cleanup

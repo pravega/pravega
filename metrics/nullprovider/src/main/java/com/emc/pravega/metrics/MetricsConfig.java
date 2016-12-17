@@ -43,6 +43,13 @@ public class MetricsConfig extends ComponentConfig {
     private String yammerStatsDHost;
     private int yammerStatsDPort;
 
+    public final static boolean DEFAULT_ENABLE_STATISTICS = true;
+    public final static int DEFAULT_OUTPUT_FREQUENCY = 60;
+    public final static String DEFAULT_METRICS_PREFIX = "host";
+    public final static String DEFAULT_CSV_ENDPOINT = "/tmp/csv";
+    public final static String DEFAULT_STATSD_HOST = "localhost";
+    public final static int DEFAULT_STATSD_PORT = 8125;
+
     /**
      * Creates a new instance of the MetricsConfig class.
      *
@@ -55,6 +62,12 @@ public class MetricsConfig extends ComponentConfig {
      */
     public MetricsConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
+        enableStatistics = DEFAULT_ENABLE_STATISTICS;
+        yammerStatsOutputFrequencySeconds = DEFAULT_OUTPUT_FREQUENCY;
+        yammerMetricsPrefix = DEFAULT_METRICS_PREFIX;
+        yammerCSVEndpoint = DEFAULT_CSV_ENDPOINT;
+        yammerStatsDHost = DEFAULT_STATSD_HOST;
+        yammerStatsDPort = DEFAULT_STATSD_PORT;
     }
 
     /**
@@ -100,12 +113,12 @@ public class MetricsConfig extends ComponentConfig {
 
     @Override
     protected void refresh() throws ConfigurationException {
-        this.enableStatistics = getBooleanProperty(ENABLE_STATISTICS);
-        this.yammerStatsOutputFrequencySeconds = getInt32Property(OUTPUT_FREQUENCY);
-        this.yammerMetricsPrefix = getProperty(METRICS_PREFIX);
-        this.yammerCSVEndpoint = getProperty(CSV_ENDPOINT);
-        this.yammerStatsDHost = getProperty(STATSD_HOST);
-        this.yammerStatsDPort = getInt32Property(STATSD_PORT);
+        this.enableStatistics = getBooleanProperty(ENABLE_STATISTICS, DEFAULT_ENABLE_STATISTICS);
+        this.yammerStatsOutputFrequencySeconds = getInt32Property(OUTPUT_FREQUENCY, DEFAULT_OUTPUT_FREQUENCY);
+        this.yammerMetricsPrefix = getProperty(METRICS_PREFIX, DEFAULT_METRICS_PREFIX);
+        this.yammerCSVEndpoint = getProperty(CSV_ENDPOINT, DEFAULT_CSV_ENDPOINT);
+        this.yammerStatsDHost = getProperty(STATSD_HOST, DEFAULT_STATSD_HOST);
+        this.yammerStatsDPort = getInt32Property(STATSD_PORT, DEFAULT_STATSD_PORT);
     }
 
 }

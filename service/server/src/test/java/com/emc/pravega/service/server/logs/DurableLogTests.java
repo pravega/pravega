@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -31,7 +32,6 @@ import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.OperationLog;
-import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestDurableDataLog;
@@ -519,9 +519,9 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a read operation, and make sure it is blocked (since there is no data).
         CompletableFuture<Iterator<Operation>> readFuture = durableLog.read(1, 1, shortTimeout);
-        Assert.assertFalse("read() returned a completed future when there is no data available.", readFuture.isDone());
+        Assert.assertFalse("read() returned a completed future when there is no data available.", FutureHelpers.isSuccessful(readFuture));
 
-        CompletableFuture<Void> controlFuture = FutureHelpers.delayedFuture(Duration.ofMillis((int) (shortTimeout.toMillis() * 1.2)), setup.executorService.get());
+        CompletableFuture<Void> controlFuture = FutureHelpers.delayedFuture(Duration.ofMillis(2000), setup.executorService.get());
         AssertExtensions.assertThrows(
                 "Future from read() operation did not fail with a TimeoutException after the timeout expired.",
                 () -> CompletableFuture.anyOf(controlFuture, readFuture),
@@ -610,8 +610,8 @@ public class DurableLogTests extends OperationLogTestBase {
         double diff = Math.abs(expectedInjectionCount - injectedOperationCount);
         AssertExtensions.assertLessThan(
                 String.format("Too many or too few injections were made. QueuedOps = %d, InjectedOps = %d, LogWrites = %d.", operations.size(), injectedOperationCount, totalWriteCount),
-                1,
-                (int) (10 * diff / expectedInjectionCount));
+                (int) (expectedInjectionCount * 0.1),
+                (int) diff);
 
         // Stop the processor.
         durableLog.stopAsync().awaitTerminated();

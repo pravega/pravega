@@ -22,9 +22,11 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.server.store.ServiceConfig;
 import lombok.Cleanup;
 import org.slf4j.LoggerFactory;
 
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -34,7 +36,7 @@ public class SelfTestRunner {
     public static void main(String[] args) throws Exception {
         // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        context.getLoggerList().get(0).setLevel(Level.TRACE);
+        context.getLoggerList().get(0).setLevel(Level.INFO);
         context.reset();
 
         TestConfig testConfig = getTestConfig();
@@ -55,7 +57,14 @@ public class SelfTestRunner {
     }
 
     private static ServiceBuilderConfig getBuilderConfig() {
-        return ServiceBuilderConfig.getDefaultConfig();
+        Properties p = new Properties();
+
+        // Change Number of containers and Thread Pool Size for each test.
+        ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "2");
+        ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "50");
+
+        // All component configs should have defaults built-in, so no need to override them here
+        return new ServiceBuilderConfig(p);
     }
 
     private static TestConfig getTestConfig() {
@@ -67,8 +76,8 @@ public class SelfTestRunner {
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
-                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 300)
-                           .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 50)
+                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 50)
+                           .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 150)
                            .with(TestConfig.PROPERTY_TIMEOUT_MILLIS, 3000)));
     }
 }

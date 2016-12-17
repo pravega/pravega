@@ -24,19 +24,15 @@ import com.emc.pravega.controller.task.TaskBase;
 
 import java.io.Serializable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Set of tasks for test purposes.
  */
-public class TestTasks extends TaskBase implements Cloneable {
+public class TestTasks extends TaskBase {
 
-    public TestTasks(TaskMetadataStore taskMetadataStore, String hostId) {
-        super(taskMetadataStore, hostId);
-    }
-
-    @Override
-    public TestTasks clone() throws CloneNotSupportedException {
-        return (TestTasks) super.clone();
+    public TestTasks(TaskMetadataStore taskMetadataStore, ScheduledExecutorService executor, String hostId) {
+        super(taskMetadataStore, executor, hostId);
     }
 
     @Task(name = "test", version = "1.0", resource = "{scope}/{stream}")

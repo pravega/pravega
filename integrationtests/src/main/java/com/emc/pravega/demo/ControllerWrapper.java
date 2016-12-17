@@ -19,16 +19,13 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
+import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.StoreClient;
-import com.emc.pravega.controller.store.StoreClientFactory;
-import com.emc.pravega.controller.store.host.Host;
+import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
@@ -46,29 +43,28 @@ import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.model.ModelHelper;
-import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
 import org.apache.thrift.TException;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.NavigableMap;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 public class ControllerWrapper implements Controller {
 
-    private final ControllerServiceImpl controller;
+    private final ControllerService controller;
 
     public ControllerWrapper(String connectionString) {
-        Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
-        hostContainerMap.put(new Host("localhost", StartLocalService.PORT), Sets.newHashSet(0));
-
         String hostId;
         try {
             // On each controller process restart, it gets a fresh hostId,
@@ -78,24 +74,28 @@ public class ControllerWrapper implements Controller {
             hostId = UUID.randomUUID().toString();
         }
 
-        StoreClient storeClient = StoreClientFactory.createStoreClient(
-                StoreClientFactory.StoreType.Zookeeper,
-                new StoreConfiguration(connectionString));
+        // initialize the executor service
+        ScheduledExecutorService executor = Executors.newScheduledThreadPool(20,
+                new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
-        StreamMetadataStore streamStore = StreamStoreFactory.createStore(
-                StreamStoreFactory.StoreType.Zookeeper,
-                new StoreConfiguration(connectionString));
+        CuratorFramework client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
+        client.start();
 
-        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
-                new InMemoryHostControllerStoreConfig(hostContainerMap));
+        StoreClient storeClient = new ZKStoreClient(client);
 
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient);
+        StreamMetadataStore streamStore = new ZKStreamMetadataStore(client, executor);
+
+        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
+
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
         //2) start RPC server with v1 implementation. Enable other versions if required.
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+                executor, hostId);
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
+                hostStore, taskMetadataStore, executor, hostId);
 
-        controller = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        controller = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 
     @Override
@@ -162,8 +162,8 @@ public class ControllerWrapper implements Controller {
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         Segment segment = Segment.fromQualifiedName(qualifiedSegmentName);
         try {
-            return controller.getURI(new SegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber()))
-                    .thenApply(ModelHelper::encode);
+            return controller.getURI(new SegmentId(segment.getScope(), segment.getStreamName(),
+                    segment.getSegmentNumber())).thenApply(ModelHelper::encode);
         } catch (TException e) {
             throw new RuntimeException(e);
         }

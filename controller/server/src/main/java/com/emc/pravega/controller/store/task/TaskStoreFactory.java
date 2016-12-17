@@ -21,16 +21,19 @@ import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import org.apache.commons.lang.NotImplementedException;
 
+import java.util.concurrent.ScheduledExecutorService;
+
 /**
  * Task store factory.
  */
 public class TaskStoreFactory {
 
-    public static TaskMetadataStore createStore(StoreClient storeClient) {
+    public static TaskMetadataStore createStore(StoreClient storeClient, ScheduledExecutorService executor) {
         switch (storeClient.getType()) {
             case Zookeeper:
-                return new ZKTaskMetadataStore((ZKStoreClient) storeClient);
+                return new ZKTaskMetadataStore((ZKStoreClient) storeClient, executor);
             case InMemory:
+                return new InMemoryTaskMetadataStore(executor);
             case ECS:
             case S3:
             case HDFS:

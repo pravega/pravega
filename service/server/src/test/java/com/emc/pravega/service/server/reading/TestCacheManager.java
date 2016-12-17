@@ -24,10 +24,6 @@ import java.util.concurrent.ScheduledExecutorService;
  * Exposes the applyCachePolicy method in the CacheManager.
  */
 class TestCacheManager extends CacheManager {
-    TestCacheManager(CachePolicy policy) {
-        this(policy, null);
-    }
-
     TestCacheManager(CachePolicy policy, ScheduledExecutorService executorService) {
         super(policy, executorService);
     }

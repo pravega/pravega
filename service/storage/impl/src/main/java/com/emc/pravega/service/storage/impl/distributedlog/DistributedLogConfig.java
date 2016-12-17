@@ -33,6 +33,11 @@ public class DistributedLogConfig extends ComponentConfig {
     public static final String PROPERTY_HOSTNAME = "hostname";
     public static final String PROPERTY_PORT = "port";
     public static final String PROPERTY_NAMESPACE = "namespace";
+
+    private static final String DEFAULT_HOSTNAME = "zk1";
+    private static final int DEFAULT_PORT = 2181;
+    private static final String DEFAULT_NAMESPACE = "messaging/distributedlog/mynamespace";
+
     private String distributedLogHost;
     private int distributedLogPort;
     private String distributedLogNamespace;
@@ -86,9 +91,9 @@ public class DistributedLogConfig extends ComponentConfig {
 
     @Override
     protected void refresh() throws ConfigurationException {
-        this.distributedLogHost = getProperty(PROPERTY_HOSTNAME);
-        this.distributedLogPort = getInt32Property(PROPERTY_PORT);
-        this.distributedLogNamespace = getProperty(PROPERTY_NAMESPACE);
+        this.distributedLogHost = getProperty(PROPERTY_HOSTNAME, DEFAULT_HOSTNAME);
+        this.distributedLogPort = getInt32Property(PROPERTY_PORT, DEFAULT_PORT);
+        this.distributedLogNamespace = getProperty(PROPERTY_NAMESPACE, DEFAULT_NAMESPACE);
     }
 
     //endregion

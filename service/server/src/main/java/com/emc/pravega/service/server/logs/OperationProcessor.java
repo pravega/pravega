@@ -133,6 +133,11 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
         closeQueue(null);
     }
 
+    @Override
+    protected String serviceName() {
+        return String.format("operation-processor-%d", this.metadataUpdater.getContainerId());
+    }
+
     //endregion
 
     //region Container Implementation
@@ -182,7 +187,6 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
      * @throws InterruptedException    If the current thread has been interrupted (externally).
      * @throws DataCorruptionException If an invalid state of the Log or Metadata has been detected (which usually indicates corruption).
      */
-
     private void runOnce() throws DataCorruptionException, InterruptedException {
         List<CompletableOperation> operations = this.operationQueue.takeAllEntries();
         log.debug("{}: RunOnce (OperationCount = {}).", this.traceObjectId, operations.size());
