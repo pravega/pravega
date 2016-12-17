@@ -22,11 +22,11 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * The interface Metric Gauge.
+ * The interface Metric Counter.
  */
 @Retention(RetentionPolicy.CLASS)
 @Target(ElementType.METHOD)
-public @interface Gauge {
+public @interface Countered {
     /**
      * The metricName.
      */

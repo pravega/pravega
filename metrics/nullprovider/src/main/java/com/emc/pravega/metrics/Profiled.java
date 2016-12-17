@@ -14,21 +14,12 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.emc.pravega.metrics.annotate;
-
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+package com.emc.pravega.metrics;
 
 /**
- * The interface Metric Counter.
+ *  Base interface for AspectJ use case
+ *  will declare parents : (@Metrics *) extends Profiled in AspectJ;
  */
-@Retention(RetentionPolicy.CLASS)
-@Target(ElementType.METHOD)
-public @interface Counter {
-    /**
-     * The metricName.
-     */
-    String name();
+public interface Profiled {
+
 }
