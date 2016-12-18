@@ -16,12 +16,9 @@
  */
 package com.emc.pravega.metrics;
 
-import java.net.InetSocketAddress;
-
 import com.codahale.metrics.CsvReporter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.ScheduledReporter;
-import com.codahale.metrics.Slf4jReporter;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import static com.codahale.metrics.MetricRegistry.name;

@@ -33,7 +33,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.lang.System;
 import java.util.concurrent.TimeUnit;
 
 import com.emc.pravega.common.netty.FailingRequestProcessor;
@@ -97,11 +96,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private final ServerConnection connection;
 
     private final StatsLogger statsLogger;
-    final OpStatsLogger createStreamSegmentStats;
-    final OpStatsLogger deleteStreamSegmentStats;
-    final OpStatsLogger readStreamSegmentStats;
-    final OpStatsLogger readBytesStats;
-    final Counter readBytes;
+    private final OpStatsLogger createStreamSegmentStats;
+    private final OpStatsLogger deleteStreamSegmentStats;
+    private final OpStatsLogger readStreamSegmentStats;
+    private final OpStatsLogger readBytesStats;
+    private final Counter readBytes;
 
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, StatsLogger statsLogger) {
         this.segmentStore = segmentStore;
@@ -126,11 +125,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength())); 
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {
-            readStreamSegmentStats.registerSuccessfulEvent((System.nanoTime() - startTime), TimeUnit.NANOSECONDS);
+            readStreamSegmentStats.registerSuccessfulEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
             handleReadResult(readSegment, t);
             return null;
         }).exceptionally((Throwable t) -> {
-            readStreamSegmentStats.registerFailedEvent((System.nanoTime() - startTime), TimeUnit.NANOSECONDS);
+            readStreamSegmentStats.registerFailedEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
             handleException(segment, "Read segment", t);
             return null;
         });
@@ -267,11 +266,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         long startTime = System.nanoTime();
         CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), TIMEOUT);
         future.thenApply((Void v) -> {
-            createStreamSegmentStats.registerSuccessfulEvent((System.nanoTime() - startTime), TimeUnit.NANOSECONDS);
+            createStreamSegmentStats.registerSuccessfulEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
             connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
             return null;
         }).exceptionally((Throwable e) -> {
-            createStreamSegmentStats.registerFailedEvent((System.nanoTime() - startTime), TimeUnit.NANOSECONDS);
+            createStreamSegmentStats.registerFailedEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
             handleException(createStreamsSegment.getSegment(), "Create segment", e);
             return null;
         });
@@ -338,7 +337,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(dropTx.getSegment(), dropTx.getTxid());
         CompletableFuture<Void> future = segmentStore.deleteStreamSegment(transactionName, TIMEOUT);
         future.thenApply((Void v) -> {
-            deleteStreamSegmentStats.registerSuccessfulEvent((System.nanoTime() - startTime), TimeUnit.NANOSECONDS);
+            deleteStreamSegmentStats.registerSuccessfulEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
             connection.send(new TransactionDropped(dropTx.getSegment(), dropTx.getTxid()));
             return null;
         }).exceptionally((Throwable e) -> {
@@ -347,7 +346,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             } else {
                 handleException(transactionName, "Drop transaction", e);
             }
-            deleteStreamSegmentStats.registerFailedEvent((System.nanoTime() - startTime), TimeUnit.NANOSECONDS);
+            deleteStreamSegmentStats.registerFailedEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
             return null;
         });
     }

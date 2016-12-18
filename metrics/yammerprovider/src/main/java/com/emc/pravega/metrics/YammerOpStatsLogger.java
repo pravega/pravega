@@ -60,11 +60,11 @@ class YammerOpStatsLogger implements OpStatsLogger {
         Snapshot s = success.getSnapshot();
         double avgLatencyMillis = s.getMean();
 
-        double[] default_percentiles = {10, 50, 90, 99, 99.9, 99.99};
-        long[] latenciesMillis = new long[default_percentiles.length];
+        double[] defaultPercentiles = {10, 50, 90, 99, 99.9, 99.99};
+        long[] latenciesMillis = new long[defaultPercentiles.length];
         Arrays.fill(latenciesMillis, Long.MAX_VALUE);
-        for (int i = 0; i < default_percentiles.length; i++) {
-            latenciesMillis[i] = (long)s.getValue(default_percentiles[i]/100);
+        for (int i = 0; i < defaultPercentiles.length; i++) {
+            latenciesMillis[i] = (long) s.getValue(defaultPercentiles[i] / 100);
         }
         return new OpStatsData(numSuccess, numFailed, avgLatencyMillis, latenciesMillis);
     }
