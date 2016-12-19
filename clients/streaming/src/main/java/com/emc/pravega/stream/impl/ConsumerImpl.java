@@ -17,6 +17,7 @@ import com.emc.pravega.stream.ConsumerConfig;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
@@ -68,7 +69,8 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
                     .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
             positions.putAll(completedSegments);
             Position position = new PositionImpl(positions, futureOwnedSegments);
-            return new EventReadImpl<>(0, result, position, segmentId, offset, result == null);
+            Sequence eventSequence = new Sequence(segmentId.getSegmentNumber(), offset);
+            return new EventReadImpl<>(eventSequence, result, position, segmentId, offset, result == null);
         }
     }
 
