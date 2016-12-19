@@ -20,12 +20,16 @@ package com.emc.pravega.service.server.host.selftest;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.FileAppender;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import lombok.Cleanup;
+import lombok.val;
 import org.slf4j.LoggerFactory;
 
 import java.util.Properties;
@@ -35,12 +39,10 @@ import java.util.concurrent.TimeUnit;
  * Main entry point for Self Tester.
  */
 public class SelfTestRunner {
-    public static void main(String[] args) throws Exception {
-        // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
-        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        context.getLoggerList().get(0).setLevel(Level.INFO);
-        context.reset();
+    private static final String LOG_PATH = "/tmp/pravega/selftest.log";
 
+    public static void main(String[] args) throws Exception {
+        setupLogging();
         TestConfig testConfig = getTestConfig();
         ServiceBuilderConfig builderConfig = getBuilderConfig();
 
@@ -89,5 +91,27 @@ public class SelfTestRunner {
                            .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 50)
                            .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 150)
                            .with(TestConfig.PROPERTY_TIMEOUT_MILLIS, 3000)));
+    }
+
+    private static void setupLogging() {
+        // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
+        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        context.getLoggerList().get(0).detachAndStopAllAppenders();
+
+        val fa = new FileAppender<ILoggingEvent>();
+        fa.setContext(context);
+        fa.setName("selftest");
+        fa.setFile(LOG_PATH);
+
+        val encoder = new PatternLayoutEncoder();
+        encoder.setContext(context);
+        encoder.setPattern("%date{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %level - %msg%n");
+        encoder.start();
+        fa.setEncoder(encoder);
+        fa.start();
+
+        context.getLoggerList().get(0).addAppender(fa);
+        context.getLoggerList().get(0).setLevel(Level.WARN);
+        //context.reset();
     }
 }

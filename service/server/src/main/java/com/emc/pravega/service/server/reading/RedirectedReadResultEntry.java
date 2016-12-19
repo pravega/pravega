@@ -30,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -43,11 +44,14 @@ import java.util.function.BiFunction;
 class RedirectedReadResultEntry implements CompletableReadResultEntry {
     //region Members
 
-    private static final Duration RETRY_TIMEOUT = Duration.ofSeconds(30); // TODO: this can't be obtained if the failure is in getContent().
+    private static final Duration RETRY_TIMEOUT = Duration.ofSeconds(30); // TODO: these two should either be dynamic or configurable.
+    private static final Duration EXCEPTION_DELAY = Duration.ofMillis(1000);
     private final AtomicReference<CompletableReadResultEntry> baseEntry;
     private final AtomicLong adjustedOffset;
-    private final BiFunction<Long, Integer, CompletableReadResultEntry> retryGetEntry;
+    private final GetEntry retryGetEntry;
     private final AtomicBoolean firstAttempt;
+    private final ScheduledExecutorService executorService;
+    private final AtomicReference<CompletableFuture<ReadResultEntryContents>> result;
 
     //endregion
 
@@ -58,14 +62,19 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
      *
      * @param baseEntry        The CompletableReadResultEntry to wrap.
      * @param offsetAdjustment The amount to adjust the offset by.
+     * @param retryGetEntry    A BiFunction to invoke when needing to retry an entry. First argument: offset, Second: length.
+     * @param executorService  An executor service to execute background operations on.
      */
-    RedirectedReadResultEntry(CompletableReadResultEntry baseEntry, long offsetAdjustment, BiFunction<Long, Integer, CompletableReadResultEntry> retryGetEntry) {
+    RedirectedReadResultEntry(CompletableReadResultEntry baseEntry, long offsetAdjustment, GetEntry retryGetEntry, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(baseEntry, "baseEntry");
         Preconditions.checkNotNull(retryGetEntry, "retryGetEntry");
+        Preconditions.checkNotNull(executorService, "executorService");
         this.baseEntry = new AtomicReference<>(baseEntry);
         this.adjustedOffset = new AtomicLong(baseEntry.getStreamSegmentOffset() + offsetAdjustment);
         Preconditions.checkArgument(this.adjustedOffset.get() >= 0, "Given offset adjustment would result in a negative offset.");
         this.retryGetEntry = retryGetEntry;
+        this.executorService = executorService;
+        this.result = new AtomicReference<>();
         this.firstAttempt = new AtomicBoolean(true);
     }
 
@@ -90,38 +99,26 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
 
     @Override
     public CompletableFuture<ReadResultEntryContents> getContent() {
+        // We need to make sure we return the same CompletableFuture instance with every call to this method.
         if (FutureHelpers.isSuccessful(this.baseEntry.get().getContent())) {
             // Current base entry already has data available.
-            return this.baseEntry.get().getContent();
+            if (this.result.get() == null) {
+                return this.baseEntry.get().getContent();
+            } else {
+                // Someone else might be waiting on us.
+                this.result.get().complete(this.baseEntry.get().getContent().join());
+            }
+        } else {
+            // Current base entry is not yet done (or is, and is unsuccessful).
+            if (this.result.get() == null) {
+                this.result.set(new CompletableFuture<>());
+
+                // Connect the current base entry to our result.
+                linkBaseEntryToResult();
+            }
         }
 
-        CompletableFuture<ReadResultEntryContents> result = new CompletableFuture<>();
-        this.baseEntry
-                .get().getContent()
-                .thenAccept(result::complete) // Current baseEntry finished up fine; complete the result.
-                .exceptionally(ex -> {
-                    // Attempt to handle & switch, and tie the outcome to the result we are returning.
-                    ex = ExceptionHelpers.getRealException(ex);
-                    boolean success;
-                    try {
-                        success = handle(ex, RETRY_TIMEOUT);
-                    } catch (Throwable ex2) {
-                        ex.addSuppressed(ex2);
-                        success = false;
-                    }
-
-                    if (success) {
-                        // We were able to switch; tie the outcome of our result to the outcome of the new entry's getContent().
-                        this.baseEntry.get().getContent().whenComplete((r, ex2) -> FutureHelpers.complete(result, r, ex2));
-                    } else {
-                        // Unable to switch.
-                        result.completeExceptionally(ex);
-                    }
-
-                    return null;
-                });
-
-        return result;
+        return this.result.get();
     }
 
     @Override
@@ -151,6 +148,36 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     //region Helpers
 
     /**
+     * Connects the current base entry to this ResultEntry's result (returned from getContent).
+     */
+    private void linkBaseEntryToResult() {
+        if (this.result.get() == null) {
+            return;
+        }
+
+        this.baseEntry
+                .get().getContent()
+                .thenAccept(this.result.get()::complete) // Current baseEntry finished up fine; complete the result.
+                .exceptionally(ex -> {
+                    // Attempt to handle & switch, and tie the outcome to the result we are returning.
+                    // Some exceptions may require a delay before retrying (i.e. StreamSegmentNotFoundException).
+                    // This is because, when transactions are merged, they are first deleted and then the ReadIndex
+                    // is updated with the fact. If we were unlucky enough to request an entry right between these two
+                    // events, then we need to wait until the ReadIndex is updated. The best way, using the data available
+                    // is to retry after some time (the ReadIndex cannot be updated before the concat happens in Storage,
+                    // nor can it be done at the same time).
+                    FutureHelpers.delayedFuture(getExceptionDelay(ex), this.executorService)
+                                 .thenAccept(v -> handleGetContentFailure(ex));
+                    return null;
+                });
+    }
+
+    protected Duration getExceptionDelay(Throwable ex) {
+        boolean requiresDelay = this.firstAttempt.get() && ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException;
+        return requiresDelay ? EXCEPTION_DELAY : Duration.ZERO;
+    }
+
+    /**
      * Handles an exception that was caught. If this is the first exception ever caught, and it is eligible for retries,
      * then this method will invoke the retryGetEntry that was passed through the constructor to get a new base entry.
      * If that succeeds, the existing base entry is replaced with the result (and internal state is updated).
@@ -163,6 +190,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
      * @return True if the exception was handled properly and the base entry swapped, false otherwise.
      */
     private boolean handle(Throwable ex, Duration timeout) {
+        // TODO: in theory this could be outsourced to the Retry class (but it's complicated due to the use of requestContent and getContent).
         ex = ExceptionHelpers.getRealException(ex);
         if (this.firstAttempt.getAndSet(false) && isRetryable(ex)) {
             CompletableReadResultEntry oldEntry = this.baseEntry.get();
@@ -177,6 +205,45 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
         return false;
     }
 
+    private void handleGetContentFailure(Throwable ex) {
+        ex = ExceptionHelpers.getRealException(ex);
+        boolean success;
+        try {
+            success = handle(ex, RETRY_TIMEOUT);
+        } catch (Throwable ex2) {
+            ex.addSuppressed(ex2);
+            success = false;
+        }
+
+        if (success) {
+            // We were able to switch; tie the outcome of our result to the outcome of the new entry's getContent().
+            linkBaseEntryToResult();
+        } else {
+            // Unable to switch.
+            this.result.get().completeExceptionally(ex);
+        }
+    }
+
+    /**
+     * Switches the base entry with the given entry.
+     *
+     * @param newEntry The new entry to switch to.
+     */
+    private void switchBase(CompletableReadResultEntry newEntry) {
+        // Validations.
+        assert newEntry.getStreamSegmentOffset() == this.baseEntry.get().getStreamSegmentOffset() : "new entry does not have the same StreamSegmentOffset";
+        assert newEntry.getRequestedReadLength() == this.baseEntry.get().getRequestedReadLength() : "new entry does not have the same RequestedReadLength";
+        log.trace("Replaced {} with {} due to retryable exception being caught.", this.baseEntry.get(), newEntry);
+
+        // Do the swap.
+        newEntry.setCompletionCallback(this.baseEntry.get().getCompletionCallback());
+        this.baseEntry.set(newEntry);
+        this.adjustedOffset.set(newEntry.getStreamSegmentOffset());
+
+        // Connect the new base entry to our result.
+        linkBaseEntryToResult();
+    }
+
     /**
      * Determines whether the given exception is retryable.
      *
@@ -188,24 +255,14 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
                 || ex instanceof StreamSegmentNotExistsException; // Transaction Segment has already been deleted.
     }
 
-    /**
-     * Switches the base entry with the given entry.
-     *
-     * @param newEntry The new entry to switch to.
-     */
-    private void switchBase(CompletableReadResultEntry newEntry) {
-        assert newEntry.getStreamSegmentOffset() == this.baseEntry.get().getStreamSegmentOffset() : "new entry does not have the same StreamSegmentOffset";
-        assert newEntry.getRequestedReadLength() == this.baseEntry.get().getRequestedReadLength() : "new entry does not have the same RequestedReadLength";
-        log.trace("Replaced {} with {} due to retryable exception being caught.", this.baseEntry.get(), newEntry);
-        newEntry.setCompletionCallback(this.baseEntry.get().getCompletionCallback());
-        this.baseEntry.set(newEntry);
-        this.adjustedOffset.set(newEntry.getStreamSegmentOffset());
-    }
-
     @Override
     public String toString() {
         return String.format("%s, AdjustedOffset = %s", this.baseEntry, this.adjustedOffset);
     }
 
     //endregion
+
+    @FunctionalInterface
+    public interface GetEntry extends BiFunction<Long, Integer, CompletableReadResultEntry> {
+    }
 }

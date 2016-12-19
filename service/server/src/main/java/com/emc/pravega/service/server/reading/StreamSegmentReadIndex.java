@@ -41,7 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -67,6 +67,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private final HashMap<Long, Long> mergeOffsets; //Key = StreamSegmentId (Merged), Value = Merge offset.
     private final StorageReader storageReader;
     private final ReadIndexSummary summary;
+    private final ScheduledExecutorService executor;
     private SegmentMetadata metadata;
     private long lastAppendedOffset;
     private boolean recoveryMode;
@@ -84,10 +85,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param metadata The StreamSegmentMetadata to use.
      * @throws NullPointerException If any of the arguments are null.
      */
-    StreamSegmentReadIndex(ReadIndexConfig config, SegmentMetadata metadata, Cache cache, ReadOnlyStorage storage, Executor executor, boolean recoveryMode) {
+    StreamSegmentReadIndex(ReadIndexConfig config, SegmentMetadata metadata, Cache cache, ReadOnlyStorage storage, ScheduledExecutorService executor, boolean recoveryMode) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(cache, "cache");
+        Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("ReadIndex[%d-%d]", metadata.getContainerId(), metadata.getId());
         this.config = config;
@@ -99,6 +101,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         this.mergeOffsets = new HashMap<>();
         this.lastAppendedOffset = -1;
         this.storageReader = new StorageReader(metadata, storage, executor);
+        this.executor = executor;
         this.summary = new ReadIndexSummary();
     }
 
@@ -169,6 +172,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     //endregion
 
     //region Properties
+
+    @Override
+    public String toString() {
+        return String.format("%s (%s)", this.traceObjectId, this.metadata.getName());
+    }
 
     /**
      * Gets a value indicating whether this Read Index is merged into another one.
@@ -571,7 +579,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             // yield the right result. However, in order to recover from this without the caller's intervention, we pass
             // a pointer to getFirstReadResultEntry to the RedirectedReadResultEntry in case it fails with such an exception;
             // that class has logic in it to invoke it if needed and get the right entry.
-            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(), this::getFirstReadResultEntry);
+            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(), this::getFirstReadResultEntry, this.executor);
         }
 
         return result;
@@ -635,7 +643,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private void queueStorageRead(long offset, int length, Consumer<ReadResultEntryContents> successCallback, Consumer<Throwable> failureCallback, Duration timeout) {
         // Create a callback that inserts into the ReadIndex (and cache) and invokes the success callback.
         Consumer<StorageReader.Result> doneCallback = result -> {
-            System.out.println(String.format("[%s]%s: ReadIndex.StorageRead(complete) N=%s, M=%s, D=%s, O=%s, L=%s", Thread.currentThread().getName(), this.traceObjectId, this.metadata.getName(), this.metadata.isMerged(), this.metadata.isDeleted(), offset, result.getData().getLength()));
             ByteArraySegment data = result.getData();
             if (!result.isDerived()) {
                 // Only insert primary results into the cache. Derived results are always sub-portions of primaries
@@ -649,7 +656,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // Queue the request for async processing.
         length = getReadAlignedLength(offset, length);
 
-        System.out.println(String.format("[%s]%s: ReadIndex.StorageRead(begin) N=%s, M=%s, D=%s, O=%s", Thread.currentThread().getName(), this.traceObjectId, this.metadata.getName(), this.metadata.isMerged(), this.metadata.isDeleted(), offset));
         this.storageReader.execute(new StorageReader.Request(offset, length, doneCallback, failureCallback, timeout));
     }
 

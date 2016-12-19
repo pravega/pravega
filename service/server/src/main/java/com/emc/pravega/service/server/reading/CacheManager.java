@@ -198,7 +198,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
             }
             totalSizeReduction += sizeReduction;
         } while (sizeReduction > 0 && oldestChanged);
-        System.out.println(String.format("%s: Status=%s, Trimmed=%s", TRACE_OBJECT_ID, currentStatus, totalSizeReduction));
+        System.out.println(String.format("%s: Status=%s, Trimmed=%s, Clients=%s", TRACE_OBJECT_ID, currentStatus, totalSizeReduction, this.clients.size()));
     }
 
     private CacheStatus collectStatus() {

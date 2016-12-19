@@ -252,7 +252,7 @@ class StorageWriter extends AbstractService implements Writer {
                             // TimeoutExceptions are acceptable for Reads. In that case we just return null as opposed from
                             // killing the entire Iteration. Even if we were unable to read, we may still need to flush
                             // in this iteration or do other tasks.
-                            log.warn("{}: Iteration[{}] No items were read during allotted timeout of {}ms", this.traceObjectId, this.state.getIterationId(), readTimeout.toMillis());
+                            log.debug("{}: Iteration[{}] No items were read during allotted timeout of {}ms", this.traceObjectId, this.state.getIterationId(), readTimeout.toMillis());
                             return null;
                         } else {
                             throw new CompletionException(ex);
@@ -475,9 +475,9 @@ class StorageWriter extends AbstractService implements Writer {
 
     private void logStageEvent(String stageName, Object result) {
         if (result == null) {
-            log.debug("{}: Iteration[{}].{}.", this.traceObjectId, this.state.getIterationId(), stageName);
+            log.warn("{}: Iteration[{}].{}.", this.traceObjectId, this.state.getIterationId(), stageName);
         } else {
-            log.debug("{}: Iteration[{}].{} ({}).", this.traceObjectId, this.state.getIterationId(), stageName, result);
+            log.warn("{}: Iteration[{}].{} ({}).", this.traceObjectId, this.state.getIterationId(), stageName, result);
         }
         //System.out.println(String.format("%s: Iteration[%s].%s (%s).", this.traceObjectId, this.state.getIterationId(), stageName, result));
     }
