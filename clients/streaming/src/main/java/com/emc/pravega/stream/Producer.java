@@ -23,6 +23,8 @@ import java.util.concurrent.Future;
 /**
  * A producer can publish events to a stream.
  * 
+ * This class is safe to use across threads, but doing so will not increase performance.
+ * 
  * @param <Type> The type of events that go in this stream
  */
 public interface Producer<Type> extends AutoCloseable {

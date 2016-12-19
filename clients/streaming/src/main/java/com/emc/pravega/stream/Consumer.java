@@ -21,6 +21,8 @@ import com.emc.pravega.stream.impl.EventReadImpl;
 
 /**
  * A consumer for a stream.
+ * 
+ * This class is safe to use across threads, but doing so will not increase performance.
  *
  * @param <T> The type of events being sent through this stream.
  */
