@@ -33,7 +33,7 @@ import javax.el.ELProcessor;
 
 
 public aspect MetricsAspect
-                pertypewithin (@Metrics *)
+              pertypewithin (@Metrics *)
 {
 
     declare parents : (@Metrics *) extends Profiled;
@@ -43,16 +43,17 @@ public aspect MetricsAspect
 
     pointcut profiled(Profiled object) : execution(Profiled+.new(..)) && this(object);
 
-    // use after, so statsLogger fields has values already.
+    // Use after, so statsLogger fields has values already.
+    // currently support one method with one counter.
     after(Profiled object) : profiled(object)  {
         for (Method method : object.getClass().getDeclaredMethods()) {
             if (method.isAnnotationPresent(Countered.class)) {
                 // TODO: 1. need add try catch for error usage, e.g. no statsLogger in class
-                // 2. handle mutiple counter usecase. java1.8 support this. call getAnnotationsByType to get a array
                 StatsLogger statsLogger = object.getClass().getDeclaredField("statsLogger").get(StatsLogger);
+                System.out.println("statsLogger, name is:" + statsLogger);
                 String counterName = method.getAnnotation(Countered.class).name();
                 Counter counter = newCounterFromAnnotation(statsLogger, counterName);
-                object.counters.put((method.getName() + counterName), counter);
+                object.counters.put(method.getName() + counterName, counter);
                 System.out.println("get a @Countered annotation, name is:" + counterName);
             }
         }
@@ -63,18 +64,28 @@ public aspect MetricsAspect
         return statsLogger.getCounter(counterName);
     }
 
-    // when call counter(name).add(value); should replace it with counter added by this method
-    pointcut countered(Profiled object) : execution(@Countered * Profiled+.*(..)) && this(object) && call(counter(*));
+    private void Profiled.counterAdd(long value) {
+        System.out.println("enter Profiled.counterAdd(value), value : " + value);
+    }
 
-    // or how to define a getcounter() method.
+    // when call counterAdd(value); should replace it with counter added by this method, and the aspect
+    pointcut countered(Profiled object) : execution(@Countered * Profiled+.*(..)) && this(object) && call(counterAdd(*));
 
-    Object around(Profiled object) : timed(object) {
-        Timer timer = object.timers.get(thisJoinPoint.getSignature().getName());
-        Timer.Context context = timer.time();
-        try {
-            return proceed(object);
-        } finally {
-            context.stop();
+    Object around(Profiled object) : countered(object) {
+        MethodSignature signature = (MethodSignature)thisJoinPoint.getSignature();
+        Method method = signature.getMethod();
+        String counterName = method.getAnnotation(Countered.class).name();
+        Counter counter = object.counters.get(method.getName() + counterName);
+
+        System.out.println("In method to be countered, methodName: " + method.getName() + " counterName" + counterName);
+        System.out.println("joinpoint args: " + thisJoinPoint.getArgs());
+
+        Object[] arguments = pjp.getArgs();
+        for (Object object : arguments) {
+            System.out.println("method args is : " + object)
         }
+        long value = (thisJoinPoint.getArgs())[0];
+        counter.add(value);
+        return null;
     }
 }
