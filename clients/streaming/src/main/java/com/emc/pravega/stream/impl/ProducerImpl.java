@@ -20,7 +20,7 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
@@ -193,7 +193,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         }
 
         @Override
-        public void publish(String routingKey, Type event) throws TxFailedException {
+        public void publish(String routingKey, Type event) throws TxnFailedException {
             Preconditions.checkState(!closed.get());
             Segment s = router.getSegmentForEvent(routingKey);
             SegmentTransaction<Type> transaction = inner.get(s);
@@ -201,11 +201,11 @@ public class ProducerImpl<Type> implements Producer<Type> {
         }
 
         @Override
-        public void commit() throws TxFailedException {
+        public void commit() throws TxnFailedException {
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.flush();
             }
-            FutureHelpers.getAndHandleExceptions(controller.commitTransaction(stream, txId), TxFailedException::new);
+            FutureHelpers.getAndHandleExceptions(controller.commitTransaction(stream, txId), TxnFailedException::new);
             closed.set(true);
         }
 
@@ -221,7 +221,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         }
 
         @Override
-        public void flush() throws TxFailedException {
+        public void flush() throws TxnFailedException {
             Preconditions.checkState(!closed.get());
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.flush();

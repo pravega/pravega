@@ -27,7 +27,7 @@ import com.emc.pravega.stream.ConsumerConfig;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.testcommon.AssertExtensions;
@@ -67,7 +67,7 @@ public class TransactionTest {
     }
 
     @Test
-    public void testTransactionalWritesOrderedCorrectly() throws TxFailedException {
+    public void testTransactionalWritesOrderedCorrectly() throws TxnFailedException {
         int readTimeout = 5000;
         String endpoint = "localhost";
         String streamName = "abc";
@@ -130,7 +130,7 @@ public class TransactionTest {
     }
     
     @Test
-    public void testDoubleCommit() throws TxFailedException {
+    public void testDoubleCommit() throws TxnFailedException {
         String endpoint = "localhost";
         String streamName = "abc";
         int port = TestUtils.randomPort();
@@ -147,11 +147,11 @@ public class TransactionTest {
         Transaction<String> transaction = producer.beginTransaction(60000);
         transaction.publish(routingKey, event);
         transaction.commit();
-        AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit() );    
+        AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit() );    
     }
     
     @Test
-    public void testDrop() throws TxFailedException {
+    public void testDrop() throws TxnFailedException {
         String endpoint = "localhost";
         String streamName = "abc";
         int port = TestUtils.randomPort();
@@ -173,7 +173,7 @@ public class TransactionTest {
         transaction.drop();
         transaction.drop();
         AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.publish(routingKey, txnEvent));
-        AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit());
+        AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit());
         
         Consumer<Serializable> consumer = clientFactory.createConsumer(streamName,
                                                                        new JavaSerializer<>(),

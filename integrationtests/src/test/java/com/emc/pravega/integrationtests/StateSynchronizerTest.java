@@ -19,7 +19,7 @@ import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.state.examples.SetSynchronizer;
-import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.testcommon.Async;
 import com.emc.pravega.testcommon.TestUtils;
@@ -59,7 +59,7 @@ public class StateSynchronizerTest {
     }
 
     @Test(timeout = 30000)
-    public void testStateTracker() throws TxFailedException {
+    public void testStateTracker() throws TxnFailedException {
         String endpoint = "localhost";
         String stateName = "abc";
         int port = TestUtils.randomPort();

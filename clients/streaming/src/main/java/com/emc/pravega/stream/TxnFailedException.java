@@ -21,23 +21,23 @@ package com.emc.pravega.stream;
  * A transaction has failed. Usually because of it timed out or someone called
  * {@link Transaction#drop()}
  */
-public class TxFailedException extends Exception {
+public class TxnFailedException extends Exception {
 
     private static final long serialVersionUID = 1L;
 
-    public TxFailedException() {
+    public TxnFailedException() {
         super();
     }
 
-    public TxFailedException(Throwable e) {
+    public TxnFailedException(Throwable e) {
         super(e);
     }
 
-    public TxFailedException(String msg, Throwable e) {
+    public TxnFailedException(String msg, Throwable e) {
         super(msg, e);
     }
 
-    public TxFailedException(String msg) {
+    public TxnFailedException(String msg) {
         super(msg);
     }
 }

@@ -27,7 +27,7 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.TxnFailedException;
 
 import java.util.List;
 import java.util.UUID;
@@ -78,7 +78,7 @@ public interface Controller {
 
     /**
      * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}.
-     * Will fail with {@link TxFailedException} if the transaction has already been committed or aborted.
+     * Will fail with {@link TxnFailedException} if the transaction has already been committed or aborted.
      * @param stream stream name
      * @param txId transaction id
      * @return

@@ -48,7 +48,7 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.PositionImpl;
@@ -142,7 +142,7 @@ public class MockController implements Controller {
 
             @Override
             public void transactionAborted(TransactionAborted transactionAborted) {
-                result.completeExceptionally(new TxFailedException("Transaction already aborted."));
+                result.completeExceptionally(new TxnFailedException("Transaction already aborted."));
             }
         };
         sendRequestOverNewConnection(new CommitTransaction(Segment.getScopedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);

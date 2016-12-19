@@ -47,26 +47,26 @@ public interface Transaction<Type> {
      *
      * @param routingKey The Routing Key to use for publishing.
      * @param event      The Event to publish.
-     * @throws TxFailedException The Transaction is no longer in state {@link Status#OPEN}
+     * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
-    void publish(String routingKey, Type event) throws TxFailedException;
+    void publish(String routingKey, Type event) throws TxnFailedException;
 
     /**
      * Blocks until all events passed to {@link #publish} make it to durable storage.
      * This is only needed if the transaction is going to be serialized.
      *
-     * @throws TxFailedException The Transaction is no longer in state {@link Status#OPEN}
+     * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
-    void flush() throws TxFailedException;
+    void flush() throws TxnFailedException;
 
     /**
      * Causes all messages previously published to the transaction to go into the stream contiguously.
      * This operation will either fully succeed making all events consumable or fully fail such that none of them are.
      * There may be some time delay before consumers see the events after this call has returned.
      *
-     * @throws TxFailedException The Transaction is no longer in state {@link Status#OPEN}
+     * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
-    void commit() throws TxFailedException;
+    void commit() throws TxnFailedException;
 
     /**
      * Drops the transaction, causing all events published to it to be deleted.
