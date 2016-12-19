@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.stream.mock;
 
-import com.emc.pravega.ClientManager;
+import com.emc.pravega.ClientFactory;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Synchronizer;
@@ -31,30 +31,30 @@ import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.ClientManagerImpl;
+import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
 import java.util.Collections;
 
-public class MockClientManager implements ClientManager {
+public class MockClientFactory implements ClientFactory {
 
     private String scope;
-    private final ClientManager impl;
+    private final ClientFactory impl;
     private MockStreamManager streamManager;
 
-    public MockClientManager(String scope, String endpoint, int port) {
+    public MockClientFactory(String scope, String endpoint, int port) {
         this.scope = scope;
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         MockController controller = new MockController(endpoint, port, connectionFactory);
         streamManager = new MockStreamManager(scope, controller);
-        impl = new ClientManagerImpl(scope, controller, connectionFactory, streamManager);
+        impl = new ClientFactoryImpl(scope, controller, connectionFactory, streamManager);
     }
     
-    public MockClientManager(String scope, Controller controller) {
+    public MockClientFactory(String scope, Controller controller) {
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
-        impl = new ClientManagerImpl(scope, controller, connectionFactory, new MockStreamManager(scope, controller));
+        impl = new ClientFactoryImpl(scope, controller, connectionFactory, new MockStreamManager(scope, controller));
     }
 
     @Override

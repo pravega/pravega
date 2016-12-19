@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.state.examples;
 
-import com.emc.pravega.ClientManager;
+import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.NewestReference;
 import com.emc.pravega.state.InitialUpdate;
@@ -57,7 +57,7 @@ public class HeartBeatSynchronizer extends AbstractService {
     private final NewestReference<LiveInstances> liveInstances = new NewestReference<>();
     private final Synchronizer<LiveInstances, HeartbeatUpdate, LiveInstances> sync;
 
-    HeartBeatSynchronizer(String streamName, ClientManager manager) {
+    HeartBeatSynchronizer(String streamName, ClientFactory manager) {
         sync = manager.createSynchronizer(streamName,
                                           new JavaSerializer<HeartbeatUpdate>(),
                                           new JavaSerializer<LiveInstances>(),

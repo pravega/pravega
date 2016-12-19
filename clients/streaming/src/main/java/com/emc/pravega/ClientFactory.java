@@ -28,7 +28,7 @@ import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.RebalancerUtils;
 import com.emc.pravega.stream.Serializer;
-import com.emc.pravega.stream.impl.ClientManagerImpl;
+import com.emc.pravega.stream.impl.ClientFactoryImpl;
 
 import java.net.URI;
 
@@ -40,8 +40,8 @@ import java.net.URI;
  * position upon failure. See {@link Consumer#getPosition}
  * <p>
  * A note on ordering: Events inside of a stream have a strict order, but may need to be divided
- * between multiple consumers for scaling. Because events being processed in parallel on different
- * hosts cannot have ordering semantics a few things are done. Events published to a stream have a
+ * between multiple consumers for scaling. In order to process events in parallel on different
+ * hosts and still have some ordering guarentees; events published to a stream have a
  * routingKey see {@link Producer#publish}. Events within a routing key are strictly ordered (IE:
  * They must go the the same consumer or its replacement). For other events, within a single
  * consumer, the ordering is dictated by {@link EventRead#getWriteTimeCounter()} However as
@@ -59,10 +59,10 @@ import java.net.URI;
  * Otherwise this can be done by creating new consumer by calling: {@link RebalancerUtils#rebalance}
  * .
  */
-public interface ClientManager {
+public interface ClientFactory {
 
-    public static ClientManager withScope(String scope, URI controllerUri) {
-        return new ClientManagerImpl(scope, controllerUri);
+    public static ClientFactory withScope(String scope, URI controllerUri) {
+        return new ClientFactoryImpl(scope, controllerUri);
     }
 
     /**

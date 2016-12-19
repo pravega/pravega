@@ -25,7 +25,7 @@ import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.mock.MockClientManager;
+import com.emc.pravega.stream.mock.MockClientFactory;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -46,10 +46,10 @@ public class EndToEndTransactionTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.PORT, store);
         server.startListening();
 
-        MockClientManager clientManager = new MockClientManager(StartLocalService.SCOPE, controller);
+        MockClientFactory clientFactory = new MockClientFactory(StartLocalService.SCOPE, controller);
 
         @Cleanup
-        Producer<String> producer = clientManager.createProducer(StartLocalService.STREAM_NAME, new JavaSerializer<>(), new ProducerConfig(null));
+        Producer<String> producer = clientFactory.createProducer(StartLocalService.STREAM_NAME, new JavaSerializer<>(), new ProducerConfig(null));
         Transaction<String> transaction = producer.startTransaction(60000);
 
         for (int i = 0; i < 1; i++) {

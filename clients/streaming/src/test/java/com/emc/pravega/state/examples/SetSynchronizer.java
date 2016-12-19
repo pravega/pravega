@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.state.examples;
 
-import com.emc.pravega.ClientManager;
+import com.emc.pravega.ClientFactory;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;
@@ -225,7 +225,7 @@ public class SetSynchronizer<T extends Serializable> {
         return true;
     }
     
-    public static <T extends Serializable> SetSynchronizer<T> createNewSet(String streamName, ClientManager manager) {
+    public static <T extends Serializable> SetSynchronizer<T> createNewSet(String streamName, ClientFactory manager) {
         return new SetSynchronizer<>(manager.createSynchronizer(streamName, new JavaSerializer<SetUpdate<T>>(),
                                    new JavaSerializer<CreateSet<T>>(),
                                    new SynchronizerConfig(null, null)));

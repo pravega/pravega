@@ -20,7 +20,7 @@ import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.state.examples.SetSynchronizer;
 import com.emc.pravega.stream.TxFailedException;
-import com.emc.pravega.stream.mock.MockClientManager;
+import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.testcommon.Async;
 import com.emc.pravega.testcommon.TestUtils;
 
@@ -68,10 +68,10 @@ public class StateSynchronizerTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
-        MockClientManager clientManager = new MockClientManager("scope", endpoint, port);
-        clientManager.createStream(stateName, null);
-        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, clientManager);
-        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, clientManager);
+        MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
+        clientFactory.createStream(stateName, null);
+        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, clientFactory);
+        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, clientFactory);
 
         assertTrue(setA.attemptAdd("1"));
         assertFalse(setB.attemptAdd("Fail"));
@@ -99,14 +99,14 @@ public class StateSynchronizerTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
-        MockClientManager clientManager = new MockClientManager("scope", endpoint, port);
-        clientManager.createStream(stateName, null);
-        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, clientManager);
+        MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
+        clientFactory.createStream(stateName, null);
+        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, clientFactory);
 
         for (int i = 0; i < 10; i++) {
             assertTrue(setA.attemptAdd("Append: " + i));
         }
-        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, clientManager);
+        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, clientFactory);
         assertEquals(10, setB.getCurrentSize());
         for (int i = 10; i < 20; i++) {
             assertTrue(setA.attemptAdd("Append: " + i));
@@ -125,10 +125,10 @@ public class StateSynchronizerTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
-        MockClientManager clientManager = new MockClientManager("scope", endpoint, port);
-        clientManager.createStream(stateName, null);
-        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, clientManager);
-        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, clientManager);
+        MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
+        clientFactory.createStream(stateName, null);
+        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, clientFactory);
+        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, clientFactory);
 
         assertTrue(setA.attemptAdd("foo"));
         setB.update();

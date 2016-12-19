@@ -50,7 +50,7 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
-import com.emc.pravega.stream.mock.MockClientManager;
+import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.testcommon.TestUtils;
 
@@ -198,9 +198,9 @@ public class AppendTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
-        MockClientManager clientManager = new MockClientManager("Scope", endpoint, port);
-        clientManager.createStream(streamName, null);
-        Producer<String> producer = clientManager.createProducer(streamName, new JavaSerializer<>(), new ProducerConfig(null));
+        MockClientFactory clientFactory = new MockClientFactory("Scope", endpoint, port);
+        clientFactory.createStream(streamName, null);
+        Producer<String> producer = clientFactory.createProducer(streamName, new JavaSerializer<>(), new ProducerConfig(null));
         producer.publish("RoutingKey", testString);
         producer.flush();
     }

@@ -47,7 +47,7 @@ import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
-import com.emc.pravega.stream.mock.MockClientManager;
+import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.testcommon.TestUtils;
 
@@ -190,23 +190,23 @@ public class ReadTest {
         String testString = "Hello world\n";
         String scope = "Scope1";
 
-        MockClientManager clientManager = new MockClientManager(scope, endpoint, port);
+        MockClientFactory clientFactory = new MockClientFactory(scope, endpoint, port);
 
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
         
-        clientManager.createStream(streamName, null);
+        clientFactory.createStream(streamName, null);
         JavaSerializer<String> serializer = new JavaSerializer<>();
-        Producer<String> producer = clientManager.createProducer(streamName, serializer, new ProducerConfig(null));
+        Producer<String> producer = clientFactory.createProducer(streamName, serializer, new ProducerConfig(null));
         
         producer.publish("RoutingKey", testString);
         producer.flush();
 
         @Cleanup
-        Consumer<String> consumer = clientManager
-            .createConsumer(streamName, serializer, new ConsumerConfig(), clientManager.getInitialPosition(streamName));
+        Consumer<String> consumer = clientFactory
+            .createConsumer(streamName, serializer, new ConsumerConfig(), clientFactory.getInitialPosition(streamName));
         String read = consumer.readNextEvent(5000).getEvent();
         assertEquals(testString, read);
     }

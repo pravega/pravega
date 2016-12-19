@@ -14,7 +14,7 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.ClientManager;
+import com.emc.pravega.ClientFactory;
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revisioned;
@@ -46,14 +46,14 @@ import java.util.Collection;
 
 import org.apache.commons.lang.NotImplementedException;
 
-public class ClientManagerImpl implements ClientManager {
+public class ClientFactoryImpl implements ClientFactory {
 
     private final String scope;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
     private final StreamManager streamManager;
 
-    public ClientManagerImpl(String scope, URI controllerUri) {
+    public ClientFactoryImpl(String scope, URI controllerUri) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controllerUri);
         this.scope = scope;
@@ -63,7 +63,7 @@ public class ClientManagerImpl implements ClientManager {
     }
 
     @VisibleForTesting
-    public ClientManagerImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
+    public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
             StreamManager streamManager) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controller);

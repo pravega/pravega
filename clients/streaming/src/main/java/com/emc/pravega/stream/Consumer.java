@@ -47,6 +47,7 @@ public interface Consumer<T> extends AutoCloseable {
      * Re-read an event that was previously read, by passing the segment returned from
      * {@link EventReadImpl#getSegment()} and the offset returned from
      * {@link EventReadImpl#getOffsetInSegment()} 
+     * This does not affect the current position of the consumer.
      * 
      * This is a blocking call. Passing invalid offsets has undefined behavior.
      * 
