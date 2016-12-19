@@ -8,6 +8,8 @@ import lombok.Data;
  */
 @Data
 public class Sequence implements Comparable<Sequence> {
+    public static final Sequence MAX_VALUE = new Sequence(Long.MAX_VALUE, Long.MAX_VALUE);
+    public static final Sequence MIN_VALUE = new Sequence(Long.MIN_VALUE, Long.MIN_VALUE);
     private final long highOrder;
     private final long lowOrder;
     

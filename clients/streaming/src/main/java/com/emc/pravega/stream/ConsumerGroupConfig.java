@@ -17,6 +17,20 @@
  */
 package com.emc.pravega.stream;
 
+import lombok.Builder;
+import lombok.EqualsAndHashCode;
+
+@Builder
+@EqualsAndHashCode
 public class ConsumerGroupConfig {
+    
+   private Sequence startingPosition;
+   
+   static class ConsumerGroupConfigBuilder {
+       ConsumerGroupConfigBuilder startingTime(long time) {
+           startingPosition = new Sequence(time, 0);
+           return this;
+       }
+   }
 
 }
