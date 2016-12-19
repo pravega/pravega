@@ -13,5 +13,3 @@ RUN rm /opt/controller/server.zip
 
 ENTRYPOINT [ "/opt/controller/server/bin/server" ]
 
-
-
