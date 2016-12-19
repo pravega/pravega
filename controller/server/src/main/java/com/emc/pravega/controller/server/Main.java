@@ -65,9 +65,6 @@ public class Main {
             hostId = UUID.randomUUID().toString();
         }
 
-        log.info("Default Config values: ");
-        Config.printDefaultConfig();
-
         //1. LOAD configuration.
         //Initialize the executor service.
         ScheduledExecutorService executor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,

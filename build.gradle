@@ -273,13 +273,12 @@ project('controller:contract') {
 project('controller:server') {
     sourceSets {
         main.resources.srcDirs += "$projectDir/src/conf"
-        main.resources.srcDirs += "$projectDir/src/resources"
     }
 
     apply plugin: 'application'
     mainClassName = "com.emc.pravega.controller.server.Main"
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-Xmx512m", "-XX:+HeapDumpOnOutOfMemoryError",
-            "-Dconfig.file=CONTROLLER_APP_HOME/resources/reference.conf",
+            "-Dconfig.file=CONTROLLER_APP_HOME/conf/application.conf",
             "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml"]
 
     applicationDistribution.from('src/conf') {

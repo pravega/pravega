@@ -18,7 +18,12 @@
 package com.emc.pravega.controller.util;
 
 import com.typesafe.config.ConfigFactory;
+import com.typesafe.config.ConfigResolveOptions;
+import com.typesafe.config.ConfigValue;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.Map;
+import java.util.Set;
 
 /**
  * This is a utility used to read configuration. It can be configured to read custom configuration
@@ -27,8 +32,9 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public final class Config {
-    private final static com.typesafe.config.Config CONFIG = ConfigFactory.defaultReference().withFallback(
-            ConfigFactory.defaultOverrides().resolve());
+    private final static com.typesafe.config.Config CONFIG = ConfigFactory.defaultApplication().withFallback(
+            ConfigFactory.defaultOverrides().resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true))).withFallback(ConfigFactory.defaultReference()).resolve();
+
     //RPC Server configuration
     public static final int SERVER_PORT = CONFIG.getInt("config.controller.server.port");
     public static final int SERVER_SELECTOR_THREAD_COUNT = CONFIG.getInt("config.controller.server.selectorThreadCount");
@@ -61,26 +67,10 @@ public final class Config {
     //TaskStore configuration.
     public static final String STORE_TYPE = CONFIG.getString("config.controller.server.store.type");
 
-    public static final void printDefaultConfig() {
-        log.debug("SERVER_PORT = {}", CONFIG.getInt("config.controller.server.port"));
-        log.debug("SERVER_SELECTOR_THREAD_COUNT = {}", CONFIG.getInt("config.controller.server.selectorThreadCount"));
-        log.debug("SERVER_WORKER_THREAD_COUNT = {}", CONFIG.getInt("config.controller.server.workerThreadCount"));
-        log.debug("SERVER_MAX_READ_BUFFER_BYTES = {}", CONFIG.getInt("config.controller.server.maxReadBufferBytes"));
-        log.debug("ASYNC_TASK_POOL_SIZE = {}", CONFIG.getInt("config.controller.server.asyncTaskPoolSize"));
-
-        log.debug("SERVICE_HOST = {}", CONFIG.getString("config.controller.server.serviceHostIp"));
-        log.debug("SERVICE_PORT = {}", CONFIG.getInt("config.controller.server.serviceHostPort"));
-        log.debug("STREAM_STORE_TYPE = {}", CONFIG.getString("config.controller.server.store.stream.type"));
-
-        log.debug("HOST_STORE_TYPE = {}", CONFIG.getString("config.controller.server.store.host.type"));
-        log.debug("HOST_STORE_CONTAINER_COUNT = {}", CONFIG.getInt("config.controller.server.store.host.containerCount"));
-        log.debug("HOST_MONITOR_ENABLED = {}", CONFIG.getBoolean("config.controller.server.hostMonitorEnabled"));
-        log.debug("CLUSTER_NAME = {}", CONFIG.getString("config.controller.server.cluster"));
-        log.debug("CLUSTER_MIN_REBALANCE_INTERVAL = {}", CONFIG.getInt("config.controller.server.minRebalanceInterval"));
-
-        log.debug("ZK_URL = {}", CONFIG.getString("config.controller.server.zk.url"));
-        log.debug("ZK_RETRY_SLEEP_MS = {}", CONFIG.getInt("config.controller.server.zk.retryIntervalMS"));
-        log.debug("ZK_MAX_RETRIES = {}", CONFIG.getInt("config.controller.server.zk.maxRetries"));
+    static {
+        Set<Map.Entry<String, ConfigValue>> entries = CONFIG.entrySet();
+        for (Map.Entry<String, ConfigValue> entry : entries) {
+            log.debug("{} = {}", entry.getKey(), entry.getValue());
+        }
     }
-
 }
