@@ -50,7 +50,7 @@ public class EndToEndTransactionTest {
 
         @Cleanup
         Producer<String> producer = clientFactory.createProducer(StartLocalService.STREAM_NAME, new JavaSerializer<>(), new ProducerConfig(null));
-        Transaction<String> transaction = producer.startTransaction(60000);
+        Transaction<String> transaction = producer.beginTransaction(60000);
 
         for (int i = 0; i < 1; i++) {
             String event = "\n Transactional Publish \n";
@@ -60,7 +60,7 @@ public class EndToEndTransactionTest {
             Thread.sleep(500);
         }
 
-        Transaction<String> transaction2 = producer.startTransaction(60000);
+        Transaction<String> transaction2 = producer.beginTransaction(60000);
         for (int i = 0; i < 1; i++) {
             String event = "\n Transactional Publish \n";
             System.err.println("Producing event: " + event);

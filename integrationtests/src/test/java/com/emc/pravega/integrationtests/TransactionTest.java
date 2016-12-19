@@ -87,7 +87,7 @@ public class TransactionTest {
                                                                  new JavaSerializer<>(),
                                                                  new ProducerConfig(null));
         producer.publish(routingKey, nonTxEvent);
-        Transaction<String> transaction = producer.startTransaction(60000);
+        Transaction<String> transaction = producer.beginTransaction(60000);
         producer.publish(routingKey, nonTxEvent);
         transaction.publish(routingKey, txnEvent);
         producer.publish(routingKey, nonTxEvent);
@@ -144,7 +144,7 @@ public class TransactionTest {
         clientFactory.createStream(streamName, null);
         @Cleanup
         Producer<String> producer = clientFactory.createProducer(streamName, new JavaSerializer<>(), new ProducerConfig(null));
-        Transaction<String> transaction = producer.startTransaction(60000);
+        Transaction<String> transaction = producer.beginTransaction(60000);
         transaction.publish(routingKey, event);
         transaction.commit();
         AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit() );    
@@ -167,7 +167,7 @@ public class TransactionTest {
         @Cleanup
         Producer<String> producer = clientFactory.createProducer(streamName, new JavaSerializer<>(), new ProducerConfig(null));
    
-        Transaction<String> transaction = producer.startTransaction(60000);
+        Transaction<String> transaction = producer.beginTransaction(60000);
         transaction.publish(routingKey, txnEvent);
         transaction.flush();
         transaction.drop();

@@ -55,7 +55,7 @@ public interface Producer<Type> extends AutoCloseable {
      *            streams may configure an upper limit to this value.
      * @return A transaction through which multiple events can be written atomically.
      */
-    Transaction<Type> startTransaction(long transactionTimeout);
+    Transaction<Type> beginTransaction(long transactionTimeout);
     
     /**
      * Returns a previously created transaction.

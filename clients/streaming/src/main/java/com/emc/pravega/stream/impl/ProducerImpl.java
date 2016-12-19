@@ -236,7 +236,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
     }
 
     @Override
-    public Transaction<Type> startTransaction(long timeout) {
+    public Transaction<Type> beginTransaction(long timeout) {
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         ArrayList<Segment> segmentIds;
         synchronized (lock) {
