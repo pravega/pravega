@@ -32,7 +32,7 @@ public interface Orderer<Type> {
      * same readers at the same positions, should yield the same result. (The passed collection is
      * not modified)
      *
-     * @param logs The logs to get the next reader for.
+     * @param segments The logs to get the next reader for.
      */
     SegmentReader<Type> nextSegment(Collection<SegmentReader<Type>> segments);
 }
