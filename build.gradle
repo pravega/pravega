@@ -115,7 +115,7 @@ project('clients:streaming') {
         publications {
             maven(MavenPublication) {
                 groupId 'pravega'
-                artifactId 'streaming'
+                artifactId 'client'
                 version '0.0'
                 from components.java
             }
