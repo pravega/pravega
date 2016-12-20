@@ -76,7 +76,7 @@ allprojects {
 
 }
 
-def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests', 'metrics']
+def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests', 'metrics', 'aop' ]
 
 project('common') {
     dependencies {
@@ -330,28 +330,19 @@ project('controller:server') {
     }
 }
 
-project('metrics:aop') {
+project('aop') {
+    // aspectj for metrics
     project.ext {
         aspectjVersion = '1.8.4'
     }
     apply plugin: 'aspectj'
+    apply plugin: 'application'
+
+    mainClassName = 'com.emc.pravega.metrics.aspectj.CounterWithAnnotation'
 
     dependencies {
-//        def hostPath = project(':service:server:host').projectDir
-        
+        compile project(':metrics')
         compile project(':common')
-        testCompile project(':testcommon')
-        
-        //aspectj dependencies
-        aspectpath "org.aspectj:aspectjtools:${aspectjVersion}"
-        compile "org.aspectj:aspectjrt:${aspectjVersion}"
-
-//        compileAspect {
-//            additionalAjcArgs = ['encoding': 'UTF-8', 
-//                                 'showWeaveInfo': true,
-//                                 'srcdir' : "${hostPath}/src/main"]
-//        }
-        ajInpath project(path: ':service:server:host', transitive: false)
    }
 }
 
@@ -374,10 +365,10 @@ project('metrics:yammerprovider') {
         testCompile project(':testcommon')
     }
 }
+
 project('metrics') {
     dependencies {
         compile project(':common')
-//        compile project(':metrics:aop')
         compile project(':metrics:nullprovider')
         compile project(':metrics:yammerprovider')
         testCompile project(':testcommon')

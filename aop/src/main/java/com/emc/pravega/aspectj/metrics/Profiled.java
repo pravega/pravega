@@ -14,7 +14,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.emc.pravega.metrics;
+package com.emc.pravega.aspectj.metrics;
 
 /**
  *  Base interface for AspectJ use case.
