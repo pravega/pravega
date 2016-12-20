@@ -97,12 +97,12 @@ public class RedirectedReadResultEntryTests {
      * Tests the ability to retry (and switch base) when a failure occurred in requestContent().
      */
     @Test
-    public void tesRequestContent() {
+    public void testRequestContent() {
         // More than one retry (by design, it will only retry one time; the next time it will simply throw).
         FailureReadResultEntry f1 = new FailureReadResultEntry(ReadResultEntryType.Cache, 1, 1, () -> {
             throw new ObjectClosedException(this);
         });
-        RedirectedReadResultEntry e1 = new TestRedirectedReadResultEntry(f1, 1, (o, l) -> f1, this.executorService.get());
+        RedirectedReadResultEntry e1 = new TestRedirectedReadResultEntry(f1, 0, (o, l) -> f1, this.executorService.get());
         AssertExtensions.assertThrows(
                 "requestContent did not throw when attempting to retry more than once.",
                 () -> e1.requestContent(TIMEOUT),
@@ -112,21 +112,21 @@ public class RedirectedReadResultEntryTests {
         FailureReadResultEntry f2 = new FailureReadResultEntry(ReadResultEntryType.Cache, 1, 1, () -> {
             throw new IllegalArgumentException();
         });
-        RedirectedReadResultEntry e2 = new TestRedirectedReadResultEntry(f1, 1, (o, l) -> f2, this.executorService.get());
+        RedirectedReadResultEntry e2 = new TestRedirectedReadResultEntry(f1, 0, (o, l) -> f2, this.executorService.get());
         AssertExtensions.assertThrows(
                 "requestContent did not throw when an ineligible exception got thrown.",
                 () -> e2.requestContent(TIMEOUT),
                 ex -> ex instanceof IllegalArgumentException);
 
         // Given back another Redirect.
-        RedirectedReadResultEntry e3 = new TestRedirectedReadResultEntry(f1, 1, (o, l) -> e1, this.executorService.get());
+        RedirectedReadResultEntry e3 = new TestRedirectedReadResultEntry(f1, 0, (o, l) -> e1, this.executorService.get());
         AssertExtensions.assertThrows(
                 "requestContent did not throw when retry yielded another RedirectReadResultEntry.",
                 () -> e3.requestContent(TIMEOUT),
                 ex -> ex instanceof ObjectClosedException);
 
         // Given redirect function fails.
-        RedirectedReadResultEntry e4 = new TestRedirectedReadResultEntry(f1, 1, (o, l) -> {
+        RedirectedReadResultEntry e4 = new TestRedirectedReadResultEntry(f1, 0, (o, l) -> {
             throw new IntentionalException();
         }, this.executorService.get());
         AssertExtensions.assertThrows(
@@ -136,7 +136,7 @@ public class RedirectedReadResultEntryTests {
 
         // One that works correctly.
         AtomicBoolean requestInvoked = new AtomicBoolean();
-        FailureReadResultEntry f5 = new FailureReadResultEntry(ReadResultEntryType.Cache, 1, 1, () -> requestInvoked.set(true));
+        FailureReadResultEntry f5 = new FailureReadResultEntry(ReadResultEntryType.Cache, 2, 1, () -> requestInvoked.set(true));
         f1.setCompletionCallback(i -> { // Do nothing.
         });
         RedirectedReadResultEntry e5 = new TestRedirectedReadResultEntry(f1, 1, (o, l) -> f5, this.executorService.get());
@@ -154,7 +154,7 @@ public class RedirectedReadResultEntryTests {
     public void testGetContent() {
         // More than one retry (by design, it will only retry one time; the next time it will simply throw).
         MockReadResultEntry t1 = new MockReadResultEntry(1, 1);
-        RedirectedReadResultEntry e1 = new TestRedirectedReadResultEntry(t1, 1, (o, l) -> t1, this.executorService.get());
+        RedirectedReadResultEntry e1 = new TestRedirectedReadResultEntry(t1, 0, (o, l) -> t1, this.executorService.get());
         t1.getContent().completeExceptionally(new StreamSegmentNotExistsException("foo"));
         AssertExtensions.assertThrows(
                 "getContent() did not throw when attempting to retry more than once.",
@@ -163,7 +163,7 @@ public class RedirectedReadResultEntryTests {
 
         // Ineligible exception.
         MockReadResultEntry t2 = new MockReadResultEntry(1, 1);
-        RedirectedReadResultEntry e2 = new TestRedirectedReadResultEntry(t2, 1, (o, l) -> t2, this.executorService.get());
+        RedirectedReadResultEntry e2 = new TestRedirectedReadResultEntry(t2, 0, (o, l) -> t2, this.executorService.get());
         t2.getContent().completeExceptionally(new IntentionalException());
         AssertExtensions.assertThrows(
                 "getContent() did not throw when an ineligible exception got thrown.",
@@ -172,7 +172,7 @@ public class RedirectedReadResultEntryTests {
 
         // Given back another Redirect.
         MockReadResultEntry t3 = new MockReadResultEntry(1, 1);
-        RedirectedReadResultEntry e3 = new TestRedirectedReadResultEntry(t3, 1, (o, l) -> e1, this.executorService.get());
+        RedirectedReadResultEntry e3 = new TestRedirectedReadResultEntry(t3, 0, (o, l) -> e1, this.executorService.get());
         t3.getContent().completeExceptionally(new StreamSegmentNotExistsException("foo"));
         AssertExtensions.assertThrows(
                 "getContent() did not throw when a retry yielded another RedirectReadResultEntry.",
@@ -182,7 +182,7 @@ public class RedirectedReadResultEntryTests {
         // Given redirect function fails.
         MockReadResultEntry t4 = new MockReadResultEntry(1, 1);
         t4.getContent().completeExceptionally(new StreamSegmentNotExistsException("foo"));
-        RedirectedReadResultEntry e4 = new TestRedirectedReadResultEntry(t4, 1, (o, l) -> {
+        RedirectedReadResultEntry e4 = new TestRedirectedReadResultEntry(t4, 0, (o, l) -> {
             throw new IntentionalException();
         }, this.executorService.get());
         AssertExtensions.assertThrows(
@@ -193,7 +193,7 @@ public class RedirectedReadResultEntryTests {
         // One that works correctly.
         MockReadResultEntry t5Bad = new MockReadResultEntry(1, 1);
         t5Bad.getContent().completeExceptionally(new StreamSegmentNotExistsException("foo"));
-        MockReadResultEntry t5Good = new MockReadResultEntry(1, 1);
+        MockReadResultEntry t5Good = new MockReadResultEntry(2, 1);
         t1.setCompletionCallback(i -> { // Do nothing.
         });
         t5Good.getContent().complete(new ReadResultEntryContents(new ByteArrayInputStream(new byte[1]), 1));
@@ -201,7 +201,7 @@ public class RedirectedReadResultEntryTests {
         val finalResult = e5.getContent().join();
         Assert.assertEquals("Unexpected result from getCompletionCallback after successful redirect.", t5Bad.getCompletionCallback(), t5Good.getCompletionCallback());
         Assert.assertEquals("Unexpected result from getRequestedReadLength after successful redirect.", t5Bad.getRequestedReadLength(), e5.getRequestedReadLength());
-        Assert.assertEquals("Unexpected result from getStreamSegmentOffset after successful redirect.", t5Bad.getStreamSegmentOffset(), e5.getStreamSegmentOffset());
+        Assert.assertEquals("Unexpected result from getStreamSegmentOffset after successful redirect.", t5Good.getStreamSegmentOffset(), e5.getStreamSegmentOffset());
         Assert.assertEquals("Unexpected result from getContent after successful redirect.", t5Good.getContent().join(), finalResult);
     }
 

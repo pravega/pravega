@@ -44,7 +44,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     private static final Duration RETRY_TIMEOUT = Duration.ofSeconds(30); // TODO: these two should either be dynamic or configurable.
     private static final Duration EXCEPTION_DELAY = Duration.ofMillis(1000);
     private final CompletableReadResultEntry firstEntry;
-    private long adjustedOffset;
+    private final long adjustedOffset;
     private CompletableReadResultEntry secondEntry;
     private final CompletableFuture<ReadResultEntryContents> result;
     private final GetEntry retryGetEntry;
@@ -58,7 +58,8 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
      * Creates a new instance of the RedirectedReadResultEntry class.
      *
      * @param entry            The CompletableReadResultEntry to wrap.
-     * @param offsetAdjustment The amount to adjust the offset by.
+     * @param offsetAdjustment The amount to adjust the offset by. This value, added to the entry's SegmentOffset, should
+     *                         equal the offset in the Parent Segment where the read is thought to be at.
      * @param retryGetEntry    A BiFunction to invoke when needing to retry an entry. First argument: offset, Second: length.
      * @param executorService  An executor service to execute background operations on.
      */
@@ -164,13 +165,13 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
             if (!(newEntry instanceof RedirectedReadResultEntry)) {
                 // Request the content for the new entry (if that fails, we do not change any state).
                 newEntry.requestContent(timeout);
-                assert newEntry.getStreamSegmentOffset() == this.firstEntry.getStreamSegmentOffset() : "new entry does not have the same StreamSegmentOffset";
+                System.out.println(String.format("FE.offset=%s,NE.offset=%s,AO=%s", this.firstEntry.getStreamSegmentOffset(), newEntry.getStreamSegmentOffset(), this.adjustedOffset));
+                assert newEntry.getStreamSegmentOffset() == this.adjustedOffset : "new entry's StreamSegmentOffset does not match the adjusted offset of this entry";
                 assert newEntry.getRequestedReadLength() == this.firstEntry.getRequestedReadLength() : "new entry does not have the same RequestedReadLength";
 
                 // After all checks are done, update the internal state to use the new entry.
                 newEntry.setCompletionCallback(this.firstEntry.getCompletionCallback());
                 this.secondEntry = newEntry;
-                this.adjustedOffset = newEntry.getStreamSegmentOffset();
                 this.secondEntry.getContent().whenComplete((r, ex2) -> FutureHelpers.complete(this.result, r, ex2));
                 return true;
             }
