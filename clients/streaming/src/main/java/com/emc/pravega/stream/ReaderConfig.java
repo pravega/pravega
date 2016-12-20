@@ -21,7 +21,7 @@ import java.io.Serializable;
 
 import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
 
-public class ConsumerConfig implements Serializable {
+public class ReaderConfig implements Serializable {
 
     /**
      * 

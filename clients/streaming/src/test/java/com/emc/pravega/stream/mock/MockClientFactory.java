@@ -23,8 +23,8 @@ import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Synchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
-import com.emc.pravega.stream.Consumer;
-import com.emc.pravega.stream.ConsumerConfig;
+import com.emc.pravega.stream.EventStreamReader;
+import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.IdempotentProducer;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.Producer;
@@ -70,15 +70,15 @@ public class MockClientFactory implements ClientFactory {
     }
 
     @Override
-    public <T> Consumer<T> createConsumer(String streamName, Serializer<T> s, ConsumerConfig config,
+    public <T> EventStreamReader<T> createReader(String streamName, Serializer<T> s, ReaderConfig config,
             Position startingPosition) {
-        return impl.createConsumer(streamName, s, config, startingPosition);
+        return impl.createReader(streamName, s, config, startingPosition);
     }
 
     @Override
-    public <T> Consumer<T> createConsumer(String consumerId, String consumerGroup, Serializer<T> s,
-            ConsumerConfig config) {
-        return impl.createConsumer(consumerId, consumerGroup, s, config);
+    public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
+            ReaderConfig config) {
+        return impl.createReader(readerId, readerGroup, s, config);
     }
 
     @Override

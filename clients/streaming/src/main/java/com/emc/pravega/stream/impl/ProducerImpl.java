@@ -124,11 +124,11 @@ public class ProducerImpl<Type> implements Producer<Type> {
     }
 
     @Override
-    public Future<Void> publish(String routingKey, Type event) {
+    public Future<Void> writeEvent(String routingKey, Type event) {
         Preconditions.checkState(!closed.get());
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         synchronized (lock) {
-            if (!attemptPublish(new PendingEvent<Type>(event, routingKey, result))) {
+            if (!attemptWrite(new PendingEvent<Type>(event, routingKey, result))) {
                 handleLogSealed();
             }
         }
@@ -145,7 +145,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         while (toResend.isEmpty()) {
             List<PendingEvent<Type>> unsent = new ArrayList<>();
             for (PendingEvent<Type> event : toResend) {
-                if (!attemptPublish(event)) {
+                if (!attemptWrite(event)) {
                     unsent.add(event);
                 }
             }
@@ -156,13 +156,13 @@ public class ProducerImpl<Type> implements Producer<Type> {
         }
     }
 
-    private boolean attemptPublish(PendingEvent<Type> event) {
+    private boolean attemptWrite(PendingEvent<Type> event) {
         SegmentProducer<Type> segmentProducer = getSegmentProducer(event.getRoutingKey());
         if (segmentProducer == null || segmentProducer.isAlreadySealed()) {
             return false;
         }
         try {
-            segmentProducer.publish(event);
+            segmentProducer.write(event);
             return true;
         } catch (SegmentSealedException e) {
             return false;
@@ -193,11 +193,11 @@ public class ProducerImpl<Type> implements Producer<Type> {
         }
 
         @Override
-        public void publish(String routingKey, Type event) throws TxnFailedException {
+        public void writeEvent(String routingKey, Type event) throws TxnFailedException {
             Preconditions.checkState(!closed.get());
             Segment s = router.getSegmentForEvent(routingKey);
             SegmentTransaction<Type> transaction = inner.get(s);
-            transaction.publish(event);
+            transaction.writeEvent(event);
         }
 
         @Override

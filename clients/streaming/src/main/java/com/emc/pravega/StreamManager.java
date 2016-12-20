@@ -17,8 +17,8 @@
  */
 package com.emc.pravega;
 
-import com.emc.pravega.stream.ConsumerGroup;
-import com.emc.pravega.stream.ConsumerGroupConfig;
+import com.emc.pravega.stream.ReaderGroup;
+import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamManagerImpl;
@@ -33,9 +33,9 @@ public interface StreamManager extends AutoCloseable {
     }
     
     /**
-     * Creates a new ConsumerGroup
+     * Creates a new ReaderGroup
      * 
-     * Consumers will be able to join the group by calling {@link ClientFactory#createConsumer()}.
+     * Readers will be able to join the group by calling {@link ClientFactory#createReader()}.
      * Once this is done they will start receiving events from the point defined in the config
      * passed here.
      * 
@@ -43,40 +43,40 @@ public interface StreamManager extends AutoCloseable {
      * may block.
      * 
      * @param groupName The name of the group to be created.
-     * @param config The configuration for the new ConsumerGroup.
-     * @param streamNames The name of the streams the consumer will read from.
+     * @param config The configuration for the new ReaderGroup.
+     * @param streamNames The name of the streams the reader will read from.
      */
-    ConsumerGroup createConsumerGroup(String groupName, ConsumerGroupConfig config, List<String> streamNames);
+    ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames);
     
     /**
-     * Updates a consumer group. The consumer group will have a new {@link ConsumerGroup#getRevision()}
+     * Updates a reader group. The reader group will have a new {@link ReaderGroup#getRevision()}
      * 
-     * All existing consumers will have to call {@link ClientFactory#createConsumer()}. 
+     * All existing readers will have to call {@link ClientFactory#createReader()}. 
      * If they continue to read events they will eventually encounter an error.
      * 
-     * Consumers connecting to the group will start from the
-     * point defined in the config, exactly as though it were a new consumer group.
+     * Readers connecting to the group will start from the
+     * point defined in the config, exactly as though it were a new reader group.
 
      * @param groupName The name of the group to be created.
-     * @param config The configuration for the new ConsumerGroup.
-     * @param streamNames The name of the streams the consumer will read from.
+     * @param config The configuration for the new ReaderGroup.
+     * @param streamNames The name of the streams the reader will read from.
      */
-    ConsumerGroup updateConsumerGroup(String groupName, ConsumerGroupConfig config, List<String> streamNames);
+    ReaderGroup updateReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames);
     
     /**
-     * Returns the requested consumer group.
+     * Returns the requested reader group.
      * 
      * @param groupName The name of the group
      */
-    ConsumerGroup getConsumerGroup(String groupName);
+    ReaderGroup getReaderGroup(String groupName);
     
     /**
-     * Deletes the provided consumer group. No more operations may be performed.
+     * Deletes the provided reader group. No more operations may be performed.
      * Resources used by this group will be freed.
      * 
      * @param group The group to be deleted.
      */
-    void deleteConsumerGroup(ConsumerGroup group);
+    void deleteReaderGroup(ReaderGroup group);
     
     /**
      * Creates a new stream

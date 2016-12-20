@@ -23,16 +23,16 @@ public interface SegmentTransaction<Type> {
     UUID getId();
 
     /**
-     * Publishes the provided event to this transaction on this segment. This operation is asyncronus, the item is not
+     * Writes the provided event to this transaction on this segment. This operation is asyncronus, the item is not
      * Guaranteed to be stored until after {@link #flush()} has been called.
      *
-     * @param event The event to publish.
+     * @param event The event to write.
      * @throws TxnFailedException The item could be persisted because the transaction has failed. (Timed out or aborted)
      */
-    void publish(Type event) throws TxnFailedException;
+    void writeEvent(Type event) throws TxnFailedException;
 
     /**
-     * Blocks until all events passed to the publish call have made it to durable storage.
+     * Blocks until all events passed to the write call have made it to durable storage.
      * After this the transaction can be committed.
      *
      * @throws TxnFailedException Not all of the items could be persisted because the transaction has failed. (Timed out or aborted)

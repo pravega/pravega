@@ -20,13 +20,13 @@ package com.emc.pravega.stream;
 import com.emc.pravega.stream.impl.EventReadImpl;
 
 /**
- * A consumer for a stream.
+ * A reader for a stream.
  * 
  * This class is safe to use across threads, but doing so will not increase performance.
  *
  * @param <T> The type of events being sent through this stream.
  */
-public interface Consumer<T> extends AutoCloseable {
+public interface EventStreamReader<T> extends AutoCloseable {
 
     /**
      * Gets the next event in the stream. If there are no events currently available this will block
@@ -41,15 +41,15 @@ public interface Consumer<T> extends AutoCloseable {
     EventRead<T> readNextEvent(long timeout);
 
     /**
-     * Gets the configuration that this consumer was created with.
+     * Gets the configuration that this reader was created with.
      */
-    ConsumerConfig getConfig();
+    ReaderConfig getConfig();
 
     /**
      * Re-read an event that was previously read, by passing the segment returned from
      * {@link EventReadImpl#getSegment()} and the offset returned from
      * {@link EventReadImpl#getOffsetInSegment()} 
-     * This does not affect the current position of the consumer.
+     * This does not affect the current position of the reader.
      * 
      * This is a blocking call. Passing invalid offsets has undefined behavior.
      * 
@@ -61,9 +61,9 @@ public interface Consumer<T> extends AutoCloseable {
     T read(Segment segment, long offset);
 
     /**
-     * Close the consumer. No further actions may be performed. If this consumer is part of a
-     * consumer group, this will automatically invoke
-     * {@link ConsumerGroup#consumerOffline(String, Position)}
+     * Close the reader. No further actions may be performed. If this reader is part of a
+     * reader group, this will automatically invoke
+     * {@link ReaderGroup#readerOffline(String, Position)}
      *
      * @see java.lang.AutoCloseable#close()
      */

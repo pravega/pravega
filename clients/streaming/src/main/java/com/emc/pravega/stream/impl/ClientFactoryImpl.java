@@ -23,8 +23,8 @@ import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.state.impl.CorruptedStateException;
 import com.emc.pravega.state.impl.SynchronizerImpl;
-import com.emc.pravega.stream.Consumer;
-import com.emc.pravega.stream.ConsumerConfig;
+import com.emc.pravega.stream.EventStreamReader;
+import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.IdempotentProducer;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.Producer;
@@ -95,9 +95,9 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     @Override
-    public <T> Consumer<T> createConsumer(String stream, Serializer<T> s, ConsumerConfig config,
+    public <T> EventStreamReader<T> createReader(String stream, Serializer<T> s, ReaderConfig config,
             Position startingPosition) {
-        return new ConsumerImpl<T>(new SegmentInputStreamFactoryImpl(controller, connectionFactory),
+        return new EventReaderImpl<T>(new SegmentInputStreamFactoryImpl(controller, connectionFactory),
                 s,
                 startingPosition.asImpl(),
                 new SingleStreamOrderer<T>(),
@@ -105,8 +105,8 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     @Override
-    public <T> Consumer<T> createConsumer(String consumerId, String consumerGroup, Serializer<T> s,
-            ConsumerConfig config) {
+    public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
+            ReaderConfig config) {
         throw new NotImplementedException();
     }
 
@@ -130,7 +130,7 @@ public class ClientFactoryImpl implements ClientFactory {
 
     private static final class SingleStreamOrderer<T> implements Orderer<T> {
         @Override
-        public SegmentConsumer<T> nextConsumer(Collection<SegmentConsumer<T>> logs) {
+        public SegmentReader<T> nextSegment(Collection<SegmentReader<T>> logs) {
             Preconditions.checkState(logs.size() == 1);
             return logs.iterator().next();
         }

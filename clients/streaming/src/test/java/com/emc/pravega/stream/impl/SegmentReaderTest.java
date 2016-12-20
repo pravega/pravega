@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
+ * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
+ * regarding copyright ownership.  The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
+ * with the License.  You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -15,23 +15,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream;
+package com.emc.pravega.stream.impl;
 
-import lombok.Builder;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
+import org.junit.Ignore;
+import org.junit.Test;
 
-@Builder
-@EqualsAndHashCode
-public class ConsumerGroupConfig {
-   @Getter
-   private final Sequence startingPosition;
-   
-   static class ConsumerGroupConfigBuilder {
-       ConsumerGroupConfigBuilder startingTime(long time) {
-           startingPosition = new Sequence(time, 0);
-           return this;
-       }
-   }
+import static org.junit.Assert.fail;
 
+@Ignore
+public class SegmentReaderTest {
+    @Test
+    public void testConfigChange() {
+        fail();
+    }
+
+    @Test
+    public void testEOF() {
+        fail();
+    }
+
+    @Test
+    public void testTimeout() {
+        fail();
+    }
+
+    @Test
+    public void testSetOffset() {
+        fail();
+    }
 }

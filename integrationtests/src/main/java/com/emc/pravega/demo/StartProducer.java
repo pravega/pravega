@@ -40,14 +40,14 @@ public class StartProducer {
         for (int i = 0; i < 10; i++) {
             String event = "\n Transactional Publish \n";
             System.err.println("Producing event: " + event);
-            transaction.publish("", event);
+            transaction.writeEvent("", event);
             transaction.flush();
             Thread.sleep(500);
         }
         for (int i = 0; i < 10; i++) {
             String event = "\n Non-transactional Publish \n";
             System.err.println("Producing event: " + event);
-            producer.publish("", event);
+            producer.writeEvent("", event);
             producer.flush();
             Thread.sleep(500);
         }

@@ -19,9 +19,9 @@ import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Synchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
-import com.emc.pravega.stream.Consumer;
-import com.emc.pravega.stream.ConsumerConfig;
-import com.emc.pravega.stream.ConsumerGroup;
+import com.emc.pravega.stream.EventStreamReader;
+import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.IdempotentProducer;
 import com.emc.pravega.stream.Position;
@@ -34,30 +34,30 @@ import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import java.net.URI;
 
 /**
- * Used to create Producers, Consumers, and Synchronizers operating on a stream.
+ * Used to create Producers, Eeaders, and Synchronizers operating on a stream.
  * 
- * Events that a published to a stream can be consumed by a consumer. All events can be consumed
- * with exactly once semantics provided the consumer has the ability to restore to the correct
- * position upon failure. See {@link Consumer#getPosition}
+ * Events that a published to a stream can be read by a reader. All events can be processed
+ * with exactly once semantics provided the reader has the ability to restore to the correct
+ * position upon failure. See {@link EventStreamReader#getPosition}
  * <p>
  * A note on ordering: Events inside of a stream have a strict order, but may need to be divided
- * between multiple consumers for scaling. In order to process events in parallel on different
+ * between multiple readers for scaling. In order to process events in parallel on different
  * hosts and still have some ordering guarentees; events published to a stream have a
  * routingKey see {@link Producer#publish}. Events within a routing key are strictly ordered (IE:
- * They must go the the same consumer or its replacement). For other events, within a single
- * consumer, the ordering is dictated by {@link EventRead#getWriteTimeCounter()} However as
- * {@link ConsumerGroup}s process events in parallel there is no ordering between different
- * consumers.
+ * They must go the the same reader or its replacement). For other events, within a single
+ * reader, the ordering is dictated by {@link EventRead#getWriteTimeCounter()} However as
+ * {@link ReaderGroup}s process events in parallel there is no ordering between different
+ * readers.
  * 
  * <p>
  * A note on scaling: Because a stream can grow in its event rate, streams are divided into
  * Segments. For the most part this is an implementation detail. However its worth understanding
- * that the way a stream is divided between multiple consumers in a group that wish to split the
- * messages between them is by giving different segments to different consumers. For this reason
- * when creating a consumer a notification is provided. {@link EventRead#isRoutingRebalance()} In
- * the case of a consumer group, this is automated.
+ * that the way a stream is divided between multiple readers in a group that wish to split the
+ * messages between them is by giving different segments to different readers. For this reason
+ * when creating a reader a notification is provided. {@link EventRead#isRoutingRebalance()} In
+ * the case of a reader group, this is automated.
  * 
- * Otherwise this can be done by creating new consumer by calling: {@link RebalancerUtils#rebalance}
+ * Otherwise this can be done by creating new reader by calling: {@link RebalancerUtils#rebalance}
  * .
  */
 public interface ClientFactory {
@@ -88,43 +88,43 @@ public interface ClientFactory {
     <T> IdempotentProducer<T> createIdempotentProducer(String streamName, Serializer<T> s, ProducerConfig config);
 
     /**
-     * Creates a new manually managed consumer that will consume from the specified stream at the
+     * Creates a new manually managed reader that will read from the specified stream at the
      * startingPosition. To obtain an initial position use
-     * {@link RebalancerUtils#getInitialPositions} Consumers are responsible for their own failure
-     * management and rebalancing. In the event that a consumer dies the system will do nothing
+     * {@link RebalancerUtils#getInitialPositions} Readers are responsible for their own failure
+     * management and rebalancing. In the event that a reader dies the system will do nothing
      * about it until you do so manually. (Usually by getting its last {@link Position} and either
      * calling this method again or invoking: {@link RebalancerUtils#rebalance} and then invoking
      * this method.
      * 
-     * @param streamName The name of the stream for the consumer
+     * @param streamName The name of the stream for the reader
      * @param s The Serializer.
-     * @param config The consumer configuration.
+     * @param config The reader configuration.
      * @param startingPosition The StartingPosition to use.
      * @param <T> The type of events.
      */
-    <T> Consumer<T> createConsumer(String streamName, Serializer<T> s, ConsumerConfig config,
+    <T> EventStreamReader<T> createReader(String streamName, Serializer<T> s, ReaderConfig config,
             Position startingPosition);
 
     /**
-     * Creates (or recreates) a new consumer that is part of a {@link ConsumerGroup}. The consumer
+     * Creates (or recreates) a new reader that is part of a {@link ReaderGroup}. The reader
      * will join the group and the members of the group will automatically rebalance among
      * themselves.
      * 
-     * In the event that the consumer dies, the method {@link ConsumerGroup#consumerOffline()}
-     * should be called, passing the last position of the consumer. (Usually done by storing the
+     * In the event that the reader dies, the method {@link ReaderGroup#readerOffline()}
+     * should be called, passing the last position of the reader. (Usually done by storing the
      * position along with the output when it is processed.) Which will trigger redistribute the
-     * events among the remaining consumers.
+     * events among the remaining readers.
      * 
-     * Note that calling consumer offline while the consumer is still online may result in multiple
-     * consumers within the group receiving the same events.
+     * Note that calling reader offline while the reader is still online may result in multiple
+     * reader within the group receiving the same events.
      * 
-     * @param consumerId A unique name (within the group) for this consumer.
-     * @param consumerGroup The name of the group to join.
+     * @param readerId A unique name (within the group) for this readers.
+     * @param readerGroup The name of the group to join.
      * @param s The serializer for events.
-     * @param config The consumer configuration.
+     * @param config The readers configuration.
      * @param <T> The type of events.
      */
-    <T> Consumer<T> createConsumer(String consumerId, String consumerGroup, Serializer<T> s, ConsumerConfig config);
+    <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config);
 
     /**
      * Creates a new Synchronizer that will work on the specified stream.

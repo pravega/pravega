@@ -48,7 +48,7 @@ public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
     }
 
     @Override
-    public void publish(PendingEvent<Type> m) throws SegmentSealedException {
+    public void write(PendingEvent<Type> m) throws SegmentSealedException {
         checkSealedAndClosed();
         ByteBuffer buffer = serializer.serialize(m.getValue());
         out.write(buffer, m.getAckFuture());

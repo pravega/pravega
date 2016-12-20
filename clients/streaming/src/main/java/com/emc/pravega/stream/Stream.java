@@ -19,7 +19,7 @@ package com.emc.pravega.stream;
 
 /**
  * A stream can be thought of as an infinite sequence of events.
- * A stream can be published to or consumed from.
+ * A stream can be published to or read from.
  * A stream is:
  * Append only (Events in it are immutable once published)
  * Infinite (There are no limitations in size or time to how many events can go into a stream)

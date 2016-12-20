@@ -201,7 +201,7 @@ public class AppendTest {
         MockClientFactory clientFactory = new MockClientFactory("Scope", endpoint, port);
         clientFactory.createStream(streamName, null);
         Producer<String> producer = clientFactory.createProducer(streamName, new JavaSerializer<>(), new ProducerConfig(null));
-        producer.publish("RoutingKey", testString);
+        producer.writeEvent("RoutingKey", testString);
         producer.flush();
     }
 }
