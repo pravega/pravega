@@ -84,7 +84,7 @@ public class SelfTestRunner {
                 PropertyBag.create()
                            .with(TestConfig.PROPERTY_SEGMENT_COUNT, 100)
                            .with(TestConfig.PROPERTY_PRODUCER_COUNT, 100)
-                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 10000000)
+                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 1000000)
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
@@ -111,7 +111,7 @@ public class SelfTestRunner {
         fa.start();
 
         context.getLoggerList().get(0).addAppender(fa);
-        context.getLoggerList().get(0).setLevel(Level.WARN);
+        context.getLoggerList().get(0).setLevel(Level.INFO);
         //context.reset();
     }
 }

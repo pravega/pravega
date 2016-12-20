@@ -179,10 +179,10 @@ class StorageWriter extends AbstractService implements Writer {
                 () -> FutureHelpers
                         .delayedFuture(getIterationStartDelay(), this.executor)
                         .thenAccept(this::beginIteration)
-                        .thenCompose(this::readData)
+                        .thenComposeAsync(this::readData, this.executor)
                         .thenAcceptAsync(this::processReadResult, this.executor)
-                        .thenCompose(this::flush)
-                        .thenCompose(this::acknowledge)
+                        .thenComposeAsync(this::flush, this.executor)
+                        .thenComposeAsync(this::acknowledge, this.executor)
                         .exceptionally(this::iterationErrorHandler)
                         .thenAccept(this::endIteration),
                 this.executor);
@@ -475,9 +475,9 @@ class StorageWriter extends AbstractService implements Writer {
 
     private void logStageEvent(String stageName, Object result) {
         if (result == null) {
-            log.warn("{}: Iteration[{}].{}.", this.traceObjectId, this.state.getIterationId(), stageName);
+            log.info("{}: Iteration[{}].{}.", this.traceObjectId, this.state.getIterationId(), stageName);
         } else {
-            log.warn("{}: Iteration[{}].{} ({}).", this.traceObjectId, this.state.getIterationId(), stageName, result);
+            log.info("{}: Iteration[{}].{} ({}).", this.traceObjectId, this.state.getIterationId(), stageName, result);
         }
         //System.out.println(String.format("%s: Iteration[%s].%s (%s).", this.traceObjectId, this.state.getIterationId(), stageName, result));
     }

@@ -71,6 +71,7 @@ public class ContainerReadIndex implements ReadIndex {
     private ContainerMetadata preRecoveryMetadata;
     private final AtomicBoolean closed;
     private final AtomicLong lastReport = new AtomicLong(System.nanoTime());
+    private final Thread reportThread;
 
     //endregion
 
@@ -105,6 +106,8 @@ public class ContainerReadIndex implements ReadIndex {
         this.executor = executor;
         this.preRecoveryMetadata = null;
         this.closed = new AtomicBoolean();
+        this.reportThread = new Thread(this::reportContinuously);
+        this.reportThread.start();
     }
 
     //endregion
@@ -115,6 +118,7 @@ public class ContainerReadIndex implements ReadIndex {
     public void close() {
         if (!this.closed.getAndSet(true)) {
             closeAllIndices();
+            this.reportThread.interrupt();
             log.info("{}: Closed.", this.traceObjectId);
         }
     }
@@ -302,28 +306,40 @@ public class ContainerReadIndex implements ReadIndex {
             this.readIndices.put(streamSegmentId, index);
         }
 
-        report();
         return index;
     }
 
-    private void report() {
-        if (System.nanoTime() - lastReport.get() > 5000L * 1000 * 1000) {
-            synchronized (this.lock) {
-                val txCount = this.readIndices.keySet()
-                                              .stream()
-                                              .filter(sId -> this.metadata.getStreamSegmentMetadata(sId).getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID)
-                                              .count();
-                val txMergeCount = this.readIndices.keySet()
-                                                   .stream()
-                                                   .filter(sId -> this.metadata.getStreamSegmentMetadata(sId).isMerged())
-                                                   .count();
-                val txDelCount = this.readIndices.keySet()
-                                                 .stream()
-                                                 .filter(sId -> this.metadata.getStreamSegmentMetadata(sId).isDeleted())
-                                                 .count();
-                System.out.println(String.format("%s: Segments = %s, Tx = %s/%s/%s", this.traceObjectId, this.readIndices.size() - txCount, txCount, txMergeCount, txDelCount));
-                lastReport.set(System.nanoTime());
+    private void reportContinuously() {
+        while (!this.closed.get()) {
+            report();
+            try {
+                Thread.sleep(5000);
+            } catch (Exception ex) {
+                break;
             }
+        }
+    }
+
+    private void report() {
+        synchronized (this.lock) {
+            val sealCount = this.readIndices.keySet()
+                                            .stream()
+                                            .filter(sId -> this.metadata.getStreamSegmentMetadata(sId).isSealed())
+                                            .count();
+            val txCount = this.readIndices.keySet()
+                                          .stream()
+                                          .filter(sId -> this.metadata.getStreamSegmentMetadata(sId).getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID)
+                                          .count();
+            val txMergeCount = this.readIndices.keySet()
+                                               .stream()
+                                               .filter(sId -> this.metadata.getStreamSegmentMetadata(sId).isMerged())
+                                               .count();
+            val txDelCount = this.readIndices.keySet()
+                                             .stream()
+                                             .filter(sId -> this.metadata.getStreamSegmentMetadata(sId).isDeleted())
+                                             .count();
+            System.out.println(String.format("%s: Segments = %s, Sealed = %s, Tx = %s/%s/%s", this.traceObjectId, this.readIndices.size() - txCount, sealCount, txCount, txMergeCount, txDelCount));
+            lastReport.set(System.nanoTime());
         }
     }
 
@@ -335,7 +351,6 @@ public class ContainerReadIndex implements ReadIndex {
                 index.close();
             }
 
-            report();
             return index != null;
         }
     }
@@ -345,7 +360,6 @@ public class ContainerReadIndex implements ReadIndex {
             val indices = new ArrayList<Long>(this.readIndices.keySet());
             indices.forEach(this::closeIndex);
             this.readIndices.clear();
-            report();
         }
     }
 

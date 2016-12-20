@@ -97,7 +97,7 @@ class Reporter extends AbstractScheduledService {
 
         TestLogger.log(
                 LOG_ID,
-                "Ops = %s/%s; Data (P/T/C/S): %.1f/%.1f/%.1f/%.1f MB; TPools (Q/T/S): %s, %s, %s; SegCount = %s, TxCount = %s.",
+                "Ops = %s/%s; Data (P/T/C/S): %.1f/%.1f/%.1f/%.1f MB; TPools (Q/T/S): %s, %s, %s.",
                 this.testState.getSuccessfulOperationCount(),
                 this.testConfig.getOperationCount(),
                 toMB(this.testState.getProducedLength()),
@@ -106,9 +106,7 @@ class Reporter extends AbstractScheduledService {
                 toMB(this.testState.getVerifiedStorageLength()),
                 formatSnapshot(storePoolSnapshot, "Store"),
                 formatSnapshot(testPoolSnapshot, "Test"),
-                formatSnapshot(joinPoolSnapshot, "ForkJoin"),
-                this.testState.getAllSegments().size() - this.testState.getTransactionNames().size(),
-                this.testState.getTransactionNames().size());
+                formatSnapshot(joinPoolSnapshot, "ForkJoin"));
     }
 
     private String formatSnapshot(ExecutorServiceHelpers.Snapshot s, String name) {

@@ -362,7 +362,8 @@ public class Consumer extends Actor {
         synchronized (this.lock) {
             // Verify that append data blocks are contiguous.
             if (this.readBufferSegmentOffset >= 0) {
-                Preconditions.checkArgument(segmentOffset == this.readBufferSegmentOffset + this.readBuffer.getLength());
+                long expectedOffset = this.readBufferSegmentOffset + this.readBuffer.getLength();
+                Preconditions.checkArgument(segmentOffset == expectedOffset, "Unexpected tail read offset for segment %s. Expected %s, got %s.", this.segmentName, expectedOffset, segmentOffset);
             } else {
                 this.readBufferSegmentOffset = segmentOffset;
             }
