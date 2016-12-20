@@ -20,7 +20,7 @@ package com.emc.pravega.stream;
 import java.util.UUID;
 
 /**
- * Provides a mechanism for publishing many events atomically.
+ * Provides a mechanism for writing many events atomically.
  * A Transaction is unbounded in size but is bounded in time. If it has not been committed within a time window
  * specified  at the time of its creation it will be automatically aborted.
  * 
@@ -42,7 +42,7 @@ public interface Transaction<Type> {
     UUID getTransactionId();
     
     /**
-     * Sends an event to the stream just like {@link Producer#writeEvent} but with the caveat that the message will not be
+     * Sends an event to the stream just like {@link EventStreamWriter#writeEvent} but with the caveat that the message will not be
      * visible to anyone until {@link #commit()} is called.
      *
      * @param routingKey The Routing Key to use for writing.
@@ -52,7 +52,7 @@ public interface Transaction<Type> {
     void writeEvent(String routingKey, Type event) throws TxnFailedException;
 
     /**
-     * Blocks until all events passed to {@link #publish} make it to durable storage.
+     * Blocks until all events passed to {@link #writeEvent(String, Object)} make it to durable storage.
      * This is only needed if the transaction is going to be serialized.
      *
      * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}

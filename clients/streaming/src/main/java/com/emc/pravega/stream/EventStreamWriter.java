@@ -17,38 +17,31 @@
  */
 package com.emc.pravega.stream;
 
+import java.util.UUID;
 import java.util.concurrent.Future;
 
 /**
- * A producer can write events to a stream. Similar to {@link Producer} but with the ability to
- * provide a {@link Sequence} on {@link #publish()} to prevent duplicates, in the event that the writer
- * process crashes and restarts.
+ * A writer can write events to a stream.
  * 
  * This class is safe to use across threads, but doing so will not increase performance.
  * 
  * @param <Type> The type of events that go in this stream
  */
-public interface IdempotentProducer<Type> extends AutoCloseable {
+public interface EventStreamWriter<Type> extends AutoCloseable {
     
     /**
-     * Send an event to the stream. Events that are written should appear in the stream exactly
-     * once. Note that the implementation provides retry logic to handle connection failures and
-     * service host failures.
+     * Send an event to the stream. Events that are written should appear in the stream exactly once
+     * in the order they were written. (If there are multiple writers they may be interleaved but
+     * any event written after the future of another writeEvent call has completed, will come after the fir)
      * 
-     * This method takes a {@link Sequence} on each event for the purposes of preventing duplicates.
-     * Sequences are user defined and assumed to be monotonically increasing. If a sequence is
-     * passed to writeEvent that is less or equal to a sequence previously passed to writeEvent, the
-     * event is acked without wiring it to the stream.
      * 
-     * This allows for applications with a deterministic producer to de-dup events in the event that
-     * the producer dies.
-     * 
+     * Note that the implementation provides retry logic to handle connection failures and service
+     * host failures. Internal retries will not violate the exactly once semantic so it is better to
+     * rely on them than to wrap this with custom retry logic.
      * 
      * @param routingKey A free form string that is used to route messages to readers. Two events
      *        written with the same routingKey are guaranteed to be read in order. Two events with
      *        different routing keys may be read in parallel.
-     * @param sequence An ever increasing sequence. If this method is called with a lower sequence
-     *        the event will not be written.
      * @param event The event to be written to the stream
      * @return A future that will complete when the event has been durably stored on the configured
      *         number of replicas, and is available for readers to see. This future may complete
@@ -57,13 +50,30 @@ public interface IdempotentProducer<Type> extends AutoCloseable {
      *         handled internally with multiple retires and exponential backoff. So there is no need
      *         to attempt to retry in the event of an exception.
      */
-    Future<Void> writeEvent(String routingKey, Sequence sequence, Type event);
+    Future<Void> writeEvent(String routingKey, Type event);
 
+    /**
+     * Start a new transaction on this stream.
+     * 
+     * @param transactionTimeout The number of milliseconds after now, that if commit has not been called by, the
+     *            transaction may be aborted. Note that this should not be set unnecessarily high, as having long running
+     *            transactions may interfere with a streams to scale in response to a change in rate. For this reason
+     *            streams may configure an upper limit to this value.
+     * @return A transaction through which multiple events can be written atomically.
+     */
+    Transaction<Type> beginTransaction(long transactionTimeout);
     
     /**
-     * Returns the configuration that this producer was create with.
+     * Returns a previously created transaction.
+     * 
+     * @param transactionId The result retained from calling {@link Transaction#getTransactionId()}
      */
-    ProducerConfig getConfig();
+    Transaction<Type> getTransaction(UUID transactionId);
+
+    /**
+     * Returns the configuration that this writer was create with.
+     */
+    EventWriterConfig getConfig();
 
     /**
      * Block until all events that have been passed to writeEvent's corresponding futures have completed.
@@ -71,7 +81,7 @@ public interface IdempotentProducer<Type> extends AutoCloseable {
     void flush();
 
     /**
-     * Calls flush and then closes the producer. (No further methods may be called)
+     * Calls flush and then closes the writer. (No further methods may be called)
      */
     @Override
     void close();

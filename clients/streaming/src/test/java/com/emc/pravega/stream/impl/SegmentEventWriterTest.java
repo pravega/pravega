@@ -17,30 +17,45 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.stream.impl.segment.SegmentSealedException;
+import org.junit.Ignore;
+import org.junit.Test;
 
-import java.util.List;
+import static org.junit.Assert.fail;
 
-/**
- * This is the mirror of Producer but that only deals with one segment.
- */
-public interface SegmentProducer<Type> extends AutoCloseable {
-    void write(PendingEvent<Type> m) throws SegmentSealedException;
+@Ignore
+public class SegmentEventWriterTest {
+    @Test
+    public void testConfigChange() {
+        fail();
+    }
 
-    /**
-     * Blocks on all outstanding writes.
-     *
-     * @throws SegmentSealedException If the segment is closed for modifications.
-     */
-    void flush() throws SegmentSealedException;
+    @Test
+    public void testEOF() {
+        fail();
+    }
 
-    @Override
-    void close() throws SegmentSealedException;
+    @Test
+    public void testTimeout() {
+        fail();
+    }
 
-    boolean isAlreadySealed();
+    @Test
+    public void testRetransmit() {
+        fail();
+    }
 
-    /**
-     * Gets all events that have been sent to {@link #write(PendingEvent)} but are not yet acknowledged.
-     */
-    List<PendingEvent<Type>> getUnackedEvents();
+    @Test
+    public void testTxOnClosedSegment() {
+        fail();
+    }
+
+    @Test
+    public void testAckLevels() {
+        fail();
+    }
+
+    @Test
+    public void testContentsOfUnackedMessages() {
+        fail();
+    }
 }

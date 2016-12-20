@@ -24,8 +24,8 @@ import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.ReaderConfig;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.JavaSerializer;
@@ -83,9 +83,9 @@ public class TransactionTest {
         MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
         clientFactory.createStream(streamName, null);
         @Cleanup
-        Producer<String> producer = clientFactory.createProducer(streamName,
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName,
                                                                  new JavaSerializer<>(),
-                                                                 new ProducerConfig(null));
+                                                                 new EventWriterConfig(null));
         producer.writeEvent(routingKey, nonTxEvent);
         Transaction<String> transaction = producer.beginTransaction(60000);
         producer.writeEvent(routingKey, nonTxEvent);
@@ -143,7 +143,7 @@ public class TransactionTest {
         MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
         clientFactory.createStream(streamName, null);
         @Cleanup
-        Producer<String> producer = clientFactory.createProducer(streamName, new JavaSerializer<>(), new ProducerConfig(null));
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), new EventWriterConfig(null));
         Transaction<String> transaction = producer.beginTransaction(60000);
         transaction.writeEvent(routingKey, event);
         transaction.commit();
@@ -165,7 +165,7 @@ public class TransactionTest {
         MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
         clientFactory.createStream(streamName, null);
         @Cleanup
-        Producer<String> producer = clientFactory.createProducer(streamName, new JavaSerializer<>(), new ProducerConfig(null));
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), new EventWriterConfig(null));
    
         Transaction<String> transaction = producer.beginTransaction(60000);
         transaction.writeEvent(routingKey, txnEvent);

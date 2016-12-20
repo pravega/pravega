@@ -25,10 +25,10 @@ import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.ReaderConfig;
-import com.emc.pravega.stream.IdempotentProducer;
+import com.emc.pravega.stream.IdempotentEventStreamWriter;
 import com.emc.pravega.stream.Position;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -59,14 +59,14 @@ public class MockClientFactory implements ClientFactory {
     }
 
     @Override
-    public <T> Producer<T> createProducer(String streamName, Serializer<T> s, ProducerConfig config) {
-        return impl.createProducer(streamName, s, config);
+    public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
+        return impl.createEventWriter(streamName, s, config);
     }
     
     @Override
-    public <T> IdempotentProducer<T> createIdempotentProducer(String streamName, Serializer<T> s,
-            ProducerConfig config) {
-        return impl.createIdempotentProducer(streamName, s, config);
+    public <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
+            EventWriterConfig config) {
+        return impl.createIdempotentEventWriter(streamName, s, config);
     }
 
     @Override

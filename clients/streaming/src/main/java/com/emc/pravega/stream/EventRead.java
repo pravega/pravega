@@ -36,7 +36,7 @@ public interface EventRead<T> {
      * value, it is guaranteed that no event will ever be read below that level.
      *
      * The {@link Sequence#getHighOrder()} is approximately the time the event was written to the
-     * stream. The sequence has nothing to do with any sequence passed to {@link Producer#writeEvent()}
+     * stream. The sequence has nothing to do with any sequence passed to {@link EventStreamWriter#writeEvent()}
      *
      * The value will be populated on all calls to {@link EventStreamReader#readNextEvent(long)} even if
      * {@link #getEvent()} is null because no events are available. The value will continue to

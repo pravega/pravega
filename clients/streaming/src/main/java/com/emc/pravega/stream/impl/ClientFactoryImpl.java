@@ -25,10 +25,10 @@ import com.emc.pravega.state.impl.CorruptedStateException;
 import com.emc.pravega.state.impl.SynchronizerImpl;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.ReaderConfig;
-import com.emc.pravega.stream.IdempotentProducer;
+import com.emc.pravega.stream.IdempotentEventStreamWriter;
 import com.emc.pravega.stream.Position;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
@@ -77,10 +77,10 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     @Override
-    public <T> Producer<T> createProducer(String streamName, Serializer<T> s, ProducerConfig config) {
+    public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         Stream stream = streamManager.getStream(streamName);
         EventRouter router = new EventRouter(stream, controller);
-        return new ProducerImpl<T>(stream,
+        return new EventStreamWriterImpl<T>(stream,
                 controller,
                 new SegmentOutputStreamFactoryImpl(controller, connectionFactory),
                 router,
@@ -89,8 +89,8 @@ public class ClientFactoryImpl implements ClientFactory {
     }
     
     @Override
-    public <T> IdempotentProducer<T> createIdempotentProducer(String streamName, Serializer<T> s,
-            ProducerConfig config) {
+    public <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
+            EventWriterConfig config) {
         throw new NotImplementedException();
     }
 

@@ -22,7 +22,7 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
-import com.emc.pravega.stream.Producer;
+import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -57,10 +57,10 @@ public interface Controller {
      */
     CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig);
 
-    // Controller Apis called by pravega producers for getting stream specific information
+    // Controller Apis called by pravega writers for getting stream specific information
 
     /**
-     * Api to get list of current segments for the stream to produce to.
+     * Api to get list of current segments for the stream to write to.
      * @param scope scope
      * @param streamName stream name
      * @return
@@ -78,7 +78,7 @@ public interface Controller {
 
     /**
      * Commits a transaction, atomically committing all events to the stream, subject to the
-     * ordering guarantees specified in {@link Producer}. Will fail with {@link TxnFailedException}
+     * ordering guarantees specified in {@link EventStreamWriter}. Will fail with {@link TxnFailedException}
      * if the transaction has already been committed or aborted.
      * 
      * @param stream stream name
@@ -125,7 +125,7 @@ public interface Controller {
      */
     CompletableFuture<List<PositionInternal>> updatePositions(final Stream stream, final List<PositionInternal> positions);
 
-    //Controller Apis that are called by producers and readers
+    //Controller Apis that are called by writers and readers
 
     /**
      * Given a segment return the endpoint that currently is the owner of that segment.

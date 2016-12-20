@@ -14,8 +14,8 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
@@ -45,11 +45,11 @@ import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExcept
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * This class takes in events, finds out which segment they belong to and then calls produce on the appropriate segment.
+ * This class takes in events, finds out which segment they belong to and then calls write on the appropriate segment.
  * It deals with segments that are sealed by re-sending the unacked events to the new correct segment.
  */
 @Slf4j
-public class ProducerImpl<Type> implements Producer<Type> {
+public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     private final Object lock = new Object();
     private final Stream stream;
@@ -58,12 +58,12 @@ public class ProducerImpl<Type> implements Producer<Type> {
     private final Controller controller;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventRouter router;
-    private final ProducerConfig config;
+    private final EventWriterConfig config;
     @GuardedBy("lock")
-    private final Map<Segment, SegmentProducer<Type>> producers = new HashMap<>();
+    private final Map<Segment, SegmentEventWriter<Type>> writers = new HashMap<>();
 
-    ProducerImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory, EventRouter router, Serializer<Type> serializer,
-            ProducerConfig config) {
+    EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory, EventRouter router, Serializer<Type> serializer,
+            EventWriterConfig config) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(outputStreamFactory);
@@ -76,48 +76,48 @@ public class ProducerImpl<Type> implements Producer<Type> {
         this.serializer = serializer;
         this.config = config;
         synchronized (lock) {
-            List<PendingEvent<Type>> list = setupSegmentProducers();
+            List<PendingEvent<Type>> list = setupSegmentEventWriters();
             if (!list.isEmpty()) {
-                throw new IllegalStateException("Producer initialized with unsent messages?!");
+                throw new IllegalStateException("EventStreamWriter initialized with unsent messages?!");
             }
         }
     }
 
     /**
-     * Populate {@link #producers} by setting up a segmentProducer for each segment in the stream.
+     * Populate {@link #writers} by setting up a segmentEventWriter for each segment in the stream.
      * 
      * @return The events that were sent but never acked to segments that are now sealed, and hence need to be
      *         retransmitted.
      */
-    private List<PendingEvent<Type>> setupSegmentProducers() {
+    private List<PendingEvent<Type>> setupSegmentEventWriters() {
         Collection<Segment> segments = Retry.withExpBackoff(1, 10, 5)
             .retryingOn(SegmentSealedException.class)
             .throwingOn(RuntimeException.class)
             .run(() -> {
                 Collection<Segment> s = getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new).getSegments();
                 for (Segment segment : s) {
-                    if (!producers.containsKey(segment)) {
+                    if (!writers.containsKey(segment)) {
                         SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment,
                                                                                          config.getSegmentConfig());
-                        producers.put(segment, new SegmentProducerImpl<>(out, serializer));
+                        writers.put(segment, new SegmentEventWriterImpl<>(out, serializer));
                     }
                 }
                 return s;
             });
         List<PendingEvent<Type>> toResend = new ArrayList<>();
 
-        Iterator<Entry<Segment, SegmentProducer<Type>>> iter = producers.entrySet().iterator();
+        Iterator<Entry<Segment, SegmentEventWriter<Type>>> iter = writers.entrySet().iterator();
         while (iter.hasNext()) {
-            Entry<Segment, SegmentProducer<Type>> entry = iter.next();
+            Entry<Segment, SegmentEventWriter<Type>> entry = iter.next();
             if (!segments.contains(entry.getKey())) {
-                SegmentProducer<Type> producer = entry.getValue();
+                SegmentEventWriter<Type> writer = entry.getValue();
                 iter.remove();
                 try {
-                    producer.close();
+                    writer.close();
                 } catch (SegmentSealedException e) {
-                    log.warn("Caught exception closing old producer: ", e);
+                    log.warn("Caught exception closing old writer: ", e);
                 }
-                toResend.addAll(producer.getUnackedEvents());
+                toResend.addAll(writer.getUnackedEvents());
             }
         }
         return toResend;
@@ -136,12 +136,12 @@ public class ProducerImpl<Type> implements Producer<Type> {
     }
 
     /**
-     * If a log sealed is encountered, we need to 1. Find the new segments to produce to. 2. For each outstanding
+     * If a log sealed is encountered, we need to 1. Find the new segments to write to. 2. For each outstanding
      * message find which new segment it should go to and send it there. This can happen recursively if segments turn
      * over very quickly.
      */
     private void handleLogSealed() {
-        List<PendingEvent<Type>> toResend = setupSegmentProducers();
+        List<PendingEvent<Type>> toResend = setupSegmentEventWriters();
         while (toResend.isEmpty()) {
             List<PendingEvent<Type>> unsent = new ArrayList<>();
             for (PendingEvent<Type> event : toResend) {
@@ -150,28 +150,28 @@ public class ProducerImpl<Type> implements Producer<Type> {
                 }
             }
             if (!unsent.isEmpty()) {
-                unsent.addAll(setupSegmentProducers());
+                unsent.addAll(setupSegmentEventWriters());
             }
             toResend = unsent;
         }
     }
 
     private boolean attemptWrite(PendingEvent<Type> event) {
-        SegmentProducer<Type> segmentProducer = getSegmentProducer(event.getRoutingKey());
-        if (segmentProducer == null || segmentProducer.isAlreadySealed()) {
+        SegmentEventWriter<Type> segmentWriter = getSegmentWriter(event.getRoutingKey());
+        if (segmentWriter == null || segmentWriter.isAlreadySealed()) {
             return false;
         }
         try {
-            segmentProducer.write(event);
+            segmentWriter.write(event);
             return true;
         } catch (SegmentSealedException e) {
             return false;
         }
     }
 
-    private SegmentProducer<Type> getSegmentProducer(String routingKey) {
+    private SegmentEventWriter<Type> getSegmentWriter(String routingKey) {
         Segment log = router.getSegmentForEvent(routingKey);
-        return producers.get(log);
+        return writers.get(log);
     }
 
     private static class TransactionImpl<Type> implements Transaction<Type> {
@@ -240,7 +240,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         ArrayList<Segment> segmentIds;
         synchronized (lock) {
-            segmentIds = new ArrayList<>(producers.keySet());
+            segmentIds = new ArrayList<>(writers.keySet());
         }
         UUID txId = FutureHelpers.getAndHandleExceptions(controller.createTransaction(stream, timeout), RuntimeException::new);
         for (Segment s : segmentIds) {
@@ -256,7 +256,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         ArrayList<Segment> segmentIds;
         synchronized (lock) {
-            segmentIds = new ArrayList<>(producers.keySet());
+            segmentIds = new ArrayList<>(writers.keySet());
         }
         for (Segment s : segmentIds) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
@@ -273,7 +273,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         while (!success) {
             success = true;
             synchronized (lock) {
-                for (SegmentProducer<Type> p : producers.values()) {
+                for (SegmentEventWriter<Type> p : writers.values()) {
                     try {
                         p.flush();
                     } catch (SegmentSealedException e) {
@@ -296,7 +296,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
             boolean success = false;
             while (!success) {
                 success = true;
-                for (SegmentProducer<Type> p : producers.values()) {
+                for (SegmentEventWriter<Type> p : writers.values()) {
                     try {
                         p.close();
                     } catch (SegmentSealedException e) {
@@ -307,12 +307,12 @@ public class ProducerImpl<Type> implements Producer<Type> {
                     handleLogSealed();
                 }
             }
-            producers.clear();
+            writers.clear();
         }
     }
 
     @Override
-    public ProducerConfig getConfig() {
+    public EventWriterConfig getConfig() {
         return config;
     }
 

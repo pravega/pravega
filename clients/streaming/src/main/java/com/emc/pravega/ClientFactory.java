@@ -23,10 +23,10 @@ import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.EventRead;
-import com.emc.pravega.stream.IdempotentProducer;
+import com.emc.pravega.stream.IdempotentEventStreamWriter;
 import com.emc.pravega.stream.Position;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.RebalancerUtils;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
@@ -34,31 +34,29 @@ import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import java.net.URI;
 
 /**
- * Used to create Producers, Eeaders, and Synchronizers operating on a stream.
+ * Used to create Writers, Readers, and Synchronizers operating on a stream.
  * 
- * Events that a published to a stream can be read by a reader. All events can be processed
- * with exactly once semantics provided the reader has the ability to restore to the correct
- * position upon failure. See {@link EventStreamReader#getPosition}
+ * Events that a written to a stream can be read by a reader. All events can be processed with
+ * exactly once semantics provided the reader has the ability to restore to the correct position
+ * upon failure. See {@link EventStreamReader#getPosition}
  * <p>
  * A note on ordering: Events inside of a stream have a strict order, but may need to be divided
- * between multiple readers for scaling. In order to process events in parallel on different
- * hosts and still have some ordering guarentees; events published to a stream have a
- * routingKey see {@link Producer#publish}. Events within a routing key are strictly ordered (IE:
- * They must go the the same reader or its replacement). For other events, within a single
- * reader, the ordering is dictated by {@link EventRead#getWriteTimeCounter()} However as
- * {@link ReaderGroup}s process events in parallel there is no ordering between different
- * readers.
+ * between multiple readers for scaling. In order to process events in parallel on different hosts
+ * and still have some ordering guarentees; events written to a stream have a routingKey see
+ * {@link EventStreamWriter#writeEvent(String, Object)}. Events within a routing key are strictly
+ * ordered (IE: They must go the the same reader or its replacement). For other events, within a
+ * single reader, the ordering is dictated by {@link EventRead#getWriteTimeCounter()} However as
+ * {@link ReaderGroup}s process events in parallel there is no ordering between different readers.
  * 
  * <p>
  * A note on scaling: Because a stream can grow in its event rate, streams are divided into
  * Segments. For the most part this is an implementation detail. However its worth understanding
  * that the way a stream is divided between multiple readers in a group that wish to split the
- * messages between them is by giving different segments to different readers. For this reason
- * when creating a reader a notification is provided. {@link EventRead#isRoutingRebalance()} In
- * the case of a reader group, this is automated.
+ * messages between them is by giving different segments to different readers. For this reason when
+ * creating a reader a notification is provided. {@link EventRead#isRoutingRebalance()} In the case
+ * of a reader group, this is automated.
  * 
- * Otherwise this can be done by creating new reader by calling: {@link RebalancerUtils#rebalance}
- * .
+ * Otherwise this can be done by creating new reader by calling: {@link RebalancerUtils#rebalance} .
  */
 public interface ClientFactory {
 
@@ -67,25 +65,25 @@ public interface ClientFactory {
     }
 
     /**
-     * Creates a new producer that can publish to the specified stream.
+     * Creates a new writer that can write to the specified stream.
      *
-     * @param streamName The name of the stream to produce to.
-     * @param config The producer configuration.
+     * @param streamName The name of the stream to write to.
+     * @param config The writer configuration.
      * @param s The Serializer.
      * @param <T> The type of events.
      */
-    <T> Producer<T> createProducer(String streamName, Serializer<T> s, ProducerConfig config);
+    <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
     
     /**
-     * Creates a new producer that can publish to the specified stream with a strictly increasing
+     * Creates a new writer that can write to the specified stream with a strictly increasing
      * sequence associated with each one.
      *
-     * @param streamName The name of the stream to produce to.
-     * @param config The producer configuration.
+     * @param streamName The name of the stream to write to.
+     * @param config The writer configuration.
      * @param s The Serializer.
      * @param <T> The type of events.
      */
-    <T> IdempotentProducer<T> createIdempotentProducer(String streamName, Serializer<T> s, ProducerConfig config);
+    <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
 
     /**
      * Creates a new manually managed reader that will read from the specified stream at the
