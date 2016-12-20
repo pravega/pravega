@@ -44,6 +44,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Read Index for a single StreamSegment. Integrates reading data from the following sources:
@@ -413,9 +414,14 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         ReadIndexEntry oldEntry = this.indexEntries.put(entry.getLastStreamSegmentOffset(), entry);
 
         if (entry.isDataEntry()) {
-            // Update the Stats with the entry's length, and set the entry's generation as well.
-            int generation = this.summary.add(entry.getLength());
-            entry.setGeneration(generation);
+            if (entry instanceof MergedReadIndexEntry) {
+                // This entry has already existed in the cache for a while; do not change its generation.
+                this.summary.add(entry.getLength(), entry.getGeneration());
+            } else {
+                // Update the Stats with the entry's length, and set the entry's generation as well.
+                int generation = this.summary.add(entry.getLength());
+                entry.setGeneration(generation);
+            }
         }
 
         if (oldEntry != null && oldEntry.isDataEntry()) {
@@ -709,15 +715,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Exceptions.checkArgument(offsetAdjustment >= 0, "offsetAdjustment", "offsetAdjustment must be a non-negative number.");
 
         synchronized (this.lock) {
-            ArrayList<ReadIndexEntry> result = new ArrayList<>(this.indexEntries.size());
-            for (ReadIndexEntry entry : this.indexEntries.values()) {
-                if (entry.isDataEntry()) {
-                    MergedReadIndexEntry me = new MergedReadIndexEntry(entry.getStreamSegmentOffset() + offsetAdjustment, entry.getLength(), this.metadata.getId(), entry.getStreamSegmentOffset());
-                    result.add(me);
-                }
-            }
-
-            return result;
+            return this.indexEntries
+                    .values().stream()
+                    .filter(ReadIndexEntry::isDataEntry)
+                    .map(entry -> new MergedReadIndexEntry(entry.getStreamSegmentOffset() + offsetAdjustment, this.metadata.getId(), entry))
+                    .collect(Collectors.toList());
         }
     }
 
