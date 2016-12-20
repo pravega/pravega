@@ -339,6 +339,7 @@ public final class ServiceBuilder implements AutoCloseable {
     
     /**
      * Same as {@link #newInMemoryBuilder(ServiceBuilderConfig)} but executes all non-delayed tasks in-line.
+     * This is for unit tests only. Do not deploy like this.
      * 
      * @param config The ServiceBuilderConfig to use.
      */

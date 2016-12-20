@@ -89,8 +89,12 @@ public class InlineExecutor implements ScheduledExecutorService {
 
     @Override
     public Future<?> submit(Runnable task) {
-        task.run();
-        return CompletableFuture.completedFuture(null);
+        try {
+            task.run();
+            return CompletableFuture.completedFuture(null);
+        } catch (Exception e) {
+            return FutureHelpers.failedFuture(e);
+        }
     }
 
     @Override

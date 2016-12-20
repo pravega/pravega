@@ -293,9 +293,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void dropTransaction(DropTransaction dropTx) {
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(dropTx.getSegment(), dropTx.getTxid());
         CompletableFuture<Void> future = segmentStore.deleteStreamSegment(transactionName, TIMEOUT);
-        future.thenApply((Void v) -> {
+        future.thenRun(() -> {
             connection.send(new TransactionDropped(dropTx.getSegment(), dropTx.getTxid()));
-            return null;
         }).exceptionally((Throwable e) -> {
             if (e instanceof CompletionException && e.getCause() instanceof StreamSegmentNotExistsException) {
                 connection.send(new TransactionDropped(dropTx.getSegment(), dropTx.getTxid()));
@@ -322,7 +321,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void deleteSegment(DeleteSegment deleteSegment) {
         String segment = deleteSegment.getSegment();
         CompletableFuture<Void> future = segmentStore.deleteStreamSegment(segment, TIMEOUT);
-        future.thenAccept(size -> {
+        future.thenRun(() -> {
             connection.send(new SegmentDeleted(segment));
         }).exceptionally(e -> {
             handleException(segment, "Delete segment", e);
