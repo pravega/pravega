@@ -35,6 +35,10 @@ public interface StreamManager extends AutoCloseable {
     /**
      * Creates a new ConsumerGroup
      * 
+     * Consumers will be able to join the group by calling {@link ClientFactory#createConsumer()}.
+     * Once this is done they will start receiving events from the point defined in the config
+     * passed here.
+     * 
      * Note: This method is idempotent assuming called with the same name and config. This method
      * may block.
      * 
@@ -43,6 +47,17 @@ public interface StreamManager extends AutoCloseable {
      * @param streamNames The name of the streams the consumer will read from.
      */
     ConsumerGroup createConsumerGroup(String groupName, ConsumerGroupConfig config, List<String> streamNames);
+    
+    /**
+     * Updates a consumer group. All existing consumers will have to call {@link ClientFactory#createConsumer()}. 
+     * Consumers connecting to the group will start from the position prodi
+     * If they continue to read events they will eventually encounter an error.
+     * 
+     * @param groupName The name of the group to be created.
+     * @param config The configuration for the new ConsumerGroup.
+     * @param streamNames The name of the streams the consumer will read from.
+     */
+    ConsumerGroup updateConsumerGroup(String groupName, ConsumerGroupConfig config, List<String> streamNames);
     
     /**
      * Returns the requested consumer group.

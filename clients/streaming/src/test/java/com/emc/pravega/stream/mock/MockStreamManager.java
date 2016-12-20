@@ -93,6 +93,11 @@ public class MockStreamManager implements StreamManager {
     }
 
     @Override
+    public ConsumerGroup updateConsumerGroup(String groupName, ConsumerGroupConfig config, List<String> streamNames) {
+        throw new NotImplementedException();
+    }
+
+    @Override
     public ConsumerGroup getConsumerGroup(String groupName) {
         throw new NotImplementedException();
     }

@@ -78,6 +78,11 @@ public class StreamManagerImpl implements StreamManager {
     public ConsumerGroup createConsumerGroup(String groupName, ConsumerGroupConfig config, List<String> streams) {
         throw new NotImplementedException();
     }
+    
+    @Override
+    public ConsumerGroup updateConsumerGroup(String groupName, ConsumerGroupConfig config, List<String> streamNames) {
+        throw new NotImplementedException();
+    }
 
     @Override
     public ConsumerGroup getConsumerGroup(String groupName) {
@@ -93,4 +98,5 @@ public class StreamManagerImpl implements StreamManager {
     public void deleteStream(Stream toDelete) {
         throw new NotImplementedException();
     }
+
 }
