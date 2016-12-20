@@ -32,7 +32,7 @@ public interface EventStreamReader<T> extends AutoCloseable {
      * Gets the next event in the stream. If there are no events currently available this will block
      * up for timeout waiting for them to arrive. If none do, an EventRead will be returned with
      * null for {@link EventRead#getEvent()}. (As well as for most other fields) However the
-     * {@link EventRead#getWriteTime()} will be populated. (This is useful for applications that
+     * {@link EventRead#getEventSequence()} will be populated. (This is useful for applications that
      * want to be sure they have read all the events within a time range.)
      *
      * @param timeout An upper bound on how long the call may block before returning null.

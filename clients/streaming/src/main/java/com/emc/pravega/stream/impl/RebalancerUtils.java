@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.ClientFactory;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.Stream;
 
@@ -31,11 +32,12 @@ public interface RebalancerUtils {
     /**
      * Given a time stamp returns positions corresponding (roughly) to that point in the stream.
      *
-     * @param stream            The stream for which positions are desired.
-     * @param time              The unix time that positions should be returned for.
+     * @param stream The stream for which positions are desired.
+     * @param time The unix time that positions should be returned for.
      * @param numberOfConsumers The desired number of position objects
-     * @return A set of position objects that can be passed to {@link Stream#createConsumer} to create a new consumer at
-     * the requested time.
+     * @return A set of position objects that can be passed to
+     *         {@link ClientFactory#createReader(String, com.emc.pravega.stream.Serializer, com.emc.pravega.stream.ReaderConfig, Position)}
+     *         to create a new consumer at the requested time.
      */
     Collection<Position> getInitialPositions(Stream stream, long time, int numberOfConsumers);
 

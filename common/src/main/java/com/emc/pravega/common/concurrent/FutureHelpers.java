@@ -243,7 +243,7 @@ public final class FutureHelpers {
     }
 
     /**
-     * Executes the asynchronous task returning a CompletableFuture<T> with specified delay and returns the task result.
+     * Executes the asynchronous task returning a CompletableFuture with specified delay and returns the task result.
      * @param task Asynchronous task.
      * @param delay Delay in milliseconds.
      * @param executorService Executor on which to execute the task.

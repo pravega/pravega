@@ -32,15 +32,13 @@ import java.util.function.Supplier;
  * A Utility class to support retrying something that can fail with exponential backoff.
  * The class is designed to have a declarative interface for ease of use. It can be used as follows:
  * 
- * <pre>
- * <code>
+ * {@code
  * Retry.withExpBackoff(1, 10, 5)
-            .retryingOn(FooException.class)
-            .throwingOn(RuntimeException.class).run(() -> {
-                //Do stuff here.
-             }
- * </code>
- * </pre>
+ *          .retryingOn(FooException.class)
+ *          .throwingOn(RuntimeException.class).run(() -> {
+ *              //Do stuff here.
+ *          }
+ *  }
  * 
  * The above will retry the code in the block up to 5 times if it throws FooException. If it throws
  * a RuntimeException or returns successfully it will throw or return immediately. The delay
@@ -100,7 +98,7 @@ public final class Retry {
     
     /**
      * Returned by {@link RetryWithBackoff#retryingOn(Class)} to add the type of exception that should result in a retry.
-     * Any subtype of this exception will be retried unless the subtype is passed to {@link RetringOnException#throwingOn(Class)}.
+     * Any subtype of this exception will be retried unless the subtype is passed to {@link RetryingOnException#throwingOn(Class)}.
      */
     public static final class RetryingOnException<RetryT extends Exception> {
         private final Class<RetryT> retryType;

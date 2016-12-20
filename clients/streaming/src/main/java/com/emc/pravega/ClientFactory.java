@@ -38,14 +38,14 @@ import java.net.URI;
  * 
  * Events that a written to a stream can be read by a reader. All events can be processed with
  * exactly once semantics provided the reader has the ability to restore to the correct position
- * upon failure. See {@link EventStreamReader#getPosition}
+ * upon failure. See {@link EventRead#getPosition()}
  * <p>
  * A note on ordering: Events inside of a stream have a strict order, but may need to be divided
  * between multiple readers for scaling. In order to process events in parallel on different hosts
  * and still have some ordering guarentees; events written to a stream have a routingKey see
  * {@link EventStreamWriter#writeEvent(String, Object)}. Events within a routing key are strictly
  * ordered (IE: They must go the the same reader or its replacement). For other events, within a
- * single reader, the ordering is dictated by {@link EventRead#getWriteTimeCounter()} However as
+ * single reader, the ordering is dictated by {@link EventRead#getEventSequence()} However as
  * {@link ReaderGroup}s process events in parallel there is no ordering between different readers.
  * 
  * <p>
@@ -56,7 +56,8 @@ import java.net.URI;
  * creating a reader a notification is provided. {@link EventRead#isRoutingRebalance()} In the case
  * of a reader group, this is automated.
  * 
- * Otherwise this can be done by creating new reader by calling: {@link RebalancerUtils#rebalance} .
+ * Otherwise this can be done by creating new reader by calling:
+ * {@link RebalancerUtils#rebalance(java.util.Collection, int)} .
  */
 public interface ClientFactory {
 
@@ -108,7 +109,7 @@ public interface ClientFactory {
      * will join the group and the members of the group will automatically rebalance among
      * themselves.
      * 
-     * In the event that the reader dies, the method {@link ReaderGroup#readerOffline()}
+     * In the event that the reader dies, the method {@link ReaderGroup#readerOffline(String, Position)}
      * should be called, passing the last position of the reader. (Usually done by storing the
      * position along with the output when it is processed.) Which will trigger redistribute the
      * events among the remaining readers.

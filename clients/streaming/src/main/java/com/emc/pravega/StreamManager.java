@@ -17,8 +17,10 @@
  */
 package com.emc.pravega;
 
+import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
+import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamManagerImpl;
@@ -26,6 +28,9 @@ import com.emc.pravega.stream.StreamManagerImpl;
 import java.net.URI;
 import java.util.List;
 
+/**
+ * Used to create, delete, and manage Streams and ReaderGroups.
+ */
 public interface StreamManager extends AutoCloseable {
 
     public static StreamManager withScope(String scope, URI controllerUri) {
@@ -35,8 +40,9 @@ public interface StreamManager extends AutoCloseable {
     /**
      * Creates a new ReaderGroup
      * 
-     * Readers will be able to join the group by calling {@link ClientFactory#createReader()}.
-     * Once this is done they will start receiving events from the point defined in the config
+     * Readers will be able to join the group by calling
+     * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)}
+     * . Once this is done they will start receiving events from the point defined in the config
      * passed here.
      * 
      * Note: This method is idempotent assuming called with the same name and config. This method
@@ -51,12 +57,13 @@ public interface StreamManager extends AutoCloseable {
     /**
      * Updates a reader group. The reader group will have a new {@link ReaderGroup#getRevision()}
      * 
-     * All existing readers will have to call {@link ClientFactory#createReader()}. 
-     * If they continue to read events they will eventually encounter an error.
+     * All existing readers will have to call
+     * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)}
+     * . If they continue to read events they will eventually encounter an error.
      * 
-     * Readers connecting to the group will start from the
-     * point defined in the config, exactly as though it were a new reader group.
-
+     * Readers connecting to the group will start from the point defined in the config, exactly as
+     * though it were a new reader group.
+     * 
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ReaderGroup.
      * @param streamNames The name of the streams the reader will read from.

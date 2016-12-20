@@ -27,7 +27,7 @@ import com.emc.pravega.stream.Stream;
  * The pattern is to have an object of type StateT that can be updated by processing objects of
  * type UpdateT. Each host can perform logic based on its current StateT object and
  * apply updates by constructing an UpdateT to represent the update and passing it to
- * {@link #attemptUpdate()}. Updates from other hosts can be obtained by calling
+ * {@link #conditionallyUpdateState(Revisioned, List)}. Updates from other hosts can be obtained by calling
  * {@link #getLatestState()}
  * 
  * Updates can be conditional on the state provided being the most recent revision.
@@ -112,7 +112,7 @@ public interface Synchronizer<StateT extends Revisioned, UpdateT extends Update<
     StateT unconditionallyUpdateState(StateT localState, UpdateT update);
     
     /**
-     * Same as {@link #unconditionallyupdateState(Revisioned, Update)}, except it persists and applies
+     * Same as {@link #unconditionallyUpdateState(Revisioned, Update)}, except it persists and applies
      * multiple updates at the same time. (All updates are persisted at once so they will never be
      * interleaved with other updates).
      * 
