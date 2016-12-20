@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.stream;
 
+import com.emc.pravega.state.Revisioned;
+
 import java.util.List;
 import java.util.Set;
 
@@ -29,7 +31,7 @@ import java.util.Set;
  * {@link Stream#createConsumer(String, String, Serializer, ConsumerConfig)} and are removed by
  * calling {@link #consumerOffline(String, Position)}
  */
-public interface ConsumerGroup {
+public interface ConsumerGroup extends Revisioned {
 
     /**
      * Returns the scope of the stream which the group is associated with.

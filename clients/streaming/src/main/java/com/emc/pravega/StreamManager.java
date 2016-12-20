@@ -49,12 +49,14 @@ public interface StreamManager extends AutoCloseable {
     ConsumerGroup createConsumerGroup(String groupName, ConsumerGroupConfig config, List<String> streamNames);
     
     /**
-     * Updates a consumer group. All existing consumers will have to call
-     * {@link ClientFactory#createConsumer()}. Consumers connecting to the group will start from the
-     * point defined in the config, exactly as though it were a new consumer group.
+     * Updates a consumer group. The consumer group will have a new {@link ConsumerGroup#getRevision()}
      * 
+     * All existing consumers will have to call {@link ClientFactory#createConsumer()}. 
      * If they continue to read events they will eventually encounter an error.
      * 
+     * Consumers connecting to the group will start from the
+     * point defined in the config, exactly as though it were a new consumer group.
+
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ConsumerGroup.
      * @param streamNames The name of the streams the consumer will read from.
