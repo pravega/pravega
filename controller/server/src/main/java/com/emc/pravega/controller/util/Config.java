@@ -69,8 +69,6 @@ public final class Config {
 
     static {
         Set<Map.Entry<String, ConfigValue>> entries = CONFIG.entrySet();
-        for (Map.Entry<String, ConfigValue> entry : entries) {
-            log.debug("{} = {}", entry.getKey(), entry.getValue());
-        }
+        entries.forEach(entry -> log.debug("{} = {}", entry.getKey(), entry.getValue()));
     }
 }
