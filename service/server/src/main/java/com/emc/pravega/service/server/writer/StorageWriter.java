@@ -475,9 +475,9 @@ class StorageWriter extends AbstractService implements Writer {
 
     private void logStageEvent(String stageName, Object result) {
         if (result == null) {
-            log.info("{}: Iteration[{}].{}.", this.traceObjectId, this.state.getIterationId(), stageName);
+            log.debug("{}: Iteration[{}].{}.", this.traceObjectId, this.state.getIterationId(), stageName);
         } else {
-            log.info("{}: Iteration[{}].{} ({}).", this.traceObjectId, this.state.getIterationId(), stageName, result);
+            log.debug("{}: Iteration[{}].{} ({}).", this.traceObjectId, this.state.getIterationId(), stageName, result);
         }
         //System.out.println(String.format("%s: Iteration[%s].%s (%s).", this.traceObjectId, this.state.getIterationId(), stageName, result));
     }

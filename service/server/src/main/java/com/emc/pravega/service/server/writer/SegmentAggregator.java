@@ -414,12 +414,12 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             result = flushFully(timer, executor);
             if (hasMerge) {
                 // If we have a merge, do it after we flush fully.
-                result = result.thenCompose(flushResult -> mergeIfNecessary(flushResult, timer, executor));
+                result = result.thenComposeAsync(flushResult -> mergeIfNecessary(flushResult, timer, executor), executor);
             }
 
             if (hasSeal) {
                 // If we have a seal, do it after every other operation.
-                result = result.thenCompose(flushResult -> sealIfNecessary(flushResult, timer));
+                result = result.thenComposeAsync(flushResult -> sealIfNecessary(flushResult, timer), executor);
             }
         } else {
             // Otherwise, just flush the excess as long as we have something to flush.
