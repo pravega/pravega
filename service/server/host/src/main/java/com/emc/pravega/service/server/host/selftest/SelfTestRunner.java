@@ -82,8 +82,8 @@ public class SelfTestRunner {
     private static TestConfig getTestConfig() {
         return new TestConfig(TestConfig.convert(TestConfig.COMPONENT_CODE,
                 PropertyBag.create()
-                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 100)
-                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 100)
+                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 10)
+                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 50)
                            .with(TestConfig.PROPERTY_OPERATION_COUNT, 1000000)
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
@@ -94,6 +94,11 @@ public class SelfTestRunner {
     }
 
     private static void setupLogging() {
+        val logFile = new java.io.File(LOG_PATH);
+        if (logFile.delete()) {
+            TestLogger.log("Main", "Deleted log file %s.", LOG_PATH);
+        }
+
         // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).detachAndStopAllAppenders();

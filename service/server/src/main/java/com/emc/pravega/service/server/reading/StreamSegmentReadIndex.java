@@ -82,13 +82,19 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     /**
      * Creates a new instance of the StreamSegmentReadIndex class.
      *
-     * @param metadata The StreamSegmentMetadata to use.
+     * @param config       Read Index Configuration.
+     * @param metadata     The StreamSegmentMetadata to use.
+     * @param cache        The Cache to use to store, read and manage data entries.
+     * @param storage      A ReadOnlyStorage to fetch data if not in Cache.
+     * @param executor     An executor to run async operations.
+     * @param recoveryMode Whether we are in recovery mode at the time of creation (this can change later on).
      * @throws NullPointerException If any of the arguments are null.
      */
     StreamSegmentReadIndex(ReadIndexConfig config, SegmentMetadata metadata, Cache cache, ReadOnlyStorage storage, ScheduledExecutorService executor, boolean recoveryMode) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(cache, "cache");
+        Preconditions.checkNotNull(storage, "storage");
         Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("ReadIndex[%d-%d]", metadata.getContainerId(), metadata.getId());
@@ -148,7 +154,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 // We can only evict if both these conditions are met:
                 // 1. The entry is a Cache Entry (Redirect entries cannot be removed).
                 // 2. Every single byte in the entry has to exist in Storage.
-                boolean canRemove = !(entry instanceof RedirectReadIndexEntry)
+                boolean canRemove = entry.isDataEntry()
                         && entry.getLastStreamSegmentOffset() <= this.metadata.getStorageLength()
                         && entry.getGeneration() < oldestGeneration;
                 if (canRemove) {
@@ -280,7 +286,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @throws IllegalStateException    If the current StreamSegment is a child StreamSegment.
      * @throws IllegalArgumentException If the operation would cause writing beyond the StreamSegment's DurableLogLength.
      * @throws IllegalArgumentException If the offset is invalid (does not match the previous append offset).
-     * @throws IllegalArgumentException If sourceStreamSegmentIndex refers to a StreamSegment that is already merged..
+     * @throws IllegalArgumentException If sourceStreamSegmentIndex refers to a StreamSegment that is already merged.
      * @throws IllegalArgumentException If sourceStreamSegmentIndex refers to a StreamSegment that has a different parent
      *                                  StreamSegment than the current index's one.
      */
@@ -406,10 +412,13 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // Insert the new entry and figure out if an old entry was overwritten.
         ReadIndexEntry oldEntry = this.indexEntries.put(entry.getLastStreamSegmentOffset(), entry);
 
-        // Update the Stats with the entry's length, and set the entry's generation as well.
-        int generation = this.summary.add(entry.getLength());
-        entry.setGeneration(generation);
-        if (oldEntry != null) {
+        if (entry.isDataEntry()) {
+            // Update the Stats with the entry's length, and set the entry's generation as well.
+            int generation = this.summary.add(entry.getLength());
+            entry.setGeneration(generation);
+        }
+
+        if (oldEntry != null && oldEntry.isDataEntry()) {
             // Need to eject the old entry's data from the Cache Stats.
             this.summary.remove(oldEntry.getLength(), oldEntry.getGeneration());
         }
@@ -702,7 +711,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         synchronized (this.lock) {
             ArrayList<ReadIndexEntry> result = new ArrayList<>(this.indexEntries.size());
             for (ReadIndexEntry entry : this.indexEntries.values()) {
-                if (!(entry instanceof RedirectReadIndexEntry)) {
+                if (entry.isDataEntry()) {
                     MergedReadIndexEntry me = new MergedReadIndexEntry(entry.getStreamSegmentOffset() + offsetAdjustment, entry.getLength(), this.metadata.getId(), entry.getStreamSegmentOffset());
                     result.add(me);
                 }

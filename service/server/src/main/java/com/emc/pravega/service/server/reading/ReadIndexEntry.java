@@ -92,6 +92,13 @@ class ReadIndexEntry {
         return this.streamSegmentOffset + this.length - 1;
     }
 
+    /**
+     * Gets a value indicating whether this ReadIndexEntry actually points to data (vs. being a meta-entry).
+     */
+    boolean isDataEntry() {
+        return true;
+    }
+
     @Override
     public String toString() {
         return String.format("Offset = %d, Length = %d, Gen = %d", this.streamSegmentOffset, this.length, this.generation);

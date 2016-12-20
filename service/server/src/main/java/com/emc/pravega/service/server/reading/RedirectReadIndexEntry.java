@@ -48,4 +48,9 @@ class RedirectReadIndexEntry extends ReadIndexEntry {
     StreamSegmentReadIndex getRedirectReadIndex() {
         return this.redirectReadIndex;
     }
+
+    @Override
+    boolean isDataEntry() {
+        return false;
+    }
 }

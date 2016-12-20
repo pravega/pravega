@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * StreamSegment Container Read Index. Provides access to Read Indices for all StreamSegments within this Container.
@@ -70,8 +69,6 @@ public class ContainerReadIndex implements ReadIndex {
     @GuardedBy("lock")
     private ContainerMetadata preRecoveryMetadata;
     private final AtomicBoolean closed;
-    private final AtomicLong lastReport = new AtomicLong(System.nanoTime());
-    private final Thread reportThread;
 
     //endregion
 
@@ -106,8 +103,6 @@ public class ContainerReadIndex implements ReadIndex {
         this.executor = executor;
         this.preRecoveryMetadata = null;
         this.closed = new AtomicBoolean();
-        this.reportThread = new Thread(this::reportContinuously);
-        this.reportThread.start();
     }
 
     //endregion
@@ -118,7 +113,6 @@ public class ContainerReadIndex implements ReadIndex {
     public void close() {
         if (!this.closed.getAndSet(true)) {
             closeAllIndices();
-            this.reportThread.interrupt();
             log.info("{}: Closed.", this.traceObjectId);
         }
     }
@@ -307,40 +301,6 @@ public class ContainerReadIndex implements ReadIndex {
         }
 
         return index;
-    }
-
-    private void reportContinuously() {
-        while (!this.closed.get()) {
-            report();
-            try {
-                Thread.sleep(5000);
-            } catch (Exception ex) {
-                break;
-            }
-        }
-    }
-
-    private void report() {
-        synchronized (this.lock) {
-            val sealCount = this.readIndices.keySet()
-                                            .stream()
-                                            .filter(sId -> this.metadata.getStreamSegmentMetadata(sId).isSealed())
-                                            .count();
-            val txCount = this.readIndices.keySet()
-                                          .stream()
-                                          .filter(sId -> this.metadata.getStreamSegmentMetadata(sId).getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID)
-                                          .count();
-            val txMergeCount = this.readIndices.keySet()
-                                               .stream()
-                                               .filter(sId -> this.metadata.getStreamSegmentMetadata(sId).isMerged())
-                                               .count();
-            val txDelCount = this.readIndices.keySet()
-                                             .stream()
-                                             .filter(sId -> this.metadata.getStreamSegmentMetadata(sId).isDeleted())
-                                             .count();
-            System.out.println(String.format("%s: Segments = %s, Sealed = %s, Tx = %s/%s/%s", this.traceObjectId, this.readIndices.size() - txCount, sealCount, txCount, txMergeCount, txDelCount));
-            lastReport.set(System.nanoTime());
-        }
     }
 
     private boolean closeIndex(long streamSegmentId) {

@@ -169,8 +169,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     protected void applyCachePolicy() {
         // Run through all the active clients and gather status.
         CacheStatus currentStatus = collectStatus();
-        if (currentStatus == null) {
-            // This indicates we have no clients.
+        if (currentStatus == null || currentStatus.getSize() == 0) {
+            // This indicates we have no clients or those clients have no data.
             return;
         }
 
@@ -198,7 +198,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
             }
             totalSizeReduction += sizeReduction;
         } while (sizeReduction > 0 && oldestChanged);
-        System.out.println(String.format("%s: Status=%s, Trimmed=%s, Clients=%s", TRACE_OBJECT_ID, currentStatus, totalSizeReduction, this.clients.size()));
+        System.out.println(String.format("%s: OG=%s, NG=%s, Status=%s, Trimmed=%s, Clients=%s",
+                TRACE_OBJECT_ID, oldestGeneration, currentGeneration, currentStatus, totalSizeReduction, this.clients.size()));
     }
 
     private CacheStatus collectStatus() {
@@ -221,8 +222,12 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 continue;
             }
 
-            totalSize += clientStatus.getSize();
+            if (clientStatus.getSize() == 0) {
+                // Nothing interesting in this client.
+                continue;
+            }
 
+            totalSize += clientStatus.getSize();
             if (clientStatus.oldestGeneration > this.currentGeneration || clientStatus.newestGeneration > this.currentGeneration) {
                 log.warn("{} Client {} returned status that is out of bounds {}. CurrentGeneration = {}, OldestGeneration = {}.", TRACE_OBJECT_ID, c, clientStatus, this.currentGeneration, this.oldestGeneration);
             }
