@@ -15,7 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream;
+package com.emc.pravega.stream.impl;
+
+import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.Stream;
 
 import java.util.Collection;
 import java.util.List;

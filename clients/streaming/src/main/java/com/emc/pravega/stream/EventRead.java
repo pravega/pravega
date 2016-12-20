@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.stream;
 
+import com.emc.pravega.stream.impl.RebalancerUtils;
+
 /**
  * An event read from a stream.
  * 

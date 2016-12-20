@@ -27,9 +27,9 @@ import com.emc.pravega.stream.IdempotentEventStreamWriter;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
-import com.emc.pravega.stream.RebalancerUtils;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
+import com.emc.pravega.stream.impl.RebalancerUtils;
 
 import java.net.URI;
 
