@@ -187,7 +187,6 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
         // Notify clients that something changed (if any of the above got changed). Run in a loop, until either we can't
         // adjust the oldest anymore or we are unable to trigger any changes to the clients.
-        long totalSizeReduction = 0;
         long sizeReduction;
         do {
             sizeReduction = updateClients();
@@ -196,7 +195,6 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 logCurrentStatus(currentStatus);
                 oldestChanged = adjustOldestGeneration(currentStatus);
             }
-            totalSizeReduction += sizeReduction;
         } while (sizeReduction > 0 && oldestChanged);
     }
 
