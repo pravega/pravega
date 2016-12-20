@@ -23,6 +23,7 @@ import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
 import com.emc.pravega.stream.ConsumerGroup;
 import com.emc.pravega.stream.EventRead;
+import com.emc.pravega.stream.IdempotentProducer;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
@@ -74,6 +75,17 @@ public interface ClientFactory {
      * @param <T> The type of events.
      */
     <T> Producer<T> createProducer(String streamName, Serializer<T> s, ProducerConfig config);
+    
+    /**
+     * Creates a new producer that can publish to the specified stream with a strictly increasing
+     * sequence associated with each one.
+     *
+     * @param streamName The name of the stream to produce to.
+     * @param config The producer configuration.
+     * @param s The Serializer.
+     * @param <T> The type of events.
+     */
+    <T> IdempotentProducer<T> createIdempotentProducer(String streamName, Serializer<T> s, ProducerConfig config);
 
     /**
      * Creates a new manually managed consumer that will consume from the specified stream at the

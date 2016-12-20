@@ -25,6 +25,7 @@ import com.emc.pravega.state.impl.CorruptedStateException;
 import com.emc.pravega.state.impl.SynchronizerImpl;
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
+import com.emc.pravega.stream.IdempotentProducer;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
@@ -86,6 +87,12 @@ public class ClientFactoryImpl implements ClientFactory {
                 s,
                 config);
     }
+    
+    @Override
+    public <T> IdempotentProducer<T> createIdempotentProducer(String streamName, Serializer<T> s,
+            ProducerConfig config) {
+        throw new NotImplementedException();
+    }
 
     @Override
     public <T> Consumer<T> createConsumer(String stream, Serializer<T> s, ConsumerConfig config,
@@ -128,5 +135,6 @@ public class ClientFactoryImpl implements ClientFactory {
             return logs.iterator().next();
         }
     }
+
 
 }

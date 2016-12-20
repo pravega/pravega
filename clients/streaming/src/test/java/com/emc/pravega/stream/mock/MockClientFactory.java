@@ -25,6 +25,7 @@ import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
+import com.emc.pravega.stream.IdempotentProducer;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
@@ -60,6 +61,12 @@ public class MockClientFactory implements ClientFactory {
     @Override
     public <T> Producer<T> createProducer(String streamName, Serializer<T> s, ProducerConfig config) {
         return impl.createProducer(streamName, s, config);
+    }
+    
+    @Override
+    public <T> IdempotentProducer<T> createIdempotentProducer(String streamName, Serializer<T> s,
+            ProducerConfig config) {
+        return impl.createIdempotentProducer(streamName, s, config);
     }
 
     @Override
