@@ -15,27 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream;
+package com.emc.pravega.stream.impl;
 
-import org.junit.Ignore;
-import org.junit.Test;
-
-import static org.junit.Assert.fail;
-
-@Ignore
-public class RebalancerUtilsTest {
-    @Test
-    public void testInitialPositions() {
-        fail();
-    }
-
-    @Test
-    public void testRebalance() {
-        fail();
-    }
-
-    @Test
-    public void testStableRebalance() {
-        fail();
-    }
+public class ConnectionClosedException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
 }

@@ -39,21 +39,21 @@ import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
 import com.emc.pravega.common.netty.WireCommands.DropTransaction;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
-import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
+import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
-import com.emc.pravega.stream.ConnectionClosedException;
-import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.TxnFailedException;
+import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.PositionImpl;
+import com.emc.pravega.stream.impl.PositionInternal;
+import com.emc.pravega.stream.impl.StreamSegments;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.collect.ImmutableList;
@@ -70,7 +70,7 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {
         Segment segmentId = new Segment(streamConfig.getScope(), streamConfig.getName(), 0);
-        createSegment(segmentId.getQualifiedName(), new PravegaNodeUri(endpoint, port));
+        createSegment(segmentId.getScopedName(), new PravegaNodeUri(endpoint, port));
         return CompletableFuture.completedFuture(CreateStreamStatus.SUCCESS);
     }
 
@@ -141,11 +141,11 @@ public class MockController implements Controller {
             }
 
             @Override
-            public void transactionDropped(TransactionDropped transactionDropped) {
-                result.completeExceptionally(new TxFailedException("Transaction already dropped."));
+            public void transactionAborted(TransactionAborted transactionAborted) {
+                result.completeExceptionally(new TxnFailedException("Transaction already aborted."));
             }
         };
-        sendRequestOverNewConnection(new CommitTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
+        sendRequestOverNewConnection(new CommitTransaction(Segment.getScopedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
         return result;
     }
 
@@ -170,11 +170,11 @@ public class MockController implements Controller {
             }
 
             @Override
-            public void transactionDropped(TransactionDropped transactionDropped) {
+            public void transactionAborted(TransactionAborted transactionAborted) {
                 result.complete(TransactionStatus.SUCCESS);
             }
         };
-        sendRequestOverNewConnection(new DropTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
+        sendRequestOverNewConnection(new DropTransaction(Segment.getScopedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
         return result;
     }
 
@@ -204,7 +204,7 @@ public class MockController implements Controller {
                 result.complete(txId);
             }
         };
-        sendRequestOverNewConnection(new CreateTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
+        sendRequestOverNewConnection(new CreateTransaction(Segment.getScopedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
         return result;
     }
 

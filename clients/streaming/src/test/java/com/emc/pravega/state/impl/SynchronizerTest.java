@@ -14,15 +14,6 @@
  */
 package com.emc.pravega.state.impl;
 
-import static org.junit.Assert.assertEquals;
-
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import org.junit.Test;
-
-import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.util.ReusableLatch;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revision;
@@ -30,12 +21,19 @@ import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
-import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
-import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.testcommon.Async;
+
+import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 import lombok.Data;
 
@@ -100,13 +98,9 @@ public class SynchronizerTest {
 
     @Test(timeout = 20000)
     public void testLocking() throws EndOfSegmentException {
-        String fakeEndpoint = "localhost";
-        int port = 1234;
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(
-                new PravegaNodeUri(fakeEndpoint, port));
-        MockController controller = new MockController(fakeEndpoint, port, connectionFactory);
         String streamName = "streamName";
-        Stream stream = new StreamImpl("scope", streamName, null, controller, connectionFactory);
+        String scope = "scope";
+        Stream stream = new StreamImpl(scope, streamName, new StreamConfigurationImpl(scope, streamName, null));
 
         BlockingUpdate[] blocking = new BlockingUpdate[] { new BlockingUpdate(1), new BlockingUpdate(2),
                 new BlockingUpdate(3), new BlockingUpdate(4) };

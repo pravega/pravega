@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.stream;
 
+import com.emc.pravega.stream.impl.PositionInternal;
+
 import java.io.Serializable;
 
 /**

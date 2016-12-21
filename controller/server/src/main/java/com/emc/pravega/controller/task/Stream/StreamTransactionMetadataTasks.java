@@ -71,7 +71,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
 
         // drop timedout transactions periodically
         executor.scheduleAtFixedRate(() -> {
-            // find transactions to be dropped
+            // find transactions to be aborted
             try {
                 final long currentTime = System.currentTimeMillis();
                 streamMetadataStore.getAllActiveTx().get().stream()
