@@ -169,8 +169,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     protected void applyCachePolicy() {
         // Run through all the active clients and gather status.
         CacheStatus currentStatus = collectStatus();
-        if (currentStatus == null) {
-            // This indicates we have no clients.
+        if (currentStatus == null || currentStatus.getSize() == 0) {
+            // This indicates we have no clients or those clients have no data.
             return;
         }
 
@@ -218,8 +218,12 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 continue;
             }
 
-            totalSize += clientStatus.getSize();
+            if (clientStatus.getSize() == 0) {
+                // Nothing interesting in this client.
+                continue;
+            }
 
+            totalSize += clientStatus.getSize();
             if (clientStatus.oldestGeneration > this.currentGeneration || clientStatus.newestGeneration > this.currentGeneration) {
                 log.warn("{} Client {} returned status that is out of bounds {}. CurrentGeneration = {}, OldestGeneration = {}.", TRACE_OBJECT_ID, c, clientStatus, this.currentGeneration, this.oldestGeneration);
             }
@@ -386,7 +390,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         private CacheStatus withUpdatedSize(long sizeDelta) {
             long newSize = this.size + sizeDelta;
             assert newSize >= 0 : "given sizeDelta would result in a negative size";
-            return new CacheStatus(newSize, oldestGeneration, newestGeneration);
+            return new CacheStatus(newSize, this.oldestGeneration, this.newestGeneration);
         }
 
         @Override

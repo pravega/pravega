@@ -170,7 +170,7 @@ class StreamSegmentReadResult implements ReadResult {
         // Retrieve the next item.
         long startOffset = this.streamSegmentStartOffset + this.consumedLength;
         int remainingLength = this.maxResultLength - this.consumedLength;
-        ReadResultEntryBase entry = this.getNextItem.apply(startOffset, remainingLength);
+        CompletableReadResultEntry entry = this.getNextItem.apply(startOffset, remainingLength);
 
         if (entry == null) {
             assert remainingLength <= 0 : String.format("No ReadResultEntry received when one was expected. Offset %d, MaxLen %d.", startOffset, remainingLength);
@@ -206,7 +206,7 @@ class StreamSegmentReadResult implements ReadResult {
      * Defines a Function that given a startOffset (long) and remainingLength (int), returns the next entry to be consumed (ReadResultEntry).
      */
     @FunctionalInterface
-    interface NextEntrySupplier extends BiFunction<Long, Integer, ReadResultEntryBase> {
+    interface NextEntrySupplier extends BiFunction<Long, Integer, CompletableReadResultEntry> {
     }
 
     //endregion

@@ -155,7 +155,7 @@ class TestState {
      */
     Collection<String> getTransactionNames() {
         return this.allSegments.values().stream()
-                               .filter(s -> !s.isTransaction())
+                               .filter(SegmentInfo::isTransaction)
                                .map(s -> s.name)
                                .collect(Collectors.toList());
     }

@@ -370,16 +370,43 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     }
 
     /**
-     * Flushes the contents of the Aggregator to the Storage in a 'normal' mode (where it does not need to do any reconciliation).
+     * Repeatedly flushes the contents of the Aggregator to the Storage as long as something immediate needs to be flushed,
+     * such as a Seal or Merge operation.
      *
      * @param timer Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
      */
     private CompletableFuture<FlushResult> flushNormally(TimeoutTimer timer, Executor executor) {
         assert this.state.get() == AggregatorState.Writing : "flushNormally cannot be called if state == " + this.state;
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flushNormally", this.operations.size());
+        FlushResult result = new FlushResult();
+        AtomicBoolean canContinue = new AtomicBoolean(true);
+        return FutureHelpers
+                .loop(
+                        canContinue::get,
+                        () -> flushOnce(timer, executor),
+                        partialResult -> {
+                            canContinue.set(partialResult.getFlushedBytes() + partialResult.getMergedBytes() > 0);
+                            result.withFlushResult(partialResult);
+                        },
+                        executor)
+                .thenApply(v -> {
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flushNormally", traceId, result);
+                    return result;
+                });
+    }
+
+    /**
+     * Flushes the contents of the Aggregator exactly once to the Storage in a 'normal' mode (where it does not need to
+     * do any reconciliation).
+     *
+     * @param timer Timer for the operation.
+     * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
+     */
+    private CompletableFuture<FlushResult> flushOnce(TimeoutTimer timer, Executor executor) {
         boolean hasMerge = this.mergeTransactionCount.get() > 0;
         boolean hasSeal = this.hasSealPending.get();
-        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flushNormally", this.operations.size(), this.mergeTransactionCount, hasSeal);
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flushOnce", this.operations.size(), this.mergeTransactionCount, hasSeal);
 
         CompletableFuture<FlushResult> result;
         if (hasSeal || hasMerge) {
@@ -387,12 +414,12 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             result = flushFully(timer, executor);
             if (hasMerge) {
                 // If we have a merge, do it after we flush fully.
-                result = result.thenCompose(flushResult -> mergeIfNecessary(flushResult, timer));
+                result = result.thenComposeAsync(flushResult -> mergeIfNecessary(flushResult, timer, executor), executor);
             }
 
             if (hasSeal) {
                 // If we have a seal, do it after every other operation.
-                result = result.thenCompose(flushResult -> sealIfNecessary(flushResult, timer));
+                result = result.thenComposeAsync(flushResult -> sealIfNecessary(flushResult, timer), executor);
             }
         } else {
             // Otherwise, just flush the excess as long as we have something to flush.
@@ -401,7 +428,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
         return result
                 .thenApply(r -> {
-                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flushNormally", traceId, r);
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flushOnce", traceId, r);
                     return r;
                 });
     }
@@ -419,7 +446,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         return FutureHelpers
                 .loop(
                         () -> isAppendOperation(this.operations.peek()),
-                        () -> flushOnce(timer.getRemaining()),
+                        () -> flushPendingAppends(timer.getRemaining()),
                         result::withFlushResult,
                         executor)
                 .thenApply(v -> {
@@ -441,7 +468,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         return FutureHelpers
                 .loop(
                         this::exceedsThresholds,
-                        () -> flushOnce(timer.getRemaining()),
+                        () -> flushPendingAppends(timer.getRemaining()),
                         result::withFlushResult,
                         executor)
                 .thenApply(v -> {
@@ -456,7 +483,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
      */
-    private CompletableFuture<FlushResult> flushOnce(Duration timeout) {
+    private CompletableFuture<FlushResult> flushPendingAppends(Duration timeout) {
         // Gather an InputStream made up of all the operations we can flush.
         FlushArgs flushArgs;
         try {
@@ -465,12 +492,12 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             return FutureHelpers.failedFuture(ex);
         }
 
-        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flushOnce");
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flushPendingAppends");
 
         if (flushArgs.getTotalLength() == 0) {
             // Nothing to flush.
             FlushResult result = new FlushResult();
-            LoggerHelpers.traceLeave(log, this.traceObjectId, "flushOnce", traceId, result);
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "flushPendingAppends", traceId, result);
             return CompletableFuture.completedFuture(result);
         }
 
@@ -480,7 +507,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                 .write(this.metadata.getName(), this.metadata.getStorageLength(), inputStream, flushArgs.getTotalLength(), timeout)
                 .thenApply(v -> {
                     FlushResult result = updateStatePostFlush(flushArgs);
-                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flushOnce", traceId, result);
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flushPendingAppends", traceId, result);
                     return result;
                 })
                 .exceptionally(ex -> {
@@ -566,7 +593,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @return A CompletableFuture that, when completed, will contain the number of bytes that were merged into this
      * StreamSegment. If failed, the Future will contain the exception that caused it.
      */
-    private CompletableFuture<FlushResult> mergeIfNecessary(FlushResult flushResult, TimeoutTimer timer) {
+    private CompletableFuture<FlushResult> mergeIfNecessary(FlushResult flushResult, TimeoutTimer timer, Executor executor) {
         ensureInitializedAndNotClosed();
         assert this.metadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID : "Cannot merge into a Transaction StreamSegment.";
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "mergeIfNecessary");
@@ -578,10 +605,9 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             return CompletableFuture.completedFuture(flushResult);
         }
 
-        // TODO: This only processes one merge at a time. If we had several, that would mean each is done in a different iteration. Should we improve this?
         MergeTransactionOperation mergeTransactionOperation = (MergeTransactionOperation) first;
         UpdateableSegmentMetadata transactionMetadata = this.dataSource.getStreamSegmentMetadata(mergeTransactionOperation.getTransactionSegmentId());
-        return mergeWith(transactionMetadata, mergeTransactionOperation, timer)
+        return mergeWith(transactionMetadata, mergeTransactionOperation, timer, executor)
                 .thenApply(mergeResult -> {
                     flushResult.withFlushResult(mergeResult);
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "mergeIfNecessary", traceId, flushResult);
@@ -597,7 +623,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @return A CompletableFuture that, when completed, will contain the number of bytes that were merged into this
      * StreamSegment. If failed, the Future will contain the exception that caused it.
      */
-    private CompletableFuture<FlushResult> mergeWith(UpdateableSegmentMetadata transactionMetadata, MergeTransactionOperation mergeOp, TimeoutTimer timer) {
+    private CompletableFuture<FlushResult> mergeWith(UpdateableSegmentMetadata transactionMetadata, MergeTransactionOperation mergeOp, TimeoutTimer timer, Executor executor) {
         if (transactionMetadata.isDeleted()) {
             return FutureHelpers.failedFuture(new DataCorruptionException(String.format("Attempted to merge with deleted Transaction segment '%s'.", transactionMetadata.getName())));
         }
@@ -613,7 +639,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         AtomicLong mergedLength = new AtomicLong();
         return this.storage
                 .getStreamSegmentInfo(transactionMetadata.getName(), timer.getRemaining())
-                .thenAccept(transProperties -> {
+                .thenAcceptAsync(transProperties -> {
                     // One last verification before the actual merger:
                     // Check that the Storage agrees with our metadata (if not, we have a problem ...)
                     if (transProperties.getLength() != transactionMetadata.getStorageLength()) {
@@ -635,10 +661,10 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     }
 
                     mergedLength.set(transProperties.getLength());
-                })
-                .thenCompose(v1 -> storage.concat(this.metadata.getName(), mergeOp.getStreamSegmentOffset(), transactionMetadata.getName(), timer.getRemaining()))
-                .thenCompose(v2 -> storage.getStreamSegmentInfo(this.metadata.getName(), timer.getRemaining()))
-                .thenApply(segmentProperties -> {
+                }, executor)
+                .thenComposeAsync(v1 -> storage.concat(this.metadata.getName(), mergeOp.getStreamSegmentOffset(), transactionMetadata.getName(), timer.getRemaining()), executor)
+                .thenComposeAsync(v2 -> storage.getStreamSegmentInfo(this.metadata.getName(), timer.getRemaining()), executor)
+                .thenApplyAsync(segmentProperties -> {
                     // We have processed a MergeTransactionOperation, pop the first operation off and decrement the counter.
                     StorageOperation processedOperation = this.operations.poll();
                     assert processedOperation != null && processedOperation instanceof MergeTransactionOperation : "First outstanding operation was not a MergeTransactionOperation";
@@ -666,7 +692,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     result.withMergedBytes(mergedLength.get());
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "mergeWith", traceId, result);
                     return result;
-                })
+                }, executor)
                 .exceptionally(ex -> {
                     Throwable realEx = ExceptionHelpers.getRealException(ex);
                     if (realEx instanceof BadOffsetException || realEx instanceof StreamSegmentNotExistsException) {

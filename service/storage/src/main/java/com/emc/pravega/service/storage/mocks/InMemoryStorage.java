@@ -363,7 +363,7 @@ public class InMemoryStorage implements TruncateableStorage {
     //region StreamSegmentData
 
     private static class StreamSegmentData {
-        private static final int BUFFER_SIZE = 8 * 1024;
+        private static final int BUFFER_SIZE = 16 * 1024;
         private final String name;
         @GuardedBy("lock")
         private final ArrayList<byte[]> data;
