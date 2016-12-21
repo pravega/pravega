@@ -34,5 +34,5 @@ public interface Orderer<Type> {
      *
      * @param logs The logs to get the next consumer for.
      */
-    SegmentConsumer<Type> nextConsumer(Collection<SegmentConsumer<Type>> logs);
+    EventSegmentReader<Type> nextConsumer(Collection<EventSegmentReader<Type>> logs);
 }

@@ -15,32 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.impl;
+package com.emc.pravega.stream;
 
-import org.junit.Ignore;
-import org.junit.Test;
+import java.io.Serializable;
 
-import static org.junit.Assert.fail;
+import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
 
-@Ignore
-public class SegmentConsumerTest {
-    @Test
-    public void testConfigChange() {
-        fail();
+public class ReaderConfig implements Serializable {
+
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
+    public SegmentInputConfiguration getSegmentConfig() {
+        // TODO Auto-generated method stub
+        return null;
     }
 
-    @Test
-    public void testEOF() {
-        fail();
-    }
-
-    @Test
-    public void testTimeout() {
-        fail();
-    }
-
-    @Test
-    public void testSetOffset() {
-        fail();
-    }
 }

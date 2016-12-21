@@ -38,7 +38,7 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
     }
 
     @Override
-    public void publish(Type event) throws TxFailedException {
+    public void writeEvent(Type event) throws TxFailedException {
         try {
             ByteBuffer buffer = serializer.serialize(event);
             out.write(buffer, CompletableFuture.completedFuture(null));

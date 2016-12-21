@@ -20,11 +20,11 @@ package com.emc.pravega.stream;
 import java.util.concurrent.Future;
 
 /**
- * A producer can publish events to a stream.
+ * A producer can write events to a stream.
  * 
  * @param <Type> The type of events that go in this stream
  */
-public interface Producer<Type> extends AutoCloseable {
+public interface EventStreamWriter<Type> extends AutoCloseable {
     
     /**
      * Send an event to the stream. Events that are published should appear in the stream exactly once.
@@ -41,7 +41,7 @@ public interface Producer<Type> extends AutoCloseable {
      *         connection drops or host death are handled internally with multiple retires and exponential backoff. So
      *         there is no need to attempt to retry in the event of an exception.
      */
-    Future<Void> publish(String routingKey, Type event);
+    Future<Void> writeEvent(String routingKey, Type event);
 
     /**
      * Start a new transaction on this stream.
@@ -57,10 +57,10 @@ public interface Producer<Type> extends AutoCloseable {
     /**
      * Returns the configuration that this producer was create with.
      */
-    ProducerConfig getConfig();
+    WriterConfig getConfig();
 
     /**
-     * Block until all events that have been passed to publish's corresponding futures have completed.
+     * Block until all events that have been passed to writeEvent's corresponding futures have completed.
      */
     void flush();
 

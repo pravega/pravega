@@ -15,21 +15,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream;
+package com.emc.pravega.stream.impl;
 
-import java.io.Serializable;
+import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 
-import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
+import java.util.List;
 
-import lombok.Data;
-
-@Data
-public class ProducerConfig implements Serializable {
+/**
+ * This is the mirror of EventStreamWriter but that only deals with one segment.
+ */
+public interface EventSegmentWriter<Type> extends AutoCloseable {
+    void publish(Event<Type> m) throws SegmentSealedException;
 
     /**
-     * 
+     * Blocks on all outstanding writes.
+     *
+     * @throws SegmentSealedException If the segment is closed for modifications.
      */
-    private static final long serialVersionUID = 1L;
-    private final SegmentOutputConfiguration segmentConfig;
+    void flush() throws SegmentSealedException;
 
+    @Override
+    void close() throws SegmentSealedException;
+
+    boolean isAlreadySealed();
+
+    /**
+     * Gets all events that have been written but are not yet acknowledged.
+     */
+    List<Event<Type>> getUnackedEvents();
 }

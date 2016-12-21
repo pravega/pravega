@@ -17,8 +17,8 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.WriterConfig;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.JavaSerializer;
@@ -36,20 +36,20 @@ public class StartProducer {
         Stream stream = streamManager.createStream(StartLocalService.STREAM_NAME, null);
 
         @Cleanup
-        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
-        Transaction<String> transaction = producer.startTransaction(60000);
+        EventStreamWriter<String> writer = stream.createProducer(new JavaSerializer<>(), new WriterConfig(null));
+        Transaction<String> transaction = writer.startTransaction(60000);
         for (int i = 0; i < 10; i++) {
             String event = "\n Transactional Publish \n";
             System.err.println("Producing event: " + event);
-            transaction.publish("", event);
+            transaction.writeEvent("", event);
             transaction.flush();
             Thread.sleep(500);
         }
         for (int i = 0; i < 10; i++) {
             String event = "\n Non-transactional Publish \n";
             System.err.println("Producing event: " + event);
-            producer.publish("", event);
-            producer.flush();
+            writer.writeEvent("", event);
+            writer.flush();
             Thread.sleep(500);
         }
         transaction.commit();

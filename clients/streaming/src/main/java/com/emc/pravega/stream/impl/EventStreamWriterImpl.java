@@ -31,13 +31,13 @@ import javax.annotation.concurrent.GuardedBy;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.stream.EventRouter;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.WriterConfig;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
@@ -50,7 +50,7 @@ import lombok.extern.slf4j.Slf4j;
  * It deals with segments that are sealed by re-sending the unacked events to the new correct segment.
  */
 @Slf4j
-public class ProducerImpl<Type> implements Producer<Type> {
+public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     private final Object lock = new Object();
     private final Stream stream;
@@ -59,12 +59,12 @@ public class ProducerImpl<Type> implements Producer<Type> {
     private final Controller controller;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventRouter router;
-    private final ProducerConfig config;
+    private final WriterConfig config;
     @GuardedBy("lock")
-    private final Map<Segment, SegmentProducer<Type>> producers = new HashMap<>();
+    private final Map<Segment, EventSegmentWriter<Type>> producers = new HashMap<>();
 
-    ProducerImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory, EventRouter router, Serializer<Type> serializer,
-            ProducerConfig config) {
+    EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory, EventRouter router, Serializer<Type> serializer,
+                          WriterConfig config) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(outputStreamFactory);
@@ -79,7 +79,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         synchronized (lock) {
             List<Event<Type>> list = setupSegmentProducers();
             if (!list.isEmpty()) {
-                throw new IllegalStateException("Producer initialized with unsent messages?!");
+                throw new IllegalStateException("EventStreamWriter initialized with unsent messages?!");
             }
         }
     }
@@ -100,18 +100,18 @@ public class ProducerImpl<Type> implements Producer<Type> {
                     if (!producers.containsKey(segment)) {
                         SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment,
                                                                                          config.getSegmentConfig());
-                        producers.put(segment, new SegmentProducerImpl<>(out, serializer));
+                        producers.put(segment, new EventSegmentWriterImpl<>(out, serializer));
                     }
                 }
                 return s;
             });
         List<Event<Type>> toResend = new ArrayList<>();
 
-        Iterator<Entry<Segment, SegmentProducer<Type>>> iter = producers.entrySet().iterator();
+        Iterator<Entry<Segment, EventSegmentWriter<Type>>> iter = producers.entrySet().iterator();
         while (iter.hasNext()) {
-            Entry<Segment, SegmentProducer<Type>> entry = iter.next();
+            Entry<Segment, EventSegmentWriter<Type>> entry = iter.next();
             if (!segments.contains(entry.getKey())) {
-                SegmentProducer<Type> producer = entry.getValue();
+                EventSegmentWriter<Type> producer = entry.getValue();
                 iter.remove();
                 try {
                     producer.close();
@@ -125,7 +125,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
     }
 
     @Override
-    public Future<Void> publish(String routingKey, Type event) {
+    public Future<Void> writeEvent(String routingKey, Type event) {
         Preconditions.checkState(!closed.get());
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         synchronized (lock) {
@@ -158,19 +158,19 @@ public class ProducerImpl<Type> implements Producer<Type> {
     }
 
     private boolean attemptPublish(Event<Type> event) {
-        SegmentProducer<Type> segmentProducer = getSegmentProducer(event.getRoutingKey());
-        if (segmentProducer == null || segmentProducer.isAlreadySealed()) {
+        EventSegmentWriter<Type> writer = getSegmentProducer(event.getRoutingKey());
+        if (writer == null || writer.isAlreadySealed()) {
             return false;
         }
         try {
-            segmentProducer.publish(event);
+            writer.publish(event);
             return true;
         } catch (SegmentSealedException e) {
             return false;
         }
     }
 
-    private SegmentProducer<Type> getSegmentProducer(String routingKey) {
+    private EventSegmentWriter<Type> getSegmentProducer(String routingKey) {
         Segment log = router.getSegmentForEvent(routingKey);
         return producers.get(log);
     }
@@ -194,11 +194,11 @@ public class ProducerImpl<Type> implements Producer<Type> {
         }
 
         @Override
-        public void publish(String routingKey, Type event) throws TxFailedException {
+        public void writeEvent(String routingKey, Type event) throws TxFailedException {
             Preconditions.checkState(!closed.get());
             Segment s = router.getSegmentForEvent(routingKey);
             SegmentTransaction<Type> transaction = inner.get(s);
-            transaction.publish(event);
+            transaction.writeEvent(event);
         }
 
         @Override
@@ -254,7 +254,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         while (!success) {
             success = true;
             synchronized (lock) {
-                for (SegmentProducer<Type> p : producers.values()) {
+                for (EventSegmentWriter<Type> p : producers.values()) {
                     try {
                         p.flush();
                     } catch (SegmentSealedException e) {
@@ -277,7 +277,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
             boolean success = false;
             while (!success) {
                 success = true;
-                for (SegmentProducer<Type> p : producers.values()) {
+                for (EventSegmentWriter<Type> p : producers.values()) {
                     try {
                         p.close();
                     } catch (SegmentSealedException e) {
@@ -293,7 +293,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
     }
 
     @Override
-    public ProducerConfig getConfig() {
+    public WriterConfig getConfig() {
         return config;
     }
 

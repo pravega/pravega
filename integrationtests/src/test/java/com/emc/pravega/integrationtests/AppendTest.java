@@ -40,8 +40,8 @@ import com.emc.pravega.service.server.host.handler.PravegaRequestProcessor;
 import com.emc.pravega.service.server.host.handler.ServerConnectionInboundHandler;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.WriterConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.Controller;
@@ -201,8 +201,8 @@ public class AppendTest {
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
         Stream stream = streamManager.createStream(streamName, null);
 
-        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
-        producer.publish("RoutingKey", testString);
-        producer.flush();
+        EventStreamWriter<String> writer = stream.createProducer(new JavaSerializer<>(), new WriterConfig(null));
+        writer.writeEvent("RoutingKey", testString);
+        writer.flush();
     }
 }

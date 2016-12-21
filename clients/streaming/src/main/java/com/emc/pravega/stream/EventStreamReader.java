@@ -22,7 +22,7 @@ package com.emc.pravega.stream;
  *
  * @param <T> The type of events being sent through this stream.
  */
-public interface Consumer<T> extends AutoCloseable {
+public interface EventStreamReader<T> extends AutoCloseable {
 
     /**
      * Gets the next event in the stream.
@@ -30,12 +30,12 @@ public interface Consumer<T> extends AutoCloseable {
      * @param timeout An upper bound on how long the call may block before returning null.
      * @return The next event in the stream, or null if timeout is reached.
      */
-    T getNextEvent(long timeout);
+    T readNextEvent(long timeout);
 
     /**
      * Gets the configuration that this consumer was created with.
      */
-    ConsumerConfig getConfig();
+    ReaderConfig getConfig();
 
     /**
      * Gets an object that indicates the current position within the stream.

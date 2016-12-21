@@ -46,10 +46,10 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.stream.Consumer;
-import com.emc.pravega.stream.ConsumerConfig;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.EventStreamReader;
+import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.WriterConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
@@ -202,13 +202,13 @@ public class ReadTest {
 
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
-        Producer<String> producer = stream.createProducer(serializer, new ProducerConfig(null));
-        producer.publish("RoutingKey", testString);
-        producer.flush();
+        EventStreamWriter<String> writer = stream.createProducer(serializer, new WriterConfig(null));
+        writer.writeEvent("RoutingKey", testString);
+        writer.flush();
 
         @Cleanup
-        Consumer<String> consumer = stream.createConsumer(serializer, new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
-        String read = consumer.getNextEvent(5000);
+        EventStreamReader<String> reader = stream.createConsumer(serializer, new ReaderConfig(), streamManager.getInitialPosition(streamName), null);
+        String read = reader.readNextEvent(5000);
         assertEquals(testString, read);
     }
 
