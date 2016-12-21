@@ -26,6 +26,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
 import com.google.common.util.concurrent.ServiceManager;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.val;
 
 import java.util.ArrayList;
@@ -71,12 +72,14 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.state = new TestState();
         this.closed = new AtomicBoolean();
         this.actors = new ArrayList<>();
-        this.store = new StreamSegmentStoreAdapter(builderConfig);
+        this.executor = Executors.newScheduledThreadPool(
+                testConfig.getThreadPoolSize(),
+                new ThreadFactoryBuilder().setNameFormat("self-test-%d").build());
+        this.store = new StreamSegmentStoreAdapter(builderConfig, this.executor);
         this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
         this.testCompletion = new AtomicReference<>();
-        this.executor = Executors.newScheduledThreadPool(testConfig.getThreadPoolSize());
         addListener(new ServiceShutdownListener(this::shutdownCallback, this::shutdownCallback), this.executor);
-        this.reporter = new Reporter(this.state, this.testConfig);
+        this.reporter = new Reporter(this.state, this.testConfig, this.store::getStorePoolSnapshot, this.executor);
     }
 
     //endregion
@@ -204,7 +207,8 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.actors.forEach(Actor::close);
         this.actors.clear();
 
-        // Output Summary, whether successful or not.
+        // Output final state and summary, whether successful or not.
+        this.reporter.outputState();
         this.reporter.outputSummary();
 
         // Complete Test Completion Future

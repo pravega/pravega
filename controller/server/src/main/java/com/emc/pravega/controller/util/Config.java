@@ -18,14 +18,22 @@
 package com.emc.pravega.controller.util;
 
 import com.typesafe.config.ConfigFactory;
+import com.typesafe.config.ConfigResolveOptions;
+import com.typesafe.config.ConfigValue;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.Map;
+import java.util.Set;
 
 /**
  * This is a utility used to read configuration. It can be configured to read custom configuration
  * files by setting the following system properties conf.file= < FILE PATH > or conf.resource=< Resource Name>. By default
  * it reads application.conf if no system property is set. Reference: {@link ConfigFactory#defaultApplication()}
  */
+@Slf4j
 public final class Config {
-    private final static com.typesafe.config.Config CONFIG = ConfigFactory.defaultApplication();
+    private final static com.typesafe.config.Config CONFIG = ConfigFactory.defaultApplication().withFallback(
+            ConfigFactory.defaultOverrides().resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true))).withFallback(ConfigFactory.defaultReference()).resolve();
 
     //RPC Server configuration
     public static final int SERVER_PORT = CONFIG.getInt("config.controller.server.port");
@@ -58,4 +66,9 @@ public final class Config {
 
     //TaskStore configuration.
     public static final String STORE_TYPE = CONFIG.getString("config.controller.server.store.type");
+
+    static {
+        Set<Map.Entry<String, ConfigValue>> entries = CONFIG.entrySet();
+        entries.forEach(entry -> log.debug("{} = {}", entry.getKey(), entry.getValue()));
+    }
 }

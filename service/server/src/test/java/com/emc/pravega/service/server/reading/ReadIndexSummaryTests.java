@@ -42,7 +42,6 @@ public class ReadIndexSummaryTests {
         long totalSize = 0;
         Random random = new Random();
         Queue<Integer> addedSizes = new LinkedList<>();
-        int maxGeneration = ITEMS_PER_GENERATION - 1;
 
         // Add a few.
         for (int generation = 0; generation < GENERATION_COUNT; generation++) {
@@ -62,6 +61,39 @@ public class ReadIndexSummaryTests {
         }
 
         // Remove them all.
+        testRemove(addedSizes, totalSize, ITEMS_PER_GENERATION - 1, s);
+    }
+
+    /**
+     * Tests the basic functionality of adding elements with explicit generations.
+     */
+    @Test
+    public void testAddExplicitGeneration() {
+        ReadIndexSummary s = new ReadIndexSummary();
+        long totalSize = 0;
+        Random random = new Random();
+        Queue<Integer> addedSizes = new LinkedList<>();
+        s.setCurrentGeneration(GENERATION_COUNT + 1);
+
+        // Add a few.
+        for (int generation = 0; generation < GENERATION_COUNT; generation++) {
+            for (int i = 0; i < ITEMS_PER_GENERATION; i++) {
+                int size = random.nextInt(MAX_ITEM_SIZE);
+                addedSizes.add(size);
+                totalSize += size;
+                s.add(size, generation);
+
+                CacheManager.CacheStatus currentStatus = s.toCacheStatus();
+                Assert.assertEquals("Unexpected total size.", totalSize, currentStatus.getSize());
+                Assert.assertEquals("Not expecting a change in oldest generation after just adding.", 0, currentStatus.getOldestGeneration());
+                Assert.assertEquals("Unexpected newest generation.", generation, currentStatus.getNewestGeneration());
+            }
+        }
+
+        testRemove(addedSizes, totalSize, GENERATION_COUNT - 1, s);
+    }
+
+    private void testRemove(Queue<Integer> addedSizes, long totalSize, int maxGeneration, ReadIndexSummary s) {
         for (int generation = 0; generation < GENERATION_COUNT; generation++) {
             for (int i = 0; i < ITEMS_PER_GENERATION; i++) {
                 int size = addedSizes.poll();

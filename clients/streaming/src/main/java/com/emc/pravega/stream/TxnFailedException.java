@@ -18,21 +18,26 @@
 package com.emc.pravega.stream;
 
 /**
- * A class that determines to which segment an event associated with a routing key will go.
- * This is invoked on every publish call to decide how to send a particular segment.
- * It is acceptable for an event router to cache the current set of segments for a stream, as it will be queried again
- * if a segment has been sealed.
+ * A transaction has failed. Usually because of it timed out or someone called
+ * {@link Transaction#drop()}
  */
-public interface EventRouter {
+public class TxnFailedException extends Exception {
 
-    /**
-     * Selects which segment an event should be published to.
-     * 
-     * @param routingKey The key that should be used to select from the segment that the event should go to.
-     * @return The Segment that has been selected.
-     */
-    Segment getSegmentForEvent(String routingKey);
+    private static final long serialVersionUID = 1L;
 
-    void refreshSegmentList();
-    
+    public TxnFailedException() {
+        super();
+    }
+
+    public TxnFailedException(Throwable e) {
+        super(e);
+    }
+
+    public TxnFailedException(String msg, Throwable e) {
+        super(msg, e);
+    }
+
+    public TxnFailedException(String msg) {
+        super(msg);
+    }
 }

@@ -17,54 +17,56 @@
  */
 package com.emc.pravega.stream;
 
-import java.io.Serializable;
+import java.util.UUID;
 
 /**
  * Provides a mechanism for publishing many events atomically.
  * A Transaction is unbounded in size but is bounded in time. If it has not been committed within a time window
- * specified  at the time of its creation it will be automatically dropped.
- * <p>
- * Note that transactions are serializable (to a small reference). So they can be stored in an external store or passed
- * between processes if desired.
- * <p>
+ * specified  at the time of its creation it will be automatically aborted.
+ * 
  * All methods on this class may block.
  *
  * @param <Type> The type of events in the associated stream.
  */
-public interface Transaction<Type> extends Serializable {
+public interface Transaction<Type> {
     enum Status {
         OPEN,
         SEALED,
         COMMITTED,
-        DROPPED
+        ABORTED
     }
 
+    /**
+     * Returns a unique ID that can be used to identify this transaction.
+     */
+    UUID getTransactionId();
+    
     /**
      * Sends an event to the stream just like {@link Producer#publish} but with the caveat that the message will not be
      * visible to anyone until {@link #commit()} is called.
      *
      * @param routingKey The Routing Key to use for publishing.
      * @param event      The Event to publish.
-     * @throws TxFailedException The Transaction is no longer in state {@link Status#OPEN}
+     * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
-    void publish(String routingKey, Type event) throws TxFailedException;
+    void publish(String routingKey, Type event) throws TxnFailedException;
 
     /**
      * Blocks until all events passed to {@link #publish} make it to durable storage.
      * This is only needed if the transaction is going to be serialized.
      *
-     * @throws TxFailedException The Transaction is no longer in state {@link Status#OPEN}
+     * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
-    void flush() throws TxFailedException;
+    void flush() throws TxnFailedException;
 
     /**
      * Causes all messages previously published to the transaction to go into the stream contiguously.
      * This operation will either fully succeed making all events consumable or fully fail such that none of them are.
      * There may be some time delay before consumers see the events after this call has returned.
      *
-     * @throws TxFailedException The Transaction is no longer in state {@link Status#OPEN}
+     * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
-    void commit() throws TxFailedException;
+    void commit() throws TxnFailedException;
 
     /**
      * Drops the transaction, causing all events published to it to be deleted.

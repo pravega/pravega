@@ -17,17 +17,21 @@
  */
 package com.emc.pravega.stream;
 
-/**
- * A listener that is notified every time a consumer may want to scale up or down the number of instances.
- */
-public interface RateChangeListener {
+import lombok.Builder;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
-    /**
-     * Called when the rate changes, and scaling may be needed.
-     *
-     * @param stream            The stream that may need to be scaled.
-     * @param isRebalanceUrgent True if a consumer may be blocked because
-     *                          {@link RebalancerUtils#rebalance(java.util.Collection, int)} needs to be called.
-     */
-    void rateChanged(Stream stream, boolean isRebalanceUrgent);
+@Builder
+@EqualsAndHashCode
+public class ConsumerGroupConfig {
+   @Getter
+   private final Sequence startingPosition;
+   
+   static class ConsumerGroupConfigBuilder {
+       ConsumerGroupConfigBuilder startingTime(long time) {
+           startingPosition = new Sequence(time, 0);
+           return this;
+       }
+   }
+
 }

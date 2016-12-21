@@ -17,27 +17,25 @@
  */
 package com.emc.pravega.stream;
 
+import lombok.Data;
+
 /**
- * A transaction has failed. Usually because of it timed out or someone called
- * {@link Transaction#drop()}
+ * A wrapper for two numbers. Where one is treated as 'high order' and the other as 'low order' to
+ * break ties when the former is the same.
  */
-public class TxFailedException extends Exception {
-
-    private static final long serialVersionUID = 1L;
-
-    public TxFailedException() {
-        super();
-    }
-
-    public TxFailedException(Throwable e) {
-        super(e);
-    }
-
-    public TxFailedException(String msg, Throwable e) {
-        super(msg, e);
-    }
-
-    public TxFailedException(String msg) {
-        super(msg);
+@Data
+public class Sequence implements Comparable<Sequence> {
+    public static final Sequence MAX_VALUE = new Sequence(Long.MAX_VALUE, Long.MAX_VALUE);
+    public static final Sequence MIN_VALUE = new Sequence(Long.MIN_VALUE, Long.MIN_VALUE);
+    private final long highOrder;
+    private final long lowOrder;
+    
+    @Override
+    public int compareTo(Sequence o) {
+        int result = Long.compare(highOrder, o.highOrder);
+        if (result == 0) {
+            return Long.compare(lowOrder, o.lowOrder);
+        }
+        return result;
     }
 }

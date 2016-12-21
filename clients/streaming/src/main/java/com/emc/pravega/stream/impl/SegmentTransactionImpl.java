@@ -22,7 +22,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import com.emc.pravega.stream.Serializer;
-import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 
@@ -38,12 +38,12 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
     }
 
     @Override
-    public void publish(Type event) throws TxFailedException {
+    public void publish(Type event) throws TxnFailedException {
         try {
             ByteBuffer buffer = serializer.serialize(event);
             out.write(buffer, CompletableFuture.completedFuture(null));
         } catch (SegmentSealedException e) {
-            throw new TxFailedException(e);
+            throw new TxnFailedException(e);
         }
     }
 
@@ -53,11 +53,11 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
     }
 
     @Override
-    public void flush() throws TxFailedException {
+    public void flush() throws TxnFailedException {
         try {
             out.flush();
         } catch (SegmentSealedException e) {
-            throw new TxFailedException(e);
+            throw new TxnFailedException(e);
         }
     }
 

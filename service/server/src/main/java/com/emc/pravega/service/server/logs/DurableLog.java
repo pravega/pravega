@@ -234,13 +234,13 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         return this.durableDataLog
                 .truncate(truncationFrameAddress, timer.getRemaining())
-                .thenRun(() -> {
+                .thenRunAsync(() -> {
                     // Truncate InMemory Transaction Log.
                     this.inMemoryOperationLog.truncate(e -> e.getSequenceNumber() <= actualTruncationSequenceNumber);
 
                     // Remove old truncation markers.
                     this.metadata.removeTruncationMarkers(actualTruncationSequenceNumber);
-                });
+                }, this.executor);
     }
 
     @Override
