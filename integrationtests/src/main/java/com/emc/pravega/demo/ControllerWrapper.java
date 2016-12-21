@@ -122,23 +122,23 @@ public class ControllerWrapper implements Controller {
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> commitTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<TransactionStatus> commitTxn(Stream stream, UUID txId) {
         return controller.commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId));
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> dropTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<TransactionStatus> abortTxn(Stream stream, UUID txId) {
         return controller.dropTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId));
     }
 
     @Override
-    public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txId) {
+    public CompletableFuture<Transaction.Status> checkTxnStatus(Stream stream, UUID txId) {
         return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId))
                 .thenApply(status -> ModelHelper.encode(status, stream + " " + txId));
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(Stream stream, long timeout) {
+    public CompletableFuture<UUID> createTxn(Stream stream) {
         return controller.createTransaction(stream.getScope(), stream.getStreamName())
                 .thenApply(ModelHelper::encode);
     }

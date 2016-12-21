@@ -37,7 +37,7 @@ public class StartProducer {
 
         @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
-        Transaction<String> transaction = producer.startTransaction(60000);
+        Transaction<String> transaction = producer.beginTxn();
         for (int i = 0; i < 10; i++) {
             String event = "\n Transactional Publish \n";
             System.err.println("Producing event: " + event);

@@ -51,7 +51,7 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
@@ -121,7 +121,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> commitTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<TransactionStatus> commitTxn(Stream stream, UUID txId) {
         CompletableFuture<TransactionStatus> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -142,7 +142,7 @@ public class MockController implements Controller {
 
             @Override
             public void transactionDropped(TransactionDropped transactionDropped) {
-                result.completeExceptionally(new TxFailedException("Transaction already dropped."));
+                result.completeExceptionally(new TxnFailedException("Transaction already dropped."));
             }
         };
         sendRequestOverNewConnection(new CommitTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
@@ -150,7 +150,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> dropTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<TransactionStatus> abortTxn(Stream stream, UUID txId) {
         CompletableFuture<TransactionStatus> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -179,12 +179,12 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txId) {
+    public CompletableFuture<Transaction.Status> checkTxnStatus(Stream stream, UUID txId) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(Stream stream, long timeout) {
+    public CompletableFuture<UUID> createTxn(Stream stream) {
         UUID txId = UUID.randomUUID();
         CompletableFuture<UUID> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {

@@ -50,7 +50,7 @@ public class EndToEndTransactionTest {
 
         @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
-        Transaction<String> transaction = producer.startTransaction(60000);
+        Transaction<String> transaction = producer.beginTxn();
 
         for (int i = 0; i < 1; i++) {
             String event = "\n Transactional Publish \n";
@@ -60,7 +60,7 @@ public class EndToEndTransactionTest {
             Thread.sleep(500);
         }
 
-        Transaction<String> transaction2 = producer.startTransaction(60000);
+        Transaction<String> transaction2 = producer.beginTxn();
         for (int i = 0; i < 1; i++) {
             String event = "\n Transactional Publish \n";
             System.err.println("Producing event: " + event);
@@ -80,7 +80,7 @@ public class EndToEndTransactionTest {
 
         CompletableFuture<Object> drop = CompletableFuture.supplyAsync(() -> {
             try {
-                transaction2.drop();
+                transaction2.abort();
             } catch (Exception e) {
                 e.printStackTrace();
             }

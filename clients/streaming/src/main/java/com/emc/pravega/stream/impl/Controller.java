@@ -29,7 +29,7 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.TxnFailedException;
 
 import java.util.List;
 import java.util.UUID;
@@ -73,19 +73,18 @@ public interface Controller {
      * Api to create a new transaction.
      * The transaction timeout is relative to the creation time.
      * @param stream stream name
-     * @param timeout tx timeout
      * @return
      */
-    CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout);
+    CompletableFuture<UUID> createTxn(final Stream stream);
 
     /**
      * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}.
-     * Will fail with {@link TxFailedException} if the transaction has already been committed or dropped.
+     * Will fail with {@link TxnFailedException} if the transaction has already been committed or dropped.
      * @param stream stream name
      * @param txId transaction id
      * @return
      */
-    CompletableFuture<TransactionStatus> commitTransaction(final Stream stream, final UUID txId);
+    CompletableFuture<TransactionStatus> commitTxn(final Stream stream, final UUID txId);
 
     /**
      * Drops a transaction. No events published to it may be read, and no further events may be published.
@@ -93,7 +92,7 @@ public interface Controller {
      * @param txId transaction id
      * @return
      */
-    CompletableFuture<TransactionStatus> dropTransaction(final Stream stream, final UUID txId);
+    CompletableFuture<TransactionStatus> abortTxn(final Stream stream, final UUID txId);
 
     /**
      * Returns the status of the specified transaction.
@@ -101,7 +100,7 @@ public interface Controller {
      * @param txId transaction id
      * @return
      */
-    CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
+    CompletableFuture<Transaction.Status> checkTxnStatus(final Stream stream, final UUID txId);
 
     // Controller Apis that are called by consumers
 

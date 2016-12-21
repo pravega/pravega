@@ -37,7 +37,7 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
@@ -194,7 +194,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         }
 
         @Override
-        public void publish(String routingKey, Type event) throws TxFailedException {
+        public void publish(String routingKey, Type event) throws TxnFailedException {
             Preconditions.checkState(!closed.get());
             Segment s = router.getSegmentForEvent(routingKey);
             SegmentTransaction<Type> transaction = inner.get(s);
@@ -202,27 +202,27 @@ public class ProducerImpl<Type> implements Producer<Type> {
         }
 
         @Override
-        public void commit() throws TxFailedException {
+        public void commit() throws TxnFailedException {
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.flush();
             }
-            FutureHelpers.getAndHandleExceptions(controller.commitTransaction(stream, txId), TxFailedException::new);
+            FutureHelpers.getAndHandleExceptions(controller.commitTxn(stream, txId), TxnFailedException::new);
             closed.set(true);
         }
 
         @Override
-        public void drop() {
-            FutureHelpers.getAndHandleExceptions(controller.dropTransaction(stream, txId), RuntimeException::new);
+        public void abort() {
+            FutureHelpers.getAndHandleExceptions(controller.abortTxn(stream, txId), RuntimeException::new);
             closed.set(true);
         }
 
         @Override
         public Status checkStatus() {
-            return FutureHelpers.getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
+            return FutureHelpers.getAndHandleExceptions(controller.checkTxnStatus(stream, txId), RuntimeException::new);
         }
 
         @Override
-        public void flush() throws TxFailedException {
+        public void flush() throws TxnFailedException {
             Preconditions.checkState(!closed.get());
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.flush();
@@ -232,13 +232,13 @@ public class ProducerImpl<Type> implements Producer<Type> {
     }
 
     @Override
-    public Transaction<Type> startTransaction(long timeout) {
+    public Transaction<Type> beginTxn() {
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         ArrayList<Segment> segmentIds;
         synchronized (lock) {
             segmentIds = new ArrayList<>(producers.keySet());
         }
-        UUID txId = FutureHelpers.getAndHandleExceptions(controller.createTransaction(stream, timeout), RuntimeException::new);
+        UUID txId = FutureHelpers.getAndHandleExceptions(controller.createTxn(stream), RuntimeException::new);
         for (Segment s : segmentIds) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
