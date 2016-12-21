@@ -35,7 +35,7 @@ import org.apache.commons.lang.NotImplementedException;
 public class StreamManagerImpl implements StreamManager {
 
     private final String scope;
-    private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
+    static private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
     private final ControllerImpl controller;
 
     public StreamManagerImpl(String scope, URI controllerUri) {

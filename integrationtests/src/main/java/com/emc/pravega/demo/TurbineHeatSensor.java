@@ -169,6 +169,7 @@ public class TurbineHeatSensor {
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 5,
                                     NUM_SEGMENTS)));
             ClientFactory factory = new ClientFactoryImpl("hi", new URI(controllerUri));
+
             producer = factory.createProducer(streamName, new JavaSerializer<>(), new ProducerConfig(null));
 
             stats = new Stats(producerCount * eventsPerSec * runtimeSec, 2);
