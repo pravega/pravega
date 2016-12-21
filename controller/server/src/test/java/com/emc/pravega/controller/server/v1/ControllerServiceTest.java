@@ -91,8 +91,8 @@ public class ControllerServiceTest {
 
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
-        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
-        final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
+        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1, false);
+        final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2, false);
 
         // region createStream
         streamStore.createStream(stream1, configuration1, System.currentTimeMillis());

@@ -163,7 +163,7 @@ public class ReadTest {
         server.startListening();
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
         Controller controller = new MockController(endpoint, port, clientCF);
-        controller.createStream(new StreamConfigurationImpl(scope, stream, null));
+        controller.createStream(new StreamConfigurationImpl(scope, stream, null, false));
 
         SegmentOutputStreamFactoryImpl segmentproducerClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
 

@@ -72,7 +72,7 @@ public class ZkStreamTest {
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test";
 
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
+        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy, false);
         store.createStream(streamName, streamConfig, System.currentTimeMillis()).get();
 
         List<Segment> segments = store.getActiveSegments(streamName).get();
@@ -164,7 +164,7 @@ public class ZkStreamTest {
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test2";
 
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
+        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy, false);
         store.createStream(streamName, streamConfig, System.currentTimeMillis()).get();
 
         List<Segment> initial = store.getActiveSegments(streamName).get();
@@ -209,7 +209,7 @@ public class ZkStreamTest {
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testTx";
 
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
+        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy, false);
         store.createStream(streamName, streamConfig, System.currentTimeMillis()).get();
 
         UUID tx = store.createTransaction(streamName, streamName).get();

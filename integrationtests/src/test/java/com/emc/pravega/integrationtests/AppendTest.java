@@ -126,7 +126,7 @@ public class AppendTest {
         assertEquals(uuid, setup.getConnectionId());
 
         DataAppended ack = (DataAppended) sendRequest(channel,
-                                                      new Append(segment, uuid, data.readableBytes(), data, null));
+                new Append(segment, uuid, data.readableBytes(), data, null));
         assertEquals(uuid, ack.getConnectionId());
         assertEquals(data.readableBytes(), ack.getEventNumber());
     }
@@ -173,11 +173,12 @@ public class AppendTest {
 
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
         Controller controller = new MockController(endpoint, port, clientCF);
-        controller.createStream(new StreamConfigurationImpl(scope, stream, null));
+        controller.createStream(new StreamConfigurationImpl(scope, stream, null, false));
 
         SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
 
-        Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
+        Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream),
+                RuntimeException::new).getSegments().iterator().next();
         @Cleanup("close")
         SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, null);
         CompletableFuture<Boolean> ack = new CompletableFuture<>();

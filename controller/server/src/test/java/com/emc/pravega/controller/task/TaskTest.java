@@ -75,7 +75,7 @@ public class TaskTest {
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
     private final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
-    private final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
+    private final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1, false);
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore streamStore =
@@ -106,8 +106,8 @@ public class TaskTest {
 
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
-        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
-        final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
+        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1, false);
+        final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2, false);
 
         // region createStream
         streamStore.createStream(stream1, configuration1, System.currentTimeMillis());
@@ -152,7 +152,7 @@ public class TaskTest {
         final String deadThreadId = UUID.randomUUID().toString();
         final String scope = SCOPE;
         final String stream = "streamSweeper";
-        final StreamConfiguration configuration = new StreamConfigurationImpl(SCOPE, stream1, policy1);
+        final StreamConfiguration configuration = new StreamConfigurationImpl(SCOPE, stream1, policy1, false);
 
         final TaskData taskData = new TaskData();
         final Resource resource = new Resource(scope, stream);
@@ -196,8 +196,8 @@ public class TaskTest {
         final String stream1 = "parallelSweeper1";
         final String stream2 = "parallelSweeper2";
 
-        final StreamConfiguration config1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
-        final StreamConfiguration config2 = new StreamConfigurationImpl(SCOPE, stream2, policy1);
+        final StreamConfiguration config1 = new StreamConfigurationImpl(SCOPE, stream1, policy1, false);
+        final StreamConfiguration config2 = new StreamConfigurationImpl(SCOPE, stream2, policy1, false);
 
         final TaskData taskData1 = new TaskData();
         final Resource resource1 = new Resource(scope, stream1);

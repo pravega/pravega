@@ -64,6 +64,11 @@ public class ModelHelperTest {
             public ScalingPolicy getScalingPolicy() {
                 return createScalingPolicy();
             }
+
+            @Override
+            public boolean isSealed() {
+                return false;
+            }
         };
     }
 
