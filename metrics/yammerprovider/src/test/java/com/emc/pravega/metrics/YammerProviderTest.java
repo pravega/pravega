@@ -20,7 +20,6 @@ import org.junit.Test;
 import org.junit.Before;
 import static org.junit.Assert.assertEquals;
 
-//import com.codahale.metrics.Gauge;
 import java.util.concurrent.TimeUnit;
 
 public class YammerProviderTest {

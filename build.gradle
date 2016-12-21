@@ -338,12 +338,11 @@ project('aop') {
     apply plugin: 'aspectj'
     apply plugin: 'application'
 
-    mainClassName = 'com.emc.pravega.metrics.aspectj.CounterWithAnnotation'
-
     dependencies {
         compile project(':metrics')
         compile project(':common')
-   }
+    }
+
 }
 
 project('metrics:nullprovider') {

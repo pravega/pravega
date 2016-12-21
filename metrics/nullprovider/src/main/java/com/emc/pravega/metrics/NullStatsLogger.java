@@ -54,6 +54,21 @@ public class NullStatsLogger implements StatsLogger {
         public void clear() {
             // nop
         }
+
+        @Override
+        public void nowTime() {
+            // nop
+        }
+
+        @Override
+        public void reportSuccess(){
+            // nop
+        }
+
+        @Override
+        public void reportFailure(){
+            // nop
+        }
     }
 
     static NullOpStatsLogger nullOpStatsLogger = new NullOpStatsLogger();
