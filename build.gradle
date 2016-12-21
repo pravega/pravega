@@ -73,7 +73,17 @@ allprojects {
 
         testCompile "org.mockito:mockito-core:2.+"
     }
-
+	
+	test {
+		testLogging.exceptionFormat = 'full'
+		maxParallelForks = 2
+		minHeapSize = "128m"
+		maxHeapSize = "512m"
+	}
+	
+	GroovyCompile {
+		groovyOptions.fork = false
+	}
 }
 
 def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
@@ -328,18 +338,6 @@ project('controller:server') {
         }
     }
 }
-
-allprojects {
-    tasks.withType(GroovyCompile) {
-        groovyOptions.fork = false
-    }
-    tasks.withType(Test) {
-        // containers (currently) have 2 dedicated cores and 4GB of memory
-        maxParallelForks = 2
-        minHeapSize = '128m'
-    }
-}
-
 
 subprojects {
     task allDeps(type: DependencyReportTask) {}

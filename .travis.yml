@@ -3,7 +3,7 @@ jdk:
   - oraclejdk8
 env:
   global:
-    - GRADLE_OPTS="-Xms128m --stacktrace"
+    - GRADLE_OPTS="-Xms128m"
 
 sudo: required
 
