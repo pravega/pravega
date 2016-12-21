@@ -33,6 +33,10 @@ allprojects {
     checkstyle {
         toolVersion = "7.1"
     }
+	javadoc {
+	    failOnError = false
+		exclude  "**/impl/**";
+	}
 
     repositories {
         // Use 'jcenter' for resolving your dependencies.
