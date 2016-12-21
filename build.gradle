@@ -74,8 +74,15 @@ allprojects {
         testCompile "org.mockito:mockito-core:2.+"
     }
 	
-	test {
-		testLogging.exceptionFormat = 'full'
+    tasks.withType(GroovyCompile) {		
+		groovyOptions.fork = false		
+    }
+	
+	tasks.withType(Test) {
+		testLogging.exceptionFormat = "FULL"
+		testLogging.showCauses = true
+		testLogging.showExceptions = true
+		testLogging.showStackTraces = true
 		maxParallelForks = 2
 		minHeapSize = "128m"
 		maxHeapSize = "512m"
