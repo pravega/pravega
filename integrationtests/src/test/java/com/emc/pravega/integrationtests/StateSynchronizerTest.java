@@ -14,24 +14,23 @@
  */
 package com.emc.pravega.integrationtests;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.state.examples.SetSynchronizer;
-import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.TxFailedException;
-import com.emc.pravega.stream.mock.MockStreamManager;
+import com.emc.pravega.stream.TxnFailedException;
+import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.testcommon.Async;
 import com.emc.pravega.testcommon.TestUtils;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
@@ -60,7 +59,7 @@ public class StateSynchronizerTest {
     }
 
     @Test(timeout = 30000)
-    public void testStateTracker() throws TxFailedException {
+    public void testStateTracker() throws TxnFailedException {
         String endpoint = "localhost";
         String stateName = "abc";
         int port = TestUtils.randomPort();
@@ -68,12 +67,11 @@ public class StateSynchronizerTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        Stream stream = streamManager.createStream(stateName, null);
 
-        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stream);
-        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stream);
+        MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
+        clientFactory.createStream(stateName, null);
+        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, clientFactory);
+        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, clientFactory);
 
         assertTrue(setA.attemptAdd("1"));
         assertFalse(setB.attemptAdd("Fail"));
@@ -100,16 +98,15 @@ public class StateSynchronizerTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        Stream stream = streamManager.createStream(stateName, null);
 
-        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stream);
+        MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
+        clientFactory.createStream(stateName, null);
+        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, clientFactory);
 
         for (int i = 0; i < 10; i++) {
             assertTrue(setA.attemptAdd("Append: " + i));
         }
-        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stream);
+        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, clientFactory);
         assertEquals(10, setB.getCurrentSize());
         for (int i = 10; i < 20; i++) {
             assertTrue(setA.attemptAdd("Append: " + i));
@@ -127,12 +124,11 @@ public class StateSynchronizerTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
-        Stream stream = streamManager.createStream(stateName, null);
 
-        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stream);
-        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stream);
+        MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
+        clientFactory.createStream(stateName, null);
+        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, clientFactory);
+        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, clientFactory);
 
         assertTrue(setA.attemptAdd("foo"));
         setB.update();

@@ -36,9 +36,9 @@ import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
-import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.impl.model.ModelHelper;
+import com.emc.pravega.stream.impl.ConnectionClosedException;
+import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 
 
@@ -82,7 +82,7 @@ public class SegmentHelper {
         };
 
         return sendRequestOverNewConnection(
-                new WireCommands.CreateSegment(Segment.getQualifiedName(scope, stream, segmentNumber)),
+                new WireCommands.CreateSegment(Segment.getScopedName(scope, stream, segmentNumber)),
                 replyProcessor,
                 clientCF,
                 uri)
@@ -132,7 +132,7 @@ public class SegmentHelper {
         };
 
         return sendRequestOverNewConnection(
-                new WireCommands.SealSegment(Segment.getQualifiedName(scope, stream, segmentNumber)),
+                new WireCommands.SealSegment(Segment.getScopedName(scope, stream, segmentNumber)),
                 replyProcessor,
                 clientCF,
                 ModelHelper.encode(uri))
@@ -168,7 +168,7 @@ public class SegmentHelper {
         };
 
         return sendRequestOverNewConnection(
-                new WireCommands.CreateTransaction(Segment.getQualifiedName(scope, stream, segmentNumber), txId),
+                new WireCommands.CreateTransaction(Segment.getScopedName(scope, stream, segmentNumber), txId),
                 replyProcessor,
                 clientCF,
                 ModelHelper.encode(uri))
@@ -205,14 +205,14 @@ public class SegmentHelper {
             }
 
             @Override
-            public void transactionDropped(WireCommands.TransactionDropped transactionDropped) {
+            public void transactionAborted(WireCommands.TransactionAborted transactionAborted) {
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.PreconditionFailed));
             }
         };
 
         return sendRequestOverNewConnection(
-                new WireCommands.CommitTransaction(Segment.getQualifiedName(scope, stream, segmentNumber), txId),
+                new WireCommands.CommitTransaction(Segment.getScopedName(scope, stream, segmentNumber), txId),
                 replyProcessor,
                 clientCF,
                 ModelHelper.encode(uri))
@@ -246,13 +246,13 @@ public class SegmentHelper {
             }
 
             @Override
-            public void transactionDropped(WireCommands.TransactionDropped transactionDropped) {
+            public void transactionAborted(WireCommands.TransactionAborted transactionDropped) {
                 result.complete(TransactionStatus.SUCCESS);
             }
         };
 
         return sendRequestOverNewConnection(
-                new WireCommands.DropTransaction(Segment.getQualifiedName(scope, stream, segmentNumber), txId),
+                new WireCommands.DropTransaction(Segment.getScopedName(scope, stream, segmentNumber), txId),
                 replyProcessor,
                 clientCF,
                 ModelHelper.encode(uri))

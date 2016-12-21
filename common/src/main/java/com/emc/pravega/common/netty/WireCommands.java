@@ -822,14 +822,14 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class TransactionDropped implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.TRANSACTION_DROPPED;
+    public static final class TransactionAborted implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.TRANSACTION_ABORTED;
         final String segment;
         final UUID txid;
 
         @Override
         public void process(ReplyProcessor cp) {
-            cp.transactionDropped(this);
+            cp.transactionAborted(this);
         }
 
         @Override
@@ -842,7 +842,7 @@ public final class WireCommands {
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
-            return new TransactionDropped(segment, txid);
+            return new TransactionAborted(segment, txid);
         }
     }
 
