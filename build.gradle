@@ -80,10 +80,6 @@ allprojects {
 		minHeapSize = "128m"
 		maxHeapSize = "512m"
 	}
-	
-	GroovyCompile {
-		groovyOptions.fork = false
-	}
 }
 
 def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
