@@ -37,6 +37,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.emc.pravega.common.concurrent.FutureCollectionHelper.filter;
@@ -96,8 +97,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<List<Segment>> getActiveSegments(final String name) {
         Stream stream = getStream(name);
-        return stream
-                .getActiveSegments()
+        return stream.getConfiguration()
+                .thenApply(config -> config.isSealed()).thenCompose(isSealed -> {
+                    if (isSealed) {
+                        //Stream is sealed return empty list.
+                        return CompletableFuture.completedFuture(Collections.emptyList());
+                    } else {
+                        return stream.getActiveSegments();
+                    }
+                })
                 .thenCompose(currentSegments -> sequence(currentSegments.stream().map(stream::getSegment).collect(Collectors.toList())));
     }
 
@@ -256,10 +264,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         ).collect(Collectors.toList());
 
         // 3. all its predecessors completed, and
+        Function<List<Integer>, Boolean> predicate = list -> list.stream().allMatch(completedSegments::contains);
         return filter(
                 newCurrents,
-                (Integer x) -> stream.getPredecessors(x).thenApply(list -> list.stream().allMatch(completedSegments::contains))
-        );
+                (Integer x) -> stream.getPredecessors(x).thenApply(predicate));
     }
 
     private CompletableFuture<Map<Integer, List<Integer>>> getNewFutures(final Stream stream,

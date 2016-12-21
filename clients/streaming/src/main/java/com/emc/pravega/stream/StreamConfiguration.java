@@ -41,4 +41,10 @@ public interface StreamConfiguration extends Serializable {
      * @return The stream's scaling policy.
      */
     ScalingPolicy getScalingPolicy();
+
+    /**
+     * Api to return if stream is sealed.
+     * @return True if stream is sealed.
+     */
+    boolean isSealed();
 }

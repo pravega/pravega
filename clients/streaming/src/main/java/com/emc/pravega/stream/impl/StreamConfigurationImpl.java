@@ -30,6 +30,8 @@ public class StreamConfigurationImpl implements StreamConfiguration {
     private final String name;
     private final ScalingPolicy scalingPolicy;
 
+    private final boolean sealed;
+
     @Override
     public String getName() {
         return name;

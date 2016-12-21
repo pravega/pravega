@@ -19,8 +19,8 @@ package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.concurrent.FutureCollectionHelper;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
@@ -40,7 +40,7 @@ import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.Serializable;
@@ -138,6 +138,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
+        Preconditions.checkArgument(!config.isSealed(), "Sealed Stream cannot be created. Stream: {}", stream);
         return this.streamMetadataStore.createStream(stream, config, timestamp)
                 .thenCompose(x -> {
                     if (x) {
@@ -164,7 +165,16 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream, StreamConfiguration config) {
-        return streamMetadataStore.updateConfiguration(stream, config)
+        return streamMetadataStore.getConfiguration(stream)
+                .thenApply(currentConfig -> {
+                    Preconditions.checkArgument(currentConfig.isSealed() && !config.isSealed(),
+                            "Update of stream: {} failed. A sealed stream cannot be unsealed.", stream);
+                    if (currentConfig.isSealed() != config.isSealed()) {
+                        invokeSealSegments(stream);
+                    }
+                    return CompletableFuture.completedFuture(true);
+                })
+                .thenCompose(c -> streamMetadataStore.updateConfiguration(stream, config))
                 .handle((result, ex) -> {
                     if (ex != null) {
                         if (ex instanceof StreamNotFoundException) {
@@ -177,6 +187,12 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                         return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
                     }
                 });
+    }
+
+    private CompletableFuture<Boolean> invokeSealSegments(String stream) {
+        //Invoke Seal Segment of all active segments.
+        //TODO: Depends on PR : https://github.com/emccode/pravega/pull/288
+        return CompletableFuture.completedFuture(true);
     }
 
     private CompletableFuture<ScaleResponse> scaleBody(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {

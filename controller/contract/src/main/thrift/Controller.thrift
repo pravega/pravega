@@ -52,6 +52,7 @@ struct StreamConfig {
   1: required string scope,
   2: required string name,
   3: required ScalingPolicy policy
+  4: required bool sealed
 }
 
 struct SegmentId {
