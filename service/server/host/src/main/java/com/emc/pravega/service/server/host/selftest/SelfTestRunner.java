@@ -20,10 +20,16 @@ package com.emc.pravega.service.server.host.selftest;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.FileAppender;
 import com.emc.pravega.common.util.PropertyBag;
+import com.emc.pravega.service.server.logs.DurableLogConfig;
+import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import lombok.Cleanup;
+import lombok.val;
 import org.slf4j.LoggerFactory;
 
 import java.util.Properties;
@@ -33,12 +39,10 @@ import java.util.concurrent.TimeUnit;
  * Main entry point for Self Tester.
  */
 public class SelfTestRunner {
-    public static void main(String[] args) throws Exception {
-        // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
-        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        context.getLoggerList().get(0).setLevel(Level.INFO);
-        context.reset();
+    private static final String LOG_PATH = "/tmp/pravega/selftest.log";
 
+    public static void main(String[] args) throws Exception {
+        setupLogging();
         TestConfig testConfig = getTestConfig();
         ServiceBuilderConfig builderConfig = getBuilderConfig();
 
@@ -63,6 +67,14 @@ public class SelfTestRunner {
         ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "2");
         ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "50");
 
+        // TODO: consider setting the following as defaults in their config classes.
+        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, "100");
+        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, "100");
+        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, "104857600");
+
+        ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, Integer.toString(60 * 1000));
+        ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.toString(128 * 1024 * 1024));
+
         // All component configs should have defaults built-in, so no need to override them here
         return new ServiceBuilderConfig(p);
     }
@@ -70,14 +82,41 @@ public class SelfTestRunner {
     private static TestConfig getTestConfig() {
         return new TestConfig(TestConfig.convert(TestConfig.COMPONENT_CODE,
                 PropertyBag.create()
-                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 10)
-                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 10)
-                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 100000)
+                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 100)
+                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 100)
+                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 5000000)
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
                            .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 50)
                            .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 150)
                            .with(TestConfig.PROPERTY_TIMEOUT_MILLIS, 3000)));
+    }
+
+    private static void setupLogging() {
+        val logFile = new java.io.File(LOG_PATH);
+        if (logFile.delete()) {
+            TestLogger.log("Main", "Deleted log file %s.", LOG_PATH);
+        }
+
+        // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
+        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        context.getLoggerList().get(0).detachAndStopAllAppenders();
+
+        val fa = new FileAppender<ILoggingEvent>();
+        fa.setContext(context);
+        fa.setName("selftest");
+        fa.setFile(LOG_PATH);
+
+        val encoder = new PatternLayoutEncoder();
+        encoder.setContext(context);
+        encoder.setPattern("%date{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %level - %msg%n");
+        encoder.start();
+        fa.setEncoder(encoder);
+        fa.start();
+
+        context.getLoggerList().get(0).addAppender(fa);
+        context.getLoggerList().get(0).setLevel(Level.INFO);
+        //context.reset();
     }
 }

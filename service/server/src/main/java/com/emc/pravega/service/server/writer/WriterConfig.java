@@ -45,7 +45,7 @@ public class WriterConfig extends ComponentConfig {
     private static final int DEFAULT_FLUSH_THRESHOLD_BYTES = 4 * 1024 * 1024; // 4MB
     private static final int DEFAULT_FLUSH_THRESHOLD_MILLIS = 30 * 1000; // 30s
     private static final int DEFAULT_MAX_FLUSH_SIZE_BYTES = DEFAULT_FLUSH_THRESHOLD_BYTES;
-    private static final int DEFAULT_MAX_ITEMS_TO_READ_AT_ONCE = 100;
+    private static final int DEFAULT_MAX_ITEMS_TO_READ_AT_ONCE = 1000;
     private static final int DEFAULT_MIN_READ_TIMEOUT_MILLIS = 2 * 1000; // 2s
     private static final int DEFAULT_MAX_READ_TIMEOUT_MILLIS = 30 * 60 * 1000; // 30 min
     private static final int DEFAULT_ERROR_SLEEP_MILLIS = 1000; // 1 s
