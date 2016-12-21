@@ -17,16 +17,18 @@
  */
 package com.emc.pravega.demo;
 
+import com.emc.pravega.ClientFactory;
+import com.emc.pravega.StreamManager;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.StreamManager;
+import com.emc.pravega.stream.StreamManagerImpl;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.TxnFailedException;
+import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.StreamManagerImpl;
 import lombok.Cleanup;
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
@@ -163,10 +165,11 @@ public class TurbineHeatSensor {
             streamManager = new StreamManagerImpl(StartLocalService.SCOPE, new URI(controllerUri));
 
             stream = streamManager.createStream(streamName,
-                    new StreamConfigurationImpl("hi", StartLocalService.STREAM_NAME,
+                    new StreamConfigurationImpl("hi", streamName,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 5,
                                     NUM_SEGMENTS)));
-            producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
+            ClientFactory factory = new ClientFactoryImpl("hi", new URI(controllerUri));
+            producer = factory.createProducer(streamName, new JavaSerializer<>(), new ProducerConfig(null));
 
             stats = new Stats(producerCount * eventsPerSec * runtimeSec, 2);
 
@@ -215,7 +218,7 @@ public class TurbineHeatSensor {
             Transaction<String> transaction = null;
 
             if (isTransaction) {
-                transaction = producer.startTransaction(60000);
+                transaction = producer.beginTransaction(60000);
             }
 
             Future<Void> retFuture = null;
@@ -240,7 +243,7 @@ public class TurbineHeatSensor {
                     if (isTransaction) {
                         try {
                             transaction.publish(city, payload);
-                        } catch (TxFailedException e) {
+                        } catch (TxnFailedException e) {
                             System.out.println("Publish to transaction failed");
                             e.printStackTrace();
                             break;
@@ -265,7 +268,7 @@ public class TurbineHeatSensor {
             if (isTransaction) {
                 try {
                     transaction.commit();
-                } catch (TxFailedException e) {
+                } catch (TxnFailedException e) {
                     System.out.println("Transaction commit failed");
                     e.printStackTrace();
                 }

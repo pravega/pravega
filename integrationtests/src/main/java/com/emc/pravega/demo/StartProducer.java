@@ -19,11 +19,9 @@ package com.emc.pravega.demo;
 
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
-import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.mock.MockStreamManager;
-
+import com.emc.pravega.stream.mock.MockClientFactory;
 import lombok.Cleanup;
 
 public class StartProducer {
