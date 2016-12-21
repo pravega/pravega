@@ -165,7 +165,6 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
             if (!(newEntry instanceof RedirectedReadResultEntry)) {
                 // Request the content for the new entry (if that fails, we do not change any state).
                 newEntry.requestContent(timeout);
-                System.out.println(String.format("FE.offset=%s,NE.offset=%s,AO=%s", this.firstEntry.getStreamSegmentOffset(), newEntry.getStreamSegmentOffset(), this.adjustedOffset));
                 assert newEntry.getStreamSegmentOffset() == this.adjustedOffset : "new entry's StreamSegmentOffset does not match the adjusted offset of this entry";
                 assert newEntry.getRequestedReadLength() == this.firstEntry.getRequestedReadLength() : "new entry does not have the same RequestedReadLength";
 
