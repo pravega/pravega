@@ -146,7 +146,7 @@ public class FutureHelpersTests {
     }
 
     @Test
-    public void testWhileLoop() {
+    public void testLoop() {
         final int maxLoops = 10;
         final int expectedResult = maxLoops * (maxLoops - 1) / 2;
         AtomicInteger loopCounter = new AtomicInteger();
