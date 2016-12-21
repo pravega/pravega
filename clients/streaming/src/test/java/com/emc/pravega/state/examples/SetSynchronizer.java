@@ -225,8 +225,8 @@ public class SetSynchronizer<T extends Serializable> {
         return true;
     }
     
-    public static <T extends Serializable> SetSynchronizer<T> createNewSet(String streamName, ClientFactory manager) {
-        return new SetSynchronizer<>(manager.createSynchronizer(streamName, new JavaSerializer<SetUpdate<T>>(),
+    public static <T extends Serializable> SetSynchronizer<T> createNewSet(String streamName, ClientFactory factory) {
+        return new SetSynchronizer<>(factory.createSynchronizer(streamName, new JavaSerializer<SetUpdate<T>>(),
                                    new JavaSerializer<CreateSet<T>>(),
                                    new SynchronizerConfig(null, null)));
     }
