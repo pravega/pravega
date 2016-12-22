@@ -18,18 +18,27 @@
 
 package com.emc.pravega.service.server.reading;
 
-import java.util.concurrent.ScheduledExecutorService;
+import com.emc.pravega.service.contracts.ReadResultEntry;
+
+import java.util.function.Consumer;
 
 /**
- * Exposes the applyCachePolicy method in the CacheManager.
+ * Extends the ReadResultEntry interface by adding the ability to register a callback to be invoked upon completion.
  */
-class TestCacheManager extends CacheManager {
-    TestCacheManager(CachePolicy policy, ScheduledExecutorService executorService) {
-        super(policy, executorService);
-    }
+interface CompletableReadResultEntry extends ReadResultEntry {
+    /**
+     * Registers a CompletionConsumer that will be invoked when the content is retrieved, just before the Future is completed.
+     *
+     * @param completionCallback The callback to be invoked.
+     */
+    void setCompletionCallback(CompletionConsumer completionCallback);
 
-    @Override
-    public void applyCachePolicy() {
-        super.applyCachePolicy();
+    /**
+     * Gets the CompletionConsumer that was set using setCompletionCallback.
+     */
+    CompletionConsumer getCompletionCallback();
+
+    @FunctionalInterface
+    interface CompletionConsumer extends Consumer<Integer> {
     }
 }

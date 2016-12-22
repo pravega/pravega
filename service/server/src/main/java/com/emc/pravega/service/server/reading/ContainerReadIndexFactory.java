@@ -54,6 +54,9 @@ public class ContainerReadIndexFactory implements ReadIndexFactory {
         this.storageFactory = storageFactory;
         this.executorService = executorService;
         this.cacheManager = new CacheManager(config.getCachePolicy(), this.executorService);
+
+        // Start the CacheManager. It's OK to wait for it to start, as it doesn't do anything expensive during that phase.
+        this.cacheManager.startAsync().awaitRunning();
     }
 
     @Override
@@ -65,7 +68,7 @@ public class ContainerReadIndexFactory implements ReadIndexFactory {
     @Override
     public void close() {
         if (!this.closed) {
-            this.cacheManager.close();
+            this.cacheManager.close(); // Closing the CacheManager also stops it.
             this.closed = true;
         }
     }

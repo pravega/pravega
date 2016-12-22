@@ -44,7 +44,9 @@ import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
@@ -94,7 +96,7 @@ public final class ServiceBuilder implements AutoCloseable {
         this.serviceBuilderConfig = serviceBuilderConfig;
         ServiceConfig serviceConfig = this.serviceBuilderConfig.getConfig(ServiceConfig::new);
         this.segmentToContainerMapper = new SegmentToContainerMapper(serviceConfig.getContainerCount());
-        this.executorService = Executors.newScheduledThreadPool(serviceConfig.getThreadPoolSize());
+        this.executorService = createExecutorService(serviceConfig);
         this.operationLogFactory = new AtomicReference<>();
         this.readIndexFactory = new AtomicReference<>();
         this.dataLogFactory = new AtomicReference<>();
@@ -112,6 +114,13 @@ public final class ServiceBuilder implements AutoCloseable {
         this.metadataRepositoryCreator = notConfiguredCreator(MetadataRepository.class);
         this.segmentContainerManagerCreator = notConfiguredCreator(SegmentContainerManager.class);
         this.cacheFactoryCreator = notConfiguredCreator(CacheFactory.class);
+    }
+
+    private ScheduledExecutorService createExecutorService(ServiceConfig serviceConfig) {
+        val tf = new ThreadFactoryBuilder()
+                .setNameFormat("segment-store-%d")
+                .build();
+        return Executors.newScheduledThreadPool(serviceConfig.getThreadPoolSize(), tf);
     }
 
     //endregion
@@ -212,7 +221,6 @@ public final class ServiceBuilder implements AutoCloseable {
 
     /**
      * Initializes the ServiceBuilder.
-     *
      */
     public CompletableFuture<Void> initialize() {
         return getSingleton(this.containerManager, this.segmentContainerManagerCreator)

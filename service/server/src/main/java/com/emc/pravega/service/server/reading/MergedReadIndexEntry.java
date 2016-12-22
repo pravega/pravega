@@ -41,18 +41,19 @@ class MergedReadIndexEntry extends ReadIndexEntry {
      * Creates a new instance of the MergedReadIndexEntry class.
      *
      * @param streamSegmentOffset The StreamSegment offset for this entry.
-     * @param length              The length for this Entry.
      * @param sourceSegmentId     The Id of the Segment that was merged.
-     * @param sourceSegmentOffset The offset inside the SourceSegment where this data can be located.
+     * @param sourceEntry         The ReadIndexEntry this is based on.
      * @throws IllegalArgumentException If offset, length or sourceSegmentOffset are negative numbers.
      * @throws IllegalArgumentException If sourceSegmentId is invalid.
      */
-    MergedReadIndexEntry(long streamSegmentOffset, long length, long sourceSegmentId, long sourceSegmentOffset) {
-        super(streamSegmentOffset, length);
+    MergedReadIndexEntry(long streamSegmentOffset, long sourceSegmentId, ReadIndexEntry sourceEntry) {
+        super(streamSegmentOffset, sourceEntry.getLength());
         Preconditions.checkArgument(sourceSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "sourceSegmentId");
-        Preconditions.checkArgument(sourceSegmentOffset >= 0, "streamSegmentOffset must be a non-negative number.");
+        Preconditions.checkArgument(sourceEntry.isDataEntry(), "sourceEntry is not a data entry.");
+        Preconditions.checkArgument(sourceEntry.getStreamSegmentOffset() >= 0, "streamSegmentOffset must be a non-negative number.");
 
         this.sourceSegmentId = sourceSegmentId;
-        this.sourceSegmentOffset = sourceSegmentOffset;
+        this.sourceSegmentOffset = sourceEntry.getStreamSegmentOffset();
+        setGeneration(sourceEntry.getGeneration());
     }
 }
