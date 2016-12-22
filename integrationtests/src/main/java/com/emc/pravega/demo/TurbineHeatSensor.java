@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.ClientFactory;
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
@@ -60,11 +59,12 @@ public class TurbineHeatSensor {
 
     private static final int NUM_SEGMENTS = 5;
     private static Stream stream;
-    private static Producer<String> producer;
+   // private static Producer<String> producer;
     private static Stats stats;
     private static String controllerUri = "http://10.249.250.154:9090";
     private static int messageSize = 100;
     private static String streamName = StartLocalService.STREAM_NAME;
+    private static ClientFactoryImpl factory;
 
     public static void main(String[] args) throws Exception {
 
@@ -168,9 +168,8 @@ public class TurbineHeatSensor {
                     new StreamConfigurationImpl("hi", streamName,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 5,
                                     NUM_SEGMENTS)));
-            ClientFactory factory = new ClientFactoryImpl("hi", new URI(controllerUri));
+            factory = new ClientFactoryImpl("hi", new URI(controllerUri));
 
-            producer = factory.createProducer(streamName, new JavaSerializer<>(), new ProducerConfig(null));
 
             stats = new Stats(producerCount * eventsPerSec * runtimeSec, 2);
 
@@ -180,8 +179,10 @@ public class TurbineHeatSensor {
         }
         /* Create producerCount number of threads to simulate sensors. */
         for (int i = 0; i < producerCount; i++) {
+            Producer<String> producer = factory.createProducer(streamName, new JavaSerializer<>(),
+                    new ProducerConfig(null));
             TemperatureSensors worker = new TemperatureSensors(i, locations[i % locations.length], eventsPerSec,
-                    runtimeSec, isTransaction);
+                    runtimeSec, isTransaction, producer);
             executor.execute(worker);
         }
         executor.shutdown();
@@ -199,18 +200,21 @@ public class TurbineHeatSensor {
 
     private static class TemperatureSensors implements Runnable {
 
+        private final Producer<String> producer;
         private int producerId = 0;
         private String city = "";
         private int eventsPerSec = 0;
         private int secondsToRun = 0;
         private boolean isTransaction = false;
 
-        TemperatureSensors(int sensorId, String city, int eventsPerSec, int secondsToRun, boolean isTransaction) {
+        TemperatureSensors(int sensorId, String city, int eventsPerSec, int secondsToRun, boolean isTransaction,
+                           Producer<String> producer) {
             this.producerId = sensorId;
             this.city = city;
             this.eventsPerSec = eventsPerSec;
             this.secondsToRun = secondsToRun;
             this.isTransaction = isTransaction;
+            this.producer = producer;
         }
 
         @Override
