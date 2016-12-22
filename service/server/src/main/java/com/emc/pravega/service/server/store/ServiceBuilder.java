@@ -35,6 +35,7 @@ import com.emc.pravega.service.server.logs.DurableLogFactory;
 import com.emc.pravega.service.server.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.server.mocks.InMemoryMetadataRepository;
 import com.emc.pravega.service.server.mocks.LocalSegmentContainerManager;
+import com.emc.pravega.service.server.mocks.SynchronousStreamSegmentStore;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.writer.StorageWriterFactory;
@@ -220,7 +221,7 @@ public final class ServiceBuilder implements AutoCloseable {
     }
     
     /**
-     * Attaches the given StreamSegmentStore creator to this ServiceBuilder. The given Function will only not be invoked
+     * Attaches the given StreamSegmentStore creator to this ServiceBuilder. The given Function will not be invoked
      * right away; it will be called when needed.
      *
      * @param streamSegmentStoreCreator The Function to attach.

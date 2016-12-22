@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.service.server.store;
+package com.emc.pravega.service.server.mocks;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
@@ -29,6 +29,10 @@ import java.util.concurrent.CompletableFuture;
 
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Wraps a {@link StreamSegmentStore} and turns the async calls into synchrounus ones by blocking on
+ * the futures for test purposes. 
+ */
 @RequiredArgsConstructor
 public class SynchronousStreamSegmentStore implements StreamSegmentStore {
 
