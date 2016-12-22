@@ -19,12 +19,6 @@
 package com.emc.pravega.controller.server.rpc.v1;
 
 
-import java.net.UnknownHostException;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-
-import org.apache.commons.lang.NotImplementedException;
-
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
@@ -40,6 +34,12 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+
+import java.net.UnknownHostException;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+
+import org.apache.commons.lang.NotImplementedException;
 
 
 public class SegmentHelper {
@@ -227,7 +227,7 @@ public class SegmentHelper {
                                                                        final ConnectionFactory clientCF) {
         final NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
         final CompletableFuture<TransactionStatus> result = new CompletableFuture<>();
-        final WireCommandType type = WireCommandType.DROP_TRANSACTION;
+        final WireCommandType type = WireCommandType.ABORT_TRANSACTION;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
@@ -252,7 +252,7 @@ public class SegmentHelper {
         };
 
         return sendRequestOverNewConnection(
-                new WireCommands.DropTransaction(Segment.getScopedName(scope, stream, segmentNumber), txId),
+                new WireCommands.AbortTransaction(Segment.getScopedName(scope, stream, segmentNumber), txId),
                 replyProcessor,
                 clientCF,
                 ModelHelper.encode(uri))
