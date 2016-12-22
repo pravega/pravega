@@ -83,7 +83,6 @@ allprojects {
             }
         }
     }
-
 }
 
 def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
@@ -131,7 +130,6 @@ project('testcommon') {
         compile 'junit:junit:4.12'
     }
 }
-
 
 project('service:contracts') {
     dependencies {
