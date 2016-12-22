@@ -166,7 +166,7 @@
 
           "requirePorts": true,
           "env": {
-              "SERVER_OPTS":="-DZK_URL=master.mesos:2181"
+              "SERVER_OPTS": "-DZK_URL=master.mesos:2181"
           },
           "healthChecks": [
           {
