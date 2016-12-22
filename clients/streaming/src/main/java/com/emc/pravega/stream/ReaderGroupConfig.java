@@ -29,7 +29,7 @@ public class ReaderGroupConfig {
    
    public static class ReaderGroupConfigBuilder {
        public ReaderGroupConfigBuilder startingTime(long time) {
-           startingPosition = new Sequence(time, 0);
+           startingPosition = Sequence.create(time, 0);
            return this;
        }
    }
