@@ -18,6 +18,7 @@
 
 package com.emc.pravega.local;
 
+import com.emc.pravega.controller.server.Main;
 import com.twitter.distributedlog.LocalDLMEmulator;
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.commons.io.FileUtils;
@@ -27,6 +28,13 @@ import java.io.File;
 public class LocalPravegaEmulator {
 
 
+    private final int controllerPort;
+    private final int hostPort;
+
+    public LocalPravegaEmulator(int controllerPort, int hostPort) {
+        this.controllerPort = controllerPort;
+        this.hostPort = hostPort;
+    }
 
     public static void main(String[] args) {
         try {
@@ -91,6 +99,15 @@ public class LocalPravegaEmulator {
      * Start controller and host.
      * */
     private void start() {
+        startController();
+        startPravegaHost();
+    }
+
+    private void startPravegaHost() {
+    }
+
+    private void startController() {
+        Main.main(null);
     }
 
     private static Builder newBuilder() {
@@ -113,7 +130,7 @@ public class LocalPravegaEmulator {
         }
 
         public LocalPravegaEmulator build() {
-            return null;
+            return new LocalPravegaEmulator(controllerPort, hostPort);
         }
     }
 }
