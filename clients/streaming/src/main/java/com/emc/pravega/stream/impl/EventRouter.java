@@ -25,7 +25,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * A class that determines to which segment an event associated with a routing key will go.
- * This is invoked on every writeEvnet call to decide how to send a particular segment.
+ * This is invoked on every writeEvent call to decide how to send a particular segment.
  * It is acceptable for it to cache the current set of segments for a stream, as it will be queried again
  * if a segment has been sealed.
  */

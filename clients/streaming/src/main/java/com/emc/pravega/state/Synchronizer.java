@@ -34,7 +34,7 @@ import com.emc.pravega.stream.Stream;
  * This provides a strong consistency with optimistic concurrency.
  * 
  * As with any optimistic concurrency system, this works best when optimism is justified:
- * IE: Odds are another host is not updating the state at the exact same time.
+ * i.e. Odds are another host is not updating the state at the exact same time.
  * 
  * All methods on this interface are blocking.
  * 

@@ -78,7 +78,7 @@ public final class FutureHelpers {
      *
      * @param future               The future whose result is wanted
      * @param exceptionConstructor This can be any function that either transforms an exception
-     *                             IE: Passing RuntimeException::new will wrap the exception in a new RuntimeException.
+     *                             i.e. Passing RuntimeException::new will wrap the exception in a new RuntimeException.
      *                             If null is returned from the function no exception will be thrown.
      * @param <ResultT>            Type of the result.
      * @param <ExceptionT>         Type of the Exception.
@@ -105,7 +105,7 @@ public final class FutureHelpers {
      *
      * @param future               The future whose result is wanted
      * @param exceptionConstructor This can be any function that either transforms an exception
-     *                             IE: Passing RuntimeException::new will wrap the exception in a new RuntimeException.
+     *                             i.e. Passing RuntimeException::new will wrap the exception in a new RuntimeException.
      *                             If null is returned from the function no exception will be thrown.
      * @param timeoutMillis        the timeout expressed in milliseconds before throwing {@link TimeoutException}
      * @param <ResultT>            Type of the result.

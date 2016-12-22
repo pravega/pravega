@@ -50,7 +50,7 @@ import java.util.function.Supplier;
  * between
  * invocations.
  * 
- * In the event that the exception passed to retryingOn() and throwingOn() are related. IE: In the
+ * In the event that the exception passed to retryingOn() and throwingOn() are related. i.e. In the
  * above example if FooException were to extend RuntimeException. Then the more specific exception
  * is given preference. (In the above case FooException would be retried).
  */

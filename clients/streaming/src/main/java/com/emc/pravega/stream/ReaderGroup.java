@@ -70,7 +70,7 @@ public interface ReaderGroup extends Revisioned {
     
     /**
      * Returns a set of readerIds for the readers that are considered to be online by the group.
-     * IE: {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)} was called but
+     * i.e. {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)} was called but
      * {@link #readerOffline(String, Position)} was not called subsequently.
      */
     Set<String> getOnlineReaders();

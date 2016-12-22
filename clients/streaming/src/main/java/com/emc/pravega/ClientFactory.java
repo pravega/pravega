@@ -36,7 +36,7 @@ import java.net.URI;
 /**
  * Used to create Writers, Readers, and Synchronizers operating on a stream.
  * 
- * Events that a written to a stream can be read by a reader. All events can be processed with
+ * Events that are written to a stream can be read by a reader. All events can be processed with
  * exactly once semantics provided the reader has the ability to restore to the correct position
  * upon failure. See {@link EventRead#getPosition()}
  * <p>
@@ -44,7 +44,7 @@ import java.net.URI;
  * between multiple readers for scaling. In order to process events in parallel on different hosts
  * and still have some ordering guarentees; events written to a stream have a routingKey see
  * {@link EventStreamWriter#writeEvent(String, Object)}. Events within a routing key are strictly
- * ordered (IE: They must go the the same reader or its replacement). For other events, within a
+ * ordered (i.e. They must go the the same reader or its replacement). For other events, within a
  * single reader, the ordering is dictated by {@link EventRead#getEventSequence()} However as
  * {@link ReaderGroup}s process events in parallel there is no ordering between different readers.
  * 

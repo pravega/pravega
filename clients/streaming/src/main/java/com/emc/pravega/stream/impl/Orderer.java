@@ -27,8 +27,8 @@ import java.util.Collection;
 public interface Orderer<Type> {
 
     /**
-     * Given a list of segment this reader owns, (which contain their positions) returns the one that
-     * should be read from next. This is done in a consistent way. IE: Calling this method with the
+     * Given a list of segments this reader owns, (which contain their positions) returns the one that
+     * should be read from next. This is done in a consistent way. i.e. Calling this method with the
      * same readers at the same positions, should yield the same result. (The passed collection is
      * not modified)
      *
