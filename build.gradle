@@ -33,6 +33,10 @@ allprojects {
     checkstyle {
         toolVersion = "7.1"
     }
+	javadoc {
+	    failOnError = false
+		exclude  "**/impl/**";
+	}
 
     repositories {
         // Use 'jcenter' for resolving your dependencies.
@@ -69,7 +73,20 @@ allprojects {
 
         testCompile "org.mockito:mockito-core:2.+"
     }
-
+	
+    tasks.withType(GroovyCompile) {		
+		groovyOptions.fork = false		
+    }
+	
+	tasks.withType(Test) {
+		testLogging.exceptionFormat = "FULL"
+		testLogging.showCauses = true
+		testLogging.showExceptions = true
+		testLogging.showStackTraces = true
+		maxParallelForks = 2
+		minHeapSize = "128m"
+		maxHeapSize = "512m"
+	}
 }
 
 def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
@@ -324,18 +341,6 @@ project('controller:server') {
         }
     }
 }
-
-allprojects {
-    tasks.withType(GroovyCompile) {
-        groovyOptions.fork = false
-    }
-    tasks.withType(Test) {
-        // containers (currently) have 2 dedicated cores and 4GB of memory
-        maxParallelForks = 2
-        minHeapSize = '128m'
-    }
-}
-
 
 subprojects {
     task allDeps(type: DependencyReportTask) {}
