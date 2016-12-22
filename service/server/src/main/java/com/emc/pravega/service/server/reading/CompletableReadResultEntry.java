@@ -15,32 +15,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.stream.impl.segment.SegmentSealedException;
+package com.emc.pravega.service.server.reading;
 
-import java.util.List;
+import com.emc.pravega.service.contracts.ReadResultEntry;
+
+import java.util.function.Consumer;
 
 /**
- * This is the mirror of Producer but that only deals with one segment.
+ * Extends the ReadResultEntry interface by adding the ability to register a callback to be invoked upon completion.
  */
-public interface SegmentProducer<Type> extends AutoCloseable {
-    void publish(PendingEvent<Type> m) throws SegmentSealedException;
-
+interface CompletableReadResultEntry extends ReadResultEntry {
     /**
-     * Blocks on all outstanding writes.
+     * Registers a CompletionConsumer that will be invoked when the content is retrieved, just before the Future is completed.
      *
-     * @throws SegmentSealedException If the segment is closed for modifications.
+     * @param completionCallback The callback to be invoked.
      */
-    void flush() throws SegmentSealedException;
-
-    @Override
-    void close() throws SegmentSealedException;
-
-    boolean isAlreadySealed();
+    void setCompletionCallback(CompletionConsumer completionCallback);
 
     /**
-     * Gets all events that have been sent to publish but are not yet acknowledged.
+     * Gets the CompletionConsumer that was set using setCompletionCallback.
      */
-    List<PendingEvent<Type>> getUnackedEvents();
+    CompletionConsumer getCompletionCallback();
+
+    @FunctionalInterface
+    interface CompletionConsumer extends Consumer<Integer> {
+    }
 }

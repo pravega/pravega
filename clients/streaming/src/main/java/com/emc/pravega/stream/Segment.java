@@ -41,11 +41,11 @@ public class Segment {
         this.segmentNumber = number;
     }
 
-    public String getQualifiedName() {
-        return getQualifiedName(scope, streamName, segmentNumber);
+    public String getScopedName() {
+        return getScopedName(scope, streamName, segmentNumber);
     }
 
-    public static String getQualifiedName(String scope, String streamName, int segmentNumber) {
+    public static String getScopedName(String scope, String streamName, int segmentNumber) {
         StringBuffer sb = new StringBuffer();
         if (!Strings.isNullOrEmpty(scope)) {
             sb.append(scope);
@@ -57,7 +57,7 @@ public class Segment {
         return sb.toString();
     }
 
-    public static Segment fromQualifiedName(String qualifiedName) {
+    public static Segment fromScopedName(String qualifiedName) {
         String[] tokens = qualifiedName.split("[/#]");
         if (tokens.length == 2) {
             return new Segment(null, tokens[0], Integer.parseInt(tokens[1]));

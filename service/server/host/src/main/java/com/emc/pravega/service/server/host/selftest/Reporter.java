@@ -97,7 +97,7 @@ class Reporter extends AbstractScheduledService {
 
         TestLogger.log(
                 LOG_ID,
-                "Ops = %s/%s, Data (P/T/C/S): %.1f/%.1f/%.1f/%.1f MB, TPools (Q/T/S): %s, %s, %s.",
+                "Ops = %s/%s; Data (P/T/C/S): %.1f/%.1f/%.1f/%.1f MB; TPools (Q/T/S): %s, %s, %s.",
                 this.testState.getSuccessfulOperationCount(),
                 this.testConfig.getOperationCount(),
                 toMB(this.testState.getProducedLength()),

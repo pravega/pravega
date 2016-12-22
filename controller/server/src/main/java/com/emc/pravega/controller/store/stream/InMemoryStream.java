@@ -203,7 +203,7 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxStatus> dropTransaction(UUID txId) {
+    public CompletableFuture<TxStatus> abortTransaction(UUID txId) {
         throw new NotImplementedException();
     }
 

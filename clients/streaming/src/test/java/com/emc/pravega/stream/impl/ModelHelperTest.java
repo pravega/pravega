@@ -15,17 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.impl.model;
+package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.controller.stream.api.v1.FutureSegment;
 import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
-import com.emc.pravega.stream.PositionInternal;
+import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.PositionImpl;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -63,6 +62,11 @@ public class ModelHelperTest {
             @Override
             public ScalingPolicy getScalingPolicy() {
                 return createScalingPolicy();
+            }
+
+            @Override
+            public RetentionPolicy getRetentionPolicy() {
+                return new RetentionPolicy(Long.MAX_VALUE);
             }
 
             @Override
@@ -112,7 +116,8 @@ public class ModelHelperTest {
 
     @Test // Preceding 
     public void encodeFutureSegmentId() {
-        com.emc.pravega.stream.impl.FutureSegment segment = ModelHelper.encode(ModelHelper.decode(createFutureSegmentId("stream1", 2, 1)), 1);
+        com.emc.pravega.stream.impl.FutureSegment segment =
+                ModelHelper.encode(ModelHelper.decode(createFutureSegmentId("stream1", 2, 1)), 1);
         assertEquals("stream1", segment.getStreamName());
         assertEquals("scope", segment.getScope());
         assertEquals(2, segment.getSegmentNumber());

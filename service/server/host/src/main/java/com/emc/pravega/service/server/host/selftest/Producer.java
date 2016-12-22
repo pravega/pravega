@@ -106,16 +106,43 @@ class Producer extends Actor {
 
         this.iterationCount.incrementAndGet();
         final Timer timer = new Timer();
-        return executeOperation(op)
-                .exceptionally(ex -> {
-                    // Log & throw every exception.
-                    ex = ExceptionHelpers.getRealException(ex);
-                    TestLogger.log(getLogId(), "Iteration %s FAILED with %s.", this.iterationCount, ex);
-                    this.canContinue.set(false);
-                    op.failed(ex);
-                    throw new CompletionException(ex);
-                })
-                .thenRun(() -> op.completed(timer.getElapsed()));
+        CompletableFuture<Void> result;
+        try {
+            result = executeOperation(op);
+        } catch (Throwable ex) {
+            // Catch and handle sync errors.
+            op.completed(timer.getElapsed());
+            if (handleOperationError(ex, op)) {
+                // Exception handled; skip this iteration since there's nothing more we can do.
+                return CompletableFuture.completedFuture(null);
+            } else {
+                throw ex;
+            }
+        }
+
+        return result.whenComplete((r, ex) -> {
+            op.completed(timer.getElapsed());
+
+            // Catch and handle async errors.
+            if (ex != null && !handleOperationError(ex, op)) {
+                throw new CompletionException(ex);
+            }
+        });
+    }
+
+    private boolean handleOperationError(Throwable ex, ProducerOperation op) {
+        // Log & throw every exception.
+        ex = ExceptionHelpers.getRealException(ex);
+        if (ex instanceof ProducerDataSource.UnknownSegmentException) {
+            // This is OK: some other producer deleted the segment after we requested the operation and until we
+            // tried to apply it.
+            return true;
+        }
+
+        TestLogger.log(getLogId(), "Iteration %s FAILED with %s.", this.iterationCount, ex);
+        this.canContinue.set(false);
+        op.failed(ex);
+        return false;
     }
 
     /**

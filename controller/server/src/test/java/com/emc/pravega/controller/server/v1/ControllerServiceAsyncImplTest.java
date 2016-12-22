@@ -32,8 +32,8 @@ import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.util.ThriftAsyncCallback;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.model.ModelHelper;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -94,8 +94,8 @@ public class ControllerServiceAsyncImplTest {
     public void createStreamTests() throws TException, ExecutionException, InterruptedException {
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
-        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1, false);
-        final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2, false);
+        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
+        final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
         CreateStreamStatus status;
 
         // region checkStream

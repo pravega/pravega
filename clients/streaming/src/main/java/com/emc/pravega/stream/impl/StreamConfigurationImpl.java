@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import lombok.AllArgsConstructor;
@@ -29,8 +30,16 @@ public class StreamConfigurationImpl implements StreamConfiguration {
     private final String scope;
     private final String name;
     private final ScalingPolicy scalingPolicy;
-
+    private final RetentionPolicy retentionPolicy;
     private final boolean sealed;
+
+    public StreamConfigurationImpl(String scope, String name, ScalingPolicy scalingPolicy) {
+        this(scope, name, scalingPolicy, new RetentionPolicy(Long.MAX_VALUE), false);
+    }
+
+    public StreamConfigurationImpl(String scope, String name, ScalingPolicy scalingPolicy, boolean sealed) {
+        this(scope, name, scalingPolicy, new RetentionPolicy(Long.MAX_VALUE), sealed);
+    }
 
     @Override
     public String getName() {

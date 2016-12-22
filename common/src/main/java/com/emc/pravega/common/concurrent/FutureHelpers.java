@@ -21,18 +21,22 @@ package com.emc.pravega.common.concurrent;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.google.common.base.Preconditions;
+import lombok.Data;
 import lombok.SneakyThrows;
 
 import java.time.Duration;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -244,10 +248,11 @@ public final class FutureHelpers {
 
     /**
      * Executes the asynchronous task returning a CompletableFuture<T> with specified delay and returns the task result.
-     * @param task Asynchronous task.
-     * @param delay Delay in milliseconds.
+     *
+     * @param task            Asynchronous task.
+     * @param delay           Delay in milliseconds.
      * @param executorService Executor on which to execute the task.
-     * @param <T> Type parameter.
+     * @param <T>             Type parameter.
      * @return The result of task execution.
      */
     public static <T> CompletableFuture<T> delayedFuture(final Supplier<CompletableFuture<T>> task,
@@ -264,10 +269,11 @@ public final class FutureHelpers {
     /**
      * Completes the supplied CompletableFuture object with either the exception or a valid value. Preference is given
      * to exception e when both the exception e and result value are non-null.
+     *
      * @param result The result object to complete.
-     * @param value The result value.
-     * @param e Exception.
-     * @param <T> Type parameter.
+     * @param value  The result value.
+     * @param e      Exception.
+     * @param <T>    Type parameter.
      */
     public static <T> void complete(final CompletableFuture<T> result, final T value, final Throwable e) {
         if (e != null) {
@@ -280,9 +286,10 @@ public final class FutureHelpers {
     /**
      * A variant of .exceptionally that admits an exception handler returning value of type T in future. Exceptionally
      * and flatExceptionally can be thought of as analogous to map and flatMap method for transforming Futures.
-     * @param input The input future.
+     *
+     * @param input            The input future.
      * @param exceptionHandler Exception handler.
-     * @param <T> Type parameter.
+     * @param <T>              Type parameter.
      * @return result of exceptionHandler if input completed exceptionally, otherwise input.
      */
     public static <T> CompletableFuture<T> flatExceptionally(final CompletableFuture<T> input,
@@ -291,7 +298,7 @@ public final class FutureHelpers {
         input.whenComplete((r, e) -> {
             if (e != null) {
                 exceptionHandler.apply(e)
-                        .whenComplete((ir, ie) -> complete(result, ir, ie));
+                                .whenComplete((ir, ie) -> complete(result, ir, ie));
             } else {
                 result.complete(r);
             }
@@ -322,11 +329,10 @@ public final class FutureHelpers {
      * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
     public static CompletableFuture<Void> loop(Supplier<Boolean> condition, Supplier<CompletableFuture<Void>> loopBody, Executor executor) {
-        if (condition.get()) {
-            return loopBody.get().thenComposeAsync(v -> loop(condition, loopBody, executor), executor);
-        } else {
-            return CompletableFuture.completedFuture(null);
-        }
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        Loop<Void> loop = new Loop<>(condition, loopBody, null, result, executor);
+        executor.execute(loop);
+        return result;
     }
 
     /**
@@ -342,13 +348,10 @@ public final class FutureHelpers {
      * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
     public static <T> CompletableFuture<Void> loop(Supplier<Boolean> condition, Supplier<CompletableFuture<T>> loopBody, Consumer<T> resultConsumer, Executor executor) {
-        if (condition.get()) {
-            return loopBody.get()
-                           .thenAccept(resultConsumer)
-                           .thenComposeAsync(v -> loop(condition, loopBody, resultConsumer, executor), executor);
-        } else {
-            return CompletableFuture.completedFuture(null);
-        }
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        Loop<T> loop = new Loop<>(condition, loopBody, resultConsumer, result, executor);
+        executor.execute(loop);
+        return result;
     }
 
     /**
@@ -362,10 +365,26 @@ public final class FutureHelpers {
      * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
     public static <T> CompletableFuture<Void> doWhileLoop(Supplier<CompletableFuture<T>> loopBody, Predicate<T> condition) {
-        return loopBody.get().thenCompose(result ->
-                condition.test(result)
-                        ? doWhileLoop(loopBody, condition)
-                        : CompletableFuture.completedFuture(null));
+        Executor executor = ForkJoinPool.commonPool(); // This method does not take an Executor, so use the default one.
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        // We implement the do-while loop using a regular loop, but we execute one iteration before we create the actual Loop object.
+        // Since this method has slightly different arguments than loop(), we need to make one adjustment:
+        // * After each iteration, we get the result and run it through 'condition' and use that to decide whether to continue.
+        AtomicBoolean canContinue = new AtomicBoolean();
+        Consumer<T> iterationResultHandler = ir -> canContinue.set(condition.test(ir));
+        loopBody.get()
+                .thenAccept(iterationResultHandler)
+                .thenRunAsync(() -> {
+                    Loop<T> loop = new Loop<>(canContinue::get, loopBody, iterationResultHandler, result, executor);
+                    executor.execute(loop);
+                }, executor)
+                .exceptionally(ex -> {
+                    // Handle exceptions from the first iteration.
+                    result.completeExceptionally(ex);
+                    return null;
+                });
+        return result;
     }
 
     /**
@@ -381,4 +400,69 @@ public final class FutureHelpers {
         return future.thenAccept(r -> {
         });
     }
+
+    //region Loop Implementation
+
+    /**
+     * Implements an asynchronous While Loop using CompletableFutures.
+     */
+    @Data
+    private static class Loop<T> implements Runnable {
+        /**
+         * The condition to evaluate at the beginning of each loop iteration.
+         */
+        final Supplier<Boolean> condition;
+
+        /**
+         * A supplier that creates a CompletableFuture which will indicate the end of an iteration when complete.
+         */
+        final Supplier<CompletableFuture<T>> loopBody;
+
+        /**
+         * An optional Consumer that will be passed the result of each loop iteration.
+         */
+        final Consumer<T> resultConsumer;
+
+        /**
+         * A CompletableFuture that will be completed, whether normally or exceptionally, when the loop completes.
+         */
+        final CompletableFuture<Void> result;
+
+        /**
+         * An Executor to run async tasks on.
+         */
+        final Executor executor;
+
+        @Override
+        public void run() {
+            try {
+                if (this.condition.get()) {
+                    // Execute another iteration of the loop.
+                    this.loopBody.get()
+                                 .thenAccept(this::acceptIterationResult)
+                                 .exceptionally(this::handleException)
+                                 .thenRunAsync(this, this.executor);
+                } else {
+                    // We are done; set the result and don't loop again.
+                    this.result.complete(null);
+                }
+            } catch (Throwable ex) {
+                // Synchronous exception caught. Fail the result.
+                this.result.completeExceptionally(ex);
+            }
+        }
+
+        private Void handleException(Throwable ex) {
+            this.result.completeExceptionally(ex);
+            throw new CompletionException(ex);
+        }
+
+        private void acceptIterationResult(T iterationResult) {
+            if (this.resultConsumer != null) {
+                this.resultConsumer.accept(iterationResult);
+            }
+        }
+    }
+
+    //endregion
 }

@@ -31,7 +31,7 @@ enum TxState {
     OPEN,
     SEALED,
     COMMITTED,
-    DROPPED
+    ABORTED
 }
 
 enum ScalingPolicyType {

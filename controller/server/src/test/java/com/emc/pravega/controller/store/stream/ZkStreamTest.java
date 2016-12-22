@@ -72,7 +72,7 @@ public class ZkStreamTest {
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test";
 
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy, false);
+        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
         store.createStream(streamName, streamConfig, System.currentTimeMillis()).get();
 
         List<Segment> segments = store.getActiveSegments(streamName).get();
@@ -164,7 +164,7 @@ public class ZkStreamTest {
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test2";
 
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy, false);
+        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
         store.createStream(streamName, streamConfig, System.currentTimeMillis()).get();
 
         List<Segment> initial = store.getActiveSegments(streamName).get();
@@ -209,7 +209,7 @@ public class ZkStreamTest {
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testTx";
 
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy, false);
+        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
         store.createStream(streamName, streamConfig, System.currentTimeMillis()).get();
 
         UUID tx = store.createTransaction(streamName, streamName).get();
@@ -232,7 +232,7 @@ public class ZkStreamTest {
         CompletableFuture.allOf(f1, f2).get();
 
         assert store.transactionStatus(streamName, streamName, tx).get().equals(TxStatus.COMMITTED);
-        assert store.transactionStatus(streamName, streamName, tx2).get().equals(TxStatus.DROPPED);
+        assert store.transactionStatus(streamName, streamName, tx2).get().equals(TxStatus.ABORTED);
 
         assert store.commitTransaction(streamName, streamName, UUID.randomUUID())
                 .handle((ok, ex) -> {

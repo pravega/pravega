@@ -17,22 +17,23 @@
  */
 package com.emc.pravega.stream.mock;
 
+import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.ConsumerGroup;
+import com.emc.pravega.stream.ConsumerGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.ScalingPolicy.Type;
-import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamManager;
 import com.emc.pravega.stream.impl.Controller;
-import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
-import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.apache.commons.lang.NotImplementedException;
 
 public class MockStreamManager implements StreamManager {
 
@@ -57,7 +58,7 @@ public class MockStreamManager implements StreamManager {
     public Stream createStream(String streamName, StreamConfiguration config) {
         if (config == null) {
             config = new StreamConfigurationImpl(scope, streamName, new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0,
-                    1), false);
+                    1));
         }
         Stream stream = createStreamHelper(streamName, config);
         return stream;
@@ -70,9 +71,9 @@ public class MockStreamManager implements StreamManager {
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
         FutureHelpers.getAndHandleExceptions(controller
-                        .createStream(new StreamConfigurationImpl(scope, streamName, config.getScalingPolicy(), false)),
+                        .createStream(new StreamConfigurationImpl(scope, streamName, config.getScalingPolicy())),
                 RuntimeException::new);
-        Stream stream = new StreamImpl(scope, streamName, config, controller, connectionFactory);
+        Stream stream = new StreamImpl(scope, streamName, config);
         created.put(streamName, stream);
         return stream;
     }
@@ -87,7 +88,28 @@ public class MockStreamManager implements StreamManager {
 
     }
 
-    public Position getInitialPosition(String stream) {
-        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
+    @Override
+    public ConsumerGroup createConsumerGroup(String groupName, ConsumerGroupConfig config, List<String> streamNames) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public ConsumerGroup updateConsumerGroup(String groupName, ConsumerGroupConfig config, List<String> streamNames) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public ConsumerGroup getConsumerGroup(String groupName) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public void deleteConsumerGroup(ConsumerGroup group) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public void deleteStream(Stream toDelete) {
+        throw new NotImplementedException();
     }
 }
