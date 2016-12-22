@@ -30,11 +30,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -363,12 +365,26 @@ public final class FutureHelpers {
      * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
     public static <T> CompletableFuture<Void> doWhileLoop(Supplier<CompletableFuture<T>> loopBody, Predicate<T> condition) {
-        // TODO: this causes a memory leak by returning the first CompletableFuture in a chain. This should be fixed to
-        // run just like loop(). See: https://github.com/emccode/pravega/issues/296.
-        return loopBody.get().thenCompose(result ->
-                condition.test(result)
-                        ? doWhileLoop(loopBody, condition)
-                        : CompletableFuture.completedFuture(null));
+        Executor executor = ForkJoinPool.commonPool(); // This method does not take an Executor, so use the default one.
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        // We implement the do-while loop using a regular loop, but we execute one iteration before we create the actual Loop object.
+        // Since this method has slightly different arguments than loop(), we need to make one adjustment:
+        // * After each iteration, we get the result and run it through 'condition' and use that to decide whether to continue.
+        AtomicBoolean canContinue = new AtomicBoolean();
+        Consumer<T> iterationResultHandler = ir -> canContinue.set(condition.test(ir));
+        loopBody.get()
+                .thenAccept(iterationResultHandler)
+                .thenRunAsync(() -> {
+                    Loop<T> loop = new Loop<>(canContinue::get, loopBody, iterationResultHandler, result, executor);
+                    executor.execute(loop);
+                }, executor)
+                .exceptionally(ex -> {
+                    // Handle exceptions from the first iteration.
+                    result.completeExceptionally(ex);
+                    return null;
+                });
+        return result;
     }
 
     /**

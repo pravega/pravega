@@ -296,7 +296,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             return CompletableFuture.completedFuture(TxStatus.SEALED);
                         case OPEN:
                             return sealActiveTx(txId).thenApply(y -> TxStatus.SEALED);
-                        case DROPPED:
+                        case ABORTED:
                         case COMMITTED:
                             throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
                         default:
@@ -316,7 +316,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         case SEALED:
                             return x;
                         case OPEN:
-                        case DROPPED:
+                        case ABORTED:
                             throw new OperationOnTxNotAllowedException(txId.toString(), "commit");
                         case UNKNOWN:
                         default:
@@ -335,24 +335,24 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxStatus> dropTransaction(final UUID txId) {
+    public CompletableFuture<TxStatus> abortTransaction(final UUID txId) {
         return checkTransactionStatus(txId)
                 .thenApply(x -> {
                     switch (x) {
                         case OPEN:
                         case SEALED:
-                        case DROPPED:
+                        case ABORTED:
                             return x;
                         case COMMITTED:
-                            throw new OperationOnTxNotAllowedException(txId.toString(), "dropped");
+                            throw new OperationOnTxNotAllowedException(txId.toString(), "aborted");
                         case UNKNOWN:
                         default:
                             throw new TransactionNotFoundException(txId.toString());
                     }
                 })
-                .thenCompose(x -> createCompletedTxEntry(txId, TxStatus.DROPPED, System.currentTimeMillis())
+                .thenCompose(x -> createCompletedTxEntry(txId, TxStatus.ABORTED, System.currentTimeMillis())
                         .thenCompose(y -> removeActiveTxEntry(txId))
-                        .thenApply(y -> TxStatus.DROPPED));
+                        .thenApply(y -> TxStatus.ABORTED));
     }
 
     private CompletionStage<List<Segment>> getSegments(final int count,

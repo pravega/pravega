@@ -20,11 +20,11 @@ package com.emc.pravega.service.server.host.handler;
 
 import com.emc.pravega.common.netty.FailingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
+import com.emc.pravega.common.netty.WireCommands.AbortTransaction;
 import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
-import com.emc.pravega.common.netty.WireCommands.DropTransaction;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
@@ -37,9 +37,9 @@ import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
-import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
 import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
@@ -290,14 +290,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
-    public void dropTransaction(DropTransaction dropTx) {
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(dropTx.getSegment(), dropTx.getTxid());
+    public void abortTransaction(AbortTransaction abortTx) {
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(abortTx.getSegment(), abortTx.getTxid());
         CompletableFuture<Void> future = segmentStore.deleteStreamSegment(transactionName, TIMEOUT);
         future.thenRun(() -> {
-            connection.send(new TransactionDropped(dropTx.getSegment(), dropTx.getTxid()));
+            connection.send(new TransactionAborted(abortTx.getSegment(), abortTx.getTxid()));
         }).exceptionally((Throwable e) -> {
             if (e instanceof CompletionException && e.getCause() instanceof StreamSegmentNotExistsException) {
-                connection.send(new TransactionDropped(dropTx.getSegment(), dropTx.getTxid()));
+                connection.send(new TransactionAborted(abortTx.getSegment(), abortTx.getTxid()));
             } else {
                 handleException(transactionName, "Drop transaction", e);
             }

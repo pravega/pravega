@@ -15,9 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream;
+package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.stream.impl.FutureSegment;
+import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.Segment;
 
 import java.util.Map;
 import java.util.Set;
@@ -33,38 +34,38 @@ import java.util.Set;
  * 1. for each segment s in futureOwnedSegment, s.previous belongs to ownedSegments and s.previous.offset != -1
  * 2. for each segment s in ownedSegment, s.previous does not belongs to ownedSegments
  */
-public interface PositionInternal extends Position {
+public abstract class PositionInternal implements Position {
     /**
      * Gets the set of segments currently being read, i.e., ownedSegments set.
      */
-    Set<Segment> getOwnedSegments();
+    abstract Set<Segment> getOwnedSegments();
 
     /**
      * Completely read segments have offset of -1.
      *
      * @return the read offset for each segment in the ownedSegments set
      */
-    Map<Segment, Long> getOwnedSegmentsWithOffsets();
+    abstract Map<Segment, Long> getOwnedSegmentsWithOffsets();
 
     /**
      * Gets the set of completely read segments.
      */
-    Set<Segment> getCompletedSegments();
+    abstract Set<Segment> getCompletedSegments();
 
     /**
      * Gets the offset for a specified the segment.
      *
      * @param segmentId input segment
      */
-    Long getOffsetForOwnedSegment(Segment segmentId);
+    abstract Long getOffsetForOwnedSegment(Segment segmentId);
 
     /**
      * Gets the future owned segments for this position.
      */
-    Set<FutureSegment> getFutureOwnedSegments();
+    abstract Set<FutureSegment> getFutureOwnedSegments();
 
     /**
      * Returns all future owned segments associated with the offset they should be read from once their preceding segment is complete.
      */
-    Map<FutureSegment, Long> getFutureOwnedSegmentsWithOffsets();
+    abstract Map<FutureSegment, Long> getFutureOwnedSegmentsWithOffsets();
 }

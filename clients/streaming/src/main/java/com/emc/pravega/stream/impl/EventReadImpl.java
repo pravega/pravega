@@ -17,30 +17,19 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.stream.impl.segment.SegmentSealedException;
+import com.emc.pravega.stream.EventRead;
+import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.Sequence;
 
-import java.util.List;
+import lombok.Data;
 
-/**
- * This is the mirror of Producer but that only deals with one segment.
- */
-public interface SegmentProducer<Type> extends AutoCloseable {
-    void publish(PendingEvent<Type> m) throws SegmentSealedException;
-
-    /**
-     * Blocks on all outstanding writes.
-     *
-     * @throws SegmentSealedException If the segment is closed for modifications.
-     */
-    void flush() throws SegmentSealedException;
-
-    @Override
-    void close() throws SegmentSealedException;
-
-    boolean isAlreadySealed();
-
-    /**
-     * Gets all events that have been sent to publish but are not yet acknowledged.
-     */
-    List<PendingEvent<Type>> getUnackedEvents();
+@Data
+public class EventReadImpl<T> implements EventRead<T> {
+    private final Sequence eventSequence;
+    private final T event;
+    private final Position position;
+    private final Segment segment;
+    private final Long offsetInSegment;
+    private final boolean routingRebalance;
 }
