@@ -88,7 +88,7 @@
     },
     {
       "id": "/pravega/hostgroup",
-      "dependencies": ["/pravega/bkgroup","/pravega/controller"],
+      "dependencies": ["/pravega/bkgroup","/pravega/controllergroup"],
       "apps": [
       { 
           "id": "/pravega/hostgroup/host", 
