@@ -25,6 +25,7 @@ import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
 import com.emc.pravega.controller.store.stream.tables.Data;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -56,6 +57,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String STREAM_PATH = "/streams/%s";
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";
     private static final String CONFIGURATION_PATH = STREAM_PATH + "/configuration";
+    private static final String STATE_PATH = STREAM_PATH + "/state";
     private static final String SEGMENT_PATH = STREAM_PATH + "/segment";
     private static final String HISTORY_PATH = STREAM_PATH + "/history";
     private static final String INDEX_PATH = STREAM_PATH + "/index";
@@ -70,6 +72,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     private final String creationPath;
     private final String configurationPath;
+    private final String statePath;
     private final String segmentPath;
     private final String segmentChunkPathTemplate;
     private final String historyPath;
@@ -83,6 +86,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
         creationPath = String.format(CREATION_TIME_PATH, name);
         configurationPath = String.format(CONFIGURATION_PATH, name);
+        statePath = String.format(STATE_PATH, name);
         segmentPath = String.format(SEGMENT_PATH, name);
         segmentChunkPathTemplate = segmentPath + "/%s";
         historyPath = String.format(HISTORY_PATH, name);
@@ -127,6 +131,12 @@ class ZKStream extends PersistentStreamBase<Integer> {
     public CompletableFuture<Void> createConfiguration(final Create create) {
         return createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(create.getConfiguration()))
                 .thenApply(x -> cache.invalidateCache(configurationPath));
+    }
+
+    @Override
+    public CompletableFuture<Void> createState(final State state) {
+        return createZNodeIfNotExist(statePath, SerializationUtils.serialize(state))
+                .thenApply(x -> cache.invalidateCache(statePath));
     }
 
     @Override
@@ -253,6 +263,18 @@ class ZKStream extends PersistentStreamBase<Integer> {
     public CompletableFuture<StreamConfiguration> getConfigurationData() {
         return cache.getCachedData(configurationPath)
                 .thenApply(x -> (StreamConfiguration) SerializationUtils.deserialize(x.getData()));
+    }
+
+    @Override
+    CompletableFuture<Void> setStateData(State state) {
+        return setData(statePath, new Data<>(SerializationUtils.serialize(state), null))
+                .thenApply(x -> cache.invalidateCache(statePath));
+    }
+
+    @Override
+    CompletableFuture<State> getStateData() {
+        return cache.getCachedData(statePath)
+                .thenApply(x -> (State) SerializationUtils.deserialize(x.getData()));
     }
 
     @Override

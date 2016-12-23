@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxStatus;
 import com.google.common.base.Preconditions;
@@ -36,6 +37,7 @@ import java.util.stream.IntStream;
 class InMemoryStream implements Stream {
     private final String name;
     private StreamConfiguration configuration;
+    private State state;
 
     /**
      * Stores all segments in the stream, ordered by number, which implies that
@@ -84,6 +86,18 @@ class InMemoryStream implements Stream {
     @Override
     public synchronized CompletableFuture<StreamConfiguration> getConfiguration() {
         return CompletableFuture.completedFuture(this.configuration);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateState(State state) {
+
+        this.state = state;
+        return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public CompletableFuture<State> getState() {
+        return CompletableFuture.completedFuture(state);
     }
 
     @Override

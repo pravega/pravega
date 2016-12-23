@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxStatus;
 import com.google.common.base.Preconditions;
@@ -88,6 +89,18 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<StreamConfiguration> getConfiguration(final String name) {
         return getStream(name).getConfiguration();
     }
+
+    @Override
+    public CompletableFuture<Boolean> isSealed(final String name) {
+        return getStream(name).getState().thenApply(state -> state.equals(State.SEALED));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> setSealed(final String name) {
+        return getStream(name).updateState(State.SEALED);
+    }
+
+
 
     @Override
     public CompletableFuture<Segment> getSegment(final String name, final int number) {

@@ -26,6 +26,7 @@ import com.emc.pravega.controller.store.stream.tables.HistoryRecord;
 import com.emc.pravega.controller.store.stream.tables.IndexRecord;
 import com.emc.pravega.controller.store.stream.tables.Scale;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxStatus;
@@ -101,6 +102,17 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<StreamConfiguration> getConfiguration() {
         return getConfigurationData();
+    }
+
+
+    @Override
+    public CompletableFuture<Boolean> updateState(final State state) {
+        return setStateData(state).thenApply(x -> true);
+    }
+
+    @Override
+    public CompletableFuture<State> getState() {
+        return getStateData();
     }
 
     /**
@@ -403,11 +415,13 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
         return setSegmentTableChunk(currentChunk, updatedChunkData)
                 .thenCompose(y -> {
-                    final int chunkNumber = TableHelper.getSegmentChunkNumber(startingSegmentNumber + scale.getNewRanges().size());
+                    final int chunkNumber = TableHelper.getSegmentChunkNumber(startingSegmentNumber + scale
+                            .getNewRanges().size());
                     final int remaining = Integer.max(scale.getNewRanges().size() - toCreate, 0);
 
                     if (remaining > 0) {
-                        final byte[] newSegmentChunk = TableHelper.updateSegmentTable(chunkNumber * SegmentRecord.SEGMENT_CHUNK_SIZE,
+                        final byte[] newSegmentChunk = TableHelper.updateSegmentTable(chunkNumber * SegmentRecord
+                                        .SEGMENT_CHUNK_SIZE,
                                 new byte[0], // new chunk
                                 remaining,
                                 scale.getNewRanges(),
@@ -516,6 +530,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<StreamConfiguration> getConfigurationData();
 
+    abstract CompletableFuture<Void> createState(final State state);
+
+    abstract CompletableFuture<Void> setStateData(final State state);
+
+    abstract CompletableFuture<State> getStateData();
+
     abstract CompletableFuture<Void> createSegmentTable(final Create create);
 
     abstract CompletableFuture<Void> createSegmentChunk(final int chunkNumber, final Data<T> data);
@@ -552,5 +572,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> removeActiveTxEntry(final UUID txId);
 
-    abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxStatus complete, final long timestamp);
+    abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxStatus complete, final long
+            timestamp);
 }
