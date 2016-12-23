@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!DOCTYPE Configure PUBLIC "-//Jetty//Configure//EN" "http://www.eclipse.org/jetty/configure.dtd">
+<Configure id="server" class="org.eclipse.jetty.server.Server">
+
+	<!-- Configure the thread pool used to handle the requests by Jetty Server 
+		Note: org.eclipse.jetty.util.thread.QueuedThreadPool is used by default. -->
+	<Get name="ThreadPool">
+		<Set name="minThreads" type="int">10</Set>
+		<Set name="maxThreads" type="int">200</Set>
+		<Set name="idleTimeout" type="int">60000</Set>
+		<Set name="detailedDump">false</Set>
+	</Get>
+
+	<!-- Method to add connectors; HTTP ConnectionFactory is added by default; 
+		Port for http is configured below. Other http configuration like outputBufferSize, 
+		requestHeaderSize etc can be configured here. Similarly configuration for SSL can 
+		be appended here. -->
+	<Call name="addConnector">
+		<Arg name="connector">
+			<New class="org.eclipse.jetty.server.ServerConnector">
+				<Arg name="server">
+					<Ref id="server" />
+				</Arg>
+				<!-- set connector fields here -->
+				<Set name="port">
+					<Property name="jetty.port" default="9999" />
+				</Set>
+			</New>
+		</Arg>
+	</Call>
+</Configure>

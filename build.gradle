@@ -284,6 +284,11 @@ project('controller:contract') {
         // https://mvnrepository.com/artifact/org.apache.thrift/libthrift
         compile group: 'org.apache.thrift', name: 'libthrift', version: '0.9.3'
         compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
+
+        // https://mvnrepository.com/artifact/javax.ws.rs/javax.ws.rs-api
+        compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: '2.1-m01'
+        compile group: 'org.eclipse.jetty.aggregate', name: 'jetty-all', version: '9.4.0.v20161208'
+        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-servlet', version: '2.25'
     }
 }
 
