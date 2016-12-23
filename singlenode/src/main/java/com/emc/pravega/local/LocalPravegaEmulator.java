@@ -82,8 +82,9 @@ public class LocalPravegaEmulator {
             localPravega.start();
 
             System.out.println(String.format(
-                    "DistributedLog Sandbox is running now. You could access %s",
-                    localDlm.getUri()));
+                    "Pravega Sandbox is running locally now. You could access it at %s:%d",
+                    "127.0.0.1",
+                    controllerPort));
         } catch (Exception ex) {
             System.out.println("Exception occurred running emulator " + ex);
         }
