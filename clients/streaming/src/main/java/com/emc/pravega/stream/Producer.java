@@ -17,10 +17,13 @@
  */
 package com.emc.pravega.stream;
 
+import java.util.UUID;
 import java.util.concurrent.Future;
 
 /**
  * A producer can publish events to a stream.
+ * 
+ * This class is safe to use across threads, but doing so will not increase performance.
  * 
  * @param <Type> The type of events that go in this stream
  */
@@ -47,12 +50,19 @@ public interface Producer<Type> extends AutoCloseable {
      * Start a new transaction on this stream.
      * 
      * @param transactionTimeout The number of milliseconds after now, that if commit has not been called by, the
-     *            transaction may be dropped. Note that this should not be set unnecessarily high, as having long running
+     *            transaction may be aborted. Note that this should not be set unnecessarily high, as having long running
      *            transactions may interfere with a streams to scale in response to a change in rate. For this reason
      *            streams may configure an upper limit to this value.
      * @return A transaction through which multiple events can be written atomically.
      */
-    Transaction<Type> startTransaction(long transactionTimeout);
+    Transaction<Type> beginTransaction(long transactionTimeout);
+    
+    /**
+     * Returns a previously created transaction.
+     * 
+     * @param transactionId The result retained from calling {@link Transaction#getTransactionId()}
+     */
+    Transaction<Type> getTransaction(UUID transactionId);
 
     /**
      * Returns the configuration that this producer was create with.

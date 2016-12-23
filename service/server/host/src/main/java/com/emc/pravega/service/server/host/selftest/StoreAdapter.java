@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.host.selftest;
 
+import com.emc.pravega.common.concurrent.ExecutorServiceHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
@@ -49,6 +50,8 @@ interface StoreAdapter extends AutoCloseable {
     CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout);
 
     VerificationStorage getStorageAdapter();
+
+    ExecutorServiceHelpers.Snapshot getStorePoolSnapshot();
 
     @Override
     void close();

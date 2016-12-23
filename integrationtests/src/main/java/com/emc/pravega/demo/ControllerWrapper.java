@@ -36,14 +36,14 @@ import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
-import com.emc.pravega.stream.impl.model.ModelHelper;
+import com.emc.pravega.stream.impl.ModelHelper;
+import com.emc.pravega.stream.impl.PositionInternal;
+import com.emc.pravega.stream.impl.StreamSegments;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -173,7 +173,7 @@ public class ControllerWrapper implements Controller {
 
     @Override
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
-        Segment segment = Segment.fromQualifiedName(qualifiedSegmentName);
+        Segment segment = Segment.fromScopedName(qualifiedSegmentName);
         try {
             return controller.getURI(new SegmentId(segment.getScope(), segment.getStreamName(),
                     segment.getSegmentNumber())).thenApply(ModelHelper::encode);

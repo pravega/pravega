@@ -12,7 +12,19 @@
  */
 package com.emc.pravega.stream.impl;
 
-import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.stream.Producer;
+import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.Serializer;
+import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.TxnFailedException;
+import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
+import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
+import com.emc.pravega.stream.impl.segment.SegmentSealedException;
+import com.google.common.base.Preconditions;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -28,20 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.concurrent.GuardedBy;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.stream.EventRouter;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
-import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.Serializer;
-import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxFailedException;
-import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
-import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
-import com.emc.pravega.stream.impl.segment.SegmentSealedException;
-import com.google.common.base.Preconditions;
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -77,7 +76,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         this.serializer = serializer;
         this.config = config;
         synchronized (lock) {
-            List<Event<Type>> list = setupSegmentProducers();
+            List<PendingEvent<Type>> list = setupSegmentProducers();
             if (!list.isEmpty()) {
                 throw new IllegalStateException("Producer initialized with unsent messages?!");
             }
@@ -90,7 +89,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
      * @return The events that were sent but never acked to segments that are now sealed, and hence need to be
      *         retransmitted.
      */
-    private List<Event<Type>> setupSegmentProducers() {
+    private List<PendingEvent<Type>> setupSegmentProducers() {
         Collection<Segment> segments = Retry.withExpBackoff(1, 10, 5)
             .retryingOn(SegmentSealedException.class)
             .throwingOn(RuntimeException.class)
@@ -105,7 +104,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
                 }
                 return s;
             });
-        List<Event<Type>> toResend = new ArrayList<>();
+        List<PendingEvent<Type>> toResend = new ArrayList<>();
 
         Iterator<Entry<Segment, SegmentProducer<Type>>> iter = producers.entrySet().iterator();
         while (iter.hasNext()) {
@@ -129,7 +128,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         Preconditions.checkState(!closed.get());
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         synchronized (lock) {
-            if (!attemptPublish(new Event<Type>(event, routingKey, result))) {
+            if (!attemptPublish(new PendingEvent<Type>(event, routingKey, result))) {
                 handleLogSealed();
             }
         }
@@ -142,10 +141,10 @@ public class ProducerImpl<Type> implements Producer<Type> {
      * over very quickly.
      */
     private void handleLogSealed() {
-        List<Event<Type>> toResend = setupSegmentProducers();
+        List<PendingEvent<Type>> toResend = setupSegmentProducers();
         while (toResend.isEmpty()) {
-            List<Event<Type>> unsent = new ArrayList<>();
-            for (Event<Type> event : toResend) {
+            List<PendingEvent<Type>> unsent = new ArrayList<>();
+            for (PendingEvent<Type> event : toResend) {
                 if (!attemptPublish(event)) {
                     unsent.add(event);
                 }
@@ -157,7 +156,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         }
     }
 
-    private boolean attemptPublish(Event<Type> event) {
+    private boolean attemptPublish(PendingEvent<Type> event) {
         SegmentProducer<Type> segmentProducer = getSegmentProducer(event.getRoutingKey());
         if (segmentProducer == null || segmentProducer.isAlreadySealed()) {
             return false;
@@ -194,7 +193,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         }
 
         @Override
-        public void publish(String routingKey, Type event) throws TxFailedException {
+        public void publish(String routingKey, Type event) throws TxnFailedException {
             Preconditions.checkState(!closed.get());
             Segment s = router.getSegmentForEvent(routingKey);
             SegmentTransaction<Type> transaction = inner.get(s);
@@ -202,11 +201,11 @@ public class ProducerImpl<Type> implements Producer<Type> {
         }
 
         @Override
-        public void commit() throws TxFailedException {
+        public void commit() throws TxnFailedException {
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.flush();
             }
-            FutureHelpers.getAndHandleExceptions(controller.commitTransaction(stream, txId), TxFailedException::new);
+            FutureHelpers.getAndHandleExceptions(controller.commitTransaction(stream, txId), TxnFailedException::new);
             closed.set(true);
         }
 
@@ -222,23 +221,43 @@ public class ProducerImpl<Type> implements Producer<Type> {
         }
 
         @Override
-        public void flush() throws TxFailedException {
+        public void flush() throws TxnFailedException {
             Preconditions.checkState(!closed.get());
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.flush();
             }
         }
 
+        @Override
+        public UUID getTransactionId() {
+            return txId;
+        }
+
     }
 
     @Override
-    public Transaction<Type> startTransaction(long timeout) {
+    public Transaction<Type> beginTransaction(long timeout) {
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         ArrayList<Segment> segmentIds;
         synchronized (lock) {
             segmentIds = new ArrayList<>(producers.keySet());
         }
         UUID txId = FutureHelpers.getAndHandleExceptions(controller.createTransaction(stream, timeout), RuntimeException::new);
+        for (Segment s : segmentIds) {
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
+            SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
+            transactions.put(s, impl);
+        }
+        return new TransactionImpl<Type>(txId, transactions, router, controller, stream);
+    }
+    
+    @Override
+    public Transaction<Type> getTransaction(UUID txId) {
+        Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
+        ArrayList<Segment> segmentIds;
+        synchronized (lock) {
+            segmentIds = new ArrayList<>(producers.keySet());
+        }
         for (Segment s : segmentIds) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);

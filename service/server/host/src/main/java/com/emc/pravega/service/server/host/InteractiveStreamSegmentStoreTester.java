@@ -29,6 +29,8 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
+import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
@@ -78,32 +80,20 @@ public class InteractiveStreamSegmentStoreTester {
     //region Main Method
 
     public static void main(String[] args) {
-        final boolean useDistributedLog = false;
-        final boolean useHDFS = true;
-
         // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.TRACE);
         context.reset();
 
-        ServiceBuilderConfig config = null;
+        ServiceBuilderConfig config;
         try {
             config = ServiceBuilderConfig.getConfigFromFile();
         } catch (IOException e) {
-            System.out.println("Creation of ServiceBuilderConfig failed becaue of exception " + e);
+            System.out.println("Creation of ServiceBuilderConfig failed because of exception " + e);
             config = ServiceBuilderConfig.getDefaultConfig();
         }
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(config);
-        if (useDistributedLog) {
-            // Real (Distributed Log) Data Log.
-            ServiceStarter.attachDistributedLog(serviceBuilder);
-        }
-        if (useHDFS) {
-            // Real (HDFS) storage
-            ServiceStarter.attachHDFS(serviceBuilder);
-        }
-
-        ServiceStarter.attachRocksDB(serviceBuilder);
+        serviceBuilder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new)));
 
         try {
             serviceBuilder.initialize().join();

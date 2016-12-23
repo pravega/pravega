@@ -17,9 +17,7 @@
  */
 package com.emc.pravega.common.netty;
 
-import java.io.DataInput;
-import java.io.IOException;
-
+import com.emc.pravega.common.netty.WireCommands.AbortTransaction;
 import com.emc.pravega.common.netty.WireCommands.AppendBlock;
 import com.emc.pravega.common.netty.WireCommands.AppendBlockEnd;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
@@ -31,7 +29,6 @@ import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
-import com.emc.pravega.common.netty.WireCommands.DropTransaction;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
@@ -49,12 +46,15 @@ import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
-import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
 import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.google.common.base.Preconditions;
+
+import java.io.DataInput;
+import java.io.IOException;
 
 /**
  * The various types of commands that can be sent over the wire.
@@ -98,8 +98,8 @@ public enum WireCommandType {
     COMMIT_TRANSACTION(24, CommitTransaction::readFrom),
     TRANSACTION_COMMITTED(25, TransactionCommitted::readFrom),
 
-    DROP_TRANSACTION(26, DropTransaction::readFrom),
-    TRANSACTION_DROPPED(27, TransactionDropped::readFrom),
+    ABORT_TRANSACTION(26, AbortTransaction::readFrom),
+    TRANSACTION_ABORTED(27, TransactionAborted::readFrom),
     
     SEAL_SEGMENT(28, SealSegment::readFrom),
     SEGMENT_SEALED(29, SegmentSealed::readFrom),

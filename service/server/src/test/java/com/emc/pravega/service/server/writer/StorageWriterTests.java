@@ -60,7 +60,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -86,6 +85,7 @@ public class StorageWriterTests {
                        .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
                        .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
                        .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250)
+                       .with(WriterConfig.PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE, 100)
                        .with(WriterConfig.PROPERTY_ERROR_SLEEP_MILLIS, 0));
 
     private static final Duration TIMEOUT = Duration.ofSeconds(20);
@@ -148,19 +148,9 @@ public class StorageWriterTests {
         // Create a bunch of segments and Transactions.
         ArrayList<Long> segmentIds = createSegments(context);
 
-        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
-        CompletableFuture<Void> ackEverything = new CompletableFuture<>();
-        CompletableFuture<Void> producingComplete = new CompletableFuture<>();
-        context.dataSource.setAcknowledgeCallback(args -> {
-            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata.getOperationSequenceNumber()) {
-                ackEverything.complete(null);
-            }
-        });
-
         // Append data.
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
         appendDataBreadthFirst(segmentIds, segmentContents, context);
-        producingComplete.complete(null);
 
         // We clear up the cache after we have added the operations in the data source - this will cause the writer
         // to pick them up and end up failing when attempting to fetch the cache contents.
@@ -218,19 +208,9 @@ public class StorageWriterTests {
         // Create a bunch of segments and Transactions.
         ArrayList<Long> segmentIds = createSegments(context);
 
-        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
-        CompletableFuture<Void> ackEverything = new CompletableFuture<>();
-        CompletableFuture<Void> producingComplete = new CompletableFuture<>();
-        context.dataSource.setAcknowledgeCallback(args -> {
-            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata.getOperationSequenceNumber()) {
-                ackEverything.complete(null);
-            }
-        });
-
         // Append data.
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
         appendDataBreadthFirst(segmentIds, segmentContents, context);
-        producingComplete.complete(null);
 
         byte[] corruptionData = "foo".getBytes();
         Supplier<Exception> exceptionSupplier = () -> {
@@ -340,15 +320,6 @@ public class StorageWriterTests {
         ArrayList<Long> transactionIds = new ArrayList<>();
         transactionsBySegment.values().forEach(transactionIds::addAll);
 
-        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
-        CompletableFuture<Void> ackEverything = new CompletableFuture<>();
-        CompletableFuture<Void> producingComplete = new CompletableFuture<>();
-        context.dataSource.setAcknowledgeCallback(args -> {
-            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata.getOperationSequenceNumber()) {
-                ackEverything.complete(null);
-            }
-        });
-
         // Append data.
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
@@ -375,20 +346,12 @@ public class StorageWriterTests {
 
         // Wait for the writer to complete its job.
         metadataCheckpoint(context);
-        producingComplete.complete(null);
-        ackEverything.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        context.dataSource.waitFullyAcked().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // At this point the storage should mimic the setup we created above, yet the WriterDataSource still has all the
         // original operations in place. Stop the writer, add the rest of the operations to the DataSource, then restart the writer.
         context.writer.stopAsync().awaitTerminated();
         context.dataSource.setAckEffective(true);
-        CompletableFuture<Void> ackEverything2 = new CompletableFuture<>();
-        CompletableFuture<Void> producingComplete2 = new CompletableFuture<>();
-        context.dataSource.setAcknowledgeCallback(args -> {
-            if (producingComplete2.isDone() && args.getAckSequenceNumber() >= context.metadata.getOperationSequenceNumber()) {
-                ackEverything2.complete(null);
-            }
-        });
 
         // Add the last 50% of data to the parent segments.
         appendDataDepthFirst(segmentIds, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents, context);
@@ -405,13 +368,12 @@ public class StorageWriterTests {
         // Seal the parents.
         sealSegments(segmentIds, context);
         metadataCheckpoint(context);
-        producingComplete2.complete(null);
 
         // Restart the writer (restart a new one, to clear out any in-memory state).
         // Note that this also changes the storage owner, which verifies that the writer correctly reacquires ownership.
         context.resetWriter();
         context.writer.startAsync().awaitRunning();
-        ackEverything2.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        context.dataSource.waitFullyAcked().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Verify final output.
         verifyFinalOutput(segmentContents, transactionIds, context);
@@ -436,15 +398,6 @@ public class StorageWriterTests {
         ArrayList<Long> transactionIds = new ArrayList<>();
         transactionsBySegment.values().forEach(transactionIds::addAll);
 
-        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
-        CompletableFuture<Void> ackEverything = new CompletableFuture<>();
-        CompletableFuture<Void> producingComplete = new CompletableFuture<>();
-        context.dataSource.setAcknowledgeCallback(args -> {
-            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata.getOperationSequenceNumber()) {
-                ackEverything.complete(null);
-            }
-        });
-
         // Append data.
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
         appendDataBreadthFirst(segmentIds, segmentContents, context);
@@ -457,10 +410,9 @@ public class StorageWriterTests {
         // Seal the parents.
         sealSegments(segmentIds, context);
         metadataCheckpoint(context);
-        producingComplete.complete(null);
 
         // Wait for the writer to complete its job.
-        ackEverything.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        context.dataSource.waitFullyAcked().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Verify final output.
         verifyFinalOutput(segmentContents, transactionIds, context);

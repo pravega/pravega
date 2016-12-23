@@ -25,8 +25,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.Inet4Address;
-import java.net.UnknownHostException;
 import java.util.Properties;
 import java.util.function.Function;
 
@@ -69,8 +67,9 @@ public class ServiceBuilderConfig {
 
     /**
      * Gets a set of configuration values from the default config file.
-     * @return              Service builder config read from the default config file.
-     * @throws IOException  If the config file can not be read from.
+     *
+     * @return Service builder config read from the default config file.
+     * @throws IOException If the config file can not be read from.
      */
     public static ServiceBuilderConfig getConfigFromFile() throws IOException {
         FileReader reader = null;
@@ -98,35 +97,16 @@ public class ServiceBuilderConfig {
 
     /**
      * Gets a default set of configuration values, in absence of any real configuration.
+     * These configuration values are the default ones from all component configurations, except that it will
+     * create only one container to host segments.
      */
     public static ServiceBuilderConfig getDefaultConfig() {
         Properties p = new Properties();
 
-        // General params
+        // General params.
         set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "1");
-        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "50");
-        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT, "12345");
-        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_IP_ADDRESS, getHostAddress());
 
-        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_HOSTNAME, "zk1");
-        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_PORT, "2181");
-        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_RETRY_SLEEP_MS, "100");
-        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_RETRY_COUNT, "5");
-        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CLUSTER_NAME, "pravega-cluster");
-
-        // DistributedLog params.
-        set(p, "dlog", "hostname", "zk1");
-        set(p, "dlog", "port", "2181");
-        set(p, "dlog", "namespace", "messaging/distributedlog/mynamespace");
-
-        //HDFS params
-        set(p, "hdfs", "fs.default.name", "localhost:9000");
-        set(p, "hdfs", "hdfsRoot", "");
-        set(p, "hdfs", "pravegaId", "0");
-        set(p, "hdfs", "replication", "1");
-        set(p, "hdfs", "blockSize", "1048576");
-
-        // DurableLogConfig, WriterConfig, ReadIndexConfig all have defaults built-in, so no need to override them here.
+        // All component configs should have defaults built-in, so no need to override them here.
         return new ServiceBuilderConfig(p);
     }
 
@@ -142,15 +122,6 @@ public class ServiceBuilderConfig {
     public static void set(Properties p, String componentCode, String propertyName, String value) {
         String key = String.format("%s.%s", componentCode, propertyName);
         p.setProperty(key, value);
-    }
-
-    private static String getHostAddress() {
-        //TODO: Find a better way to compute the host address. https://github.com/emccode/pravega/issues/162
-        try {
-            return Inet4Address.getLocalHost().getHostAddress();
-        } catch (UnknownHostException e) {
-            throw new RuntimeException("Unable to get the Host Address", e);
-        }
     }
 
     //endregion

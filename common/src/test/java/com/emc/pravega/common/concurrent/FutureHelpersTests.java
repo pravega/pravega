@@ -146,7 +146,7 @@ public class FutureHelpersTests {
     }
 
     @Test
-    public void testWhileLoop() {
+    public void testLoop() {
         final int maxLoops = 10;
         final int expectedResult = maxLoops * (maxLoops - 1) / 2;
         AtomicInteger loopCounter = new AtomicInteger();
@@ -201,7 +201,19 @@ public class FutureHelpersTests {
         AtomicInteger loopCounter = new AtomicInteger();
         AtomicInteger accumulator = new AtomicInteger();
 
-        // 1. Successful execution.
+        // 1. Verify this is actually a do-while loop vs a regular while loop.
+        FutureHelpers.doWhileLoop(
+                () -> {
+                    accumulator.incrementAndGet();
+                    return CompletableFuture.completedFuture(0);
+                },
+                x -> false // Only one iteration.
+        ).join();
+        Assert.assertEquals("Unexpected result for loop without a specific accumulator.", 1, accumulator.get());
+
+        // 2. Successful execution.
+        loopCounter.set(0);
+        accumulator.set(0);
         FutureHelpers.doWhileLoop(
                 () -> {
                     int i = loopCounter.get();
@@ -213,7 +225,7 @@ public class FutureHelpersTests {
 
         Assert.assertEquals("Unexpected result for loop without a specific accumulator.", expectedResult, accumulator.get());
 
-        //2. With exceptions.
+        // 3. With exceptions.
         loopCounter.set(0);
         accumulator.set(0);
         CompletableFuture<Void> loopFuture = FutureHelpers.doWhileLoop(

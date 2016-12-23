@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.host.selftest;
 
 import com.emc.pravega.common.TimeoutTimer;
+import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.SegmentProperties;
@@ -104,16 +105,44 @@ class Producer extends Actor {
         }
 
         this.iterationCount.incrementAndGet();
-        return executeOperation(op)
-                .exceptionally(ex -> {
-                    // Log & throw every exception.
-                    ex = ExceptionHelpers.getRealException(ex);
-                    TestLogger.log(getLogId(), "Iteration %s FAILED with %s.", this.iterationCount, ex);
-                    this.canContinue.set(false);
-                    op.failed(ex);
-                    throw new CompletionException(ex);
-                })
-                .thenRun(op::completed);
+        final Timer timer = new Timer();
+        CompletableFuture<Void> result;
+        try {
+            result = executeOperation(op);
+        } catch (Throwable ex) {
+            // Catch and handle sync errors.
+            op.completed(timer.getElapsed());
+            if (handleOperationError(ex, op)) {
+                // Exception handled; skip this iteration since there's nothing more we can do.
+                return CompletableFuture.completedFuture(null);
+            } else {
+                throw ex;
+            }
+        }
+
+        return result.whenComplete((r, ex) -> {
+            op.completed(timer.getElapsed());
+
+            // Catch and handle async errors.
+            if (ex != null && !handleOperationError(ex, op)) {
+                throw new CompletionException(ex);
+            }
+        });
+    }
+
+    private boolean handleOperationError(Throwable ex, ProducerOperation op) {
+        // Log & throw every exception.
+        ex = ExceptionHelpers.getRealException(ex);
+        if (ex instanceof ProducerDataSource.UnknownSegmentException) {
+            // This is OK: some other producer deleted the segment after we requested the operation and until we
+            // tried to apply it.
+            return true;
+        }
+
+        TestLogger.log(getLogId(), "Iteration %s FAILED with %s.", this.iterationCount, ex);
+        this.canContinue.set(false);
+        op.failed(ex);
+        return false;
     }
 
     /**
@@ -127,28 +156,27 @@ class Producer extends Actor {
      * Executes the given operation.
      */
     private CompletableFuture<Void> executeOperation(ProducerOperation operation) {
-        //TestLogger.log(getLogId(), "Executing %s.", operation);
         TimeoutTimer timer = new TimeoutTimer(this.config.getTimeout());
-        switch (operation.getType()) {
-            case CreateTransaction:
-                // Create the Transaction, then record it's name in the operation's result.
-                return this.store.createTransaction(operation.getTarget(), timer.getRemaining())
-                                 .thenAccept(operation::setResult);
-            case MergeTransaction:
-                // Seal & Merge the Transaction.
-                return this.store.sealStreamSegment(operation.getTarget(), timer.getRemaining())
-                                 .thenCompose(v -> this.store.mergeTransaction(operation.getTarget(), timer.getRemaining()));
-            case Append:
-                // Generate some random data, then append it.
-                byte[] appendContent = this.dataSource.generateAppendContent(operation.getTarget());
-                AppendContext context = new AppendContext(this.clientId, this.iterationCount.get());
-                return this.store.append(operation.getTarget(), appendContent, context, timer.getRemaining())
-                                 .exceptionally(ex -> attemptReconcile(ex, operation, timer));
-            case Seal:
-                // Seal the segment.
-                return this.store.sealStreamSegment(operation.getTarget(), this.config.getTimeout());
-            default:
-                throw new IllegalArgumentException("Unsupported Operation Type: " + operation.getType());
+        if (operation.getType() == ProducerOperationType.CREATE_TRANSACTION) {
+            // Create the Transaction, then record it's name in the operation's result.
+            return this.store.createTransaction(operation.getTarget(), timer.getRemaining())
+                             .thenAccept(operation::setResult);
+        } else if (operation.getType() == ProducerOperationType.MERGE_TRANSACTION) {
+            // Seal & Merge the Transaction.
+            return this.store.sealStreamSegment(operation.getTarget(), timer.getRemaining())
+                             .thenCompose(v -> this.store.mergeTransaction(operation.getTarget(), timer.getRemaining()));
+        } else if (operation.getType() == ProducerOperationType.APPEND) {
+            // Generate some random data, then append it.
+            byte[] appendContent = this.dataSource.generateAppendContent(operation.getTarget());
+            operation.setLength(appendContent.length);
+            AppendContext context = new AppendContext(this.clientId, this.iterationCount.get());
+            return this.store.append(operation.getTarget(), appendContent, context, timer.getRemaining())
+                             .exceptionally(ex -> attemptReconcile(ex, operation, timer));
+        } else if (operation.getType() == ProducerOperationType.SEAL) {
+            // Seal the segment.
+            return this.store.sealStreamSegment(operation.getTarget(), this.config.getTimeout());
+        } else {
+            throw new IllegalArgumentException("Unsupported Operation Type: " + operation.getType());
         }
     }
 

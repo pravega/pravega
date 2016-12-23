@@ -18,6 +18,7 @@
 package com.emc.pravega.service.storage.mocks;
 
 import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.TruncateableStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import lombok.Cleanup;
 import lombok.val;
@@ -29,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Unit tests for InMemoryStorage
  */
-public class InMemoryStorageTests extends StorageTestBase {
+public class InMemoryStorageTests extends TruncateableStorageTestBase {
     /**
      * Verifies that InMemoryStorage enforces segment ownership (that is, if an owner changes, no operation is allowed
      * on a segment until open() is called on it).
@@ -106,7 +107,7 @@ public class InMemoryStorageTests extends StorageTestBase {
     }
 
     @Override
-    protected Storage createStorage() {
+    protected TruncateableStorage createStorage() {
         return new InMemoryStorage();
     }
 }

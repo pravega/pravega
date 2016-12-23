@@ -30,8 +30,6 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
-import com.emc.pravega.stream.impl.netty.ConnectionFactory;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 
@@ -60,8 +58,6 @@ public class ScaleTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
-        final ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
-
         final String scope = "scope";
         final String streamName = "stream1";
         final StreamConfiguration config =
@@ -69,7 +65,7 @@ public class ScaleTest {
                         streamName,
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 1));
 
-        Stream stream = new StreamImpl(scope, streamName, config, controller, connectionFactory);
+        Stream stream = new StreamImpl(scope, streamName, config);
 
         System.err.println(String.format("Creating stream (%s, %s)", scope, streamName));
         CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);

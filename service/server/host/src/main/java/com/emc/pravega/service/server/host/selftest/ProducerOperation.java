@@ -24,6 +24,7 @@ import com.google.common.base.Preconditions;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.Duration;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -34,16 +35,21 @@ class ProducerOperation {
     //region Members
 
     @Getter
-    private final OperationType type;
+    private final ProducerOperationType type;
     @Getter
     private final String target;
     @Getter
     @Setter
     private Object result;
+    @Getter
+    @Setter
+    private int length;
     @Setter
     private Consumer<ProducerOperation> completionCallback;
     @Setter
     private BiConsumer<ProducerOperation, Throwable> failureCallback;
+    @Getter
+    private Duration duration = Duration.ZERO;
 
     //endregion
 
@@ -55,7 +61,7 @@ class ProducerOperation {
      * @param type   The type of the operation.
      * @param target The target (Segment name) of the operation.
      */
-    ProducerOperation(OperationType type, String target) {
+    ProducerOperation(ProducerOperationType type, String target) {
         Preconditions.checkNotNull(type, "type");
         Exceptions.checkNotNullOrEmpty(target, "target");
         this.type = type;
@@ -69,8 +75,11 @@ class ProducerOperation {
     /**
      * Indicates that this ProducerOperation completed successfully. Invokes any associated success callbacks that are
      * registered with it.
+     *
+     * @param duration The elapsed time for this operation.
      */
-    void completed() {
+    void completed(Duration duration) {
+        this.duration = duration;
         Consumer<ProducerOperation> callback = this.completionCallback;
         if (callback != null) {
             CallbackHelpers.invokeSafely(callback, this, null);

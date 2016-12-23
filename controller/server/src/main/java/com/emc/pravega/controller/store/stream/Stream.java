@@ -122,7 +122,7 @@ interface Stream {
     /**
      * Commits a transaction
      * If already committed, return TxStatus.Committed
-     * If dropped, throw OperationOnTxNotAllowedException
+     * If aborted, throw OperationOnTxNotAllowedException
      * @param txId
      * @return
      */
@@ -130,12 +130,12 @@ interface Stream {
 
     /**
      * Commits a transaction
-     * If already dropped, return TxStatus.Dropped
+     * If already aborted, return TxStatus.Aborted
      * If committed, throw OperationOnTxNotAllowedException
      * @param txId
      * @return
      */
-    CompletableFuture<TxStatus> dropTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
+    CompletableFuture<TxStatus> abortTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
 
     /**
      * Return whether any transaction is active on the stream.

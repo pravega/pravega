@@ -21,6 +21,8 @@ package com.emc.pravega.service.server.store;
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
 
+import java.net.Inet4Address;
+import java.net.UnknownHostException;
 import java.util.Properties;
 
 /**
@@ -39,6 +41,15 @@ public class ServiceConfig extends ComponentConfig {
     public static final String PROPERTY_ZK_RETRY_SLEEP_MS = "zkRetrySleepMs";
     public static final String PROPERTY_ZK_RETRY_COUNT = "zkRetryCount";
     public static final String PROPERTY_CLUSTER_NAME = "clusterName";
+
+    private static final int DEFAULT_LISTENING_PORT = 12345;
+    private static final int DEFAULT_THREAD_POOL_SIZE = 50;
+    private static final String DEFAULT_ZK_HOSTNAME = "zk1";
+    private static final int DEFAULT_ZK_PORT = 2181;
+    private static final int DEFAULT_ZK_RETRY_SLEEP_MS = 100;
+    private static final int DEFAULT_ZK_RETRY_COUNT = 5;
+    private static final String DEFAULT_CLUSTER_NAME = "pravega-cluster";
+
     private int containerCount;
     private int threadPoolSize;
     private int listeningPort;
@@ -142,14 +153,27 @@ public class ServiceConfig extends ComponentConfig {
     @Override
     protected void refresh() throws ConfigurationException {
         this.containerCount = getInt32Property(PROPERTY_CONTAINER_COUNT);
-        this.threadPoolSize = getInt32Property(PROPERTY_THREAD_POOL_SIZE);
-        this.listeningPort = getInt32Property(PROPERTY_LISTENING_PORT);
-        this.listeningIPAddress = getProperty(PROPERTY_LISTENING_IP_ADDRESS);
-        this.zkHostName = getProperty(PROPERTY_ZK_HOSTNAME);
-        this.zkPort = getInt32Property(PROPERTY_ZK_PORT);
-        this.zkRetrySleepMs = getInt32Property(PROPERTY_ZK_RETRY_SLEEP_MS);
-        this.zkRetryCount = getInt32Property(PROPERTY_ZK_RETRY_COUNT);
-        this.clusterName = getProperty(PROPERTY_CLUSTER_NAME);
+        this.threadPoolSize = getInt32Property(PROPERTY_THREAD_POOL_SIZE, DEFAULT_THREAD_POOL_SIZE);
+        this.listeningPort = getInt32Property(PROPERTY_LISTENING_PORT, DEFAULT_LISTENING_PORT);
+        this.listeningIPAddress = getProperty(PROPERTY_LISTENING_IP_ADDRESS, null);
+        if (this.listeningIPAddress == null) {
+            // Can't put this in the 'defaultValue' above because that would cause getHostAddress to be evaluated every time.
+            this.listeningIPAddress = getHostAddress();
+        }
+        this.zkHostName = getProperty(PROPERTY_ZK_HOSTNAME, DEFAULT_ZK_HOSTNAME);
+        this.zkPort = getInt32Property(PROPERTY_ZK_PORT, DEFAULT_ZK_PORT);
+        this.zkRetrySleepMs = getInt32Property(PROPERTY_ZK_RETRY_SLEEP_MS, DEFAULT_ZK_RETRY_SLEEP_MS);
+        this.zkRetryCount = getInt32Property(PROPERTY_ZK_RETRY_COUNT, DEFAULT_ZK_RETRY_COUNT);
+        this.clusterName = getProperty(PROPERTY_CLUSTER_NAME, DEFAULT_CLUSTER_NAME);
+    }
+
+    private static String getHostAddress() {
+        //TODO: Find a better way to compute the host address. https://github.com/emccode/pravega/issues/162
+        try {
+            return Inet4Address.getLocalHost().getHostAddress();
+        } catch (UnknownHostException e) {
+            throw new RuntimeException("Unable to get the Host Address", e);
+        }
     }
 
     //endregion

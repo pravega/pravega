@@ -41,4 +41,9 @@ public interface StreamConfiguration extends Serializable {
      * @return The stream's scaling policy.
      */
     ScalingPolicy getScalingPolicy();
+    
+    /**
+     * Returns the retention policy for this stream.
+     */
+    RetentionPolicy getRetentionPolicy();
 }

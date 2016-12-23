@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.impl.model;
+package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.FutureSegment;
@@ -26,20 +26,19 @@ import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxId;
 import com.emc.pravega.controller.stream.api.v1.TxState;
-import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.impl.PositionImpl;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.google.common.base.Preconditions;
 
 import java.util.AbstractMap;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -103,7 +102,7 @@ public final class ModelHelper {
             case COMMITTED:
                 return Transaction.Status.COMMITTED;
             case DROPPED:
-                return Transaction.Status.DROPPED;
+                return Transaction.Status.ABORTED;
             case OPEN:
                 return Transaction.Status.OPEN;
             case SEALED:
@@ -154,6 +153,26 @@ public final class ModelHelper {
 
     public static NodeUri decode(PravegaNodeUri uri) {
         return new NodeUri(uri.getEndpoint(), uri.getPort());
+    }
+    
+    public static final Set<Integer> getSegmentsFromPositions(List<PositionInternal> positions) {
+        return positions.stream()
+            .flatMap(position -> position.getCompletedSegments().stream().map(Segment::getSegmentNumber))
+            .collect(Collectors.toSet());
+    }
+    
+    public static final Map<Integer, Long> toSegmentOffsetMap(PositionInternal position) {
+        return position.getOwnedSegmentsWithOffsets()
+            .entrySet()
+            .stream()
+            .map(e -> new SimpleEntry<>(e.getKey().getSegmentNumber(), e.getValue()))
+            .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+    }
+    
+    public static final Map<Integer, Integer> getFutureSegmentMap(PositionInternal position) {
+        Map<Integer, Integer> futures = new HashMap<>();
+        position.getFutureOwnedSegments().stream().forEach(x -> futures.put(x.getSegmentNumber(), x.getPrecedingNumber()));
+        return futures;
     }
 
     private static Map<Segment, Long> encodeSegmentMap(final Map<SegmentId, Long> map) {

@@ -17,20 +17,28 @@
  */
 package com.emc.pravega.stream;
 
+import com.emc.pravega.stream.impl.EventReadImpl;
+
 /**
  * A consumer for a stream.
+ * 
+ * This class is safe to use across threads, but doing so will not increase performance.
  *
  * @param <T> The type of events being sent through this stream.
  */
 public interface Consumer<T> extends AutoCloseable {
 
     /**
-     * Gets the next event in the stream.
+     * Gets the next event in the stream. If there are no events currently available this will block
+     * up for timeout waiting for them to arrive. If none do, an EventRead will be returned with
+     * null for {@link EventRead#getEvent()}. (As well as for most other fields) However the
+     * {@link EventRead#getWriteTime()} will be populated. (This is useful for applications that
+     * want to be sure they have read all the events within a time range.)
      *
      * @param timeout An upper bound on how long the call may block before returning null.
      * @return The next event in the stream, or null if timeout is reached.
      */
-    T getNextEvent(long timeout);
+    EventRead<T> readNextEvent(long timeout);
 
     /**
      * Gets the configuration that this consumer was created with.
@@ -38,19 +46,24 @@ public interface Consumer<T> extends AutoCloseable {
     ConsumerConfig getConfig();
 
     /**
-     * Gets an object that indicates the current position within the stream.
+     * Re-read an event that was previously read, by passing the segment returned from
+     * {@link EventReadImpl#getSegment()} and the offset returned from
+     * {@link EventReadImpl#getOffsetInSegment()} 
+     * This does not affect the current position of the consumer.
+     * 
+     * This is a blocking call. Passing invalid offsets has undefined behavior.
+     * 
+     * @param segment The segment to read the event from.
+     * @param offset The byte offset within the segment to read from.
+     * @return The event at the position specified by the provided pointer or null if the event has
+     *         been deleted.
      */
-    Position getPosition();
+    T read(Segment segment, long offset);
 
     /**
-     * Reset the position of the consumer back to where it was previously.
-     *
-     * @param state The position previously obtained from {@link #getPosition()}
-     */
-    void setPosition(Position state);
-
-    /**
-     * Close the consumer. No further actions may be performed.
+     * Close the consumer. No further actions may be performed. If this consumer is part of a
+     * consumer group, this will automatically invoke
+     * {@link ConsumerGroup#consumerOffline(String, Position)}
      *
      * @see java.lang.AutoCloseable#close()
      */

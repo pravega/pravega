@@ -797,14 +797,14 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class DropTransaction implements Request, WireCommand {
-        final WireCommandType type = WireCommandType.DROP_TRANSACTION;
+    public static final class AbortTransaction implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.ABORT_TRANSACTION;
         final String segment;
         final UUID txid;
 
         @Override
         public void process(RequestProcessor cp) {
-            cp.dropTransaction(this);
+            cp.abortTransaction(this);
         }
 
         @Override
@@ -817,19 +817,19 @@ public final class WireCommands {
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
-            return new DropTransaction(segment, txid);
+            return new AbortTransaction(segment, txid);
         }
     }
 
     @Data
-    public static final class TransactionDropped implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.TRANSACTION_DROPPED;
+    public static final class TransactionAborted implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.TRANSACTION_ABORTED;
         final String segment;
         final UUID txid;
 
         @Override
         public void process(ReplyProcessor cp) {
-            cp.transactionDropped(this);
+            cp.transactionAborted(this);
         }
 
         @Override
@@ -842,7 +842,7 @@ public final class WireCommands {
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
-            return new TransactionDropped(segment, txid);
+            return new TransactionAborted(segment, txid);
         }
     }
 
@@ -871,6 +871,7 @@ public final class WireCommands {
     @Data
     public static final class SegmentSealed implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_SEALED;
+        final String segment;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -878,39 +879,41 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) {
-            // TODO Auto-generated method stub
-
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) {
-            return null;
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            String segment = in.readUTF();
+            return new SealSegment(segment);
         }
     }
 
     @Data
     public static final class DeleteSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
-
+        final String segment;
+        
         @Override
         public void process(RequestProcessor cp) {
             cp.deleteSegment(this);
         }
 
         @Override
-        public void writeFields(DataOutput out) {
-            // TODO Auto-generated method stub
-
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) {
-            return null;
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            String segment = in.readUTF();
+            return new SealSegment(segment);
         }
     }
 
     @Data
     public static final class SegmentDeleted implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_DELETED;
+        final String segment;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -918,13 +921,13 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) {
-            // TODO Auto-generated method stub
-
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) {
-            return null;
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            String segment = in.readUTF();
+            return new SealSegment(segment);
         }
     }
 
