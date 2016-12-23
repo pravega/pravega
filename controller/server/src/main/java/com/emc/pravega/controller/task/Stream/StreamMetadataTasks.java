@@ -183,17 +183,32 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         // Abort scaling operation in the following error scenarios
         // 1. if the active segments in the stream have ts greater than scaleTimestamp -- ScaleStreamStatus.PRECONDITION_FAILED
         // 2. if active segments having creation timestamp as scaleTimestamp have different key ranges than the ones specified in newRanges (todo) -- ScaleStreamStatus.CONFLICT
-        // 3. Transaction is active on the stream (todo)-- return ScaleStreamStatus.CONFLICT status in this case
+        // 3. Transaction is active on the stream
+        // 4. sealedSegments should be a subset of activeSegments.
         CompletableFuture<Boolean> checkValidity =
                 streamMetadataStore.getActiveSegments(stream)
                         .thenCompose(activeSegments ->
-                                        streamMetadataStore
-                                                .isTransactionOngoing(scope, stream)
-                                                .thenApply(active -> active ||
-                                                                activeSegments
-                                                                        .stream()
-                                                                        .anyMatch(segment ->
-                                                                                segment.getStart() > scaleTimestamp)));
+                                streamMetadataStore
+                                        .isTransactionOngoing(scope, stream)
+                                        .thenApply(active ->
+                                                // transaction is ongoing
+                                                active
+                                                        ||
+                                                        // some segment to be sealed is not an active segment
+                                                        sealedSegments
+                                                                .stream()
+                                                                .anyMatch(x ->
+                                                                        activeSegments
+                                                                                .stream()
+                                                                                .noneMatch(segment ->
+                                                                                        segment.getNumber() == x))
+                                                        ||
+                                                        // scale timestamp is not larger than start time of
+                                                        // some active segment
+                                                        activeSegments
+                                                                .stream()
+                                                                .anyMatch(segment ->
+                                                                        segment.getStart() > scaleTimestamp)));
 
         return checkValidity.thenCompose(result -> {
 

@@ -58,6 +58,9 @@ public class ScaleTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
+        // Create controller object for testing against a separate controller process.
+        // ControllerImpl controller = new ControllerImpl("localhost", 9090);
+
         final String scope = "scope";
         final String streamName = "stream1";
         final StreamConfiguration config =
@@ -109,7 +112,7 @@ public class ScaleTest {
                         "Scaling stream (%s, %s), splitting one segment into two, while transaction is ongoing",
                         scope,
                         streamName));
-        scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(0), map);
+        scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(3), map);
         scaleResponse = scaleResponseFuture.get();
         if (scaleResponse.getStatus() != ScaleStreamStatus.PRECONDITION_FAILED) {
             System.err.println("Scale stream while transaction is ongoing failed, exiting");
@@ -131,7 +134,7 @@ public class ScaleTest {
                         scope,
                         streamName));
 
-        scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(0), map);
+        scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(3), map);
         scaleResponse = scaleResponseFuture.get();
         if (scaleResponse.getStatus() != ScaleStreamStatus.SUCCESS) {
             System.err.println("Scale stream after transaction is dropped failed, exiting");
@@ -139,5 +142,7 @@ public class ScaleTest {
         }
 
         System.err.println("All scaling test PASSED");
+
+        System.exit(0);
     }
 }
