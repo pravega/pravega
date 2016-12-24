@@ -20,7 +20,7 @@ import org.junit.Test;
 import static org.junit.Assert.fail;
 
 @Ignore
-public class ProducerTest {
+public class EventStreamWriterTest {
     @Test
     public void testChangeConfig() {
         fail();

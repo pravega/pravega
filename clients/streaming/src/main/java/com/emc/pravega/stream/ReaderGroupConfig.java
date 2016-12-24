@@ -23,13 +23,13 @@ import lombok.Getter;
 
 @Builder
 @EqualsAndHashCode
-public class ConsumerGroupConfig {
+public class ReaderGroupConfig {
    @Getter
    private final Sequence startingPosition;
    
-   static class ConsumerGroupConfigBuilder {
-       ConsumerGroupConfigBuilder startingTime(long time) {
-           startingPosition = new Sequence(time, 0);
+   public static class ReaderGroupConfigBuilder {
+       public ReaderGroupConfigBuilder startingTime(long time) {
+           startingPosition = Sequence.create(time, 0);
            return this;
        }
    }

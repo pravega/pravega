@@ -23,7 +23,7 @@ import org.junit.Test;
 import static org.junit.Assert.fail;
 
 @Ignore
-public class SegmentProducerTest {
+public class SegmentReaderTest {
     @Test
     public void testConfigChange() {
         fail();
@@ -40,22 +40,7 @@ public class SegmentProducerTest {
     }
 
     @Test
-    public void testRetransmit() {
-        fail();
-    }
-
-    @Test
-    public void testTxOnClosedSegment() {
-        fail();
-    }
-
-    @Test
-    public void testAckLevels() {
-        fail();
-    }
-
-    @Test
-    public void testContentsOfUnackedMessages() {
+    public void testSetOffset() {
         fail();
     }
 }
