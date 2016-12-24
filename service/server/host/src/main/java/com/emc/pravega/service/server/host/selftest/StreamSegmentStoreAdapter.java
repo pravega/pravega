@@ -19,12 +19,14 @@
 package com.emc.pravega.service.server.host.selftest;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.ExecutorServiceHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.storage.TruncateableStorage;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
@@ -33,6 +35,8 @@ import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -50,6 +54,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     private final AtomicBoolean initialized;
     private final ServiceBuilder serviceBuilder;
     private final AtomicReference<VerificationStorage> storage;
+    private final AtomicReference<ExecutorService> storeExecutor; // Only for reporting; do not use.
     private StreamSegmentStore streamSegmentStore;
 
     //endregion
@@ -59,18 +64,27 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     /**
      * Creates a new instance of the StreamSegmentStoreAdapter class.
      *
-     * @param builderConfig The ServiceBuilderConfig to use.
+     * @param builderConfig        The ServiceBuilderConfig to use.
+     * @param testCallbackExecutor An Executor to use for test-related async operations.
      */
-    StreamSegmentStoreAdapter(ServiceBuilderConfig builderConfig) {
+    StreamSegmentStoreAdapter(ServiceBuilderConfig builderConfig, Executor testCallbackExecutor) {
         this.closed = new AtomicBoolean();
         this.initialized = new AtomicBoolean();
         this.storage = new AtomicReference<>();
+        this.storeExecutor = new AtomicReference<>();
         this.serviceBuilder = ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new)))
                 .withStorageFactory(setup -> {
-                    VerificationStorage.Factory factory = new VerificationStorage.Factory(new InMemoryStorageFactory(setup.getExecutor()).getStorageAdapter());
+                    // We use the Segment Store Executor for the real storage.
+                    TruncateableStorage innerStorage = new InMemoryStorageFactory(setup.getExecutor()).getStorageAdapter();
+
+                    // ... and the Test executor for the verification storage (to invoke callbacks).
+                    VerificationStorage.Factory factory = new VerificationStorage.Factory(innerStorage, testCallbackExecutor);
                     this.storage.set((VerificationStorage) factory.getStorageAdapter());
+
+                    // A bit hack-ish, but we need to get a hold of the Store Executor, so we can request snapshots for it.
+                    this.storeExecutor.set(setup.getExecutor());
                     return factory;
                 });
     }
@@ -155,6 +169,10 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     @Override
     public VerificationStorage getStorageAdapter() {
         return this.storage.get();
+    }
+
+    public ExecutorServiceHelpers.Snapshot getStorePoolSnapshot() {
+        return this.storeExecutor.get() != null ? ExecutorServiceHelpers.getSnapshot(this.storeExecutor.get()) : null;
     }
 
     //endregion

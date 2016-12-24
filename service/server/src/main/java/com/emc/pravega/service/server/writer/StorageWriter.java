@@ -179,10 +179,10 @@ class StorageWriter extends AbstractService implements Writer {
                 () -> FutureHelpers
                         .delayedFuture(getIterationStartDelay(), this.executor)
                         .thenAccept(this::beginIteration)
-                        .thenCompose(this::readData)
+                        .thenComposeAsync(this::readData, this.executor)
                         .thenAcceptAsync(this::processReadResult, this.executor)
-                        .thenCompose(this::flush)
-                        .thenCompose(this::acknowledge)
+                        .thenComposeAsync(this::flush, this.executor)
+                        .thenComposeAsync(this::acknowledge, this.executor)
                         .exceptionally(this::iterationErrorHandler)
                         .thenAccept(this::endIteration),
                 this.executor);
@@ -252,7 +252,7 @@ class StorageWriter extends AbstractService implements Writer {
                             // TimeoutExceptions are acceptable for Reads. In that case we just return null as opposed from
                             // killing the entire Iteration. Even if we were unable to read, we may still need to flush
                             // in this iteration or do other tasks.
-                            log.warn("{}: Iteration[{}] No items were read during allotted timeout of {}ms", this.traceObjectId, this.state.getIterationId(), readTimeout.toMillis());
+                            log.debug("{}: Iteration[{}] No items were read during allotted timeout of {}ms", this.traceObjectId, this.state.getIterationId(), readTimeout.toMillis());
                             return null;
                         } else {
                             throw new CompletionException(ex);

@@ -34,9 +34,16 @@ allprojects {
     checkstyle {
         toolVersion = "7.1"
     }
+
+    javadoc {
+        failOnError = false
+        exclude  "**/impl/**";
+    }
+
     ext {
         pravegaVersion = "0.0"
     }
+
     repositories {
         // Use 'jcenter' for resolving your dependencies.
         // You can declare any Maven/Ivy/file repository here.
@@ -72,16 +79,31 @@ allprojects {
 
         testCompile "org.mockito:mockito-core:2.+"
     }
+
     publishing {
         repositories {
             maven {
-               credentials {
+                credentials {
                     username = "$repoUser"
                     password = "$repoPass"
                 }
                 url = "$repoUrl"
             }
         }
+    }
+
+    tasks.withType(GroovyCompile) {
+        groovyOptions.fork = false
+    }
+
+    tasks.withType(Test) {
+        testLogging.exceptionFormat = "FULL"
+        testLogging.showCauses = true
+        testLogging.showExceptions = true
+        testLogging.showStackTraces = true
+        maxParallelForks = 2
+        minHeapSize = "128m"
+        maxHeapSize = "512m"
     }
 }
 
@@ -167,7 +189,7 @@ project('service:storage:impl') {
         compile project(':common')
         compile project(':service:storage')
         testCompile project(':testcommon')
-	testCompile files(project(':service:storage').sourceSets.test.output)
+        testCompile files(project(':service:storage').sourceSets.test.output)
     }
 }
 
@@ -245,19 +267,19 @@ project('integrationtests') {
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
-	
+
     task startLocalService(type: JavaExec) {
         main = "com.emc.pravega.demo.StartLocalService"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
-	
+
     task startProducer(type: JavaExec) {
         main = "com.emc.pravega.demo.StartProducer"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
-	
+
     task startConsumer(type: JavaExec) {
         main = "com.emc.pravega.demo.StartConsumer"
         classpath = sourceSets.main.runtimeClasspath
@@ -321,8 +343,8 @@ project('controller:server') {
     apply plugin: 'application'
     mainClassName = "com.emc.pravega.controller.server.Main"
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-Xmx512m", "-XX:+HeapDumpOnOutOfMemoryError",
-            "-Dconfig.file=CONTROLLER_APP_HOME/conf/application.conf",
-            "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml"]
+                                 "-Dconfig.file=CONTROLLER_APP_HOME/conf/application.conf",
+                                 "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml"]
 
     applicationDistribution.from('src/conf') {
         into "conf"
@@ -367,18 +389,6 @@ project('controller:server') {
         }
     }
 }
-
-allprojects {
-    tasks.withType(GroovyCompile) {
-        groovyOptions.fork = false
-    }
-    tasks.withType(Test) {
-        // containers (currently) have 2 dedicated cores and 4GB of memory
-        maxParallelForks = 2
-        minHeapSize = '128m'
-    }
-}
-
 
 subprojects {
     task allDeps(type: DependencyReportTask) {}

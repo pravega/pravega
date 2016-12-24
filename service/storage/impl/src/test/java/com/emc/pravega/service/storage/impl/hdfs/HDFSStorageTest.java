@@ -74,12 +74,13 @@ public class HDFSStorageTest extends StorageTestBase {
 
     @Override
     protected Storage createStorage() {
+        // Create a config object, using all defaults, except for the HDFS URL.
+        // TODO: see if we can reuse ConfigHelpers from Storage Tests here, to avoid this code duplication.
         Properties prop = new Properties();
-        prop.setProperty("hdfs.fs.default.name", String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()));
-        prop.setProperty("hdfs.hdfsRoot", "");
-        prop.setProperty("hdfs.pravegaId", "0");
-        prop.setProperty("hdfs.replication", "1");
-        prop.setProperty("hdfs.blockSize", "1048576");
+        prop.setProperty(
+                String.format("%s.%s", HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL),
+                String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()));
+
         HDFSStorageConfig config = new HDFSStorageConfig(prop);
         val storage = new HDFSStorage(config, ForkJoinPool.commonPool());
         try {

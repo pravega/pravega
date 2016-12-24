@@ -17,19 +17,19 @@
  */
 package com.emc.pravega.state.examples;
 
-import java.io.Serializable;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.Set;
-
+import com.emc.pravega.ClientFactory;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Synchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
-import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.JavaSerializer;
+
+import java.io.Serializable;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -225,10 +225,10 @@ public class SetSynchronizer<T extends Serializable> {
         return true;
     }
     
-    public static <T extends Serializable> SetSynchronizer<T> createNewSet(Stream stream) {
-        return new SetSynchronizer<>(stream.createSynchronizer(new JavaSerializer<SetUpdate<T>>(),
-                                                               new JavaSerializer<CreateSet<T>>(),
-                                                               new SynchronizerConfig(null, null)));
+    public static <T extends Serializable> SetSynchronizer<T> createNewSet(String streamName, ClientFactory factory) {
+        return new SetSynchronizer<>(factory.createSynchronizer(streamName, new JavaSerializer<SetUpdate<T>>(),
+                                   new JavaSerializer<CreateSet<T>>(),
+                                   new SynchronizerConfig(null, null)));
     }
 
 }

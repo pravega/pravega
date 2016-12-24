@@ -133,6 +133,11 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
         closeQueue(null);
     }
 
+    @Override
+    protected String serviceName() {
+        return String.format("operation-processor-%d", this.metadataUpdater.getContainerId());
+    }
+
     //endregion
 
     //region Container Implementation
