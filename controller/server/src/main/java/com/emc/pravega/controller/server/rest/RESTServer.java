@@ -18,7 +18,6 @@
 
 package com.emc.pravega.controller.server.rest;
 
-import com.emc.pravega.controller.server.Resources;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;

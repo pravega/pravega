@@ -15,31 +15,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.controller.server.rest;
 
-package com.emc.pravega.controller.server.rest.resources;
+import javax.ws.rs.core.Application;
+import java.util.Set;
 
-import javax.ws.rs.core.Response;
 
 /**
- * Created by root on 12/22/16.
+ * Application to register the REST resource classes.
+ *
  */
 
-public class Name implements com.emc.pravega.controller.server.rest.v1.ApiV1.Hello {
+public class Resources extends Application {
 
-    @Override
-    public String helloWorld() {
-        return "Hello World !!";
+    private final Set<Object> resource;
+
+    public Resources(final Set<Object> resources) {
+        super();
+        resource = resources;
     }
 
     @Override
-    public String printName(String name) {
-        return "hello " + name;
+    public Set<Object> getSingletons() {
+        return resource;
     }
 
-    @Override
-    public Response getWrapper() {
-        return Response.ok(new Object() {
-            public String data = "hello world";
-        }).build();
-    }
+
 }

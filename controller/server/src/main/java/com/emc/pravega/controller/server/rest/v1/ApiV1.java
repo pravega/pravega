@@ -18,10 +18,6 @@
 
 package com.emc.pravega.controller.server.rest.v1;
 
-/**
- * Created by root on 12/22/16.
- */
-
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;

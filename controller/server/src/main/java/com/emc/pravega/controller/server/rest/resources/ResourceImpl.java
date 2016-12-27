@@ -15,24 +15,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server;
 
-import javax.ws.rs.core.Application;
-import java.util.Set;
+package com.emc.pravega.controller.server.rest.resources;
 
-public class Resources extends Application {
+import javax.ws.rs.core.Response;
 
-    private final Set<Object> resource;
+public class ResourceImpl implements com.emc.pravega.controller.server.rest.v1.ApiV1.Hello {
 
-    public Resources(final Set<Object> resources) {
-        super();
-        resource = resources;
+    @Override
+    public String helloWorld() {
+        return "Hello World !!";
     }
 
     @Override
-    public Set<Object> getSingletons() {
-        return resource;
+    public String printName(String name) {
+        return "hello " + name;
     }
 
-
+    @Override
+    public Response getWrapper() {
+        return Response.ok(new Object() {
+            public String data = "hello world";
+        }).build();
+    }
 }
