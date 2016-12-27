@@ -24,7 +24,7 @@ import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
-//import com.emc.pravega.controller.server.rest.RESTServer;
+import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rest.resources.Name;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
@@ -45,20 +45,10 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
 
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
-import org.eclipse.jetty.util.resource.Resource;
-//import org.eclipse.jetty.webapp.Configuration;
-import org.eclipse.jetty.xml.XmlConfiguration;
-import org.glassfish.jersey.server.ResourceConfig;
-import org.glassfish.jersey.servlet.ServletContainer;
-
 import javax.ws.rs.core.Application;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -132,34 +122,13 @@ public class Main {
 
         // 4. start REST server
 
-        /*//RESTServer restServer = new RESTServer();
-        ResourceConfig config = new ResourceConfig(Name.class);
-        //config.packages("pravega");
-        config.packages("com.emc.pravega.controller.server.rest");
-        ServletHolder servlet = new ServletHolder(new ServletContainer(config));
-
-        Server server = new Server(2222);
-        ServletContextHandler context = new ServletContextHandler(server, "*//*");
-        context.addServlet(servlet, "*//*");
-
-        log.info("Starting REST server");
-        try {
-            server.start();
-            server.join();
-        } catch (Exception e) {
-            log.info("Exception = {}", e.toString());
-        } finally {
-            server.destroy();
-        }*/
-
-        // code from image repository
         log.info("Initializing REST Service");
 
         // 1 create an application with the desired resources.
-        final Application application = createApplication(new Class[] { Name.class });
+        final Application application = RESTServer.createApplication(new Class[] { Name.class });
 
-        // 2 Create frontend
-        final Server server = createJettyServer(application);
+        // 2 start a jetty server
+        final Server server = RESTServer.createJettyServer(application);
         server.start();
 
         log.info("Pravega REST Service has started");
@@ -168,43 +137,6 @@ public class Main {
 
     }
 
-    private static final Server createJettyServer(Application application) throws Exception {
 
-        Resource serverConfig = Resource.newResource("/root/pravega_rest/pravega/controller/server/src/conf/jetty_server.xml");
-        ///root/pravega_rest/pravega/controller/server/src/conf/jetty_server.xml
-        XmlConfiguration configuration = new XmlConfiguration(serverConfig.getInputStream());
-        Server server = (Server) configuration.configure();
 
-        ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
-        context.setContextPath("/");
-
-        final ResourceConfig resourceConfig = ResourceConfig.forApplication(application);
-        //resourceConfig.registerClasses(providerClasses);
-
-        ServletHolder jerseyServlet = new ServletHolder(new ServletContainer(resourceConfig));
-
-        jerseyServlet.setInitOrder(0);
-        context.addServlet(jerseyServlet, "/*");
-
-        server.setHandler(context);
-        return server;
-    }
-
-    private static final Application createApplication(Class<?>[] classes) {
-        // create resources.
-        final Set<Object> resources = new HashSet<Object>();
-        for (Class<?> resource : classes) {
-            try {
-                resources.add(resource.newInstance());
-            } catch (InstantiationException | IllegalAccessException e) {
-                log.error("Error during instantiation of REST resource : {} ", resource.getName(), e);
-            }
-        }
-        return new Resources(resources);
-    }
-
-    //private static final Class<?> providerClasses[] = { };
-
-    //private static final String SECTION = "server";
-    //private static final String JETTY_CONFIG_FILE = Configuration.make(String.class, SECTION + ".jettyConfigurationFile","conf/jetty_server.xml").value();
 }

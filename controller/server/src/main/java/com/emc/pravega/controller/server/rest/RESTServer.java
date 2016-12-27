@@ -18,6 +18,7 @@
 
 package com.emc.pravega.controller.server.rest;
 
+import com.emc.pravega.controller.server.Resources;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -28,6 +29,8 @@ import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.servlet.ServletContainer;
 
 import javax.ws.rs.core.Application;
+import java.util.HashSet;
+import java.util.Set;
 
 
 /**
@@ -36,10 +39,10 @@ import javax.ws.rs.core.Application;
 @Slf4j
 public class RESTServer {
 
+     public static final Server createJettyServer(Application application) throws Exception {
 
-    private static final Server createJettyServer(Application application) throws Exception {
-
-        Resource serverConfig = Resource.newResource("jetty_server.xml");
+        Resource serverConfig = Resource.newResource("/root/pravega_rest/pravega/controller/server/src/conf/jetty_server.xml");
+        ///root/pravega_rest/pravega/controller/server/src/conf/jetty_server.xml
         XmlConfiguration configuration = new XmlConfiguration(serverConfig.getInputStream());
         Server server = (Server) configuration.configure();
 
@@ -52,9 +55,23 @@ public class RESTServer {
         ServletHolder jerseyServlet = new ServletHolder(new ServletContainer(resourceConfig));
 
         jerseyServlet.setInitOrder(0);
-        context.addServlet(jerseyServlet, "*//*");
+        context.addServlet(jerseyServlet, "/*");
 
         server.setHandler(context);
         return server;
     }
+
+     public static final Application createApplication(Class<?>[] classes) {
+        // create resources.
+        final Set<Object> resources = new HashSet<Object>();
+        for (Class<?> resource : classes) {
+            try {
+                resources.add(resource.newInstance());
+            } catch (InstantiationException | IllegalAccessException e) {
+                log.error("Error during instantiation of REST resource : {} ", resource.getName(), e);
+            }
+        }
+        return new Resources(resources);
+    }
+
 }
