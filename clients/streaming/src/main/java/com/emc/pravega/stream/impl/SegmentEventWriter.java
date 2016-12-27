@@ -17,30 +17,30 @@
  */
 package com.emc.pravega.stream.impl;
 
-import org.junit.Ignore;
-import org.junit.Test;
+import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 
-import static org.junit.Assert.fail;
+import java.util.List;
 
-@Ignore
-public class SegmentConsumerTest {
-    @Test
-    public void testConfigChange() {
-        fail();
-    }
+/**
+ * This is the mirror of EventStreamWriter but that only deals with one segment.
+ */
+public interface SegmentEventWriter<Type> extends AutoCloseable {
+    void write(PendingEvent<Type> m) throws SegmentSealedException;
 
-    @Test
-    public void testEOF() {
-        fail();
-    }
+    /**
+     * Blocks on all outstanding writes.
+     *
+     * @throws SegmentSealedException If the segment is closed for modifications.
+     */
+    void flush() throws SegmentSealedException;
 
-    @Test
-    public void testTimeout() {
-        fail();
-    }
+    @Override
+    void close() throws SegmentSealedException;
 
-    @Test
-    public void testSetOffset() {
-        fail();
-    }
+    boolean isAlreadySealed();
+
+    /**
+     * Gets all events that have been sent to {@link #write(PendingEvent)} but are not yet acknowledged.
+     */
+    List<PendingEvent<Type>> getUnackedEvents();
 }

@@ -121,7 +121,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
     /**
      * If there isn't already an append outstanding against the store, write a new one.
-     * Appends are opportunistically batched here. IE: If many are waiting they are combined into a single append and
+     * Appends are opportunistically batched here. i.e. If many are waiting they are combined into a single append and
      * that is written.
      */
     public void performNextWrite() {

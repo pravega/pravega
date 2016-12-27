@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Sends events to the SegmentOutputStream and tracks the ones that are outstanding.
  */
-public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
+public class SegmentEventWriterImpl<Type> implements SegmentEventWriter<Type> {
 
     private final Serializer<Type> serializer;
 
@@ -40,7 +40,7 @@ public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
     private final AtomicBoolean sealed = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    public SegmentProducerImpl(SegmentOutputStream out, Serializer<Type> serializer) {
+    public SegmentEventWriterImpl(SegmentOutputStream out, Serializer<Type> serializer) {
         Preconditions.checkNotNull(out);
         Preconditions.checkNotNull(serializer);
         this.serializer = serializer;
@@ -48,7 +48,7 @@ public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
     }
 
     @Override
-    public void publish(PendingEvent<Type> m) throws SegmentSealedException {
+    public void write(PendingEvent<Type> m) throws SegmentSealedException {
         checkSealedAndClosed();
         ByteBuffer buffer = serializer.serialize(m.getValue());
         out.write(buffer, m.getAckFuture());
