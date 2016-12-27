@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.PropertyBag;
@@ -404,6 +405,7 @@ public class DurableLogTests extends OperationLogTestBase {
                         oc.completion::join,
                         ex -> ex instanceof DataCorruptionException
                                 || ex instanceof IllegalContainerStateException
+                                || ex instanceof ObjectClosedException
                                 || (ex instanceof IOException && (ex.getCause() instanceof DataCorruptionException || ex.getCause() instanceof IllegalContainerStateException)));
                 encounteredFirstFailure = true;
             } else {
