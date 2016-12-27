@@ -27,6 +27,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 
 
 public final class ApiV1 {
@@ -36,13 +37,20 @@ public final class ApiV1 {
 
         @GET
         @Path("/world")
-        @Produces(MediaType.TEXT_PLAIN)
+        @Produces(MediaType.APPLICATION_JSON)
         public String helloWorld();
 
         @GET
         @Path("/user/{var}")
-        @Produces({MediaType.TEXT_PLAIN})
+        @Produces({MediaType.APPLICATION_JSON})
         public String printName(@PathParam("var") String name);
+
+        @GET
+        @Path("/wrapper")
+        @Produces(MediaType.APPLICATION_JSON)
+        public Response getWrapper();
+
+
     }
 
     /*@Path("/docker")

@@ -18,7 +18,7 @@
 
 package com.emc.pravega.controller.server.rest.resources;
 
-import javax.ws.rs.PathParam;
+import javax.ws.rs.core.Response;
 
 /**
  * Created by root on 12/22/16.
@@ -34,5 +34,12 @@ public class Name implements com.emc.pravega.controller.server.rest.v1.ApiV1.Hel
     @Override
     public String printName(String name) {
         return "hello " + name;
+    }
+
+    @Override
+    public Response getWrapper() {
+        return Response.ok(new Object() {
+            public String data = "hello world";
+        }).build();
     }
 }
