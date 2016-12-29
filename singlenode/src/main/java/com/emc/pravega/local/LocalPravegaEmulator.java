@@ -135,7 +135,7 @@ public class LocalPravegaEmulator {
      * Start controller and host.
      * */
     private void start() {
-      //  startController();
+        startController();
         startPravegaHost();
     }
 
@@ -148,7 +148,6 @@ public class LocalPravegaEmulator {
                     HDFSStorageConfig.COMPONENT_CODE,
                     HDFSStorageConfig.PROPERTY_HDFS_URL,
                     String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort()));
-
 
             // Change Number of containers and Thread Pool Size for each test.
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "2");
