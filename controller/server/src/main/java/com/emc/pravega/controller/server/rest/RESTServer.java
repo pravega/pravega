@@ -70,7 +70,7 @@ public class RESTServer {
                 log.error("Error during instantiation of REST resource : {} ", resource.getName(), e);
             }
         }
-        return new Resources(resources);
+        return new ControllerApplication(resources);
     }
 
 }

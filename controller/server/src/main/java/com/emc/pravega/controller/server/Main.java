@@ -25,7 +25,7 @@ import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.server.rest.RESTServer;
-import com.emc.pravega.controller.server.rest.resources.ResourceImpl;
+import com.emc.pravega.controller.server.rest.resources.SampleResourceImpl;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.store.StoreClient;
@@ -124,14 +124,14 @@ public class Main {
         log.info("Initializing REST Service");
 
         //  create an application with the desired resources.
-        final Application application = RESTServer.createApplication(new Class[] { ResourceImpl.class });
+        final Application application = RESTServer.createApplication(new Class[] { SampleResourceImpl.class });
 
         //  start a jetty server
         final Server server = RESTServer.createJettyServer(application);
         server.start();
 
         log.info("Pravega REST Service has started");
-        //  wait for ever.
+        //  wait forever for incoming requests.
         server.join();
 
     }

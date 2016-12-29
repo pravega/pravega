@@ -18,18 +18,35 @@
 
 package com.emc.pravega.controller.server.rest.resources;
 
-import com.emc.pravega.controller.server.rest.v1.ApiV1;
-import com.emc.pravega.stream.StreamConfiguration;
-
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 
-/*
-Implementation of Resource
- */
-public class ResourceImpl implements ApiV1.Controller {
+public class SampleResourceImpl implements com.emc.pravega.controller.server.rest.v1.ApiV1.Hello {
+
     @Override
-    public Response createStream(StreamConfiguration streamConfiguration) throws IOException {
-        return null;
+    public String helloWorld() {
+        return "Hello World !!";
     }
+
+    @Override
+    public String printName(String name) {
+        return "hello " + name;
+    }
+
+    @Override
+    public Response getWrapper() {
+        return Response.ok(new Object() {
+            public String data = "hello world";
+        }).build();
+    }
+
+    @Override
+    public Response getResponse(SampleRequest request) throws IOException {
+        /*ObjectMapper objectMapper = new ObjectMapper();
+        SampleRequest sampleRequest = objectMapper.readValue(request, SampleRequest.class);*/
+        SampleResponse sampleResponse = new SampleResponse();
+        sampleResponse.setText(request.getName() + " " + String.valueOf(request.getAge()));
+        return Response.ok(sampleResponse).build();
+    }
+
 }

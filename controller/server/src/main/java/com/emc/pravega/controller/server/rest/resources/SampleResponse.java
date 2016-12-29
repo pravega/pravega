@@ -15,30 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server.rest;
+package com.emc.pravega.controller.server.rest.resources;
 
-import javax.ws.rs.core.Application;
-import java.util.Set;
-
+import lombok.Getter;
+import lombok.Setter;
 
 /**
- * Application to register the REST resource classes.
- *
+ * Created by root on 12/28/16.
  */
+@Getter
+@Setter
+public class SampleResponse {
 
-public class Resources extends Application {
-
-    private final Set<Object> resource;
-
-    public Resources(final Set<Object> resources) {
-        super();
-        resource = resources;
-    }
-
-    @Override
-    public Set<Object> getSingletons() {
-        return resource;
-    }
-
-
+    private String text;
 }

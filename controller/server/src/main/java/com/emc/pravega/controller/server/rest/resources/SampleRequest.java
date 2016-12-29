@@ -15,21 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.emc.pravega.controller.server.rest.resources;
 
-import com.emc.pravega.controller.server.rest.v1.ApiV1;
-import com.emc.pravega.stream.StreamConfiguration;
+import lombok.Getter;
+import lombok.Setter;
 
-import javax.ws.rs.core.Response;
-import java.io.IOException;
-
-/*
-Implementation of Resource
+/**
+ * Created by root on 12/28/16.
  */
-public class ResourceImpl implements ApiV1.Controller {
-    @Override
-    public Response createStream(StreamConfiguration streamConfiguration) throws IOException {
-        return null;
-    }
+@Getter
+@Setter
+public class SampleRequest {
+
+    private String name;
+
+    private int age;
+
+    private boolean flag;
 }

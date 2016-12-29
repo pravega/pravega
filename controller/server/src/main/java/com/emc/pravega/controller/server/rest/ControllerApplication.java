@@ -15,21 +15,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.controller.server.rest;
 
-package com.emc.pravega.controller.server.rest.resources;
+import javax.ws.rs.core.Application;
+import java.util.Set;
 
-import com.emc.pravega.controller.server.rest.v1.ApiV1;
-import com.emc.pravega.stream.StreamConfiguration;
 
-import javax.ws.rs.core.Response;
-import java.io.IOException;
-
-/*
-Implementation of Resource
+/**
+ * Application to register the REST resource classes.
+ *
  */
-public class ResourceImpl implements ApiV1.Controller {
-    @Override
-    public Response createStream(StreamConfiguration streamConfiguration) throws IOException {
-        return null;
+
+public class ControllerApplication extends Application {
+
+    private final Set<Object> resource;
+
+    public ControllerApplication(final Set<Object> resources) {
+        super();
+        resource = resources;
     }
+
+    @Override
+    public Set<Object> getSingletons() {
+        return resource;
+    }
+
+
 }
