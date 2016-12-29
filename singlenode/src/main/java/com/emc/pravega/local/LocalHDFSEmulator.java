@@ -64,6 +64,10 @@ public class LocalHDFSEmulator {
         }
     }
 
+    public Object getNameNodePort() {
+        return hdfsCluster.getNameNodePort();
+    }
+
     public static class Builder {
         private String baseDirName;
 

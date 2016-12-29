@@ -35,6 +35,12 @@ import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
+import com.emc.pravega.service.server.host.ServiceStarter;
+import com.emc.pravega.service.server.logs.DurableLogConfig;
+import com.emc.pravega.service.server.reading.ReadIndexConfig;
+import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.server.store.ServiceConfig;
+import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.twitter.distributedlog.LocalDLMEmulator;
 import lombok.extern.slf4j.Slf4j;
@@ -44,9 +50,11 @@ import org.apache.commons.io.FileUtils;
 import java.io.File;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.emc.pravega.controller.util.Config.*;
 
@@ -54,6 +62,7 @@ import static com.emc.pravega.controller.util.Config.*;
 public class LocalPravegaEmulator {
 
 
+    private static LocalHDFSEmulator localHdfs;
     private final int controllerPort;
     private final int hostPort;
 
@@ -79,7 +88,7 @@ public class LocalPravegaEmulator {
                     .numBookies(1)
                     .build();
 
-             final LocalHDFSEmulator localHdfs = LocalHDFSEmulator.newBuilder()
+             localHdfs = LocalHDFSEmulator.newBuilder()
                                                 .baseDirName("temp")
                                                 .build();
 
@@ -126,11 +135,58 @@ public class LocalPravegaEmulator {
      * Start controller and host.
      * */
     private void start() {
-        startController();
+      //  startController();
         startPravegaHost();
     }
 
     private void startPravegaHost() {
+        AtomicReference<ServiceStarter> serviceStarter = new AtomicReference<>();
+        try {
+            Properties p = new Properties();
+            ServiceBuilderConfig props = ServiceBuilderConfig.getConfigFromFile();
+            props.set(p,
+                    HDFSStorageConfig.COMPONENT_CODE,
+                    HDFSStorageConfig.PROPERTY_HDFS_URL,
+                    String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort()));
+
+
+            // Change Number of containers and Thread Pool Size for each test.
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "2");
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "20");
+
+            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, "100");
+            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, "100");
+            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, "104857600");
+
+            ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, Integer.toString(60 * 1000));
+            ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.toString(128 * 1024 * 1024));
+
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT,
+                    new Integer(hostPort).toString());
+
+            props = new ServiceBuilderConfig(p);
+
+            serviceStarter.set(new ServiceStarter(props));
+        } catch (Throwable e) {
+            log.error("Could not create a Service with default config, Aborting.", e);
+            System.exit(1);
+        }
+
+        try {
+            serviceStarter.get().start();
+            Runtime.getRuntime().addShutdownHook(new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        log.info("Caught interrupt signal...");
+                        serviceStarter.get().shutdown();
+                    } catch (Exception e) {
+                        // do nothing
+                    }
+                }
+            });
+    } catch (Exception e) {
+        }
     }
 
     private void startController() {

@@ -59,7 +59,7 @@ public final class ServiceStarter {
 
     //region Constructor
 
-    private ServiceStarter(ServiceBuilderConfig config) {
+    public ServiceStarter(ServiceBuilderConfig config) {
         this.builderConfig = config;
         this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::new);
         Options opt = new Options();
@@ -95,7 +95,7 @@ public final class ServiceStarter {
 
     //region Service Operation
 
-    private void start() {
+    public void start() {
         Exceptions.checkNotClosed(this.closed, this);
 
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
@@ -113,7 +113,7 @@ public final class ServiceStarter {
         log.info("StreamSegmentService started.");
     }
 
-    private void shutdown() {
+    public void shutdown() {
         if (!this.closed) {
             this.serviceBuilder.close();
             log.info("StreamSegmentService shut down.");
