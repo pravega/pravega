@@ -21,12 +21,7 @@ package com.emc.pravega.controller.server.rest.v1;
 import com.emc.pravega.controller.server.rest.resources.SampleRequest;
 import com.emc.pravega.stream.StreamConfiguration;
 
-import javax.ws.rs.GET;
-import javax.ws.rs.POST;
-import javax.ws.rs.Path;
-import javax.ws.rs.Produces;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Consumes;
+import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
@@ -73,5 +68,14 @@ public final class ApiV1 {
         @Produces(MediaType.APPLICATION_JSON)
         @Consumes(MediaType.APPLICATION_JSON)
         public Response createStream(StreamConfiguration streamConfiguration) throws IOException;
+
+        @PUT
+        @Path("/scopes/{scope}/streams/{stream}")
+        @Produces(MediaType.APPLICATION_JSON)
+        @Consumes(MediaType.APPLICATION_JSON)
+        public Response updateStreamConfig(StreamConfiguration streamConfiguration) throws IOException;
+
+
+
     }
 }
