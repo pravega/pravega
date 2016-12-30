@@ -17,8 +17,8 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.stream.Consumer;
-import com.emc.pravega.stream.ConsumerConfig;
+import com.emc.pravega.stream.EventStreamReader;
+import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockClientFactory;
 
@@ -32,9 +32,9 @@ public class StartConsumer {
                 StartLocalService.PORT);
         clientFactory.createStream(StartLocalService.STREAM_NAME, null);
         @Cleanup
-        Consumer<String> consumer = clientFactory.createConsumer(StartLocalService.STREAM_NAME,
+        EventStreamReader<String> consumer = clientFactory.createReader(StartLocalService.STREAM_NAME,
                                      new JavaSerializer<>(),
-                            new ConsumerConfig(),
+                            new ReaderConfig(),
                             clientFactory.getInitialPosition(StartLocalService.STREAM_NAME));        
         for (int i = 0; i < 20; i++) {
             String event = consumer.readNextEvent(60000).getEvent();

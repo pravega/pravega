@@ -78,7 +78,7 @@ public final class FutureHelpers {
      *
      * @param future               The future whose result is wanted
      * @param exceptionConstructor This can be any function that either transforms an exception
-     *                             IE: Passing RuntimeException::new will wrap the exception in a new RuntimeException.
+     *                             i.e. Passing RuntimeException::new will wrap the exception in a new RuntimeException.
      *                             If null is returned from the function no exception will be thrown.
      * @param <ResultT>            Type of the result.
      * @param <ExceptionT>         Type of the Exception.
@@ -105,7 +105,7 @@ public final class FutureHelpers {
      *
      * @param future               The future whose result is wanted
      * @param exceptionConstructor This can be any function that either transforms an exception
-     *                             IE: Passing RuntimeException::new will wrap the exception in a new RuntimeException.
+     *                             i.e. Passing RuntimeException::new will wrap the exception in a new RuntimeException.
      *                             If null is returned from the function no exception will be thrown.
      * @param timeoutMillis        the timeout expressed in milliseconds before throwing {@link TimeoutException}
      * @param <ResultT>            Type of the result.
@@ -247,12 +247,11 @@ public final class FutureHelpers {
     }
 
     /**
-     * Executes the asynchronous task returning a CompletableFuture<T> with specified delay and returns the task result.
-     *
-     * @param task            Asynchronous task.
-     * @param delay           Delay in milliseconds.
+     * Executes the asynchronous task returning a CompletableFuture with specified delay and returns the task result.
+     * @param task Asynchronous task.
+     * @param delay Delay in milliseconds.
      * @param executorService Executor on which to execute the task.
-     * @param <T>             Type parameter.
+     * @param <T> Type parameter.
      * @return The result of task execution.
      */
     public static <T> CompletableFuture<T> delayedFuture(final Supplier<CompletableFuture<T>> task,
@@ -271,9 +270,9 @@ public final class FutureHelpers {
      * to exception e when both the exception e and result value are non-null.
      *
      * @param result The result object to complete.
-     * @param value  The result value.
-     * @param e      Exception.
-     * @param <T>    Type parameter.
+     * @param value The result value.
+     * @param e Exception.
+     * @param <T> Type parameter.
      */
     public static <T> void complete(final CompletableFuture<T> result, final T value, final Throwable e) {
         if (e != null) {
@@ -287,9 +286,9 @@ public final class FutureHelpers {
      * A variant of .exceptionally that admits an exception handler returning value of type T in future. Exceptionally
      * and flatExceptionally can be thought of as analogous to map and flatMap method for transforming Futures.
      *
-     * @param input            The input future.
+     * @param input The input future.
      * @param exceptionHandler Exception handler.
-     * @param <T>              Type parameter.
+     * @param <T> Type parameter.
      * @return result of exceptionHandler if input completed exceptionally, otherwise input.
      */
     public static <T> CompletableFuture<T> flatExceptionally(final CompletableFuture<T> input,
@@ -298,7 +297,7 @@ public final class FutureHelpers {
         input.whenComplete((r, e) -> {
             if (e != null) {
                 exceptionHandler.apply(e)
-                                .whenComplete((ir, ie) -> complete(result, ir, ie));
+                        .whenComplete((ir, ie) -> complete(result, ir, ie));
             } else {
                 result.complete(r);
             }

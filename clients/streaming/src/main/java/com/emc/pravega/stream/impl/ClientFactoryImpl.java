@@ -23,11 +23,12 @@ import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.state.impl.CorruptedStateException;
 import com.emc.pravega.state.impl.SynchronizerImpl;
-import com.emc.pravega.stream.Consumer;
-import com.emc.pravega.stream.ConsumerConfig;
+import com.emc.pravega.stream.EventStreamReader;
+import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.IdempotentEventStreamWriter;
 import com.emc.pravega.stream.Position;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
@@ -76,21 +77,27 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     @Override
-    public <T> Producer<T> createProducer(String streamName, Serializer<T> s, ProducerConfig config) {
+    public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         Stream stream = streamManager.getStream(streamName);
         EventRouter router = new EventRouter(stream, controller);
-        return new ProducerImpl<T>(stream,
+        return new EventStreamWriterImpl<T>(stream,
                 controller,
                 new SegmentOutputStreamFactoryImpl(controller, connectionFactory),
                 router,
                 s,
                 config);
     }
+    
+    @Override
+    public <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
+            EventWriterConfig config) {
+        throw new NotImplementedException();
+    }
 
     @Override
-    public <T> Consumer<T> createConsumer(String stream, Serializer<T> s, ConsumerConfig config,
+    public <T> EventStreamReader<T> createReader(String stream, Serializer<T> s, ReaderConfig config,
             Position startingPosition) {
-        return new ConsumerImpl<T>(new SegmentInputStreamFactoryImpl(controller, connectionFactory),
+        return new EventReaderImpl<T>(new SegmentInputStreamFactoryImpl(controller, connectionFactory),
                 s,
                 startingPosition.asImpl(),
                 new SingleStreamOrderer<T>(),
@@ -98,8 +105,8 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     @Override
-    public <T> Consumer<T> createConsumer(String consumerId, String consumerGroup, Serializer<T> s,
-            ConsumerConfig config) {
+    public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
+            ReaderConfig config) {
         throw new NotImplementedException();
     }
 
@@ -123,10 +130,11 @@ public class ClientFactoryImpl implements ClientFactory {
 
     private static final class SingleStreamOrderer<T> implements Orderer<T> {
         @Override
-        public SegmentConsumer<T> nextConsumer(Collection<SegmentConsumer<T>> logs) {
+        public SegmentReader<T> nextSegment(Collection<SegmentReader<T>> logs) {
             Preconditions.checkState(logs.size() == 1);
             return logs.iterator().next();
         }
     }
+
 
 }

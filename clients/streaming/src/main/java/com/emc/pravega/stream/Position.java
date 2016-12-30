@@ -22,7 +22,7 @@ import com.emc.pravega.stream.impl.PositionInternal;
 import java.io.Serializable;
 
 /**
- * A position in a stream. Used to restore to a consumer particular point in a stream.
+ * A position in a stream. Used to indicate where a reader died. See {@link ReaderGroup#readerOffline(String, Position)}
  * Note that this is serializable so that it can be written to an external datastore.
  *
  */

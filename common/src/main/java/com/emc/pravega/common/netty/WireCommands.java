@@ -42,7 +42,7 @@ import lombok.experimental.Accessors;
  * Because length and type are detected externally these are not necessary for the classes to
  * supply.
  * 
- * Compatible changes (IE: Adding new members) that would not cause breakage if either the client or
+ * Compatible changes (i.e. Adding new members) that would not cause breakage if either the client or
  * the server were running older code can be made at any time.
  * Incompatible changes should instead create a new WireCommand object.
  */
