@@ -17,11 +17,11 @@
  */
 package com.emc.pravega.common.netty;
 
+import com.emc.pravega.common.netty.WireCommands.AbortTransaction;
 import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
-import com.emc.pravega.common.netty.WireCommands.DropTransaction;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
@@ -49,7 +49,7 @@ public interface RequestProcessor {
 
     void commitTransaction(CommitTransaction commitTransaction);
     
-    void dropTransaction(DropTransaction dropTransaction);
+    void abortTransaction(AbortTransaction dropTransaction);
 
     void sealSegment(SealSegment sealSegment);
 

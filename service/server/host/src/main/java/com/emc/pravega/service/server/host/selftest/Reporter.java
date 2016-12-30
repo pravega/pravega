@@ -18,11 +18,16 @@
 
 package com.emc.pravega.service.server.host.selftest;
 
+import com.emc.pravega.common.concurrent.ExecutorServiceHelpers;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
+import lombok.val;
 
 import java.util.List;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * Reports Test State on a periodic basis.
@@ -35,6 +40,8 @@ class Reporter extends AbstractScheduledService {
     private static final int REPORT_INTERVAL_MILLIS = 1000;
     private final TestState testState;
     private final TestConfig testConfig;
+    private final Supplier<ExecutorServiceHelpers.Snapshot> storePoolSnapshotProvider;
+    private final ScheduledExecutorService executorService;
 
     //endregion
 
@@ -43,14 +50,20 @@ class Reporter extends AbstractScheduledService {
     /**
      * Creates a new instance of the Reporter class.
      *
-     * @param testState  The TestState to attach to.
-     * @param testConfig The TestConfig to use.
+     * @param testState                 The TestState to attach to.
+     * @param testConfig                The TestConfig to use.
+     * @param storePoolSnapshotProvider A Supplier that can return a Snapshot of the Store Executor Pool.
+     * @param executorService           The executor service to use.
      */
-    Reporter(TestState testState, TestConfig testConfig) {
+    Reporter(TestState testState, TestConfig testConfig, Supplier<ExecutorServiceHelpers.Snapshot> storePoolSnapshotProvider, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(testState, "testState");
         Preconditions.checkNotNull(testConfig, "testConfig");
+        Preconditions.checkNotNull(storePoolSnapshotProvider, "storePoolSnapshotProvider");
+        Preconditions.checkNotNull(executorService, "executorService");
         this.testState = testState;
         this.testConfig = testConfig;
+        this.storePoolSnapshotProvider = storePoolSnapshotProvider;
+        this.executorService = executorService;
     }
 
     //endregion
@@ -58,22 +71,8 @@ class Reporter extends AbstractScheduledService {
     //region AbstractScheduledService Implementation
 
     @Override
-    protected void runOneIteration() throws Exception {
-        long generatedOperationCount = this.testState.getGeneratedOperationCount();
-        double producedLength = toMB(this.testState.getProducedLength());
-        double verifiedTailLength = toMB(this.testState.getVerifiedTailLength());
-        double verifiedCatchupLength = toMB(this.testState.getVerifiedCatchupLength());
-        double verifiedStorageLength = toMB(this.testState.getVerifiedStorageLength());
-
-        TestLogger.log(
-                LOG_ID,
-                "Ops = %s/%s, Produced = %.2f MB, Verified: T = %.2f MB, C = %.2f MB, S = %.2f MB",
-                generatedOperationCount,
-                this.testConfig.getOperationCount(),
-                producedLength,
-                verifiedTailLength,
-                verifiedCatchupLength,
-                verifiedStorageLength);
+    protected void runOneIteration() {
+        outputState();
     }
 
     @Override
@@ -81,7 +80,42 @@ class Reporter extends AbstractScheduledService {
         return Scheduler.newFixedDelaySchedule(REPORT_INTERVAL_MILLIS, REPORT_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
     }
 
+    @Override
+    protected ScheduledExecutorService executor() {
+        return this.executorService;
+    }
+
     //endregion
+
+    /**
+     * Outputs the current state of the test.
+     */
+    void outputState() {
+        val testPoolSnapshot = ExecutorServiceHelpers.getSnapshot(this.executorService);
+        val joinPoolSnapshot = ExecutorServiceHelpers.getSnapshot(ForkJoinPool.commonPool());
+        val storePoolSnapshot = this.storePoolSnapshotProvider.get();
+
+        TestLogger.log(
+                LOG_ID,
+                "Ops = %s/%s; Data (P/T/C/S): %.1f/%.1f/%.1f/%.1f MB; TPools (Q/T/S): %s, %s, %s.",
+                this.testState.getSuccessfulOperationCount(),
+                this.testConfig.getOperationCount(),
+                toMB(this.testState.getProducedLength()),
+                toMB(this.testState.getVerifiedTailLength()),
+                toMB(this.testState.getVerifiedCatchupLength()),
+                toMB(this.testState.getVerifiedStorageLength()),
+                formatSnapshot(storePoolSnapshot, "Store"),
+                formatSnapshot(testPoolSnapshot, "Test"),
+                formatSnapshot(joinPoolSnapshot, "ForkJoin"));
+    }
+
+    private String formatSnapshot(ExecutorServiceHelpers.Snapshot s, String name) {
+        if (s == null) {
+            return String.format("%s = ?/?/?", name);
+        }
+
+        return String.format("%s = %d/%d/%d", name, s.getQueueSize(), s.getActiveThreadCount(), s.getPoolSize());
+    }
 
     /**
      * Outputs a summary for all the operation types (Count + Latencies).
@@ -106,7 +140,7 @@ class Reporter extends AbstractScheduledService {
     }
 
     private void outputRow(Object opType, Object count, Object lAvg, Object l50, Object l90, Object l99, Object l999) {
-        TestLogger.log(LOG_ID, "%17s | %6s | %5s | %5s | %5s | %5s | %5s", opType, count, lAvg, l50, l90, l99, l999);
+        TestLogger.log(LOG_ID, "%18s | %7s | %5s | %5s | %5s | %5s | %5s", opType, count, lAvg, l50, l90, l99, l999);
     }
 
     private <T> T getPercentile(List<T> list, double percentile) {

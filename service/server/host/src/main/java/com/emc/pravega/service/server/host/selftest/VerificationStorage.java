@@ -23,6 +23,7 @@ import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
+import com.emc.pravega.service.storage.TruncateableStorage;
 import com.google.common.base.Preconditions;
 import lombok.val;
 
@@ -31,30 +32,40 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 /**
  * Wrapper Storage that accepts Segment Length change listeners.
  */
-class VerificationStorage implements Storage {
+class VerificationStorage implements TruncateableStorage {
     //region Members
 
-    private final Storage baseStorage;
+    private final TruncateableStorage baseStorage;
     private final HashMap<String, HashMap<Integer, SegmentUpdateListener>> updateListeners;
     private final AtomicBoolean closed;
-    private int nextRegistrationId;
     private final Object listenerLock = new Object();
+    private final Executor executor;
+    private int nextRegistrationId;
 
     //endregion
 
     //region Constructor
 
-    VerificationStorage(Storage baseStorage) {
+    /**
+     * Creates a new instance of the VerificationStorage class.
+     *
+     * @param baseStorage The wrapped Storage.
+     * @param executor    An Executor to use for callback invocation.
+     */
+    private VerificationStorage(TruncateableStorage baseStorage, Executor executor) {
         Preconditions.checkNotNull(baseStorage, "baseStorage");
+        Preconditions.checkNotNull(executor, "executor");
         this.baseStorage = baseStorage;
         this.updateListeners = new HashMap<>();
         this.closed = new AtomicBoolean();
+        this.executor = executor;
     }
 
     //endregion
@@ -87,14 +98,14 @@ class VerificationStorage implements Storage {
     @Override
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
         CompletableFuture<Void> result = this.baseStorage.write(streamSegmentName, offset, data, length, timeout);
-        result.thenRun(() -> triggerListeners(streamSegmentName, offset + length, false));
+        result.thenRunAsync(() -> triggerListeners(streamSegmentName, offset + length, false), this.executor);
         return result;
     }
 
     @Override
     public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
         CompletableFuture<SegmentProperties> result = this.baseStorage.seal(streamSegmentName, timeout);
-        result.thenAccept(sp -> triggerListeners(streamSegmentName, sp.getLength(), sp.isSealed()));
+        result.thenAcceptAsync(sp -> triggerListeners(streamSegmentName, sp.getLength(), sp.isSealed()), this.executor);
         return result;
     }
 
@@ -102,8 +113,8 @@ class VerificationStorage implements Storage {
     public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
         unregisterAllListeners(sourceStreamSegmentName);
         CompletableFuture<Void> result = this.baseStorage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
-        result.thenCompose(v -> this.baseStorage.getStreamSegmentInfo(targetStreamSegmentName, timeout))
-              .thenAccept(sp -> triggerListeners(targetStreamSegmentName, sp.getLength(), false));
+        result.thenComposeAsync(v -> this.baseStorage.getStreamSegmentInfo(targetStreamSegmentName, timeout), this.executor)
+              .thenAcceptAsync(sp -> triggerListeners(targetStreamSegmentName, sp.getLength(), false), this.executor);
         return result;
     }
 
@@ -126,6 +137,11 @@ class VerificationStorage implements Storage {
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
         return this.baseStorage.exists(streamSegmentName, timeout);
+    }
+
+    @Override
+    public CompletableFuture<Void> truncate(String streamSegmentName, long offset, Duration timeout) {
+        return this.baseStorage.truncate(streamSegmentName, offset, timeout);
     }
 
     //endregion
@@ -257,8 +273,14 @@ class VerificationStorage implements Storage {
         private final AtomicBoolean closed;
         private final VerificationStorage storage;
 
-        Factory(Storage baseStorage) {
-            this.storage = new VerificationStorage(baseStorage);
+        /**
+         * Creates a new instance of the VerificationStorage.Factory class.
+         *
+         * @param baseStorage The wrapped Storage.
+         * @param executor    An Executor to use for callback invocation.
+         */
+        Factory(TruncateableStorage baseStorage, Executor executor) {
+            this.storage = new VerificationStorage(baseStorage, executor);
             this.closed = new AtomicBoolean();
         }
 

@@ -17,38 +17,37 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
-import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.mock.MockStreamManager;
+import com.emc.pravega.stream.mock.MockClientFactory;
 
 import lombok.Cleanup;
 
 public class StartProducer {
 
     public static void main(String[] args) throws Exception {
+        MockClientFactory clientFactory = new MockClientFactory(StartLocalService.SCOPE,
+                                                                "localhost",
+                                                                StartLocalService.PORT);
+        clientFactory.createStream(StartLocalService.STREAM_NAME, null);
         @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,
-                "localhost",
-                StartLocalService.PORT);
-        Stream stream = streamManager.createStream(StartLocalService.STREAM_NAME, null);
-
-        @Cleanup
-        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
-        Transaction<String> transaction = producer.startTransaction(60000);
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME,
+                                                                new JavaSerializer<>(),
+                                                                new EventWriterConfig(null));
+        Transaction<String> transaction = producer.beginTransaction(60000);
         for (int i = 0; i < 10; i++) {
             String event = "\n Transactional Publish \n";
             System.err.println("Producing event: " + event);
-            transaction.publish("", event);
+            transaction.writeEvent("", event);
             transaction.flush();
             Thread.sleep(500);
         }
         for (int i = 0; i < 10; i++) {
             String event = "\n Non-transactional Publish \n";
             System.err.println("Producing event: " + event);
-            producer.publish("", event);
+            producer.writeEvent("", event);
             producer.flush();
             Thread.sleep(500);
         }

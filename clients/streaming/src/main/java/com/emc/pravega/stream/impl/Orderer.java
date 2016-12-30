@@ -27,12 +27,12 @@ import java.util.Collection;
 public interface Orderer<Type> {
 
     /**
-     * Given a list of logs this consumer owns, (which contain their positions) returns the one that
-     * should be read from next. This is done in a consistent way. IE: Calling this method with the
-     * same consumers at the same positions, should yield the same result. (The passed collection is
+     * Given a list of segments this reader owns, (which contain their positions) returns the one that
+     * should be read from next. This is done in a consistent way. i.e. Calling this method with the
+     * same readers at the same positions, should yield the same result. (The passed collection is
      * not modified)
      *
-     * @param logs The logs to get the next consumer for.
+     * @param segments The logs to get the next reader for.
      */
-    SegmentConsumer<Type> nextConsumer(Collection<SegmentConsumer<Type>> logs);
+    SegmentReader<Type> nextSegment(Collection<SegmentReader<Type>> segments);
 }

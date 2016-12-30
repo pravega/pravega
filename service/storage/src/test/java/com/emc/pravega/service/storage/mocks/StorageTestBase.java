@@ -43,7 +43,7 @@ import static com.emc.pravega.testcommon.AssertExtensions.assertThrows;
 public abstract class StorageTestBase {
     //region General Test arguments
 
-    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(10);
     private static final int SEGMENT_COUNT = 4;
     private static final int APPENDS_PER_SEGMENT = 10;
 
@@ -76,11 +76,11 @@ public abstract class StorageTestBase {
         int appendCount = 100;
 
         try (Storage s = createStorage()) {
-            val handle = s.create(segmentName, TIMEOUT).join();
+            s.create(segmentName, TIMEOUT).join();
 
-            // Invalid name
+            // Invalid segment name.
             assertThrows(
-                    "write() did not throw for invalid handle.",
+                    "write() did not throw for invalid segment name.",
                     () -> s.write(segmentName + "invalid", 0, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
@@ -119,8 +119,8 @@ public abstract class StorageTestBase {
     public void testRead() throws Exception {
         final String context = "Read";
         try (Storage s = createStorage()) {
-            // Check invalid handle.
-            assertThrows("read() did not throw for invalid handle.",
+            // Check invalid segment name.
+            assertThrows("read() did not throw for invalid segment name.",
                     () -> s.read("foo_read_1", 0, new byte[1], 0, 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
@@ -128,7 +128,7 @@ public abstract class StorageTestBase {
 
             // Do some reading.
             for (String segmentName : appendData.keySet()) {
-                val handle = s.open(segmentName).join();
+                s.open(segmentName).join();
                 byte[] expectedData = appendData.get(segmentName).toByteArray();
 
                 for (int offset = 0; offset < expectedData.length / 2; offset++) {
@@ -249,6 +249,7 @@ public abstract class StorageTestBase {
                 assertThrows("Concat allowed when source segment is not sealed.",
                         () -> s.concat(firstSegmentName, firstSegmentLength.get(), sourceSegment, TIMEOUT),
                         ex -> ex instanceof IllegalStateException);
+
                 // Seal the source segment and then re-try the concat
                 s.seal(sourceSegment, TIMEOUT).join();
                 SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
@@ -296,7 +297,7 @@ public abstract class StorageTestBase {
         for (int segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
             String segmentName = getSegmentName(segmentId, context);
 
-            val handle = s.create(segmentName, TIMEOUT).join();
+            s.create(segmentName, TIMEOUT).join();
             ByteArrayOutputStream writeStream = new ByteArrayOutputStream();
             appendData.put(segmentName, writeStream);
 

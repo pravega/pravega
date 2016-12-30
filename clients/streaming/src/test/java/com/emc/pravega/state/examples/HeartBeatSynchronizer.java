@@ -17,6 +17,17 @@
  */
 package com.emc.pravega.state.examples;
 
+import com.emc.pravega.ClientFactory;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.NewestReference;
+import com.emc.pravega.state.InitialUpdate;
+import com.emc.pravega.state.Revision;
+import com.emc.pravega.state.Revisioned;
+import com.emc.pravega.state.Synchronizer;
+import com.emc.pravega.state.Update;
+import com.emc.pravega.stream.impl.JavaSerializer;
+import com.google.common.util.concurrent.AbstractService;
+
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
@@ -25,17 +36,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
-
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.concurrent.NewestReference;
-import com.emc.pravega.state.InitialUpdate;
-import com.emc.pravega.state.Revision;
-import com.emc.pravega.state.Revisioned;
-import com.emc.pravega.state.Synchronizer;
-import com.emc.pravega.state.Update;
-import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.impl.JavaSerializer;
-import com.google.common.util.concurrent.AbstractService;
 
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -57,10 +57,11 @@ public class HeartBeatSynchronizer extends AbstractService {
     private final NewestReference<LiveInstances> liveInstances = new NewestReference<>();
     private final Synchronizer<LiveInstances, HeartbeatUpdate, LiveInstances> sync;
 
-    HeartBeatSynchronizer(Stream stream) {
-        sync = stream.createSynchronizer(new JavaSerializer<HeartbeatUpdate>(),
-                                         new JavaSerializer<LiveInstances>(),
-                                         null);
+    HeartBeatSynchronizer(String streamName, ClientFactory manager) {
+        sync = manager.createSynchronizer(streamName,
+                                          new JavaSerializer<HeartbeatUpdate>(),
+                                          new JavaSerializer<LiveInstances>(),
+                                          null);
     }
 
     @Data

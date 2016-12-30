@@ -232,7 +232,7 @@ public class ZkStreamTest {
         CompletableFuture.allOf(f1, f2).get();
 
         assert store.transactionStatus(streamName, streamName, tx).get().equals(TxStatus.COMMITTED);
-        assert store.transactionStatus(streamName, streamName, tx2).get().equals(TxStatus.DROPPED);
+        assert store.transactionStatus(streamName, streamName, tx2).get().equals(TxStatus.ABORTED);
 
         assert store.commitTransaction(streamName, streamName, UUID.randomUUID())
                 .handle((ok, ex) -> {

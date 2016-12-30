@@ -21,9 +21,7 @@ package com.emc.pravega.service.server.host;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -163,7 +161,6 @@ public final class ServiceStarter {
     private void attachZKSegmentManager(ServiceBuilder builder) {
         builder.withContainerManager(setup -> {
             CuratorFramework zkClient = createZKClient();
-            joinCluster(zkClient);
             return new ZKSegmentContainerManager(setup.getContainerRegistry(),
                     setup.getSegmentToContainerMapper(),
                     zkClient,
@@ -177,11 +174,6 @@ public final class ServiceStarter {
                 new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()));
         zkClient.start();
         return zkClient;
-    }
-
-    private void joinCluster(CuratorFramework zkClient) {
-        Cluster cluster = new ClusterZKImpl(zkClient, this.serviceConfig.getClusterName());
-        cluster.registerHost(new Host(this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getListeningPort()));
     }
 
     //endregion

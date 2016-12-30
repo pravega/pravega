@@ -154,7 +154,7 @@ public interface StreamMetadataStore {
     CompletableFuture<TxStatus> sealTransaction(final String scope, final String stream, final UUID txId);
 
     /**
-     * Update stream store to mark the transaction as dropped.
+     * Update stream store to mark the transaction as aborted.
      *
      * @param scope  scope
      * @param stream stream
@@ -165,7 +165,7 @@ public interface StreamMetadataStore {
 
     /**
      * Returns all active transactions for all streams.
-     * This is used for periodically identifying timedout transactions which can be dropped
+     * This is used for periodically identifying timedout transactions which can be aborted
      *
      * @return
      */

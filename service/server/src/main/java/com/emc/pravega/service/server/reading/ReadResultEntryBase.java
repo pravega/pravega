@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.google.common.annotations.VisibleForTesting;
@@ -26,19 +25,18 @@ import com.google.common.base.Preconditions;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 
 /**
  * Base implementation of ReadResultEntry.
  */
 @VisibleForTesting
-public abstract class ReadResultEntryBase implements ReadResultEntry {
+public abstract class ReadResultEntryBase implements CompletableReadResultEntry {
     //region Members
 
     private final CompletableFuture<ReadResultEntryContents> contents;
     private final ReadResultEntryType type;
     private final int requestedReadLength;
-    private long streamSegmentOffset;
+    private final long streamSegmentOffset;
     private CompletionConsumer completionCallback;
 
     //endregion
@@ -92,31 +90,20 @@ public abstract class ReadResultEntryBase implements ReadResultEntry {
         // This method intentionally left blank, to be implemented by derived classes that need it.
     }
 
-    //endregion
-
-    /**
-     * Adjusts the offset by the given amount.
-     *
-     * @param delta The amount to adjust by.
-     * @throws IllegalArgumentException If the new offset would be negative.
-     */
-    void adjustOffset(long delta) {
-        long newOffset = this.streamSegmentOffset + delta;
-        Preconditions.checkArgument(newOffset >= 0, "Given delta would result in a negative offset.");
-        this.streamSegmentOffset = newOffset;
-    }
-
-    /**
-     * Registers a CompletionConsumer that will be invoked when the content is retrieved, just before the Future is completed.
-     *
-     * @param completionCallback The callback to be invoked.
-     */
-    void setCompletionCallback(CompletionConsumer completionCallback) {
+    @Override
+    public void setCompletionCallback(CompletionConsumer completionCallback) {
         this.completionCallback = completionCallback;
         if (completionCallback != null && this.contents.isDone() && !this.contents.isCompletedExceptionally()) {
             completionCallback.accept(this.contents.join().getLength());
         }
     }
+
+    @Override
+    public CompletionConsumer getCompletionCallback() {
+        return this.completionCallback;
+    }
+
+    //endregion
 
     /**
      * Completes the Future of this ReadResultEntry by setting the given content.
@@ -153,14 +140,6 @@ public abstract class ReadResultEntryBase implements ReadResultEntry {
                 contentFuture.isDone() && !contentFuture.isCompletedExceptionally() && !contentFuture.isCancelled(),
                 contentFuture.isCompletedExceptionally(),
                 contentFuture.isCancelled());
-    }
-
-    //endregion
-
-    //region CompletionConsumer
-
-    @FunctionalInterface
-    interface CompletionConsumer extends Consumer<Integer> {
     }
 
     //endregion

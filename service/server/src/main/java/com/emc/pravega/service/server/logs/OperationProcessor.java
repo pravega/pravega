@@ -133,6 +133,11 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
         closeQueue(null);
     }
 
+    @Override
+    protected String serviceName() {
+        return String.format("operation-processor-%d", this.metadataUpdater.getContainerId());
+    }
+
     //endregion
 
     //region Container Implementation
@@ -156,13 +161,18 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
      * @throws IllegalContainerStateException If the OperationProcessor is not running.
      */
     public CompletableFuture<Long> process(Operation operation) {
+        CompletableFuture<Long> result = new CompletableFuture<>();
         if (!isRunning()) {
-            throw new IllegalContainerStateException("OperationProcessor is not running.");
+            result.completeExceptionally(new IllegalContainerStateException("OperationProcessor is not running."));
+        } else {
+            log.debug("{}: process {}.", this.traceObjectId, operation);
+            try {
+                this.operationQueue.add(new CompletableOperation(operation, result));
+            } catch (ObjectClosedException e) {
+                result.completeExceptionally(e);
+            }
         }
 
-        log.debug("{}: process {}.", this.traceObjectId, operation);
-        CompletableFuture<Long> result = new CompletableFuture<>();
-        this.operationQueue.add(new CompletableOperation(operation, result));
         return result;
     }
 
