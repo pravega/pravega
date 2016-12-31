@@ -17,14 +17,15 @@
  */
 package com.emc.pravega.demo;
 
+import com.emc.pravega.StreamManager;
 import com.emc.pravega.stream.EventStreamWriter;
-import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
-import com.emc.pravega.StreamManager;
 import com.emc.pravega.stream.StreamManagerImpl;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.TxnFailedException;
+import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import lombok.Cleanup;
@@ -58,9 +59,11 @@ public class TurbineHeatSensor {
 
     private static final int NUM_SEGMENTS = 5;
     private static Stream stream;
-    private static EventStreamWriter<String> producer;
     private static Stats stats;
     private static String controllerUri = "http://10.249.250.154:9090";
+    private static int messageSize = 100;
+    private static String streamName = StartLocalService.STREAM_NAME;
+    private static ClientFactoryImpl factory;
 
     public static void main(String[] args) throws Exception {
 
@@ -96,6 +99,9 @@ public class TurbineHeatSensor {
         options.addOption("eventspersec", true, "number events per sec");
         options.addOption("runtime", true, "number of seconds the code runs");
         options.addOption("transaction", true, "Producers use transactions or not");
+        options.addOption("size", true, "Size of each message");
+        options.addOption("stream", true, "Stream name");
+
         options.addOption("help", false, "Help message");
 
         CommandLineParser parser = new BasicParser();
@@ -130,6 +136,14 @@ public class TurbineHeatSensor {
                     producerCount = Integer.parseInt(commandline.getOptionValue("transaction"));
                 }
 
+                if (commandline.hasOption("size")) {
+                    messageSize = Integer.parseInt(commandline.getOptionValue("size"));
+                }
+
+                if (commandline.hasOption("stream")) {
+                    streamName = commandline.getOptionValue("stream");
+                }
+
             } catch (Exception nfe) {
                 System.out.println("Invalid arguments. Starting with default values");
                 nfe.printStackTrace();
@@ -149,11 +163,11 @@ public class TurbineHeatSensor {
             StreamManager streamManager = null;
             streamManager = new StreamManagerImpl(StartLocalService.SCOPE, new URI(controllerUri));
 
-            stream = streamManager.createStream(StartLocalService.STREAM_NAME,
-                    new StreamConfigurationImpl("hi", StartLocalService.STREAM_NAME,
+            stream = streamManager.createStream(streamName,
+                    new StreamConfigurationImpl("hi", streamName,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 5,
                                     NUM_SEGMENTS)));
-            producer = stream.(new JavaSerializer<>(), new ProducerConfig(null));
+            factory = new ClientFactoryImpl("hi", new URI(controllerUri));
 
             stats = new Stats(producerCount * eventsPerSec * runtimeSec, 2);
 
@@ -163,8 +177,10 @@ public class TurbineHeatSensor {
         }
         /* Create producerCount number of threads to simulate sensors. */
         for (int i = 0; i < producerCount; i++) {
+            EventStreamWriter<String> producer = factory.createEventWriter(streamName, new JavaSerializer<>(),
+                    new EventWriterConfig(null));
             TemperatureSensors worker = new TemperatureSensors(i, locations[i % locations.length], eventsPerSec,
-                    runtimeSec, isTransaction);
+                    runtimeSec, isTransaction, producer);
             executor.execute(worker);
         }
         executor.shutdown();
@@ -182,18 +198,21 @@ public class TurbineHeatSensor {
 
     private static class TemperatureSensors implements Runnable {
 
+        private final EventStreamWriter<String> producer;
         private int producerId = 0;
         private String city = "";
         private int eventsPerSec = 0;
         private int secondsToRun = 0;
         private boolean isTransaction = false;
 
-        TemperatureSensors(int sensorId, String city, int eventsPerSec, int secondsToRun, boolean isTransaction) {
+        TemperatureSensors(int sensorId, String city, int eventsPerSec, int secondsToRun, boolean isTransaction,
+                           EventStreamWriter<String> producer) {
             this.producerId = sensorId;
             this.city = city;
             this.eventsPerSec = eventsPerSec;
             this.secondsToRun = secondsToRun;
             this.isTransaction = isTransaction;
+            this.producer = producer;
         }
 
         @Override
@@ -202,7 +221,7 @@ public class TurbineHeatSensor {
             Transaction<String> transaction = null;
 
             if (isTransaction) {
-                transaction = producer.startTransaction(60000);
+                transaction = producer.beginTransaction(60000);
             }
 
             Future<Void> retFuture = null;
@@ -220,21 +239,21 @@ public class TurbineHeatSensor {
                     }
 
                     // Construct event payload
-                    String payload = System.currentTimeMillis() + ", " + producerId + ", " + city + ", " +
+                    String val = System.currentTimeMillis() + ", " + producerId + ", " + city + ", " +
                             (int) (Math.random() * 200);
-
+                    String payload = String.format("%-" + messageSize + "s", val);
                     // event ingestion
                     if (isTransaction) {
                         try {
-                            transaction.publish(city, payload);
-                        } catch (TxFailedException e) {
+                            transaction.writeEvent(city, payload);
+                        } catch (TxnFailedException e) {
                             System.out.println("Publish to transaction failed");
                             e.printStackTrace();
                             break;
                         }
                     } else {
                         retFuture = stats.runAndRecordTime( () -> {
-                            return (CompletableFuture<Void>) producer.publish(city, payload);
+                            return (CompletableFuture<Void>) producer.writeEvent(city, payload);
                         }, payload.length());
 
                     }
@@ -252,7 +271,7 @@ public class TurbineHeatSensor {
             if (isTransaction) {
                 try {
                     transaction.commit();
-                } catch (TxFailedException e) {
+                } catch (TxnFailedException e) {
                     System.out.println("Transaction commit failed");
                     e.printStackTrace();
                 }
