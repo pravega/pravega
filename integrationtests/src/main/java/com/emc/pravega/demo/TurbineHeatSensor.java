@@ -17,16 +17,16 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.stream.Producer;
+import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.StreamManager;
+import com.emc.pravega.StreamManager;
+import com.emc.pravega.stream.StreamManagerImpl;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxFailedException;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.StreamManagerImpl;
 import lombok.Cleanup;
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
@@ -58,7 +58,7 @@ public class TurbineHeatSensor {
 
     private static final int NUM_SEGMENTS = 5;
     private static Stream stream;
-    private static Producer<String> producer;
+    private static EventStreamWriter<String> producer;
     private static Stats stats;
     private static String controllerUri = "http://10.249.250.154:9090";
 
@@ -153,7 +153,7 @@ public class TurbineHeatSensor {
                     new StreamConfigurationImpl("hi", StartLocalService.STREAM_NAME,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 5,
                                     NUM_SEGMENTS)));
-            producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
+            producer = stream.(new JavaSerializer<>(), new ProducerConfig(null));
 
             stats = new Stats(producerCount * eventsPerSec * runtimeSec, 2);
 
