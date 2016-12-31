@@ -19,8 +19,8 @@ package com.emc.pravega.stream.mock;
 
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.stream.ConsumerGroup;
-import com.emc.pravega.stream.ConsumerGroupConfig;
+import com.emc.pravega.stream.ReaderGroup;
+import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.ScalingPolicy.Type;
 import com.emc.pravega.stream.Stream;
@@ -88,22 +88,22 @@ public class MockStreamManager implements StreamManager {
     }
 
     @Override
-    public ConsumerGroup createConsumerGroup(String groupName, ConsumerGroupConfig config, List<String> streamNames) {
+    public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames) {
         throw new NotImplementedException();
     }
 
     @Override
-    public ConsumerGroup updateConsumerGroup(String groupName, ConsumerGroupConfig config, List<String> streamNames) {
+    public ReaderGroup updateReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames) {
         throw new NotImplementedException();
     }
 
     @Override
-    public ConsumerGroup getConsumerGroup(String groupName) {
+    public ReaderGroup getReaderGroup(String groupName) {
         throw new NotImplementedException();
     }
 
     @Override
-    public void deleteConsumerGroup(ConsumerGroup group) {
+    public void deleteReaderGroup(ReaderGroup group) {
         throw new NotImplementedException();
     }
 

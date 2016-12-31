@@ -18,28 +18,18 @@
 
 package com.emc.pravega.stream.mock;
 
-import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
-
-import java.util.Collections;
-import java.util.List;
-import java.util.TreeMap;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-
-import org.apache.commons.lang.NotImplementedException;
-
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.ReplyProcessor;
 import com.emc.pravega.common.netty.WireCommand;
 import com.emc.pravega.common.netty.WireCommands;
+import com.emc.pravega.common.netty.WireCommands.AbortTransaction;
 import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
 import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
-import com.emc.pravega.common.netty.WireCommands.DropTransaction;
+import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
-import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
@@ -57,6 +47,16 @@ import com.emc.pravega.stream.impl.StreamSegments;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.collect.ImmutableList;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+
+import org.apache.commons.lang.NotImplementedException;
+
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 import lombok.AllArgsConstructor;
 
@@ -174,7 +174,7 @@ public class MockController implements Controller {
                 result.complete(TransactionStatus.SUCCESS);
             }
         };
-        sendRequestOverNewConnection(new DropTransaction(Segment.getScopedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
+        sendRequestOverNewConnection(new AbortTransaction(Segment.getScopedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
         return result;
     }
 

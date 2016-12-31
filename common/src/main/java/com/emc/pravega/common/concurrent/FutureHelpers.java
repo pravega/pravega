@@ -30,11 +30,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -76,7 +78,7 @@ public final class FutureHelpers {
      *
      * @param future               The future whose result is wanted
      * @param exceptionConstructor This can be any function that either transforms an exception
-     *                             IE: Passing RuntimeException::new will wrap the exception in a new RuntimeException.
+     *                             i.e. Passing RuntimeException::new will wrap the exception in a new RuntimeException.
      *                             If null is returned from the function no exception will be thrown.
      * @param <ResultT>            Type of the result.
      * @param <ExceptionT>         Type of the Exception.
@@ -103,7 +105,7 @@ public final class FutureHelpers {
      *
      * @param future               The future whose result is wanted
      * @param exceptionConstructor This can be any function that either transforms an exception
-     *                             IE: Passing RuntimeException::new will wrap the exception in a new RuntimeException.
+     *                             i.e. Passing RuntimeException::new will wrap the exception in a new RuntimeException.
      *                             If null is returned from the function no exception will be thrown.
      * @param timeoutMillis        the timeout expressed in milliseconds before throwing {@link TimeoutException}
      * @param <ResultT>            Type of the result.
@@ -245,12 +247,11 @@ public final class FutureHelpers {
     }
 
     /**
-     * Executes the asynchronous task returning a CompletableFuture<T> with specified delay and returns the task result.
-     *
-     * @param task            Asynchronous task.
-     * @param delay           Delay in milliseconds.
+     * Executes the asynchronous task returning a CompletableFuture with specified delay and returns the task result.
+     * @param task Asynchronous task.
+     * @param delay Delay in milliseconds.
      * @param executorService Executor on which to execute the task.
-     * @param <T>             Type parameter.
+     * @param <T> Type parameter.
      * @return The result of task execution.
      */
     public static <T> CompletableFuture<T> delayedFuture(final Supplier<CompletableFuture<T>> task,
@@ -269,9 +270,9 @@ public final class FutureHelpers {
      * to exception e when both the exception e and result value are non-null.
      *
      * @param result The result object to complete.
-     * @param value  The result value.
-     * @param e      Exception.
-     * @param <T>    Type parameter.
+     * @param value The result value.
+     * @param e Exception.
+     * @param <T> Type parameter.
      */
     public static <T> void complete(final CompletableFuture<T> result, final T value, final Throwable e) {
         if (e != null) {
@@ -285,9 +286,9 @@ public final class FutureHelpers {
      * A variant of .exceptionally that admits an exception handler returning value of type T in future. Exceptionally
      * and flatExceptionally can be thought of as analogous to map and flatMap method for transforming Futures.
      *
-     * @param input            The input future.
+     * @param input The input future.
      * @param exceptionHandler Exception handler.
-     * @param <T>              Type parameter.
+     * @param <T> Type parameter.
      * @return result of exceptionHandler if input completed exceptionally, otherwise input.
      */
     public static <T> CompletableFuture<T> flatExceptionally(final CompletableFuture<T> input,
@@ -296,7 +297,7 @@ public final class FutureHelpers {
         input.whenComplete((r, e) -> {
             if (e != null) {
                 exceptionHandler.apply(e)
-                                .whenComplete((ir, ie) -> complete(result, ir, ie));
+                        .whenComplete((ir, ie) -> complete(result, ir, ie));
             } else {
                 result.complete(r);
             }
@@ -363,12 +364,26 @@ public final class FutureHelpers {
      * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
     public static <T> CompletableFuture<Void> doWhileLoop(Supplier<CompletableFuture<T>> loopBody, Predicate<T> condition) {
-        // TODO: this causes a memory leak by returning the first CompletableFuture in a chain. This should be fixed to
-        // run just like loop(). See: https://github.com/emccode/pravega/issues/296.
-        return loopBody.get().thenCompose(result ->
-                condition.test(result)
-                        ? doWhileLoop(loopBody, condition)
-                        : CompletableFuture.completedFuture(null));
+        Executor executor = ForkJoinPool.commonPool(); // This method does not take an Executor, so use the default one.
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        // We implement the do-while loop using a regular loop, but we execute one iteration before we create the actual Loop object.
+        // Since this method has slightly different arguments than loop(), we need to make one adjustment:
+        // * After each iteration, we get the result and run it through 'condition' and use that to decide whether to continue.
+        AtomicBoolean canContinue = new AtomicBoolean();
+        Consumer<T> iterationResultHandler = ir -> canContinue.set(condition.test(ir));
+        loopBody.get()
+                .thenAccept(iterationResultHandler)
+                .thenRunAsync(() -> {
+                    Loop<T> loop = new Loop<>(canContinue::get, loopBody, iterationResultHandler, result, executor);
+                    executor.execute(loop);
+                }, executor)
+                .exceptionally(ex -> {
+                    // Handle exceptions from the first iteration.
+                    result.completeExceptionally(ex);
+                    return null;
+                });
+        return result;
     }
 
     /**
