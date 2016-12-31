@@ -33,9 +33,9 @@ import org.apache.commons.lang.NotImplementedException;
  * A stream manager. Used to bootstrap the client.
  */
 public class StreamManagerImpl implements StreamManager {
+    private static final ConcurrentHashMap<String, Stream> CREATED = new ConcurrentHashMap<>();
 
     private final String scope;
-    static private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
     private final ControllerImpl controller;
 
     public StreamManagerImpl(String scope, URI controllerUri) {
@@ -60,13 +60,13 @@ public class StreamManagerImpl implements StreamManager {
                 RuntimeException::new);
 
         Stream stream = new StreamImpl(scope, streamName, config);
-        created.put(streamName, stream);
+        CREATED.put(streamName, stream);
         return stream;
     }
 
     @Override
     public Stream getStream(String streamName) {
-        return created.get(streamName);
+        return CREATED.get(streamName);
     }
 
     @Override

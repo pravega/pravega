@@ -149,7 +149,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
     @Override
     public CompletableFuture<Void> stopContainer(ContainerHandle handle, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
-        if( handle == null) {
+        if ( handle == null) {
             return CompletableFuture.completedFuture(null);
         }
         ContainerWithHandle result = this.containers.getOrDefault(handle.getContainerId(), null);

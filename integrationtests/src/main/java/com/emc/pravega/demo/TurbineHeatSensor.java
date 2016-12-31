@@ -18,8 +18,8 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.StreamManager;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamManagerImpl;
@@ -59,7 +59,6 @@ public class TurbineHeatSensor {
 
     private static final int NUM_SEGMENTS = 5;
     private static Stream stream;
-   // private static Producer<String> producer;
     private static Stats stats;
     private static String controllerUri = "http://10.249.250.154:9090";
     private static int messageSize = 100;
@@ -170,7 +169,6 @@ public class TurbineHeatSensor {
                                     NUM_SEGMENTS)));
             factory = new ClientFactoryImpl("hi", new URI(controllerUri));
 
-
             stats = new Stats(producerCount * eventsPerSec * runtimeSec, 2);
 
         } catch (URISyntaxException e) {
@@ -179,8 +177,8 @@ public class TurbineHeatSensor {
         }
         /* Create producerCount number of threads to simulate sensors. */
         for (int i = 0; i < producerCount; i++) {
-            Producer<String> producer = factory.createProducer(streamName, new JavaSerializer<>(),
-                    new ProducerConfig(null));
+            EventStreamWriter<String> producer = factory.createEventWriter(streamName, new JavaSerializer<>(),
+                    new EventWriterConfig(null));
             TemperatureSensors worker = new TemperatureSensors(i, locations[i % locations.length], eventsPerSec,
                     runtimeSec, isTransaction, producer);
             executor.execute(worker);
@@ -200,7 +198,7 @@ public class TurbineHeatSensor {
 
     private static class TemperatureSensors implements Runnable {
 
-        private final Producer<String> producer;
+        private final EventStreamWriter<String> producer;
         private int producerId = 0;
         private String city = "";
         private int eventsPerSec = 0;
@@ -208,7 +206,7 @@ public class TurbineHeatSensor {
         private boolean isTransaction = false;
 
         TemperatureSensors(int sensorId, String city, int eventsPerSec, int secondsToRun, boolean isTransaction,
-                           Producer<String> producer) {
+                           EventStreamWriter<String> producer) {
             this.producerId = sensorId;
             this.city = city;
             this.eventsPerSec = eventsPerSec;
@@ -247,7 +245,7 @@ public class TurbineHeatSensor {
                     // event ingestion
                     if (isTransaction) {
                         try {
-                            transaction.publish(city, payload);
+                            transaction.writeEvent(city, payload);
                         } catch (TxnFailedException e) {
                             System.out.println("Publish to transaction failed");
                             e.printStackTrace();
@@ -255,7 +253,7 @@ public class TurbineHeatSensor {
                         }
                     } else {
                         retFuture = stats.runAndRecordTime( () -> {
-                            return (CompletableFuture<Void>) producer.publish(city, payload);
+                            return (CompletableFuture<Void>) producer.writeEvent(city, payload);
                         }, payload.length());
 
                     }
