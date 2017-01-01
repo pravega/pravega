@@ -18,8 +18,11 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.StreamManager;
+import com.emc.pravega.stream.EventRead;
+import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamManagerImpl;
@@ -59,11 +62,12 @@ public class TurbineHeatSensor {
 
     private static final int NUM_SEGMENTS = 5;
     private static Stream stream;
-    private static Stats stats;
+    private static Stats produceStats, consumeStats;
     private static String controllerUri = "http://10.249.250.154:9090";
     private static int messageSize = 100;
     private static String streamName = StartLocalService.STREAM_NAME;
     private static ClientFactoryImpl factory;
+    private static boolean onlyWrite;
 
     public static void main(String[] args) throws Exception {
 
@@ -101,6 +105,7 @@ public class TurbineHeatSensor {
         options.addOption("transaction", true, "Producers use transactions or not");
         options.addOption("size", true, "Size of each message");
         options.addOption("stream", true, "Stream name");
+        options.addOption("writeonly", true, "Just produce vs read after produce");
 
         options.addOption("help", false, "Help message");
 
@@ -144,6 +149,9 @@ public class TurbineHeatSensor {
                     streamName = commandline.getOptionValue("stream");
                 }
 
+                if (commandline.hasOption("writeonly")) {
+                    onlyWrite = Boolean.parseBoolean(commandline.getOptionValue("stream"));
+                }
             } catch (Exception nfe) {
                 System.out.println("Invalid arguments. Starting with default values");
                 nfe.printStackTrace();
@@ -169,11 +177,19 @@ public class TurbineHeatSensor {
                                     NUM_SEGMENTS)));
             factory = new ClientFactoryImpl("hi", new URI(controllerUri));
 
-            stats = new Stats(producerCount * eventsPerSec * runtimeSec, 2);
+            produceStats = new Stats(producerCount * eventsPerSec * runtimeSec, 2);
+
+            if ( !onlyWrite ) {
+                consumeStats = new Stats(producerCount * eventsPerSec * runtimeSec, 2);
+            }
 
         } catch (URISyntaxException e) {
             e.printStackTrace();
             System.exit(1);
+        }
+        if ( !onlyWrite ) {
+            SensorReader reader = new SensorReader(producerCount * eventsPerSec * runtimeSec);
+            executor.execute(reader);
         }
         /* Create producerCount number of threads to simulate sensors. */
         for (int i = 0; i < producerCount; i++) {
@@ -182,13 +198,18 @@ public class TurbineHeatSensor {
             TemperatureSensors worker = new TemperatureSensors(i, locations[i % locations.length], eventsPerSec,
                     runtimeSec, isTransaction, producer);
             executor.execute(worker);
+
         }
+
         executor.shutdown();
         // Wait until all threads are finished.
         executor.awaitTermination(1, TimeUnit.HOURS);
 
         System.out.println("\nFinished all producers");
-        stats.printTotal();
+        produceStats.printTotal();
+        if ( !onlyWrite ) {
+            consumeStats.printTotal();
+        }
         System.exit(0);
     }
 
@@ -239,8 +260,7 @@ public class TurbineHeatSensor {
                     }
 
                     // Construct event payload
-                    String val = System.currentTimeMillis() + ", " + producerId + ", " + city + ", " +
-                            (int) (Math.random() * 200);
+                    String val = System.currentTimeMillis() + ", " + producerId + ", " + city + ", " + (int) (Math.random() * 200);
                     String payload = String.format("%-" + messageSize + "s", val);
                     // event ingestion
                     if (isTransaction) {
@@ -252,11 +272,14 @@ public class TurbineHeatSensor {
                             break;
                         }
                     } else {
-                        retFuture = stats.runAndRecordTime( () -> {
+                        long now = System.currentTimeMillis();
+                        retFuture = produceStats.runAndRecordTime(() -> {
                             return (CompletableFuture<Void>) producer.writeEvent(city, payload);
-                        }, payload.length());
-
+                        },
+                                () -> now,
+                                payload.length());
                     }
+
                 }
             }
             producer.flush();
@@ -279,6 +302,34 @@ public class TurbineHeatSensor {
         }
     }
 
+
+    /**
+     * A Sensor reader class that reads the temperative data
+     */
+    private static class SensorReader implements Runnable {
+        private int totalEvents;
+
+        public SensorReader(int totalEvents) {
+            this.totalEvents = totalEvents;
+        }
+
+        @Override
+        public void run() {
+            EventStreamReader<String> reader = factory.createReader(streamName,
+                    new JavaSerializer<>(), new ReaderConfig(), null);
+
+            do {
+                final EventRead<String>[] result = new EventRead[1];
+                result[0].getEvent();
+                produceStats.runAndRecordTime(() -> {
+                    result[0] = reader.readNextEvent(0);
+                    return CompletableFuture.completedFuture(null);
+                }, () -> {
+                    return Long.parseLong(result[0].getEvent());
+                }, 100);
+            } while ( totalEvents-- > 0 );
+        }
+    }
 
     private static class Stats {
         private long start;
@@ -384,11 +435,12 @@ public class TurbineHeatSensor {
             return values;
         }
 
-        public CompletableFuture<Void> runAndRecordTime(Supplier<CompletableFuture<Void>> fn, int length) {
-            long now = System.currentTimeMillis();
+        public CompletableFuture<Void> runAndRecordTime(Supplier<CompletableFuture<Void>> fn,
+                                                        Supplier<Long> startTimeProvider,
+                                                        int length) {
             int iter = this.iteration++;
             return fn.get().thenAccept( (lmn) -> {
-                stats.record(iter, (int) (System.currentTimeMillis() - now), length,
+                record(iter, (int) (System.currentTimeMillis() - startTimeProvider.get()), length,
                         System.currentTimeMillis());
             });
 
