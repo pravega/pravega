@@ -25,10 +25,11 @@ import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
@@ -67,11 +68,6 @@ public class ModelHelperTest {
             @Override
             public RetentionPolicy getRetentionPolicy() {
                 return new RetentionPolicy(Long.MAX_VALUE);
-            }
-
-            @Override
-            public boolean isSealed() {
-                return false;
             }
         };
     }
@@ -116,8 +112,7 @@ public class ModelHelperTest {
 
     @Test // Preceding 
     public void encodeFutureSegmentId() {
-        com.emc.pravega.stream.impl.FutureSegment segment =
-                ModelHelper.encode(ModelHelper.decode(createFutureSegmentId("stream1", 2, 1)), 1);
+        com.emc.pravega.stream.impl.FutureSegment segment = ModelHelper.encode(ModelHelper.decode(createFutureSegmentId("stream1", 2, 1)), 1);
         assertEquals("stream1", segment.getStreamName());
         assertEquals("scope", segment.getScope());
         assertEquals(2, segment.getSegmentNumber());

@@ -31,7 +31,7 @@ enum TxState {
     OPEN,
     SEALED,
     COMMITTED,
-    ABORTED
+    DROPPED
 }
 
 enum ScalingPolicyType {
@@ -52,7 +52,6 @@ struct StreamConfig {
   1: required string scope,
   2: required string name,
   3: required ScalingPolicy policy
-  4: required bool sealed
 }
 
 struct SegmentId {
@@ -98,6 +97,7 @@ struct ScaleResponse {
 service ControllerService {
     CreateStreamStatus createStream (1: StreamConfig streamConfig)
     UpdateStreamStatus alterStream (1: StreamConfig streamConfig)
+    UpdateStreamStatus sealStream(1: string scope, 2:string stream)
     list<SegmentRange> getCurrentSegments(1:string scope, 2:string stream)
     list<Position> getPositions(1:string scope, 2:string stream, 3:i64 timestamp, 4:i32 count)
     list<Position> updatePositions(1:string scope, 2:string stream, 3:list<Position> positions)

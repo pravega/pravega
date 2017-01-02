@@ -90,7 +90,6 @@ class InMemoryStream implements Stream {
 
     @Override
     public CompletableFuture<Boolean> updateState(State state) {
-
         this.state = state;
         return CompletableFuture.completedFuture(true);
     }

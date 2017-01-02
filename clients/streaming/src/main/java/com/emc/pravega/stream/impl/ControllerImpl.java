@@ -97,6 +97,19 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
+    public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String streamName) {
+        log.debug("Invoke AdminService.Client.sealStream() for stream: {}", streamName);
+
+        final ThriftAsyncCallback<ControllerService.AsyncClient.alterStream_call> callback = new ThriftAsyncCallback<>();
+        ThriftHelper.thriftCall(() -> {
+            client.sealStream(scope, streamName, callback);
+            return null; //TODO: why null?
+        });
+        return callback.getResult()
+                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+    }
+
+    @Override
     public CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count) {
         log.debug("Invoke ConsumerService.Client.getPositions() for stream: {}, timestamp: {}, count: {}", stream, timestamp, count);
 

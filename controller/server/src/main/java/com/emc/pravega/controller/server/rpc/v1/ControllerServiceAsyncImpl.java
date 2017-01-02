@@ -64,6 +64,12 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
     }
 
     @Override
+    public void sealStream(String scope, String stream, AsyncMethodCallback resultHandler) throws TException {
+        log.debug("sealStream called for stream {}", stream);
+        processResult(controllerService.sealStream(scope, stream), resultHandler);
+    }
+
+    @Override
     public void getCurrentSegments(final String scope, final String stream, final AsyncMethodCallback resultHandler) throws TException {
         log.debug("getCurrentSegments called for stream " + scope + "/" + stream);
         processResult(controllerService.getCurrentSegments(scope, stream), resultHandler);

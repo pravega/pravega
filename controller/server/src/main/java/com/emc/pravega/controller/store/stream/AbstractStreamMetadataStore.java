@@ -100,8 +100,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return getStream(name).updateState(State.SEALED);
     }
 
-
-
     @Override
     public CompletableFuture<Segment> getSegment(final String name, final int number) {
         return getStream(name).getSegment(number);
@@ -109,17 +107,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<List<Segment>> getActiveSegments(final String name) {
-        Stream stream = getStream(name);
-        return stream.getConfiguration()
-                .thenApply(config -> config.isSealed()).thenCompose(isSealed -> {
-                    if (isSealed) {
-                        //Stream is sealed return empty list.
-                        return CompletableFuture.completedFuture(Collections.emptyList());
-                    } else {
-                        return stream.getActiveSegments();
-                    }
-                })
-                .thenCompose(currentSegments -> sequence(currentSegments.stream().map(stream::getSegment).collect(Collectors.toList())));
+        final Stream stream = getStream(name);
+        return stream.getState()
+                .thenCompose(state ->
+                        State.SEALED.equals(state) ? CompletableFuture.completedFuture(Collections.emptyList()) : stream
+                                .getActiveSegments())
+                .thenCompose(currentSegments -> sequence(currentSegments.stream().map(stream::getSegment)
+                        .collect(Collectors.toList())));
     }
 
     @Override

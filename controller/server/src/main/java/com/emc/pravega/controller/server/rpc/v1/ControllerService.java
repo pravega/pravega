@@ -78,6 +78,10 @@ public class ControllerService {
         return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getName(), streamConfig);
     }
 
+    public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String stream) {
+        return streamMetadataTasks.sealStream(scope, stream);
+    }
+
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(final String scope, final String stream) {
         // fetch active segments from segment store
         return streamStore.getActiveSegments(stream)

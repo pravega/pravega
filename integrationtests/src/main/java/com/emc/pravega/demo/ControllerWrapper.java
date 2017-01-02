@@ -109,6 +109,11 @@ public class ControllerWrapper implements Controller {
     }
 
     @Override
+    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String streamName) {
+        return controller.sealStream(scope, streamName);
+    }
+
+    @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
         return controller.getCurrentSegments(scope, stream)
                 .thenApply((List<SegmentRange> ranges) -> {

@@ -77,8 +77,7 @@ public final class ModelHelper {
         Preconditions.checkNotNull(config, "StreamConfig");
         return new StreamConfigurationImpl(config.getScope(),
                 config.getName(),
-                encode(config.getPolicy()),
-                config.isSealed());
+                encode(config.getPolicy()));
     }
 
     public static final PositionImpl encode(final Position position) {
@@ -143,8 +142,7 @@ public final class ModelHelper {
         Preconditions.checkNotNull(configModel, "StreamConfiguration");
         return new StreamConfig(configModel.getScope(),
                 configModel.getName(),
-                decode(configModel.getScalingPolicy()),
-                configModel.isSealed());
+                decode(configModel.getScalingPolicy()));
     }
 
     public static final Position decode(final PositionInternal position) {

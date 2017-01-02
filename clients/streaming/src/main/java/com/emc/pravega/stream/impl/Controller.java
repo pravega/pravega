@@ -57,6 +57,14 @@ public interface Controller {
      */
     CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig);
 
+    /**
+     * Api to seal stream.
+     * @param scope scope
+     * @param streamName stream name
+     * @return
+     */
+    CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String streamName);
+
     // Controller Apis called by pravega writers for getting stream specific information
 
     /**

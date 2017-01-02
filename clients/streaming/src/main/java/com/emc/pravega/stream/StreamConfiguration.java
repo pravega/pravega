@@ -46,10 +46,4 @@ public interface StreamConfiguration extends Serializable {
      * Returns the retention policy for this stream.
      */
     RetentionPolicy getRetentionPolicy();
-
-    /**
-     * Api to return if stream is sealed.
-     * @return True if stream is sealed.
-     */
-    boolean isSealed();
 }

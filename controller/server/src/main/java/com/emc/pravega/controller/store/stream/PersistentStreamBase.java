@@ -75,6 +75,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return checkStreamExists(create)
                 .thenCompose(x -> storeCreationTime(create))
                 .thenCompose(x -> createConfiguration(create))
+                .thenCompose(x -> createState(State.NORMAL))
                 .thenCompose(x -> createSegmentTable(create))
                 .thenCompose(x -> createSegmentFile(create))
                 .thenCompose(x -> createHistoryTable(create))

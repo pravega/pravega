@@ -72,6 +72,11 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
     }
 
     @Override
+    public UpdateStreamStatus sealStream(String scope, String stream) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.sealStream(scope, stream), RuntimeException::new);
+    }
+
+    @Override
     public List<SegmentRange> getCurrentSegments(final String scope, final String stream) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.getCurrentSegments(scope, stream), RuntimeException::new);
     }

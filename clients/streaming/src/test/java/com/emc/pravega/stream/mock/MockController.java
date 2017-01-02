@@ -79,6 +79,11 @@ public class MockController implements Controller {
         return null;
     }
 
+    @Override
+    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String streamName) {
+        return null;
+    }
+
     boolean createSegment(String name, PravegaNodeUri uri) {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
