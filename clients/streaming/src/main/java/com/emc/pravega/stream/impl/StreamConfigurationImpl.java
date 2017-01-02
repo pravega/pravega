@@ -43,7 +43,11 @@ public class StreamConfigurationImpl implements StreamConfiguration {
     }
 
     @Override
+    public  String getScope() {return scope; }
+
+    @Override
     public ScalingPolicy getScalingPolicy() {
         return scalingPolicy;
     }
 }
+

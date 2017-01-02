@@ -20,14 +20,23 @@ package com.emc.pravega.controller.server.rest.v1;
 
 import com.emc.pravega.controller.server.rest.resources.SampleRequest;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 
-import javax.ws.rs.*;
+import javax.ws.rs.Path;
+import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
+import javax.ws.rs.DELETE;
+import javax.ws.rs.Produces;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.PathParam;
+
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 
 /*
-Conntroller APIs exposed via REST
+Controller APIs exposed via REST
 Different interfaces will hold different groups of APIs
 also new version of APIs will be added through a new interface
  */
@@ -57,6 +66,11 @@ public final class ApiV1 {
         @Consumes(MediaType.APPLICATION_JSON)
         public Response getResponse(SampleRequest request) throws IOException;
 
+        @POST
+        @Path("/name/{name}/age/{age}/flag/{flag}")
+        @Produces(MediaType.APPLICATION_JSON)
+        @Consumes(MediaType.APPLICATION_JSON)
+        public Response getResponsefromPathURL(SampleRequest request) throws IOException;
 
     }
 
@@ -67,15 +81,33 @@ public final class ApiV1 {
         @Path("/scopes/{scope}/streams/{stream}")
         @Produces(MediaType.APPLICATION_JSON)
         @Consumes(MediaType.APPLICATION_JSON)
-        public Response createStream(StreamConfiguration streamConfiguration) throws IOException;
+        public Response createStream(StreamConfigurationImpl streamConfig) throws Exception;
 
         @PUT
         @Path("/scopes/{scope}/streams/{stream}")
         @Produces(MediaType.APPLICATION_JSON)
         @Consumes(MediaType.APPLICATION_JSON)
-        public Response updateStreamConfig(StreamConfiguration streamConfiguration) throws IOException;
+        public Response updateStreamConfig(StreamConfiguration streamConfiguration);
 
+        @GET
+        @Path("/scopes/{scope}/streams/{stream}")
+        @Produces(MediaType.APPLICATION_JSON)
+        public Response getStreamConfig();
 
+        @GET
+        @Path("/scopes/{scope}/streams")
+        @Produces(MediaType.APPLICATION_JSON)
+        public Response listStreamsInScope();
+
+        @GET
+        @Path("/scopes")
+        @Produces(MediaType.APPLICATION_JSON)
+        public Response listScopes();
+
+        @DELETE
+        @Path("/scopes/{scope}/streams/{stream}")
+        @Produces(MediaType.APPLICATION_JSON)
+        public Response deleteStream(StreamConfiguration streamConfiguration);
 
     }
 }

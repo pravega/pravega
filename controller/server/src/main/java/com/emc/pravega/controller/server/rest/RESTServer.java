@@ -18,16 +18,22 @@
 
 package com.emc.pravega.controller.server.rest;
 
+import com.emc.pravega.controller.server.rest.resources.ResourceImpl;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.log4j.Level;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jetty.xml.XmlConfiguration;
+import org.glassfish.jersey.logging.LoggingFeature;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.servlet.ServletContainer;
 
+
 import javax.ws.rs.core.Application;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -50,6 +56,7 @@ public class RESTServer {
 
         final ResourceConfig resourceConfig = ResourceConfig.forApplication(application);
         //resourceConfig.registerClasses(providerClasses);
+        //resourceConfig.register(LoggingFeature.class);
 
         ServletHolder jerseyServlet = new ServletHolder(new ServletContainer(resourceConfig));
 
@@ -57,7 +64,11 @@ public class RESTServer {
         context.addServlet(jerseyServlet, "/*");
 
         server.setHandler(context);
-        return server;
+
+        //disable jetty logs
+        org.apache.log4j.LogManager.getLogger("org.eclipse.jetty").setLevel(Level.INFO);
+
+         return server;
     }
 
      public static final Application createApplication(Class<?>[] classes) {
@@ -66,10 +77,11 @@ public class RESTServer {
         for (Class<?> resource : classes) {
             try {
                 resources.add(resource.newInstance());
-            } catch (InstantiationException | IllegalAccessException e) {
-                log.error("Error during instantiation of REST resource : {} ", resource.getName(), e);
+            } catch (  InstantiationException | IllegalAccessException e) {
+                log.error("Error during instantiation of REST resource : {}, {} ", resource.getName(), e);
             }
         }
+         resources.add(LoggingFeature.class);
         return new ControllerApplication(resources);
     }
 

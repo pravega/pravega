@@ -49,4 +49,11 @@ public class SampleResourceImpl implements com.emc.pravega.controller.server.res
         return Response.ok(sampleResponse).build();
     }
 
+    @Override
+    public Response getResponsefromPathURL(SampleRequest request) throws IOException {
+        SampleResponse sampleResponse = new SampleResponse();
+        sampleResponse.setText(request.getName() + " " + String.valueOf(request.getAge()));
+        return Response.ok(sampleResponse).build();
+    }
+
 }
