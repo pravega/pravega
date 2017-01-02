@@ -60,7 +60,7 @@ public interface Cluster extends AutoCloseable {
     /**
      * Get the current cluster members.
      *
-     * @return Set<Host> List of cluster members.
+     * @return List of cluster members.
      * @throws Exception Error while getting Cluster members.
      */
     public Set<Host> getClusterMembers() throws Exception;

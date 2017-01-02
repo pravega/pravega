@@ -21,8 +21,8 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockClientFactory;
@@ -49,13 +49,13 @@ public class EndToEndTransactionTest {
         MockClientFactory clientFactory = new MockClientFactory(StartLocalService.SCOPE, controller);
 
         @Cleanup
-        Producer<String> producer = clientFactory.createProducer(StartLocalService.STREAM_NAME, new JavaSerializer<>(), new ProducerConfig(null));
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME, new JavaSerializer<>(), new EventWriterConfig(null));
         Transaction<String> transaction = producer.beginTransaction(60000);
 
         for (int i = 0; i < 1; i++) {
             String event = "\n Transactional Publish \n";
             System.err.println("Producing event: " + event);
-            transaction.publish("", event);
+            transaction.writeEvent("", event);
             transaction.flush();
             Thread.sleep(500);
         }
@@ -64,7 +64,7 @@ public class EndToEndTransactionTest {
         for (int i = 0; i < 1; i++) {
             String event = "\n Transactional Publish \n";
             System.err.println("Producing event: " + event);
-            transaction2.publish("", event);
+            transaction2.writeEvent("", event);
             transaction2.flush();
             Thread.sleep(500);
         }

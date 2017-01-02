@@ -15,21 +15,47 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream;
+package com.emc.pravega.stream.impl;
 
-import java.io.Serializable;
+import org.junit.Ignore;
+import org.junit.Test;
 
-import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
+import static org.junit.Assert.fail;
 
-import lombok.Data;
+@Ignore
+public class SegmentEventWriterTest {
+    @Test
+    public void testConfigChange() {
+        fail();
+    }
 
-@Data
-public class ProducerConfig implements Serializable {
+    @Test
+    public void testEOF() {
+        fail();
+    }
 
-    /**
-     * 
-     */
-    private static final long serialVersionUID = 1L;
-    private final SegmentOutputConfiguration segmentConfig;
+    @Test
+    public void testTimeout() {
+        fail();
+    }
 
+    @Test
+    public void testRetransmit() {
+        fail();
+    }
+
+    @Test
+    public void testTxOnClosedSegment() {
+        fail();
+    }
+
+    @Test
+    public void testAckLevels() {
+        fail();
+    }
+
+    @Test
+    public void testContentsOfUnackedMessages() {
+        fail();
+    }
 }

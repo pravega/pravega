@@ -20,7 +20,7 @@ package com.emc.pravega.stream;
 import java.util.UUID;
 
 /**
- * Provides a mechanism for publishing many events atomically.
+ * Provides a mechanism for writing many events atomically.
  * A Transaction is unbounded in size but is bounded in time. If it has not been committed within a time window
  * specified  at the time of its creation it will be automatically aborted.
  * 
@@ -42,17 +42,17 @@ public interface Transaction<Type> {
     UUID getTransactionId();
     
     /**
-     * Sends an event to the stream just like {@link Producer#publish} but with the caveat that the message will not be
+     * Sends an event to the stream just like {@link EventStreamWriter#writeEvent} but with the caveat that the message will not be
      * visible to anyone until {@link #commit()} is called.
      *
-     * @param routingKey The Routing Key to use for publishing.
-     * @param event      The Event to publish.
+     * @param routingKey The Routing Key to use for writing.
+     * @param event      The Event to write.
      * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
-    void publish(String routingKey, Type event) throws TxnFailedException;
+    void writeEvent(String routingKey, Type event) throws TxnFailedException;
 
     /**
-     * Blocks until all events passed to {@link #publish} make it to durable storage.
+     * Blocks until all events passed to {@link #writeEvent(String, Object)} make it to durable storage.
      * This is only needed if the transaction is going to be serialized.
      *
      * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
@@ -60,16 +60,16 @@ public interface Transaction<Type> {
     void flush() throws TxnFailedException;
 
     /**
-     * Causes all messages previously published to the transaction to go into the stream contiguously.
+     * Causes all messages previously written to the transaction to go into the stream contiguously.
      * This operation will either fully succeed making all events consumable or fully fail such that none of them are.
-     * There may be some time delay before consumers see the events after this call has returned.
+     * There may be some time delay before readers see the events after this call has returned.
      *
      * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
     void commit() throws TxnFailedException;
 
     /**
-     * Drops the transaction, causing all events published to it to be deleted.
+     * Drops the transaction, causing all events written to it to be deleted.
      */
     void drop();
 
