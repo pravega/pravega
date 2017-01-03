@@ -27,7 +27,7 @@ import java.util.Properties;
  * Base Configuration for an application Component. Allows sharing a single .properties file (loaded up as a
  * java.util.Properties object), and section it based on a component code. Each property in the file will be prefixed by
  * a component code which identifies which component it belongs to.
- * <p/>
+ *
  * Example:
  * <ul>
  * <li>foo.key1=value1

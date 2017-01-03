@@ -119,7 +119,12 @@ class ProducerDataSource {
      */
     byte[] generateAppendContent(String segmentName) {
         AppendContentGenerator generator = this.appendGenerators.getOrDefault(segmentName, null);
-        Preconditions.checkArgument(generator != null, "No such segment was created using this DataSource");
+        if (generator == null) {
+            // If the argument is indeed correct, this segment was deleted between the time the operation got generated
+            // and when this method was invoked.
+            throw new UnknownSegmentException(segmentName);
+        }
+
         int maxSize = this.config.getMaxAppendSize();
         int minSize = this.config.getMinAppendSize();
         int size = maxSize;
@@ -242,4 +247,14 @@ class ProducerDataSource {
     }
 
     //endregion
+
+    /**
+     * Exception that is thrown whenever an unknown segment name is passed to this data source (one that was not created
+     * using it).
+     */
+    static class UnknownSegmentException extends RuntimeException {
+        private UnknownSegmentException(String segmentName) {
+            super(String.format("No such segment was created using this DataSource: %s.", segmentName));
+        }
+    }
 }

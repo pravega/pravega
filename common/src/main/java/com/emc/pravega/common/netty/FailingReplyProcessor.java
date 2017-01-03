@@ -32,14 +32,14 @@ import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
-import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
+import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 
 /**
  * A ReplyProcessor that throws on every method. (Useful to subclass)
  */
-public class FailingReplyProcessor implements ReplyProcessor {
+public abstract class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void wrongHost(WrongHost wrongHost) {
@@ -113,7 +113,7 @@ public class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void transactionDropped(TransactionDropped transactionDropped) {
+    public void transactionAborted(TransactionAborted transactionAborted) {
         throw new IllegalStateException("Unexpected operation");
     }
     
@@ -131,11 +131,5 @@ public class FailingReplyProcessor implements ReplyProcessor {
     public void keepAlive(KeepAlive keepAlive) {
         throw new IllegalStateException("Unexpected operation");
     }
-
-    @Override
-    public void connectionDropped() {
-        throw new IllegalStateException("Unexpected operation");
-    }
-    
 
 }

@@ -32,7 +32,7 @@ import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
-import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
+import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 
@@ -115,8 +115,8 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     }
     
     @Override
-    public void transactionDropped(TransactionDropped transactionDropped) {
-        getNextReplyProcessor().transactionDropped(transactionDropped);
+    public void transactionAborted(TransactionAborted transactionAborted) {
+        getNextReplyProcessor().transactionAborted(transactionAborted);
     }
 
     @Override

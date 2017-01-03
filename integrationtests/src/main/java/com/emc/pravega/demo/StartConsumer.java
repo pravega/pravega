@@ -17,31 +17,27 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.stream.Consumer;
-import com.emc.pravega.stream.ConsumerConfig;
-import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.EventStreamReader;
+import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.mock.MockStreamManager;
+import com.emc.pravega.stream.mock.MockClientFactory;
 
 import lombok.Cleanup;
 
 public class StartConsumer {
 
     public static void main(String[] args) throws Exception {
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,
+        MockClientFactory clientFactory = new MockClientFactory(StartLocalService.SCOPE,
                 "localhost",
                 StartLocalService.PORT);
-        Stream stream = streamManager.createStream(StartLocalService.STREAM_NAME, null);
-
+        clientFactory.createStream(StartLocalService.STREAM_NAME, null);
         @Cleanup
-        Consumer<String> consumer = stream
-            .createConsumer(new JavaSerializer<>(),
-                            new ConsumerConfig(),
-                            streamManager.getInitialPosition(StartLocalService.STREAM_NAME),
-                            null);
+        EventStreamReader<String> consumer = clientFactory.createReader(StartLocalService.STREAM_NAME,
+                                     new JavaSerializer<>(),
+                            new ReaderConfig(),
+                            clientFactory.getInitialPosition(StartLocalService.STREAM_NAME));        
         for (int i = 0; i < 20; i++) {
-            String event = consumer.getNextEvent(60000);
+            String event = consumer.readNextEvent(60000).getEvent();
             System.err.println("Read event: " + event);
         }
         System.exit(0);

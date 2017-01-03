@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
+ * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
+ * regarding copyright ownership.  The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
+ * with the License.  You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -17,29 +17,51 @@
  */
 package com.emc.pravega.service.server.host.handler;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.netty.WireCommands.CreateSegment;
+import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
+import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
+import com.emc.pravega.common.netty.WireCommands.SealSegment;
+import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
+import com.emc.pravega.common.netty.WireCommands.SegmentDeleted;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
+import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
+import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
+import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.reading.ReadResultEntryBase;
-import lombok.Data;
-import org.junit.Ignore;
-import org.junit.Test;
+import com.emc.pravega.service.server.store.ServiceBuilder;
+import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.server.store.ServiceConfig;
 
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
-import static org.junit.Assert.fail;
+import org.junit.Test;
+import org.mockito.InOrder;
+import org.mockito.Mockito;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+
+import lombok.Cleanup;
+import lombok.Data;
 
 public class PravegaRequestProcessorTest {
 
@@ -93,7 +115,7 @@ public class PravegaRequestProcessorTest {
     @Test
     public void testReadSegment() {
         String streamSegmentName = "testReadSegment";
-        byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
+        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         int readLength = 1000;
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -122,26 +144,56 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test
-    @Ignore
-    public void testCreateSegment() {
-        fail();
+    public void testCreateSegment() throws InterruptedException, ExecutionException {
+        String streamSegmentName = "testCreateSegment";
+        @Cleanup
+        ServiceBuilder serviceBuilder = ServiceBuilder.newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize().get();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
+        processor.createSegment(new CreateSegment(streamSegmentName));
+        assertTrue(append(streamSegmentName, 1, store));
+        processor.getStreamSegmentInfo(new GetStreamSegmentInfo(streamSegmentName));
+        assertTrue(append(streamSegmentName, 2, store));
+        order.verify(connection).send(new SegmentCreated(streamSegmentName));
+        order.verify(connection).send(Mockito.any(StreamSegmentInfo.class));
     }
 
     @Test
-    @Ignore
-    public void testGetSegmentInfo() {
-        fail();
+    public void testCreatSealDelete() throws InterruptedException, ExecutionException {
+        String streamSegmentName = "testCreatSealDelete";
+        @Cleanup
+        ServiceBuilder serviceBuilder = ServiceBuilder.newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize().get();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
+        processor.createSegment(new CreateSegment(streamSegmentName));
+        assertTrue(append(streamSegmentName, 1, store));
+        processor.sealSegment(new SealSegment(streamSegmentName));
+        assertFalse(append(streamSegmentName, 2, store));
+        processor.deleteSegment(new DeleteSegment(streamSegmentName));
+        assertFalse(append(streamSegmentName, 3, store));
+        order.verify(connection).send(new SegmentCreated(streamSegmentName));
+        order.verify(connection).send(new SegmentSealed(streamSegmentName));
+        order.verify(connection).send(new SegmentDeleted(streamSegmentName));
     }
 
-    @Test
-    @Ignore
-    public void testDeleteSegment() {
-        fail();
+    private boolean append(String streamSegmentName, int number, StreamSegmentStore store) {
+        return FutureHelpers.await(store.append(streamSegmentName,
+                                                new byte[] { (byte) number },
+                                                new AppendContext(UUID.randomUUID(), number),
+                                                PravegaRequestProcessor.TIMEOUT));
     }
 
-    @Test
-    @Ignore
-    public void testTransaction() {
-        fail();
+    private static ServiceBuilderConfig getBuilderConfig() {
+        Properties p = new Properties();
+        ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "1");
+        ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "3");
+        return new ServiceBuilderConfig(p);
     }
+
 }

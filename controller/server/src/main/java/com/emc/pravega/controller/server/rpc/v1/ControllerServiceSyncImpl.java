@@ -33,7 +33,8 @@ import com.emc.pravega.controller.stream.api.v1.TxState;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.emc.pravega.stream.impl.model.ModelHelper;
+import com.emc.pravega.stream.impl.ModelHelper;
+
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.thrift.TException;
 
