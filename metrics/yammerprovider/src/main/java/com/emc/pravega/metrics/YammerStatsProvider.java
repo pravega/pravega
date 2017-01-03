@@ -38,9 +38,9 @@ public class YammerStatsProvider implements StatsProvider {
     MetricRegistry metrics = null;
     List<ScheduledReporter> reporters = new ArrayList<ScheduledReporter>();
 
-    synchronized void initIfNecessary() {
+    synchronized void init() {
         if (metrics == null) {
-            metrics = new MetricRegistry();
+            metrics = MetricsFactory.getMetrics();
             metrics.registerAll(new MemoryUsageGaugeSet());
             metrics.registerAll(new GarbageCollectorMetricSet());
         }
@@ -52,7 +52,7 @@ public class YammerStatsProvider implements StatsProvider {
 
     @Override
     public void start(MetricsConfig conf) {
-        initIfNecessary();
+        init();
 
         int metricsOutputFrequency = conf.getStatsOutputFrequency();
         String prefix = conf.getMetricsPrefix();
@@ -96,7 +96,7 @@ public class YammerStatsProvider implements StatsProvider {
 
     @Override
     public StatsLogger getStatsLogger(String name) {
-        initIfNecessary();
+        init();
         return new YammerStatsLogger(getMetrics(), name);
     }
 }

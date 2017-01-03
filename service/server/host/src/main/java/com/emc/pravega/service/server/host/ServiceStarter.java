@@ -46,6 +46,7 @@ import com.emc.pravega.metrics.MetricsConfig;
 import com.emc.pravega.metrics.StatsProvider;
 import com.emc.pravega.metrics.YammerStatsProvider;
 import com.emc.pravega.metrics.NullStatsProvider;
+import com.emc.pravega.metrics.MetricsFactory;
 
 /**
  * Starts the Pravega Service.
@@ -110,8 +111,9 @@ public final class ServiceStarter {
 
         log.info("Initializing metrics provider ...");
         statsProvider = (metricsConfig.getEnableStatistics()) ?
-                        (new YammerStatsProvider()) :
-                        (new NullStatsProvider());
+                        MetricsFactory.getNullProvider() :
+                        MetricsFactory.getProvider();
+
         statsProvider.start(metricsConfig);
 
         log.info("Initializing Service Builder ...");

@@ -70,6 +70,7 @@ import com.emc.pravega.metrics.Counter;
 import com.emc.pravega.metrics.StatsLogger;
 import com.emc.pravega.metrics.OpStatsLogger;
 import com.emc.pravega.metrics.NullStatsProvider;
+import com.emc.pravega.metrics.MetricsFactory;
 
 import static com.emc.pravega.service.server.host.PravegaRequestStats.CREATE_SEGMENT;
 import static com.emc.pravega.service.server.host.PravegaRequestStats.DELETE_SEGMENT;
@@ -82,6 +83,8 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
+
+    final StatsLogger statsLogger2 = MetricsFactory.getStatsLogger();
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     static final int MAX_READ_SIZE = 2 * 1024 * 1024;
