@@ -196,6 +196,26 @@ public class InMemoryStorage implements TruncateableStorage {
     }
 
     /**
+     * Appends the given data to the end of the StreamSegment.
+     *
+     * @param streamSegmentName The name of the StreamSegment to append to.
+     * @param data              An InputStream representing the data to append.
+     * @param length            The length of the data to append.
+     * @param timeout           Timeout for the operation.
+     * @return A CompletableFuture that will complete when the operation is done.
+     */
+    public CompletableFuture<Void> append(String streamSegmentName, InputStream data, int length, Duration timeout) {
+        CompletableFuture<Void> result = CompletableFuture.runAsync(() ->
+                getStreamSegmentData(streamSegmentName).append(data, length), this.executor);
+        result.thenRunAsync(
+                () -> {
+                    long segmentLength = getStreamSegmentData(streamSegmentName).getInfo().getLength();
+                    fireOffsetTriggers(streamSegmentName, segmentLength);
+                }, this.executor);
+        return result;
+    }
+
+    /**
      * Changes the current owner of the Storage Adapter. After calling this, all calls to existing Segments will fail
      * until open() is called again on them.
      */
@@ -402,6 +422,12 @@ public class InMemoryStorage implements TruncateableStorage {
             synchronized (this.lock) {
                 checkOpened();
                 writeInternal(startOffset, data, length);
+            }
+        }
+
+        void append(InputStream data, int length) {
+            synchronized (this.lock) {
+                write(this.length, data, length);
             }
         }
 
