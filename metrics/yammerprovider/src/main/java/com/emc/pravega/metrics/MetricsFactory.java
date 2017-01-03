@@ -21,30 +21,30 @@ import com.codahale.metrics.MetricRegistry;
 public class MetricsFactory {
     private static MetricsFactory instance  = new MetricsFactory();
 
-    private static final MetricRegistry yammerMetrics = new MetricRegistry();
-    private static final StatsProvider nullProvider = new NullStatsProvider();
-    private static final StatsProvider yammerProvider = new YammerStatsProvider();
+    private static final MetricRegistry YAMMERMETRICS = new MetricRegistry();
+    private static final StatsProvider NULLPROVIDER = new NullStatsProvider();
+    private static final StatsProvider YAMMERPROVIDER = new YammerStatsProvider();
 
     private MetricsFactory() {
     }
 
     public static MetricRegistry getMetrics() {
-        return yammerMetrics;
+        return YAMMERMETRICS;
     }
 
     public static StatsProvider getProvider() {
-        return yammerProvider;
+        return YAMMERPROVIDER;
     }
 
     public static StatsProvider getNullProvider() {
-        return nullProvider;
+        return NULLPROVIDER;
     }
 
     public static StatsLogger getStatsLogger() {
-        return yammerProvider.getStatsLogger("");
+        return YAMMERPROVIDER.getStatsLogger("");
     }
 
     public static StatsLogger getNullStatsLogger() {
-        return nullProvider.getStatsLogger("");
+        return NULLPROVIDER.getStatsLogger("");
     }
 }

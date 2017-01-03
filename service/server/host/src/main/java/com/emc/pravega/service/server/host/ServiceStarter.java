@@ -44,7 +44,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.emc.pravega.metrics.MetricsConfig;
 import com.emc.pravega.metrics.StatsProvider;
-import com.emc.pravega.metrics.YammerStatsProvider;
 import com.emc.pravega.metrics.MetricsFactory;
 
 /**

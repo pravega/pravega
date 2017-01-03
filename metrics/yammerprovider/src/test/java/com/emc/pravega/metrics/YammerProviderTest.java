@@ -17,21 +17,12 @@
 package com.emc.pravega.metrics;
 
 import org.junit.Test;
-import org.junit.Before;
 import static org.junit.Assert.assertEquals;
 
 import java.util.concurrent.TimeUnit;
 
 public class YammerProviderTest {
-    private StatsLogger statsLogger;
-    private YammerStatsProvider statsProvider;
-
-    @Before
-    public void createLogger() {
-        // statsLogger example: "hostOperations"
-        statsProvider = new YammerStatsProvider();
-        statsLogger = statsProvider.getStatsLogger("testLogger");
-    }
+    private final StatsLogger statsLogger = MetricsFactory.getStatsLogger();
 
     @Test
     public void testToOpStatsData() {
@@ -72,6 +63,6 @@ public class YammerProviderTest {
         };
         statsLogger.registerGauge("testGauge", gauge);
 
-        assertEquals(27, statsProvider.getMetrics().getGauges().get("testLogger.testGauge").getValue());
+        assertEquals(27, MetricsFactory.getMetrics().getGauges().get("testGauge").getValue());
     }
 }
