@@ -570,39 +570,38 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
-        try {
-            // Verify that on a freshly created DurableLog, it auto-adds a MetadataCheckpoint as the first operation.
-            verifyFirstItemIsMetadataCheckpoint(durableLog.read(-1L, 1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
 
-            // Generate some test data (we need to do this after we started the DurableLog because in the process of
-            // recovery, it wipes away all existing metadata).
-            HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, setup.metadata);
-            AbstractMap<Long, Long> transactions = LogTestHelpers.createTransactionsInMetadata(streamSegmentIds, 0, setup.metadata);
-            List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment, NO_METADATA_CHECKPOINT, false, false);
+        // Verify that on a freshly created DurableLog, it auto-adds a MetadataCheckpoint as the first operation.
+        verifyFirstItemIsMetadataCheckpoint(durableLog.read(-1L, 1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
 
-            // Process all generated operations.
-            List<LogTestHelpers.OperationWithCompletion> completionFutures = processOperations(operations, durableLog, waitForProcessingFrequency);
+        // Generate some test data (we need to do this after we started the DurableLog because in the process of
+        // recovery, it wipes away all existing metadata).
+        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, setup.metadata);
+        AbstractMap<Long, Long> transactions = LogTestHelpers.createTransactionsInMetadata(streamSegmentIds, 0, setup.metadata);
+        List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment, NO_METADATA_CHECKPOINT, false, false);
 
-            // Wait for all such operations to complete. If any of them failed, this will fail too and report the exception.
-            LogTestHelpers.allOf(completionFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            List<Operation> readOperations = readAllDurableLog(durableLog);
+        // Process all generated operations.
+        List<LogTestHelpers.OperationWithCompletion> completionFutures = processOperations(operations, durableLog, waitForProcessingFrequency);
 
-            int injectedOperationCount = 0;
-            for (Operation o : readOperations) {
-                if (o instanceof MetadataCheckpointOperation) {
-                    injectedOperationCount++;
-                }
+        // Wait for all such operations to complete. If any of them failed, this will fail too and report the exception.
+        LogTestHelpers.allOf(completionFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        List<Operation> readOperations = readAllDurableLog(durableLog);
+
+        int injectedOperationCount = 0;
+        for (Operation o : readOperations) {
+            if (o instanceof MetadataCheckpointOperation) {
+                injectedOperationCount++;
             }
-
-            Assert.assertEquals("Unexpected operations were injected. Expected only MetadataCheckpointOperations.", readOperations.size() - operations.size(), injectedOperationCount);
-
-            // We expect at least 2 injected operations (one is the very first one (checked above), and then at least
-            // one more based on written data.
-            AssertExtensions.assertGreaterThan("Insufficient number of injected operations.", 1, injectedOperationCount);
-        } finally {
-            // Stop the processor.
-            durableLog.stopAsync().awaitTerminated();
         }
+
+        Assert.assertEquals("Unexpected operations were injected. Expected only MetadataCheckpointOperations.", readOperations.size() - operations.size(), injectedOperationCount);
+
+        // We expect at least 2 injected operations (one is the very first one (checked above), and then at least
+        // one more based on written data.
+        AssertExtensions.assertGreaterThan("Insufficient number of injected operations.", 1, injectedOperationCount);
+
+        // Stop the processor.
+        durableLog.stopAsync().awaitTerminated();
     }
 
     //endregion
