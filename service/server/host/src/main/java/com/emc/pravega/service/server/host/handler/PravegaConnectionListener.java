@@ -67,16 +67,11 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private EventLoopGroup workerGroup;
     private StatsLogger statsLogger;
 
-    public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore, StatsLogger statsLogger) {
+    public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
         this.ssl = ssl;
         this.port = port;
         this.store = streamSegmentStore;
-        this.statsLogger = statsLogger;
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
-    }
-
-    public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
-        this(ssl, port, streamSegmentStore, (new NullStatsProvider()).getStatsLogger(""));
     }
 
     public void startListening() {
@@ -124,8 +119,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          lsh);
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
-                         new PravegaRequestProcessor(store, lsh, statsLogger),
-                         statsLogger));
+                         new PravegaRequestProcessor(store, lsh)));
              }
          });
 

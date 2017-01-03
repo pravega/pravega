@@ -69,7 +69,6 @@ import com.google.common.base.Preconditions;
 import com.emc.pravega.metrics.Counter;
 import com.emc.pravega.metrics.StatsLogger;
 import com.emc.pravega.metrics.OpStatsLogger;
-import com.emc.pravega.metrics.NullStatsProvider;
 import com.emc.pravega.metrics.MetricsFactory;
 
 import static com.emc.pravega.service.server.host.PravegaRequestStats.CREATE_SEGMENT;
@@ -83,9 +82,6 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
-
-    final StatsLogger statsLogger2 = MetricsFactory.getStatsLogger();
-
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     static final int MAX_READ_SIZE = 2 * 1024 * 1024;
 
@@ -93,27 +89,22 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private final ServerConnection connection;
 
-    private final StatsLogger statsLogger;
+    private final StatsLogger statsLogger = MetricsFactory.getStatsLogger();
     private final OpStatsLogger createStreamSegmentStats;
     private final OpStatsLogger deleteStreamSegmentStats;
     private final OpStatsLogger readStreamSegmentStats;
     private final OpStatsLogger readBytesStats;
     private final Counter readBytes;
 
-    public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, StatsLogger statsLogger) {
+    public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
         this.segmentStore = segmentStore;
         this.connection = connection;
-        this.statsLogger = statsLogger;
         this.createStreamSegmentStats = statsLogger.getOpStatsLogger(CREATE_SEGMENT);
         this.deleteStreamSegmentStats = statsLogger.getOpStatsLogger(DELETE_SEGMENT);
         this.readStreamSegmentStats = statsLogger.getOpStatsLogger(READ_SEGMENT);
         this.readBytesStats = statsLogger.getOpStatsLogger(SEGMENT_READ_BYTES);
         this.readBytes = statsLogger.getCounter(ALL_READ_BYTES);
         readBytes.clear();
-    }
-
-    public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
-        this(segmentStore, connection, (new NullStatsProvider()).getStatsLogger(""));
     }
 
     @Override

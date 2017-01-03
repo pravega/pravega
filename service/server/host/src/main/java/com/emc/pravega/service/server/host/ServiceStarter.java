@@ -45,7 +45,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.emc.pravega.metrics.MetricsConfig;
 import com.emc.pravega.metrics.StatsProvider;
 import com.emc.pravega.metrics.YammerStatsProvider;
-import com.emc.pravega.metrics.NullStatsProvider;
 import com.emc.pravega.metrics.MetricsFactory;
 
 /**
@@ -122,7 +121,7 @@ public final class ServiceStarter {
         log.info("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningPort(), service, statsProvider.getStatsLogger("service"));
+        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningPort(), service);
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
         log.info("StreamSegmentService started.");

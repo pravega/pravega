@@ -50,8 +50,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.extern.slf4j.Slf4j;
 
+import com.emc.pravega.metrics.MetricsFactory;
 import com.emc.pravega.metrics.StatsLogger;
-import com.emc.pravega.metrics.NullStatsProvider;
 import com.emc.pravega.metrics.Gauge;
 import static com.emc.pravega.service.server.host.PravegaRequestStats.PENDING_APPEND_BYTES;
 
@@ -68,7 +68,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final StreamSegmentStore store;
     private final ServerConnection connection;
     private final RequestProcessor next;
-    private final StatsLogger statsLogger;
+    private final StatsLogger statsLogger = MetricsFactory.getStatsLogger();
     private final Object lock = new Object();
 
     @GuardedBy("lock")
@@ -78,15 +78,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     @GuardedBy("lock")
     private Append outstandingAppend = null;
 
-    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, StatsLogger statsLogger) {
+    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next) {
         this.store = store;
         this.connection = connection;
         this.next = next;
-        this.statsLogger = statsLogger;
-    }
-
-    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next) {
-        this(store, connection, next, (new NullStatsProvider()).getStatsLogger(""));
     }
 
     /**
