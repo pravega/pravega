@@ -70,9 +70,6 @@ import com.emc.pravega.metrics.Counter;
 import com.emc.pravega.metrics.StatsLogger;
 import com.emc.pravega.metrics.OpStatsLogger;
 import com.emc.pravega.metrics.NullStatsProvider;
-//import com.emc.pravega.metrics.annotate.Metrics;
-//import com.emc.pravega.metrics.annotate.Countered;
-//import com.emc.pravega.metrics.annotate.OpStats;
 
 import static com.emc.pravega.service.server.host.PravegaRequestStats.CREATE_SEGMENT;
 import static com.emc.pravega.service.server.host.PravegaRequestStats.DELETE_SEGMENT;
@@ -84,7 +81,6 @@ import lombok.extern.slf4j.Slf4j;
 
 
 @Slf4j
-//@Metrics
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
@@ -139,8 +135,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * If there are cached entries that can be returned without blocking only these are returned.
      * Otherwise the call will request the data and setup a callback to return the data when it is available. 
      */
-    //@OpStats(name="readBytesStats")
-    //@Countered(name="readBytes")
     private void handleReadResult(ReadSegment request, ReadResult result) {
         String segment = request.getSegment();
         ArrayList<ReadResultEntryContents> cachedEntries = new ArrayList<>();

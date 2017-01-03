@@ -11,13 +11,9 @@
 buildscript {
     repositories {
         jcenter()
-        maven {
-            url "https://maven.eveoh.nl/content/repositories/releases"
-        }
     }
     dependencies {
         classpath 'com.bmuschko:gradle-docker-plugin:3.0.3'
-        classpath "nl.eveoh:gradle-aspectj:1.6"
     }
 }
 
@@ -76,7 +72,7 @@ allprojects {
 
 }
 
-def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests', 'metrics', 'aop' ]
+def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests', 'metrics' ]
 
 project('common') {
     dependencies {
@@ -328,21 +324,6 @@ project('controller:server') {
             }
         }
     }
-}
-
-project('aop') {
-    // aspectj for metrics
-    project.ext {
-        aspectjVersion = '1.8.4'
-    }
-    apply plugin: 'aspectj'
-    apply plugin: 'application'
-
-    dependencies {
-        compile project(':metrics')
-        compile project(':common')
-    }
-
 }
 
 project('metrics:nullprovider') {
