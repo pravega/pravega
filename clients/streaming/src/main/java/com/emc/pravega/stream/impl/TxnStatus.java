@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.stream.impl;
 
-public enum TxStatus {
+public enum TxnStatus {
     UNKNOWN,
     OPEN,
     SEALED,
