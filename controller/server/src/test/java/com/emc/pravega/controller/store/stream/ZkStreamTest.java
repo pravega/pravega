@@ -44,6 +44,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 public class ZkStreamTest {
@@ -154,6 +156,13 @@ public class ZkStreamTest {
         segmentFutures = store.getActiveSegments(streamName, scale3 + 100).get();
         assertEquals(segmentFutures.getCurrent().size(), 5);
         assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 6, 9, 10, 11)));
+
+        assertFalse(store.isSealed(streamName).get());
+        assertNotEquals(0, store.getActiveSegments(streamName).get().size());
+        Boolean sealOperationStatus = store.setSealed(streamName).get();
+        assertTrue(sealOperationStatus);
+        assertTrue(store.isSealed(streamName).get());
+        assertEquals(0, store.getActiveSegments(streamName).get().size());
     }
 
     @Ignore("run manually")

@@ -193,15 +193,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     public CompletableFuture<UpdateStreamStatus> sealStreamBody(String scope, String stream) {
-        return streamMetadataStore.setSealed(stream)
-                .thenCompose(x -> {
-                    if (x) {
-                        return invokeSealActiveSegments(scope, stream)
-                                .thenApply(y -> UpdateStreamStatus.SUCCESS);
-                    } else {
-                        return CompletableFuture.completedFuture(UpdateStreamStatus.FAILURE);
-                    }
-                })
+        return invokeSealActiveSegments(scope, stream)
+                .thenCompose( v -> streamMetadataStore.setSealed(stream))
                 .handle((result, ex) -> {
                     if (ex != null) {
                         if (ex instanceof StreamNotFoundException) {
@@ -211,7 +204,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                             return UpdateStreamStatus.FAILURE;
                         }
                     } else {
-                        return result;
+                        return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
                     }
                 });
     }

@@ -59,6 +59,7 @@ class InMemoryStream implements Stream {
     @Override
     public synchronized CompletableFuture<Boolean> create(StreamConfiguration configuration, long timestamp) {
         this.configuration = configuration;
+        this.state = State.NORMAL;
         int numSegments = configuration.getScalingPolicy().getMinNumSegments();
         double keyRange = 1.0 / numSegments;
         IntStream.range(0, numSegments)
