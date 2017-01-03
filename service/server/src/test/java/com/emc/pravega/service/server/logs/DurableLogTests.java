@@ -52,7 +52,6 @@ import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
-import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
@@ -83,7 +82,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -538,8 +536,7 @@ public class DurableLogTests extends OperationLogTestBase {
         int checkpointEvery = 10;
         testMetadataCheckpoint(
                 () -> ContainerSetup.createDurableLogConfig(checkpointEvery, null),
-                checkpointEvery,
-                (totalWriteCount, totalWriteLength) -> (double) totalWriteCount / checkpointEvery);
+                checkpointEvery);
     }
 
     /**
@@ -550,20 +547,17 @@ public class DurableLogTests extends OperationLogTestBase {
         int checkpointLengthThreshold = 69 * 1024;
         testMetadataCheckpoint(
                 () -> ContainerSetup.createDurableLogConfig(null, (long) checkpointLengthThreshold),
-                10,
-                (totalWriteCount, totalWriteLength) -> (double) totalWriteLength / checkpointLengthThreshold);
+                10);
     }
 
     /**
      * Tests the ability of the DurableLog to add MetadataCheckpointOperations.
      *
-     * @param createDurableLogConfig          A Supplier that creates a DurableLogConfig object.
-     * @param waitForProcessingFrequency      The frequency at which to stop and wait for operations to be processed by the
-     *                                        DurableLog before adding others.
-     * @param calculateExpectedInjectionCount A function that, given the total number of DurableDataLog writes (and their total lengths),
-     *                                        calculates the expected number of injected operations that should exist.
+     * @param createDurableLogConfig     A Supplier that creates a DurableLogConfig object.
+     * @param waitForProcessingFrequency The frequency at which to stop and wait for operations to be processed by the
+     *                                   DurableLog before adding others.
      */
-    private void testMetadataCheckpoint(Supplier<DurableLogConfig> createDurableLogConfig, int waitForProcessingFrequency, BiFunction<Integer, Integer, Double> calculateExpectedInjectionCount) throws Exception {
+    private void testMetadataCheckpoint(Supplier<DurableLogConfig> createDurableLogConfig, int waitForProcessingFrequency) throws Exception {
         int streamSegmentCount = 500;
         int appendsPerStreamSegment = 20;
 
@@ -576,47 +570,39 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
+        try {
+            // Verify that on a freshly created DurableLog, it auto-adds a MetadataCheckpoint as the first operation.
+            verifyFirstItemIsMetadataCheckpoint(durableLog.read(-1L, 1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
 
-        // Verify that on a freshly created DurableLog, it auto-adds a MetadataCheckpoint as the first operation.
-        verifyFirstItemIsMetadataCheckpoint(durableLog.read(-1L, 1, TIMEOUT).join());
+            // Generate some test data (we need to do this after we started the DurableLog because in the process of
+            // recovery, it wipes away all existing metadata).
+            HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, setup.metadata);
+            AbstractMap<Long, Long> transactions = LogTestHelpers.createTransactionsInMetadata(streamSegmentIds, 0, setup.metadata);
+            List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment, NO_METADATA_CHECKPOINT, false, false);
 
-        // Generate some test data (we need to do this after we started the DurableLog because in the process of
-        // recovery, it wipes away all existing metadata).
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, setup.metadata);
-        AbstractMap<Long, Long> transactions = LogTestHelpers.createTransactionsInMetadata(streamSegmentIds, 0, setup.metadata);
-        List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment, NO_METADATA_CHECKPOINT, false, false);
+            // Process all generated operations.
+            List<LogTestHelpers.OperationWithCompletion> completionFutures = processOperations(operations, durableLog, waitForProcessingFrequency);
 
-        // Process all generated operations.
-        List<LogTestHelpers.OperationWithCompletion> completionFutures = processOperations(operations, durableLog, waitForProcessingFrequency);
+            // Wait for all such operations to complete. If any of them failed, this will fail too and report the exception.
+            LogTestHelpers.allOf(completionFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            List<Operation> readOperations = readAllDurableLog(durableLog);
 
-        // Wait for all such operations to complete. If any of them failed, this will fail too and report the exception.
-        LogTestHelpers.allOf(completionFutures).join();
-        List<Operation> readOperations = readAllDurableLog(durableLog);
-
-        int injectedOperationCount = 0;
-        for (Operation o : readOperations) {
-            if (o instanceof MetadataCheckpointOperation) {
-                injectedOperationCount++;
+            int injectedOperationCount = 0;
+            for (Operation o : readOperations) {
+                if (o instanceof MetadataCheckpointOperation) {
+                    injectedOperationCount++;
+                }
             }
+
+            Assert.assertEquals("Unexpected operations were injected. Expected only MetadataCheckpointOperations.", readOperations.size() - operations.size(), injectedOperationCount);
+
+            // We expect at least 2 injected operations (one is the very first one (checked above), and then at least
+            // one more based on written data.
+            AssertExtensions.assertGreaterThan("Insufficient number of injected operations.", 1, injectedOperationCount);
+        } finally {
+            // Stop the processor.
+            durableLog.stopAsync().awaitTerminated();
         }
-
-        Assert.assertEquals("Unexpected operations were injected. Expected only MetadataCheckpointOperations.", readOperations.size() - operations.size(), injectedOperationCount);
-        Collection<DurableDataLog.ReadItem> entries = setup.dataLog.get().getAllEntries(e -> e);
-        int totalWriteCount = entries.size();
-        int totalWriteLength = 0;
-        for (DurableDataLog.ReadItem ri : entries) {
-            totalWriteLength += ri.getPayload().length;
-        }
-
-        double expectedInjectionCount = calculateExpectedInjectionCount.apply(totalWriteCount, totalWriteLength);
-        double diff = Math.abs(expectedInjectionCount - injectedOperationCount);
-        AssertExtensions.assertLessThan(
-                String.format("Too many or too few injections were made. QueuedOps = %d, InjectedOps = %d, LogWrites = %d.", operations.size(), injectedOperationCount, totalWriteCount),
-                (int) (expectedInjectionCount * 0.1),
-                (int) diff);
-
-        // Stop the processor.
-        durableLog.stopAsync().awaitTerminated();
     }
 
     //endregion
