@@ -79,6 +79,11 @@ public class MockStreamManager implements StreamManager {
     }
 
     @Override
+    public void sealStream(String streamName) {
+            FutureHelpers.getAndHandleExceptions(controller.sealStream(scope, streamName), RuntimeException::new);
+    }
+
+    @Override
     public Stream getStream(String streamName) {
         return created.get(streamName);
     }

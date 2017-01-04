@@ -103,7 +103,7 @@ public class ControllerImpl implements Controller {
         final ThriftAsyncCallback<ControllerService.AsyncClient.alterStream_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
             client.sealStream(scope, streamName, callback);
-            return null; //TODO: why null?
+            return null;
         });
         return callback.getResult()
                 .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
