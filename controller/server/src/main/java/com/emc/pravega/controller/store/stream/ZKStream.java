@@ -266,7 +266,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> setStateData(State state) {
+    CompletableFuture<Void> setStateData(final State state) {
         return setData(statePath, new Data<>(SerializationUtils.serialize(state), null))
                 .thenApply(x -> cache.invalidateCache(statePath));
     }
