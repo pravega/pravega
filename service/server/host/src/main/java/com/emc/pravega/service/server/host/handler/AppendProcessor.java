@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -53,7 +52,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import com.emc.pravega.metrics.MetricsFactory;
 import com.emc.pravega.metrics.StatsLogger;
-import com.emc.pravega.metrics.Gauge;
 
 import static com.emc.pravega.service.server.host.PravegaRequestStats.PENDING_APPEND_BYTES;
 
@@ -72,7 +70,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final StreamSegmentStore store;
     private final ServerConnection connection;
     private final RequestProcessor next;
-    private final StatsLogger statsLogger = MetricsFactory.getStatsLogger();
     private final Object lock = new Object();
 
     @GuardedBy("lock")

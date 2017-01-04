@@ -90,18 +90,18 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     static final int MAX_READ_SIZE = 2 * 1024 * 1024;
 
-    private final StreamSegmentStore segmentStore;
-
-    private final ServerConnection connection;
-
     static final StatsLogger STATS_LOGGER = MetricsFactory.getStatsLogger();
 
     public static class Metrics {
-        static OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.getOpStatsLogger(CREATE_SEGMENT);
-        static OpStatsLogger READ_STREAM_SEGMENT = STATS_LOGGER.getOpStatsLogger(READ_SEGMENT);
-        static OpStatsLogger READ_BYTES_STATS = STATS_LOGGER.getOpStatsLogger(SEGMENT_READ_BYTES);
-        static Counter READ_BYTES = STATS_LOGGER.getCounter(ALL_READ_BYTES);
+        static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.getOpStatsLogger(CREATE_SEGMENT);
+        static final OpStatsLogger READ_STREAM_SEGMENT = STATS_LOGGER.getOpStatsLogger(READ_SEGMENT);
+        static final OpStatsLogger READ_BYTES_STATS = STATS_LOGGER.getOpStatsLogger(SEGMENT_READ_BYTES);
+        static final Counter READ_BYTES = STATS_LOGGER.getCounter(ALL_READ_BYTES);
     }
+
+    private final StreamSegmentStore segmentStore;
+
+    private final ServerConnection connection;
 
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
         this.segmentStore = segmentStore;
