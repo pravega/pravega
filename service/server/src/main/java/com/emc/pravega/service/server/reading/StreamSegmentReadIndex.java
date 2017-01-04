@@ -169,8 +169,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // Remove the cache entries, as well as update the summary (no need for holding the lock here; we are not modifying the index).
         toRemove.forEach(e -> {
             this.cache.remove(getCacheKey(e));
-            this.summary.remove(e.getLength(), e.getGeneration());
-            sizeRemoved.addAndGet(e.getLength());
+            long entryLength = e.getLength();
+            this.summary.remove(entryLength, e.getGeneration());
+            sizeRemoved.addAndGet(entryLength);
         });
 
         return sizeRemoved.get();
@@ -572,16 +573,17 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private CompletableReadResultEntry getRedirectedReadResultEntry(long streamSegmentOffset, int maxLength, RedirectReadIndexEntry entry) {
         StreamSegmentReadIndex redirectedIndex = entry.getRedirectReadIndex();
         long redirectOffset = streamSegmentOffset - entry.getStreamSegmentOffset();
-        assert redirectOffset >= 0 && redirectOffset < entry.getLength() :
+        long entryLength = entry.getLength();
+        assert redirectOffset >= 0 && redirectOffset < entryLength :
                 String.format("Redirected offset would be outside of the range of the Redirected StreamSegment. StreamSegmentOffset = %d, MaxLength = %d, Entry.StartOffset = %d, Entry.Length = %d, RedirectOffset = %d.",
                         streamSegmentOffset,
                         maxLength,
                         entry.getStreamSegmentOffset(),
-                        entry.getLength(),
+                        entryLength,
                         redirectOffset);
 
-        if (entry.getLength() < maxLength) {
-            maxLength = (int) entry.getLength();
+        if (entryLength < maxLength) {
+            maxLength = (int) entryLength;
         }
 
         CompletableReadResultEntry result = redirectedIndex.getFirstReadResultEntry(redirectOffset, maxLength);

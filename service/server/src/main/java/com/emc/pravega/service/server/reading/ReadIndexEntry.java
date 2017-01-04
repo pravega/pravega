@@ -28,7 +28,6 @@ class ReadIndexEntry implements IndexEntry<Long> {
     //region Members
 
     private final long streamSegmentOffset;
-    private final long length;
     private final long lastOffset; // Redundant, but frequently used, so we use 8 bytes per entry to save repeated calculations.
     private int generation;
 
@@ -48,8 +47,7 @@ class ReadIndexEntry implements IndexEntry<Long> {
         Preconditions.checkArgument(length >= 0, "length", "length must be a non-negative number.");
 
         this.streamSegmentOffset = streamSegmentOffset;
-        this.length = length;
-        this.lastOffset = length + streamSegmentOffset - 1;
+        this.lastOffset = streamSegmentOffset + length - 1;
     }
 
     //endregion
@@ -85,7 +83,7 @@ class ReadIndexEntry implements IndexEntry<Long> {
      * Gets the length of this entry.
      */
     long getLength() {
-        return this.length;
+        return this.lastOffset - this.streamSegmentOffset + 1;
     }
 
     /**
@@ -104,7 +102,7 @@ class ReadIndexEntry implements IndexEntry<Long> {
 
     @Override
     public String toString() {
-        return String.format("Offset = %d, Length = %d, Gen = %d", this.streamSegmentOffset, this.length, this.generation);
+        return String.format("Offset = %d, Length = %d, Gen = %d", this.streamSegmentOffset, getLength(), this.generation);
     }
 
     @Override
