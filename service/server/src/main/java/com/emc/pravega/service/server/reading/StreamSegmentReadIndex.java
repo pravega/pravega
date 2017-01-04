@@ -42,10 +42,9 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 /**
  * Read Index for a single StreamSegment. Integrates reading data from the following sources:
@@ -425,7 +424,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             }
         }
 
-        if (oldEntry != null && oldEntry.isDataEntry()) {
+        if (oldEntry.isPresent() && oldEntry.get().isDataEntry()) {
             // Need to eject the old entry's data from the Cache Stats.
             this.summary.remove(oldEntry.get().getLength(), oldEntry.get().getGeneration());
         }
@@ -445,7 +444,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     public void triggerFutureReads() {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
-
 
         // Get all eligible Future Reads which wait for data prior to the end offset.
         // Since we are not actually using this entry's data, there is no need to 'touch' it.
@@ -715,11 +713,14 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Exceptions.checkArgument(offsetAdjustment >= 0, "offsetAdjustment", "offsetAdjustment must be a non-negative number.");
 
         synchronized (this.lock) {
-            return this.indexEntries
-                    .values().stream()
-                    .filter(ReadIndexEntry::isDataEntry)
-                    .map(entry -> new MergedReadIndexEntry(entry.getStreamSegmentOffset() + offsetAdjustment, this.metadata.getId(), entry))
-                    .collect(Collectors.toList());
+            List<ReadIndexEntry> result = new ArrayList<>(this.indexEntries.size());
+            this.indexEntries.forEach(entry -> {
+                if (entry.isDataEntry()) {
+                    result.add(new MergedReadIndexEntry(entry.getStreamSegmentOffset() + offsetAdjustment, this.metadata.getId(), entry));
+                }
+            });
+
+            return result;
         }
     }
 
