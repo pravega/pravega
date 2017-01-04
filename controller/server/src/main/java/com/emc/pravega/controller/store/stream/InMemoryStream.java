@@ -19,7 +19,7 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxStatus;
+import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.base.Preconditions;
 import org.apache.commons.lang.NotImplementedException;
 
@@ -202,22 +202,22 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxStatus> sealTransaction(UUID txId) {
+    public CompletableFuture<TxnStatus> sealTransaction(UUID txId) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<TxStatus> checkTransactionStatus(UUID txId) {
+    public CompletableFuture<TxnStatus> checkTransactionStatus(UUID txId) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<TxStatus> commitTransaction(UUID txId) {
+    public CompletableFuture<TxnStatus> commitTransaction(UUID txId) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<TxStatus> abortTransaction(UUID txId) {
+    public CompletableFuture<TxnStatus> abortTransaction(UUID txId) {
         throw new NotImplementedException();
     }
 

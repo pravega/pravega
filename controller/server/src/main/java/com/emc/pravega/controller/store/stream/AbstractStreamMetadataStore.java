@@ -19,7 +19,7 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxStatus;
+import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -165,22 +165,22 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<TxStatus> transactionStatus(final String scope, final String stream, final UUID txId) {
+    public CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId) {
         return getStream(stream).checkTransactionStatus(txId);
     }
 
     @Override
-    public CompletableFuture<TxStatus> commitTransaction(final String scope, final String stream, final UUID txId) {
+    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId) {
         return getStream(stream).commitTransaction(txId);
     }
 
     @Override
-    public CompletableFuture<TxStatus> sealTransaction(final String scope, final String stream, final UUID txId) {
+    public CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId) {
         return getStream(stream).sealTransaction(txId);
     }
 
     @Override
-    public CompletableFuture<TxStatus> dropTransaction(final String scope, final String stream, final UUID txId) {
+    public CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final UUID txId) {
         return getStream(stream).abortTransaction(txId);
     }
 

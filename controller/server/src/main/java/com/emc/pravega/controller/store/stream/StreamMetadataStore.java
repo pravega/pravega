@@ -19,7 +19,7 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxStatus;
+import com.emc.pravega.stream.impl.TxnStatus;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -145,7 +145,7 @@ public interface StreamMetadataStore {
      * @param txId   transaction id
      * @return
      */
-    CompletableFuture<TxStatus> transactionStatus(final String scope, final String stream, final UUID txId);
+    CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId);
 
     /**
      * Update stream store to mark transaction as committed.
@@ -155,7 +155,7 @@ public interface StreamMetadataStore {
      * @param txId   transaction id
      * @return
      */
-    CompletableFuture<TxStatus> commitTransaction(final String scope, final String stream, final UUID txId);
+    CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId);
 
     /**
      * Update stream store to mark transaction as sealed.
@@ -165,7 +165,7 @@ public interface StreamMetadataStore {
      * @param txId   transaction id
      * @return
      */
-    CompletableFuture<TxStatus> sealTransaction(final String scope, final String stream, final UUID txId);
+    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId);
 
     /**
      * Update stream store to mark the transaction as aborted.
@@ -175,7 +175,7 @@ public interface StreamMetadataStore {
      * @param txId   transaction id
      * @return
      */
-    CompletableFuture<TxStatus> dropTransaction(final String scope, final String stream, final UUID txId);
+    CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final UUID txId);
 
     /**
      * Returns all active transactions for all streams.

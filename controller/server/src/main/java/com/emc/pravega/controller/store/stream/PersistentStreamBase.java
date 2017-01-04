@@ -29,7 +29,7 @@ import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxStatus;
+import com.emc.pravega.stream.impl.TxnStatus;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import java.util.AbstractMap;
@@ -266,28 +266,28 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxStatus> checkTransactionStatus(final UUID txId) {
+    public CompletableFuture<TxnStatus> checkTransactionStatus(final UUID txId) {
 
-        final CompletableFuture<TxStatus> activeTx = getActiveTx(txId)
+        final CompletableFuture<TxnStatus> activeTx = getActiveTx(txId)
                 .handle((ok, ex) -> {
                     if (ok == null ||
                             (ex != null && ex instanceof DataNotFoundException)) {
-                        return TxStatus.UNKNOWN;
+                        return TxnStatus.UNKNOWN;
                     } else if (ex != null) {
                         throw new RuntimeException(ex);
                     } else {
-                        return ActiveTxRecord.parse(ok.getData()).getTxStatus();
+                        return ActiveTxRecord.parse(ok.getData()).getTxnStatus();
                     }
                 });
 
         return activeTx
                 .thenCompose(x -> {
-                    if (x.equals(TxStatus.UNKNOWN)) {
+                    if (x.equals(TxnStatus.UNKNOWN)) {
                         return getCompletedTx(txId)
                                 .handle((ok, ex) -> {
                                     if (ok == null ||
                                             (ex != null && ex instanceof DataNotFoundException)) {
-                                        return TxStatus.UNKNOWN;
+                                        return TxnStatus.UNKNOWN;
                                     } else if (ex != null) {
                                         throw new RuntimeException(ex);
                                     } else {
@@ -301,14 +301,14 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxStatus> sealTransaction(final UUID txId) {
+    public CompletableFuture<TxnStatus> sealTransaction(final UUID txId) {
         return checkTransactionStatus(txId)
                 .thenCompose(x -> {
                     switch (x) {
                         case SEALED:
-                            return CompletableFuture.completedFuture(TxStatus.SEALED);
+                            return CompletableFuture.completedFuture(TxnStatus.SEALED);
                         case OPEN:
-                            return sealActiveTx(txId).thenApply(y -> TxStatus.SEALED);
+                            return sealActiveTx(txId).thenApply(y -> TxnStatus.SEALED);
                         case ABORTED:
                         case COMMITTED:
                             throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
@@ -319,7 +319,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxStatus> commitTransaction(final UUID txId) {
+    public CompletableFuture<TxnStatus> commitTransaction(final UUID txId) {
 
         return checkTransactionStatus(txId)
                 .thenApply(x -> {
@@ -337,18 +337,18 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     }
                 })
                 .thenCompose(x -> {
-                    if (x.equals(TxStatus.SEALED)) {
-                        return createCompletedTxEntry(txId, TxStatus.COMMITTED, System.currentTimeMillis());
+                    if (x.equals(TxnStatus.SEALED)) {
+                        return createCompletedTxEntry(txId, TxnStatus.COMMITTED, System.currentTimeMillis());
                     } else {
                         return CompletableFuture.completedFuture(null); // already committed, do nothing
                     }
                 })
                 .thenCompose(x -> removeActiveTxEntry(txId))
-                .thenApply(x -> TxStatus.COMMITTED);
+                .thenApply(x -> TxnStatus.COMMITTED);
     }
 
     @Override
-    public CompletableFuture<TxStatus> abortTransaction(final UUID txId) {
+    public CompletableFuture<TxnStatus> abortTransaction(final UUID txId) {
         return checkTransactionStatus(txId)
                 .thenApply(x -> {
                     switch (x) {
@@ -363,9 +363,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             throw new TransactionNotFoundException(txId.toString());
                     }
                 })
-                .thenCompose(x -> createCompletedTxEntry(txId, TxStatus.ABORTED, System.currentTimeMillis())
+                .thenCompose(x -> createCompletedTxEntry(txId, TxnStatus.ABORTED, System.currentTimeMillis())
                         .thenCompose(y -> removeActiveTxEntry(txId))
-                        .thenApply(y -> TxStatus.ABORTED));
+                        .thenApply(y -> TxnStatus.ABORTED));
     }
 
     private CompletionStage<List<Segment>> getSegments(final int count,
@@ -416,13 +416,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
         return setSegmentTableChunk(currentChunk, updatedChunkData)
                 .thenCompose(y -> {
-                    final int chunkNumber = TableHelper.getSegmentChunkNumber(startingSegmentNumber + scale
-                            .getNewRanges().size());
+                    final int chunkNumber = TableHelper.getSegmentChunkNumber(startingSegmentNumber + scale.getNewRanges().size());
                     final int remaining = Integer.max(scale.getNewRanges().size() - toCreate, 0);
 
                     if (remaining > 0) {
-                        final byte[] newSegmentChunk = TableHelper.updateSegmentTable(chunkNumber * SegmentRecord
-                                        .SEGMENT_CHUNK_SIZE,
+                        final byte[] newSegmentChunk = TableHelper.updateSegmentTable(chunkNumber * SegmentRecord.SEGMENT_CHUNK_SIZE,
                                 new byte[0], // new chunk
                                 remaining,
                                 scale.getNewRanges(),
@@ -573,6 +571,5 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> removeActiveTxEntry(final UUID txId);
 
-    abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxStatus complete, final long
-            timestamp);
+    abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp);
 }

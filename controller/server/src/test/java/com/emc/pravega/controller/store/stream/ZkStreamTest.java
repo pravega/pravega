@@ -21,7 +21,7 @@ import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.TxStatus;
+import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.collect.Lists;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -225,7 +225,7 @@ public class ZkStreamTest {
 
         List<ActiveTxRecordWithStream> y = store.getAllActiveTx().get();
         ActiveTxRecordWithStream z = y.get(0);
-        assert z.getTxid().equals(tx) && z.getTxRecord().getTxStatus() == TxStatus.OPEN;
+        assert z.getTxid().equals(tx) && z.getTxRecord().getTxnStatus() == TxnStatus.OPEN;
 
         UUID tx2 = store.createTransaction(streamName, streamName).get();
         y = store.getAllActiveTx().get();
@@ -233,15 +233,15 @@ public class ZkStreamTest {
         assert y.size() == 2;
 
         store.sealTransaction(streamName, streamName, tx).get();
-        assert store.transactionStatus(streamName, streamName, tx).get().equals(TxStatus.SEALED);
+        assert store.transactionStatus(streamName, streamName, tx).get().equals(TxnStatus.SEALED);
 
-        CompletableFuture<TxStatus> f1 = store.commitTransaction(streamName, streamName, tx);
-        CompletableFuture<TxStatus> f2 = store.dropTransaction(streamName, streamName, tx2);
+        CompletableFuture<TxnStatus> f1 = store.commitTransaction(streamName, streamName, tx);
+        CompletableFuture<TxnStatus> f2 = store.dropTransaction(streamName, streamName, tx2);
 
         CompletableFuture.allOf(f1, f2).get();
 
-        assert store.transactionStatus(streamName, streamName, tx).get().equals(TxStatus.COMMITTED);
-        assert store.transactionStatus(streamName, streamName, tx2).get().equals(TxStatus.ABORTED);
+        assert store.transactionStatus(streamName, streamName, tx).get().equals(TxnStatus.COMMITTED);
+        assert store.transactionStatus(streamName, streamName, tx2).get().equals(TxnStatus.ABORTED);
 
         assert store.commitTransaction(streamName, streamName, UUID.randomUUID())
                 .handle((ok, ex) -> {
@@ -261,6 +261,6 @@ public class ZkStreamTest {
                     }
                 }).get();
 
-        assert store.transactionStatus(streamName, streamName, UUID.randomUUID()).get().equals(TxStatus.UNKNOWN);
+        assert store.transactionStatus(streamName, streamName, UUID.randomUUID()).get().equals(TxnStatus.UNKNOWN);
     }
 }
