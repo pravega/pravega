@@ -264,7 +264,7 @@ public class TurbineHeatSensor {
                     // event ingestion
                     if (isTransaction) {
                         try {
-                            transaction.writeEvent(city, payload);
+                            transaction.writeEvent(new Integer(producerId).toString(), payload);
                         } catch (TxnFailedException e) {
                             System.out.println("Publish to transaction failed");
                             e.printStackTrace();
@@ -273,7 +273,7 @@ public class TurbineHeatSensor {
                     } else {
                         long now = System.currentTimeMillis();
                         retFuture = produceStats.runAndRecordTime(() -> {
-                            return (CompletableFuture<Void>) producer.writeEvent(city, payload);
+                            return (CompletableFuture<Void>) producer.writeEvent(new Integer(producerId).toString(), payload);
                         },
                                 () -> now,
                                 payload.length());
