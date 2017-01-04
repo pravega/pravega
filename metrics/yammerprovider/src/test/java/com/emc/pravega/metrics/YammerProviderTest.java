@@ -62,7 +62,6 @@ public class YammerProviderTest {
             }
         };
         statsLogger.registerGauge("testGauge", gauge);
-
         assertEquals(27, MetricsFactory.getMetrics().getGauges().get("testGauge").getValue());
     }
 }

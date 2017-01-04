@@ -23,6 +23,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.BiFunction;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.concurrent.GuardedBy;
 
@@ -66,6 +67,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     static final int LOW_WATER_MARK = 64 * 1024;
 
     static final StatsLogger STATS_LOGGER = MetricsFactory.getStatsLogger();
+    static AtomicLong pendBytes = new AtomicLong();
+    static {
+        STATS_LOGGER.registerGauge(PENDING_APPEND_BYTES, pendBytes);
+    }
 
     private final StreamSegmentStore store;
     private final ServerConnection connection;
@@ -252,8 +257,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 .mapToInt(a -> a.getData().readableBytes())
                 .sum();
         }
-        // Register gauges
-        STATS_LOGGER.registerLongGauge(PENDING_APPEND_BYTES, Long.valueOf(bytesWaiting));
+        // Registered gauge value
+        pendBytes.set(bytesWaiting);
+
         if (bytesWaiting > HIGH_WATER_MARK) {
             connection.pauseReading();
         }

@@ -19,6 +19,8 @@ package com.emc.pravega.metrics;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.MetricRegistry;
 import static com.codahale.metrics.MetricRegistry.name;
+import java.util.concurrent.atomic.AtomicLong;
+import com.google.common.util.concurrent.AtomicDouble;
 
 public class YammerStatsLogger implements StatsLogger {
     protected final String basename;
@@ -82,26 +84,26 @@ public class YammerStatsLogger implements StatsLogger {
     }
 
     @Override
-    public void registerLongGauge(final String statName, final Long value) {
+    public void registerGauge(final String statName, final AtomicLong value) {
         String metricName = name(basename, statName);
         metrics.remove(metricName);
 
-        metrics.register(metricName, new com.codahale.metrics.Gauge<Long>() {
+        metrics.register(metricName, new com.codahale.metrics.Gauge<AtomicLong>() {
             @Override
-            public Long getValue() {
+            public AtomicLong getValue() {
                 return value;
             }
         });
     }
 
     @Override
-    public void registerDoubleGauge(final String statName, final Double value) {
+    public void registerGauge(final String statName, final AtomicDouble value) {
         String metricName = name(basename, statName);
         metrics.remove(metricName);
 
-        metrics.register(metricName, new com.codahale.metrics.Gauge<Double>() {
+        metrics.register(metricName, new com.codahale.metrics.Gauge<AtomicDouble>() {
             @Override
-            public Double getValue() {
+            public AtomicDouble getValue() {
                 return value;
             }
         });
