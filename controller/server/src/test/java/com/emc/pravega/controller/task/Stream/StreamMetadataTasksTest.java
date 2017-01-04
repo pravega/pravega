@@ -60,7 +60,6 @@ public class StreamMetadataTasksTest {
 
     private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
-    private final String stream2 = "stream2";
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore streamStore =
