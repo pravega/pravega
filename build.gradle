@@ -207,6 +207,9 @@ project('service:server:host') {
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-Xmx512m", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Xloggc:/tmp/logs/gc.log", "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps"]
     mainClassName = "com.emc.pravega.service.server.host.ServiceStarter"
+
+    applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError"]
+
     dependencies {
         compile project(':common')
         compile project(':service:contracts')

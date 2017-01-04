@@ -72,6 +72,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -365,7 +366,7 @@ public class StreamSegmentContainerTests {
      * Tests the ability to delete StreamSegments.
      */
     @Test
-    public void testSegmentDelete() {
+    public void testSegmentDelete() throws Exception {
         final int appendsPerSegment = 1;
         @Cleanup
         TestContext context = new TestContext();
@@ -387,7 +388,7 @@ public class StreamSegmentContainerTests {
             }
         }
 
-        FutureHelpers.allOf(appendFutures).join();
+        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 3. Delete the first half of the segments.
         ArrayList<CompletableFuture<Void>> deleteFutures = new ArrayList<>();
@@ -396,7 +397,7 @@ public class StreamSegmentContainerTests {
             deleteFutures.add(context.container.deleteStreamSegment(segmentName, TIMEOUT));
         }
 
-        FutureHelpers.allOf(deleteFutures);
+        FutureHelpers.allOf(deleteFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 4. Verify that only the first half of the segments (and their Transactions) were deleted, and not the others.
         for (int i = 0; i < segmentNames.size(); i++) {
@@ -575,7 +576,7 @@ public class StreamSegmentContainerTests {
         }
 
         segmentsToSeal.forEach(segmentName -> operationFutures
-            .add(FutureHelpers.toVoid(context.container.sealStreamSegment(segmentName, TIMEOUT))));
+                .add(FutureHelpers.toVoid(context.container.sealStreamSegment(segmentName, TIMEOUT))));
         FutureHelpers.allOf(operationFutures).join();
 
         // Now wait for all the reads to complete, and verify their results against the expected output.
