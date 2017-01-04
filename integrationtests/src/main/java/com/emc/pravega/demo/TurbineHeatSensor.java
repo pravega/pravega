@@ -35,6 +35,7 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
@@ -285,6 +286,7 @@ public class TurbineHeatSensor {
         private long windowStart;
         private int[] latencies;
         private int sampling;
+        @GuardedBy("this")
         private int iteration;
         private int index;
         private long count;
