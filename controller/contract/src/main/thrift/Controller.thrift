@@ -19,19 +19,19 @@ enum ScaleStreamStatus {
     UPDATE_CONFLICT
 }
 
-enum TransactionStatus {
+enum TxnStatus {
     SUCCESS,
     FAILURE,
     STREAM_NOT_FOUND,
     TRANSACTION_NOT_FOUND
 }
 
-enum TxState {
+enum TxnState {
 	UNKNOWN,
     OPEN,
     SEALED,
     COMMITTED,
-    DROPPED
+    ABORTED
 }
 
 enum ScalingPolicyType {
@@ -81,7 +81,7 @@ struct Position {
   2: required map<FutureSegment, i64> futureOwnedSegments
 }
 
-struct TxId {
+struct TxnId {
  1: required i64 highBits,
  2: required i64 lowBits
 }

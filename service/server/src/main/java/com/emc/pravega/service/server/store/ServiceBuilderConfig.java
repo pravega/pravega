@@ -67,8 +67,9 @@ public class ServiceBuilderConfig {
 
     /**
      * Gets a set of configuration values from the default config file.
-     * @return              Service builder config read from the default config file.
-     * @throws IOException  If the config file can not be read from.
+     *
+     * @return Service builder config read from the default config file.
+     * @throws IOException If the config file can not be read from.
      */
     public static ServiceBuilderConfig getConfigFromFile() throws IOException {
         FileReader reader = null;
@@ -83,7 +84,8 @@ public class ServiceBuilderConfig {
 
     /**
      * Gets a set of configuration values from a given InputStreamReader.
-     * @param  reader the InputStreamReader from which to read the configuration.
+     *
+     * @param reader the InputStreamReader from which to read the configuration.
      * @return A ServiceBuilderConfig object.
      * @throws IOException If an exception occurred during reading of the configuration.
      */
@@ -95,28 +97,16 @@ public class ServiceBuilderConfig {
 
     /**
      * Gets a default set of configuration values, in absence of any real configuration.
+     * These configuration values are the default ones from all component configurations, except that it will
+     * create only one container to host segments.
      */
     public static ServiceBuilderConfig getDefaultConfig() {
         Properties p = new Properties();
 
-        // General params
+        // General params.
         set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "1");
-        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "50");
-        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT, "12345");
 
-        // DistributedLog params.
-        set(p, "dlog", "hostname", "zk1");
-        set(p, "dlog", "port", "2181");
-        set(p, "dlog", "namespace", "messaging/distributedlog/mynamespace");
-
-        //HDFS params
-        set(p, "hdfs", "fs.default.name", "localhost:9000");
-        set(p, "hdfs", "hdfsRoot", "");
-        set(p, "hdfs", "pravegaId", "0");
-        set(p, "hdfs", "replication", "1");
-        set(p, "hdfs", "blockSize", "1048576");
-
-        // DurableLogConfig, WriterConfig, ReadIndexConfig all have defaults built-in, so no need to override them here.
+        // All component configs should have defaults built-in, so no need to override them here.
         return new ServiceBuilderConfig(p);
     }
 

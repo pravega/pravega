@@ -19,12 +19,9 @@ package com.emc.pravega.controller.server.v1;
 
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.store.StoreClient;
-import com.emc.pravega.controller.store.StoreClientFactory;
-import com.emc.pravega.controller.store.host.Host;
+import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
@@ -35,17 +32,16 @@ import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.util.ThriftAsyncCallback;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.model.ModelHelper;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.apache.thrift.TException;
 import org.junit.Test;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -69,32 +65,29 @@ public class ControllerServiceAsyncImplTest {
         zkServer = new TestingServer();
         zkServer.start();
 
-        StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
+        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
+                new ExponentialBackoffRetry(200, 10, 5000));
+        zkClient.start();
 
         final ScheduledExecutorService executor = Executors.newScheduledThreadPool(20,
                 new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
 
-        StoreClient storeClient = StoreClientFactory.createStoreClient(StoreClientFactory.StoreType.Zookeeper, config);
+        StoreClient storeClient = new ZKStoreClient(zkClient);
 
-        final StreamMetadataStore streamStore =
-                StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null, executor);
+        final StreamMetadataStore streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory,
+                executor);
 
-        final TaskMetadataStore taskMetadataStore =
-                TaskStoreFactory.createStore(storeClient, executor);
+        final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
-        final Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
-        hostContainerMap.put(new Host("localhost", 12345), Collections.singleton(0));
+        final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
 
-        final HostControllerStore hostStore =
-                HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
-                        new InMemoryHostControllerStoreConfig(hostContainerMap, 1));
-
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+                executor, "host");
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =
                 new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
 
-        this.controllerService =
-                new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        this.controllerService = new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks);
     }
 
     @Test

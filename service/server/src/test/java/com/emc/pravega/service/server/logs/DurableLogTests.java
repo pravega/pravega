@@ -18,8 +18,10 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -31,7 +33,6 @@ import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.OperationLog;
-import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestDurableDataLog;
@@ -51,7 +52,6 @@ import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
-import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
@@ -82,7 +82,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -404,6 +403,7 @@ public class DurableLogTests extends OperationLogTestBase {
                         oc.completion::join,
                         ex -> ex instanceof DataCorruptionException
                                 || ex instanceof IllegalContainerStateException
+                                || ex instanceof ObjectClosedException
                                 || (ex instanceof IOException && (ex.getCause() instanceof DataCorruptionException || ex.getCause() instanceof IllegalContainerStateException)));
                 encounteredFirstFailure = true;
             } else {
@@ -519,9 +519,9 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a read operation, and make sure it is blocked (since there is no data).
         CompletableFuture<Iterator<Operation>> readFuture = durableLog.read(1, 1, shortTimeout);
-        Assert.assertFalse("read() returned a completed future when there is no data available.", readFuture.isDone());
+        Assert.assertFalse("read() returned a completed future when there is no data available.", FutureHelpers.isSuccessful(readFuture));
 
-        CompletableFuture<Void> controlFuture = FutureHelpers.delayedFuture(Duration.ofMillis((int) (shortTimeout.toMillis() * 1.2)), setup.executorService.get());
+        CompletableFuture<Void> controlFuture = FutureHelpers.delayedFuture(Duration.ofMillis(2000), setup.executorService.get());
         AssertExtensions.assertThrows(
                 "Future from read() operation did not fail with a TimeoutException after the timeout expired.",
                 () -> CompletableFuture.anyOf(controlFuture, readFuture),
@@ -536,8 +536,7 @@ public class DurableLogTests extends OperationLogTestBase {
         int checkpointEvery = 10;
         testMetadataCheckpoint(
                 () -> ContainerSetup.createDurableLogConfig(checkpointEvery, null),
-                checkpointEvery,
-                (totalWriteCount, totalWriteLength) -> (double) totalWriteCount / checkpointEvery);
+                checkpointEvery);
     }
 
     /**
@@ -548,20 +547,17 @@ public class DurableLogTests extends OperationLogTestBase {
         int checkpointLengthThreshold = 69 * 1024;
         testMetadataCheckpoint(
                 () -> ContainerSetup.createDurableLogConfig(null, (long) checkpointLengthThreshold),
-                10,
-                (totalWriteCount, totalWriteLength) -> (double) totalWriteLength / checkpointLengthThreshold);
+                10);
     }
 
     /**
      * Tests the ability of the DurableLog to add MetadataCheckpointOperations.
      *
-     * @param createDurableLogConfig          A Supplier that creates a DurableLogConfig object.
-     * @param waitForProcessingFrequency      The frequency at which to stop and wait for operations to be processed by the
-     *                                        DurableLog before adding others.
-     * @param calculateExpectedInjectionCount A function that, given the total number of DurableDataLog writes (and their total lengths),
-     *                                        calculates the expected number of injected operations that should exist.
+     * @param createDurableLogConfig     A Supplier that creates a DurableLogConfig object.
+     * @param waitForProcessingFrequency The frequency at which to stop and wait for operations to be processed by the
+     *                                   DurableLog before adding others.
      */
-    private void testMetadataCheckpoint(Supplier<DurableLogConfig> createDurableLogConfig, int waitForProcessingFrequency, BiFunction<Integer, Integer, Double> calculateExpectedInjectionCount) throws Exception {
+    private void testMetadataCheckpoint(Supplier<DurableLogConfig> createDurableLogConfig, int waitForProcessingFrequency) throws Exception {
         int streamSegmentCount = 500;
         int appendsPerStreamSegment = 20;
 
@@ -576,7 +572,7 @@ public class DurableLogTests extends OperationLogTestBase {
         durableLog.startAsync().awaitRunning();
 
         // Verify that on a freshly created DurableLog, it auto-adds a MetadataCheckpoint as the first operation.
-        verifyFirstItemIsMetadataCheckpoint(durableLog.read(-1L, 1, TIMEOUT).join());
+        verifyFirstItemIsMetadataCheckpoint(durableLog.read(-1L, 1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
 
         // Generate some test data (we need to do this after we started the DurableLog because in the process of
         // recovery, it wipes away all existing metadata).
@@ -588,7 +584,7 @@ public class DurableLogTests extends OperationLogTestBase {
         List<LogTestHelpers.OperationWithCompletion> completionFutures = processOperations(operations, durableLog, waitForProcessingFrequency);
 
         // Wait for all such operations to complete. If any of them failed, this will fail too and report the exception.
-        LogTestHelpers.allOf(completionFutures).join();
+        LogTestHelpers.allOf(completionFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         List<Operation> readOperations = readAllDurableLog(durableLog);
 
         int injectedOperationCount = 0;
@@ -599,19 +595,10 @@ public class DurableLogTests extends OperationLogTestBase {
         }
 
         Assert.assertEquals("Unexpected operations were injected. Expected only MetadataCheckpointOperations.", readOperations.size() - operations.size(), injectedOperationCount);
-        Collection<DurableDataLog.ReadItem> entries = setup.dataLog.get().getAllEntries(e -> e);
-        int totalWriteCount = entries.size();
-        int totalWriteLength = 0;
-        for (DurableDataLog.ReadItem ri : entries) {
-            totalWriteLength += ri.getPayload().length;
-        }
 
-        double expectedInjectionCount = calculateExpectedInjectionCount.apply(totalWriteCount, totalWriteLength);
-        double diff = Math.abs(expectedInjectionCount - injectedOperationCount);
-        AssertExtensions.assertLessThan(
-                String.format("Too many or too few injections were made. QueuedOps = %d, InjectedOps = %d, LogWrites = %d.", operations.size(), injectedOperationCount, totalWriteCount),
-                1,
-                (int) (10 * diff / expectedInjectionCount));
+        // We expect at least 2 injected operations (one is the very first one (checked above), and then at least
+        // one more based on written data.
+        AssertExtensions.assertGreaterThan("Insufficient number of injected operations.", 1, injectedOperationCount);
 
         // Stop the processor.
         durableLog.stopAsync().awaitTerminated();

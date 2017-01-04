@@ -24,8 +24,6 @@ import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang.NotImplementedException;
 
-import com.emc.pravega.common.netty.ClientConnection;
-import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
@@ -33,9 +31,11 @@ import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.RetriesExaustedException;
-import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.netty.ClientConnection;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.annotations.VisibleForTesting;
 
 import lombok.RequiredArgsConstructor;
@@ -69,11 +69,11 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
                name.complete(info.getTransactionName());
             }
         };
-        controller.getEndpointForSegment(segment.getQualifiedName()).thenCompose((PravegaNodeUri endpointForSegment) -> {
+        controller.getEndpointForSegment(segment.getScopedName()).thenCompose((PravegaNodeUri endpointForSegment) -> {
             return cf.establishConnection(endpointForSegment, replyProcessor);
         }).thenAccept((ClientConnection connection) -> {
             try {
-                connection.send(new GetTransactionInfo(segment.getQualifiedName(), txId));
+                connection.send(new GetTransactionInfo(segment.getScopedName(), txId));
             } catch (ConnectionFailedException e) {
                 throw new RuntimeException(e);
             } 
@@ -87,7 +87,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     @Override
     public SegmentOutputStream createOutputStreamForSegment(Segment segment, SegmentOutputConfiguration config)
             throws SegmentSealedException {
-        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getQualifiedName(), controller, cf, UUID.randomUUID());
+        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, UUID.randomUUID());
         try {
             result.getConnection();
         } catch (RetriesExaustedException e) {

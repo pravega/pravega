@@ -29,9 +29,19 @@ allprojects {
     apply plugin: 'signing'
     apply plugin: 'checkstyle'
     apply plugin: 'com.bmuschko.docker-java-application'
+    apply plugin: 'maven-publish'
 
     checkstyle {
         toolVersion = "7.1"
+    }
+
+    javadoc {
+        failOnError = false
+        exclude  "**/impl/**";
+    }
+
+    ext {
+        pravegaVersion = "0.0"
     }
 
     repositories {
@@ -70,6 +80,31 @@ allprojects {
         testCompile "org.mockito:mockito-core:2.+"
     }
 
+    publishing {
+        repositories {
+            maven {
+                credentials {
+                    username = "$repoUser"
+                    password = "$repoPass"
+                }
+                url = "$repoUrl"
+            }
+        }
+    }
+
+    tasks.withType(GroovyCompile) {
+        groovyOptions.fork = false
+    }
+
+    tasks.withType(Test) {
+        testLogging.exceptionFormat = "FULL"
+        testLogging.showCauses = true
+        testLogging.showExceptions = true
+        testLogging.showStackTraces = true
+        maxParallelForks = 2
+        minHeapSize = "128m"
+        maxHeapSize = "512m"
+    }
 }
 
 def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
@@ -77,6 +112,19 @@ def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
 project('common') {
     dependencies {
         testCompile project(':testcommon')
+        testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
+        compile group: 'org.apache.curator', name: 'curator-recipes', version: '2.11.0'
+        compile group: 'commons-io', name: 'commons-io', version: '2.5'
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                groupId 'pravega'
+                artifactId 'common'
+                version = pravegaVersion
+                from components.java
+            }
+        }
     }
 }
 
@@ -86,6 +134,16 @@ project('clients:streaming') {
         compile project(':common')
         compile project(":controller:contract")
         testCompile project(':testcommon')
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                groupId 'pravega'
+                artifactId 'client'
+                version = pravegaVersion
+                from components.java
+            }
+        }
     }
 }
 
@@ -131,7 +189,7 @@ project('service:storage:impl') {
         compile project(':common')
         compile project(':service:storage')
         testCompile project(':testcommon')
-	testCompile files(project(':service:storage').sourceSets.test.output)
+        testCompile files(project(':service:storage').sourceSets.test.output)
     }
 }
 
@@ -147,6 +205,9 @@ project('service:server') {
 project('service:server:host') {
     apply plugin: 'application'
     mainClassName = "com.emc.pravega.service.server.host.ServiceStarter"
+
+    applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError"]
+
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
@@ -154,6 +215,7 @@ project('service:server:host') {
         compile project(':service:storage:impl')
         compile project(':service:server')
         testCompile project(':testcommon')
+        testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
     }
     task buildPravegaHostImage(type: DockerBuildImage) {
         dependsOn 'distTar','distZip'
@@ -190,14 +252,12 @@ project('integrationtests') {
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
     }
+
     task startServer(type: JavaExec) {
         main = "com.emc.pravega.service.server.host.ServiceStarter"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
-
-
-
 
     task startServerInteractive(type: JavaExec) {
         main = "com.emc.pravega.service.server.host.InteractiveStreamSegmentStoreTester"
@@ -210,21 +270,27 @@ project('integrationtests') {
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
-	
+
     task startLocalService(type: JavaExec) {
         main = "com.emc.pravega.demo.StartLocalService"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
-	
+
     task startProducer(type: JavaExec) {
         main = "com.emc.pravega.demo.StartProducer"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
-	
+
     task startConsumer(type: JavaExec) {
         main = "com.emc.pravega.demo.StartConsumer"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+    }
+
+    task startController(type: JavaExec) {
+        main = "com.emc.pravega.controller.server.Main"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
@@ -260,6 +326,16 @@ project('controller:contract') {
         compile group: 'org.apache.thrift', name: 'libthrift', version: '0.9.3'
         compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
     }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                groupId 'pravega'
+                artifactId 'contract'
+                version = pravegaVersion
+                from components.java
+            }
+        }
+    }
 }
 
 project('controller:server') {
@@ -270,8 +346,8 @@ project('controller:server') {
     apply plugin: 'application'
     mainClassName = "com.emc.pravega.controller.server.Main"
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-Xmx512m", "-XX:+HeapDumpOnOutOfMemoryError",
-            "-Dconfig.file=CONTROLLER_APP_HOME/conf/application.conf",
-            "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml"]
+                                 "-Dconfig.file=CONTROLLER_APP_HOME/conf/application.conf",
+                                 "-Dlogback.configurationFile=CONTROLLER_APP_HOME/conf/logback.xml"]
 
     applicationDistribution.from('src/conf') {
         into "conf"
@@ -316,18 +392,6 @@ project('controller:server') {
         }
     }
 }
-
-allprojects {
-    tasks.withType(GroovyCompile) {
-        groovyOptions.fork = false
-    }
-    tasks.withType(Test) {
-        // containers (currently) have 2 dedicated cores and 4GB of memory
-        maxParallelForks = 2
-        minHeapSize = '128m'
-    }
-}
-
 
 subprojects {
     task allDeps(type: DependencyReportTask) {}

@@ -18,7 +18,7 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxStatus;
+import com.emc.pravega.stream.impl.TxnStatus;
 
 import java.util.AbstractMap;
 import java.util.List;
@@ -110,32 +110,32 @@ interface Stream {
      * @param txId
      * @return
      */
-    CompletableFuture<TxStatus> sealTransaction(final UUID txId);
+    CompletableFuture<TxnStatus> sealTransaction(final UUID txId);
 
     /**
      * Returns transaction's status
      * @param txId
      * @return
      */
-    CompletableFuture<TxStatus> checkTransactionStatus(final UUID txId);
+    CompletableFuture<TxnStatus> checkTransactionStatus(final UUID txId);
 
     /**
      * Commits a transaction
-     * If already committed, return TxStatus.Committed
-     * If dropped, throw OperationOnTxNotAllowedException
+     * If already committed, return TxnStatus.Committed
+     * If aborted, throw OperationOnTxNotAllowedException
      * @param txId
      * @return
      */
-    CompletableFuture<TxStatus> commitTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
+    CompletableFuture<TxnStatus> commitTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
 
     /**
      * Commits a transaction
-     * If already dropped, return TxStatus.Dropped
+     * If already aborted, return TxnStatus.Aborted
      * If committed, throw OperationOnTxNotAllowedException
      * @param txId
      * @return
      */
-    CompletableFuture<TxStatus> dropTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
+    CompletableFuture<TxnStatus> abortTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.

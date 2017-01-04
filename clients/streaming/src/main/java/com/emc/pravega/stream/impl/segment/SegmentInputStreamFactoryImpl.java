@@ -20,9 +20,9 @@ package com.emc.pravega.stream.impl.segment;
 import java.util.concurrent.ExecutionException;
 
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.annotations.VisibleForTesting;
 
 import lombok.RequiredArgsConstructor;
@@ -38,7 +38,7 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     
     @Override
     public SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config) {
-        AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment.getQualifiedName());
+        AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment.getScopedName());
         try {
             Exceptions.handleInterrupted(() -> result.getConnection().get());
         } catch (ExecutionException e) {

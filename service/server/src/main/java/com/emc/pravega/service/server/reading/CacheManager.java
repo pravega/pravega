@@ -26,7 +26,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -65,10 +64,11 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
      * Creates a new instance of the CacheManager class.
      *
      * @param policy          The policy to use with this CacheManager.
-     * @param executorService (Optional) An executorService to use for scheduled tasks.
+     * @param executorService An executorService to use for scheduled tasks.
      */
-    public CacheManager(CachePolicy policy, @Nullable ScheduledExecutorService executorService) {
+    public CacheManager(CachePolicy policy, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(policy, "policy");
+        Preconditions.checkNotNull(executorService, "executorService");
         this.policy = policy;
         this.clients = new HashSet<>();
         this.oldestGeneration = 0;
@@ -99,7 +99,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     @Override
     protected ScheduledExecutorService executor() {
-        return this.executorService != null ? this.executorService : super.executor();
+        return this.executorService;
     }
 
     @Override
@@ -169,8 +169,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     protected void applyCachePolicy() {
         // Run through all the active clients and gather status.
         CacheStatus currentStatus = collectStatus();
-        if (currentStatus == null) {
-            // This indicates we have no clients.
+        if (currentStatus == null || currentStatus.getSize() == 0) {
+            // This indicates we have no clients or those clients have no data.
             return;
         }
 
@@ -218,8 +218,12 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 continue;
             }
 
-            totalSize += clientStatus.getSize();
+            if (clientStatus.getSize() == 0) {
+                // Nothing interesting in this client.
+                continue;
+            }
 
+            totalSize += clientStatus.getSize();
             if (clientStatus.oldestGeneration > this.currentGeneration || clientStatus.newestGeneration > this.currentGeneration) {
                 log.warn("{} Client {} returned status that is out of bounds {}. CurrentGeneration = {}, OldestGeneration = {}.", TRACE_OBJECT_ID, c, clientStatus, this.currentGeneration, this.oldestGeneration);
             }
@@ -386,7 +390,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         private CacheStatus withUpdatedSize(long sizeDelta) {
             long newSize = this.size + sizeDelta;
             assert newSize >= 0 : "given sizeDelta would result in a negative size";
-            return new CacheStatus(newSize, oldestGeneration, newestGeneration);
+            return new CacheStatus(newSize, this.oldestGeneration, this.newestGeneration);
         }
 
         @Override

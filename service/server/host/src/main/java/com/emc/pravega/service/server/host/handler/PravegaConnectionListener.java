@@ -28,7 +28,6 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.netty.AppendDecoder;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
-import com.emc.pravega.common.netty.ConnectionListener;
 import com.emc.pravega.common.netty.ExceptionLoggingHandler;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 
@@ -55,7 +54,7 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 /**
  * Hands off any received data from a client to the CommandProcessor.
  */
-public final class PravegaConnectionListener implements ConnectionListener {
+public final class PravegaConnectionListener implements AutoCloseable {
 
     private final boolean ssl;
     private final int port;
@@ -71,7 +70,6 @@ public final class PravegaConnectionListener implements ConnectionListener {
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
     }
 
-    @Override
     public void startListening() {
         // Configure SSL.
         final SslContext sslCtx;

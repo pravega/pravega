@@ -83,7 +83,7 @@ class ProducerDataSource {
                 val si = this.state.getSegment(s -> !s.isClosed());
                 if (si != null) {
                     // Seal the next segment that is on the list.
-                    result = new ProducerOperation(OperationType.Seal, si.getName());
+                    result = new ProducerOperation(ProducerOperationType.SEAL, si.getName());
                     si.setClosed(true);
                 } else {
                     // We have reached the end of the test and no more segments are left for sealing.
@@ -91,20 +91,20 @@ class ProducerDataSource {
                 }
             } else if (operationIndex - this.lastCreatedTransaction >= this.config.getTransactionFrequency()) {
                 // We have exceeded the number of operations since we last created a transaction.
-                result = new ProducerOperation(OperationType.CreateTransaction, this.state.getNonTransactionSegmentName(operationIndex));
+                result = new ProducerOperation(ProducerOperationType.CREATE_TRANSACTION, this.state.getNonTransactionSegmentName(operationIndex));
                 this.lastCreatedTransaction = operationIndex;
             } else {
                 // If any transaction has already exceeded the max number of appends, then merge it.
                 val si = this.state.getSegment(s -> s.isTransaction() && !s.isClosed() && s.getOperationCount() >= this.config.getMaxTransactionAppendCount());
                 if (si != null) {
-                    result = new ProducerOperation(OperationType.MergeTransaction, si.getName());
+                    result = new ProducerOperation(ProducerOperationType.MERGE_TRANSACTION, si.getName());
                     si.setClosed(true);
                 }
             }
 
             // Otherwise append to random segment.
             if (result == null) {
-                result = new ProducerOperation(OperationType.Append, this.state.getSegmentOrTransactionName(operationIndex));
+                result = new ProducerOperation(ProducerOperationType.APPEND, this.state.getSegmentOrTransactionName(operationIndex));
             }
         }
 
@@ -119,7 +119,12 @@ class ProducerDataSource {
      */
     byte[] generateAppendContent(String segmentName) {
         AppendContentGenerator generator = this.appendGenerators.getOrDefault(segmentName, null);
-        Preconditions.checkArgument(generator != null, "No such segment was created using this DataSource");
+        if (generator == null) {
+            // If the argument is indeed correct, this segment was deleted between the time the operation got generated
+            // and when this method was invoked.
+            throw new UnknownSegmentException(segmentName);
+        }
+
         int maxSize = this.config.getMaxAppendSize();
         int minSize = this.config.getMinAppendSize();
         int size = maxSize;
@@ -143,11 +148,12 @@ class ProducerDataSource {
     private void operationCompletionCallback(ProducerOperation op) {
         // Record the operation as completed in the State.
         this.state.operationCompleted(op.getTarget());
+        this.state.recordDuration(op.getType(), op.getDuration());
 
         // OperationType-specific updates.
-        if (op.getType() == OperationType.MergeTransaction) {
+        if (op.getType() == ProducerOperationType.MERGE_TRANSACTION) {
             postSegmentDeletion(op.getTarget());
-        } else if (op.getType() == OperationType.CreateTransaction) {
+        } else if (op.getType() == ProducerOperationType.CREATE_TRANSACTION) {
             Object r = op.getResult();
             if (r == null || !(r instanceof String)) {
                 TestLogger.log(LOG_ID, "Operation %s completed but has result of wrong type.", op);
@@ -156,7 +162,9 @@ class ProducerDataSource {
 
             String transactionName = (String) r;
             this.state.recordNewTransaction(transactionName);
-            this.appendGenerators.put(transactionName, new AppendContentGenerator((int) System.nanoTime()));
+            this.appendGenerators.put(transactionName, new AppendContentGenerator((int) System.nanoTime(), false));
+        } else if (op.getType() == ProducerOperationType.APPEND) {
+            this.state.recordAppend(op.getLength());
         }
     }
 
@@ -165,7 +173,7 @@ class ProducerDataSource {
         this.state.operationFailed(op.getTarget());
 
         // OperationType-specific cleanup.
-        if (op.getType() == OperationType.MergeTransaction || op.getType() == OperationType.Seal) {
+        if (op.getType() == ProducerOperationType.MERGE_TRANSACTION || op.getType() == ProducerOperationType.SEAL) {
             // Make sure we clear the 'Closed' flag if the Seal/Merge operation failed.
             TestState.SegmentInfo si = this.state.getSegment(op.getTarget());
             if (si != null) {
@@ -195,7 +203,7 @@ class ProducerDataSource {
                     this.store.createStreamSegment(name, this.config.getTimeout())
                               .thenRun(() -> {
                                   this.state.recordNewSegmentName(name);
-                                  this.appendGenerators.put(name, new AppendContentGenerator(segmentId));
+                                  this.appendGenerators.put(name, new AppendContentGenerator(segmentId, true));
                               }));
         }
 
@@ -239,4 +247,14 @@ class ProducerDataSource {
     }
 
     //endregion
+
+    /**
+     * Exception that is thrown whenever an unknown segment name is passed to this data source (one that was not created
+     * using it).
+     */
+    static class UnknownSegmentException extends RuntimeException {
+        private UnknownSegmentException(String segmentName) {
+            super(String.format("No such segment was created using this DataSource: %s.", segmentName));
+        }
+    }
 }

@@ -33,14 +33,12 @@ import com.emc.pravega.controller.stream.api.v1.TxState;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.emc.pravega.stream.PositionInternal;
-import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.model.ModelHelper;
+import com.emc.pravega.stream.impl.ModelHelper;
+import com.emc.pravega.stream.impl.PositionInternal;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
-import org.apache.thrift.TException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -49,6 +47,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+
+import org.apache.thrift.TException;
 
 /**
  * Stream controller RPC server implementation.
@@ -99,9 +99,7 @@ public class ControllerService {
         // TODO: handle npe with null exception return case
         List<PositionInternal> internalPositions = positions.stream().map(ModelHelper::encode).collect(Collectors.toList());
         // initialize completed segments set from those found in the list of input position objects
-        Set<Integer> completedSegments = internalPositions.stream().flatMap(position ->
-                        position.getCompletedSegments().stream().map(Segment::getSegmentNumber)
-        ).collect(Collectors.toSet());
+        Set<Integer> completedSegments = ModelHelper.getSegmentsFromPositions(internalPositions);
 
         Map<Integer, Long> segmentOffsets = new HashMap<>();
 
@@ -224,17 +222,10 @@ public class ControllerService {
 
         // construct SegmentFutures for each position object.
         for (PositionInternal position : positions) {
-            List<Integer> current = new ArrayList<>(position.getOwnedSegments().size());
-            Map<Integer, Integer> futures = new HashMap<>();
-            position.getOwnedSegmentsWithOffsets().entrySet().stream().forEach(
-                    x -> {
-                        int number = x.getKey().getSegmentNumber();
-                        current.add(number);
-                        segmentOffsets.put(number, x.getValue());
-                    }
-            );
-            position.getFutureOwnedSegments().stream().forEach(x -> futures.put(x.getSegmentNumber(), x.getPrecedingNumber()));
-            segmentFutures.add(new SegmentFutures(current, futures));
+            Map<Integer, Long> segmentOffsetMap = ModelHelper.toSegmentOffsetMap(position);
+            segmentOffsets.putAll(segmentOffsetMap);
+            Map<Integer, Integer> futures = ModelHelper.getFutureSegmentMap(position);
+            segmentFutures.add(new SegmentFutures(new ArrayList<>(segmentOffsetMap.keySet()), futures));
         }
         return segmentFutures;
     }
