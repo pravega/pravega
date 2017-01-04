@@ -26,6 +26,7 @@ import ch.qos.logback.classic.Level;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
+import com.emc.pravega.controller.server.rest.ControllerApplication;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rest.resources.ResourceImpl;
 import com.emc.pravega.controller.server.rest.resources.SampleResourceImpl;
@@ -61,10 +62,7 @@ import javax.ws.rs.core.Application;
 import java.lang.reflect.Constructor;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -136,49 +134,18 @@ public class Main {
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
 
-        log.info("calling controller service");
-        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
-        ScalingPolicy scalingPolicy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
-        StreamConfiguration streamConfig = new StreamConfigurationImpl("AA", "GG", scalingPolicy);
-        CompletableFuture<CreateStreamStatus> createStreamStatus = controllerService.createStream(streamConfig, System.currentTimeMillis());
-        if (createStreamStatus.isDone()) {
-            log.info("create stream DONE");
-        } else {
-            log.info("create stream NOT DONE");
-        }
-
-        log.info("waiting for create stream --- ");
-        System.out.println(createStreamStatus.get());
-        log.info(" stream created ");
-
-        Map<Host, Set<Integer>> hmap = hostStore.getHostContainersMap();
-        for(Map.Entry<Host, Set<Integer>> entry : hmap.entrySet())
-            System.out.println("key = "+entry.getKey()+" - value: "+entry.getValue());
-
         // 4. start REST server
         log.info("Initializing REST Service");
 
-        Object obj2 = SampleResourceImpl.class.newInstance();
-        //Object obj = ResourceImpl.class.newInstance();
-        /*Constructor ctor  = ResourceImpl.class.getDeclaredConstructor();
-        ctor.setAccessible(true);
-        ctor.newInstance();*/
         //  create an application with the desired resources.
-        final Application application = RESTServer.createApplication(new Class[] { ResourceImpl.class, SampleResourceImpl.class });
-
+        Set<Object> resourceObjs = new HashSet<Object>();
+        resourceObjs.add(new ResourceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
+        resourceObjs.add(new SampleResourceImpl());
+        ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
 
         //  start a jetty server
-        final Server server = RESTServer.createJettyServer(application);
-        /*org.apache.log4j.LogManager.getLogger("org.eclipse.jetty.util.log").setLevel(Level.OFF);
-        org.apache.log4j.LogManager.getLogger("org.eclipse.jetty").setLevel(Level.OFF);*/
-        final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger("org.eclipse.jetty");
-        if (!(logger instanceof ch.qos.logback.classic.Logger)) {
-            return;
-        }
-        ch.qos.logback.classic.Logger logbackLogger = (ch.qos.logback.classic.Logger) logger;
-        logbackLogger.setLevel(Level.ERROR);
+        final Server server = RESTServer.createJettyServer(controllerApplication);
         server.start();
-
         log.info("Pravega REST Service has started");
         //  wait forever for incoming requests.
         server.join();

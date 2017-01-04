@@ -54,65 +54,29 @@ Implementation of Resource
 @Slf4j
 public class ResourceImpl implements com.emc.pravega.controller.server.rest.v1.ApiV1.Controller {
 
-    /*private final ControllerService controllerService;
+    private final ControllerService controllerService;
 
     public ResourceImpl(final StreamMetadataStore streamStore,
                         final HostControllerStore hostStore,
                         final StreamMetadataTasks streamMetadataTasks,
                         final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
-    }*/
+    }
 
     @Override
     public Response createStream(StreamConfigurationImpl streamConfig) throws Exception {
 
-        System.out.println("streamConfig NAME "+streamConfig.getName());
-        System.out.println("streamConfig SCOPE "+streamConfig.getScope());
-        System.out.println("streamConfig scaling policy "+streamConfig.getScalingPolicy());
-        String hostId;
-        try {
-            //On each controller process restart, it gets a fresh hostId,
-            //which is a combination of hostname and random GUID.
-            hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
-        } catch (UnknownHostException e) {
-            log.debug("Failed to get host address.", e);
-            hostId = UUID.randomUUID().toString();
-        }
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
-                new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
-
-        log.info("Creating store client");
-        StoreClient storeClient = StoreClientFactory.createStoreClient(
-                StoreClientFactory.StoreType.valueOf(STORE_TYPE));
-
-        log.info("Creating the stream store");
-        StreamMetadataStore streamStore = StreamStoreFactory.createStore(
-                StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), executor);
-
-        log.info("Creating zk based task store");
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
-
-        log.info("Creating the host store");
-        HostControllerStore hostStore = HostStoreFactory.createStore(
-                HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE));
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                executor, hostId);
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId);
-        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        log.info("createStream called for stream name: {}, scope name: {}, scaling policy: {} ",streamConfig.getName(),
+                streamConfig.getScope(), streamConfig.getScalingPolicy());
 
         CompletableFuture<CreateStreamStatus> createStreamStatus = controllerService.createStream(streamConfig, System.currentTimeMillis());
-        if (createStreamStatus.isDone()) {
-            log.info("rest api controller service called -- DONE");
-        } else {
-            log.info("rest api controller service called -- NOT DONE");
-        }
 
-        log.info("rest api controller service called");
-        log.info("rest api controllerService = {}", controllerService.toString());
-        System.out.println(createStreamStatus.get());
-
-        return Response.serverError().status(500).build();
+        if(createStreamStatus.get() == CreateStreamStatus.SUCCESS )
+            return Response.ok().status(201).build();
+        else if(createStreamStatus.get() == CreateStreamStatus.STREAM_EXISTS)
+            return Response.ok().status(409).build();
+        else
+            return Response.ok().status(500).build();
     }
 
     @Override

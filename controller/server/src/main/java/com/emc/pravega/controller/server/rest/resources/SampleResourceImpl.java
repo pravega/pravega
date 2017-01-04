@@ -47,6 +47,7 @@ public class SampleResourceImpl implements com.emc.pravega.controller.server.res
         SampleResponse sampleResponse = new SampleResponse();
         sampleResponse.setText(request.getName() + " " + String.valueOf(request.getAge()));
         return Response.ok(sampleResponse).build();
+
     }
 
     @Override

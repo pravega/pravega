@@ -35,6 +35,7 @@ import javax.ws.rs.core.Application;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 
@@ -66,23 +67,15 @@ public class RESTServer {
         server.setHandler(context);
 
         //disable jetty logs
-        org.apache.log4j.LogManager.getLogger("org.eclipse.jetty").setLevel(Level.INFO);
+        //org.apache.log4j.LogManager.getLogger("org.eclipse.jetty").setLevel(Level.INFO);
+
+        // disable jetty server logs
+         final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger("org.eclipse.jetty");
+         if ((logger instanceof ch.qos.logback.classic.Logger)) {
+             ch.qos.logback.classic.Logger logbackLogger = (ch.qos.logback.classic.Logger) logger;
+             logbackLogger.setLevel(ch.qos.logback.classic.Level.ERROR);
+         }
 
          return server;
     }
-
-     public static final Application createApplication(Class<?>[] classes) {
-        // create resources.
-        final Set<Object> resources = new HashSet<Object>();
-        for (Class<?> resource : classes) {
-            try {
-                resources.add(resource.newInstance());
-            } catch (  InstantiationException | IllegalAccessException e) {
-                log.error("Error during instantiation of REST resource : {}, {} ", resource.getName(), e);
-            }
-        }
-         resources.add(LoggingFeature.class);
-        return new ControllerApplication(resources);
-    }
-
 }
