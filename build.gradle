@@ -228,9 +228,9 @@ project('service:server:host') {
         conventionMapping.imageName = { buildPravegaHostImage.getTag() }
         docker {
             registryCredentials {
-                url = "$repoUrl"
-                username = "$repoUser"
-                password = "$repoPass"
+                url = "$dockerRegistryUrl"
+                username = "$dockerRegistryUser"
+                password = "$dockerRegistryPass"
             }
         }
     }
@@ -383,9 +383,9 @@ project('controller:server') {
         conventionMapping.imageName = { buildPravegaControllerImage.getTag() }
         docker {
             registryCredentials {
-                url = "$repoUrl"
-                username = "$repoUser"
-                password = "$repoPass"
+                url = "$dockerRegistryUrl"
+                username = "$dockerRegistryUser"
+                password = "$dockerRegistryPass"
             }
         }
     }
