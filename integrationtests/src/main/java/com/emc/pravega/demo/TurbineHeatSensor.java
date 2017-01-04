@@ -65,7 +65,7 @@ public class TurbineHeatSensor {
     private static String controllerUri = "http://10.249.250.154:9090";
     private static int messageSize = 100;
     private static String streamName = StartLocalService.STREAM_NAME;
-    private static ClientFactoryImpl factory;
+    private static ClientFactoryImpl factory = null;
     private static boolean onlyWrite = true;
 
     public static void main(String[] args) throws Exception {
@@ -174,7 +174,6 @@ public class TurbineHeatSensor {
                     new StreamConfigurationImpl("hi", streamName,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 5,
                                     producerCount)));
-            factory = new ClientFactoryImpl("hi", new URI(controllerUri));
 
             produceStats = new Stats(producerCount * eventsPerSec * runtimeSec, 2);
 
@@ -190,10 +189,11 @@ public class TurbineHeatSensor {
             SensorReader reader = new SensorReader(producerCount * eventsPerSec * runtimeSec);
             executor.execute(reader);
         }
-        EventStreamWriter<String> producer = factory.createEventWriter(streamName, new JavaSerializer<>(),
-                new EventWriterConfig(null));
         /* Create producerCount number of threads to simulate sensors. */
         for (int i = 0; i < producerCount; i++) {
+            factory = new ClientFactoryImpl("hi", new URI(controllerUri));
+            EventStreamWriter<String> producer = factory.createEventWriter(streamName, new JavaSerializer<>(),
+                    new EventWriterConfig(null));
             TemperatureSensors worker = new TemperatureSensors(i, locations[i % locations.length], eventsPerSec,
                     runtimeSec, isTransaction, producer);
             executor.execute(worker);
