@@ -65,22 +65,4 @@ public class YammerProviderTest {
 
         assertEquals(27, MetricsFactory.getMetrics().getGauges().get("testGauge").getValue());
     }
-
-    @Test
-    public void testToGauge2() {
-        Gauge gauge = new Gauge<Integer>() {
-            @Override
-            public Integer getDefaultValue() {
-                return 0;
-            }
-
-            @Override
-            public Integer getSample() {
-                return 27;
-            }
-        };
-        statsLogger.registerGauge("testGauge", gauge);
-
-        assertEquals(27, MetricsFactory.getMetrics().getGauges().get("testGauge").getValue());
-    }
 }

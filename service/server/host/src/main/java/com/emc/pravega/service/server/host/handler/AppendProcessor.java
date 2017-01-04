@@ -253,7 +253,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 .sum();
         }
         // Register gauges
-        STATS_LOGGER.registerGauge(PENDING_APPEND_BYTES, Long.valueOf(bytesWaiting));
+        STATS_LOGGER.registerLongGauge(PENDING_APPEND_BYTES, Long.valueOf(bytesWaiting));
         if (bytesWaiting > HIGH_WATER_MARK) {
             connection.pauseReading();
         }

@@ -52,7 +52,15 @@ public interface StatsLogger {
      * @param name  gauge name
      * @param value the gauge value
      */
-    public void registerGauge(String name, final Long value);
+    public void registerLongGauge(String name, final Long value);
+
+    /**
+     * Register gauge.
+     *
+     * @param name  gauge name
+     * @param value the gauge value
+     */
+    public void registerDoubleGauge(String name, final Double value);
 
     /**
      * Provide the stats logger under scope <i>name</i>.

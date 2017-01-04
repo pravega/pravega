@@ -113,7 +113,12 @@ public class NullStatsLogger implements StatsLogger {
     }
 
     @Override
-    public void registerGauge(final String statName, final Long value) {
+    public void registerLongGauge(final String statName, final Long value) {
+        // nop
+    }
+
+    @Override
+    public void registerDoubleGauge(String name, final Double value) {
         // nop
     }
 
