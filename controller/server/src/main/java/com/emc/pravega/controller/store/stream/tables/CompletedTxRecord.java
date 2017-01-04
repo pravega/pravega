@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream.tables;
 
-import com.emc.pravega.stream.impl.TxStatus;
+import com.emc.pravega.stream.impl.TxnStatus;
 import lombok.Data;
 import org.apache.commons.lang.ArrayUtils;
 
@@ -27,12 +27,12 @@ import java.io.IOException;
 @Data
 public class CompletedTxRecord {
     private final long completeTime;
-    private final TxStatus completionStatus;
+    private final TxnStatus completionStatus;
 
     public static CompletedTxRecord parse(final byte[] bytes) {
         final long completeTimeStamp = Utilities.toLong(ArrayUtils.subarray(bytes, 0, Long.SIZE / 8));
 
-        final TxStatus status = TxStatus.values()[Utilities.toInt(ArrayUtils.subarray(bytes, Long.SIZE / 8, bytes.length))];
+        final TxnStatus status = TxnStatus.values()[Utilities.toInt(ArrayUtils.subarray(bytes, Long.SIZE / 8, bytes.length))];
 
         return new CompletedTxRecord(completeTimeStamp, status);
     }
