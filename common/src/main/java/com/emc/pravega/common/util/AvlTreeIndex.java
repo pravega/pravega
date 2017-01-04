@@ -38,9 +38,9 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
 
     private static final int MAX_IMBALANCE = 1;
     private final Comparator<K> comparator;
-    private Node<V> root;
-    private int size;
-    private int modCount;
+    private transient Node<V> root;
+    private transient int size;
+    private transient int modCount;
     //endregion
 
     //region Constructor
@@ -297,10 +297,10 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
             return null;
         }
 
-        int imbalance = height(node.left) - height(node.right);
+        int imbalance = getHeight(node.left) - getHeight(node.right);
         if (imbalance > MAX_IMBALANCE) {
             // Left subtree has higher height than right subtree.
-            if (height(node.left.left) < height(node.left.right)) {
+            if (getHeight(node.left.left) < getHeight(node.left.right)) {
                 // Double rotate binary tree node: first left child with its right child; then the node with new left child.
                 node.left = rotateRight(node.left);
             }
@@ -308,7 +308,7 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
             node = rotateLeft(node);
         } else if (-imbalance > MAX_IMBALANCE) {
             // Right subtree has higher height than left subtree.
-            if (height(node.right.right) < height(node.right.left)) {
+            if (getHeight(node.right.right) < getHeight(node.right.left)) {
                 // Double rotate binary tree node: first right child with its left child; then the node with new right child.
                 node.right = rotateLeft(node.right);
             }
@@ -316,7 +316,7 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
             node = rotateRight(node);
         } else {
             // No rotation needed, just update current node's height, as an update may have changed it.
-            node.height = Math.max(height(node.left), height(node.right)) + 1;
+            node.height = calculateHeight(getHeight(node.left), getHeight(node.right));
         }
 
         return node;
@@ -331,8 +331,8 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
         Node<V> leftChild = node.left;
         node.left = leftChild.right;
         leftChild.right = node;
-        node.height = Math.max(height(node.left), height(node.right)) + 1;
-        leftChild.height = Math.max(height(leftChild.left), node.height) + 1;
+        node.height = calculateHeight(getHeight(node.left), getHeight(node.right));
+        leftChild.height = calculateHeight(getHeight(leftChild.left), node.height);
         return leftChild;
     }
 
@@ -345,8 +345,8 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
         Node<V> rightChild = node.right;
         node.right = rightChild.left;
         rightChild.left = node;
-        node.height = Math.max(height(node.left), height(node.right)) + 1;
-        rightChild.height = Math.max(height(rightChild.right), node.height) + 1;
+        node.height = calculateHeight(getHeight(node.left), getHeight(node.right));
+        rightChild.height = calculateHeight(getHeight(rightChild.right), node.height);
         return rightChild;
     }
 
@@ -387,8 +387,12 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
     /**
      * Gets the current height of a node, or -1 if null.
      */
-    private int height(Node<V> node) {
+    private byte getHeight(Node<V> node) {
         return node == null ? -1 : node.height;
+    }
+
+    private byte calculateHeight(byte leftHeight, byte rightHeight) {
+        return (byte) ((leftHeight >= rightHeight ? leftHeight : rightHeight) + 1);
     }
 
     //endregion
@@ -402,7 +406,7 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
         T item;
         Node<T> left;
         Node<T> right;
-        int height;
+        byte height;
 
         Node(T item) {
             this.item = item;
