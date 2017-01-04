@@ -422,48 +422,6 @@ project('singlenode') {
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
     }
-/*
-    task startServer(type: JavaExec) {
-        main = "com.emc.pravega.service.server.host.ServiceStarter"
-        classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-    }
-
-    task startServerInteractive(type: JavaExec) {
-        main = "com.emc.pravega.service.server.host.InteractiveStreamSegmentStoreTester"
-        classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-    }
-
-    task startBenchmark(type: JavaExec) {
-        main = "com.emc.pravega.service.server.host.ServiceBenchmark"
-        classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-    }
-
-    task startLocalService(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartLocalService"
-        classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-    }
-
-    task startProducer(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartProducer"
-        classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-    }
-
-    task startConsumer(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartConsumer"
-        classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-    }
-
-    task startController(type: JavaExec) {
-        main = "com.emc.pravega.controller.server.Main"
-        classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-    }*/
 }
 
 

@@ -63,8 +63,11 @@ public class LocalPravegaEmulator {
 
 
     private static LocalHDFSEmulator localHdfs;
+    AtomicReference<ServiceStarter> nodeServiceStarter = new AtomicReference<>();
+
     private final int controllerPort;
     private final int hostPort;
+    private ScheduledExecutorService controllerExecutor;
 
     public LocalPravegaEmulator(int controllerPort, int hostPort) {
         this.controllerPort = controllerPort;
@@ -122,6 +125,7 @@ public class LocalPravegaEmulator {
                     controllerPort));
         } catch (Exception ex) {
             System.out.println("Exception occurred running emulator " + ex);
+            System.exit(1);
         }
     }
 
@@ -129,6 +133,9 @@ public class LocalPravegaEmulator {
      * Stop controller and host.
      * */
     private void teardown() {
+        localHdfs.teardown();
+        controllerExecutor.shutdown();
+        nodeServiceStarter.get().shutdown();
     }
 
     /**
@@ -140,7 +147,6 @@ public class LocalPravegaEmulator {
     }
 
     private void startPravegaHost() {
-        AtomicReference<ServiceStarter> serviceStarter = new AtomicReference<>();
         try {
             Properties p = new Properties();
             ServiceBuilderConfig props = ServiceBuilderConfig.getConfigFromFile();
@@ -165,20 +171,20 @@ public class LocalPravegaEmulator {
 
             props = new ServiceBuilderConfig(p);
 
-            serviceStarter.set(new ServiceStarter(props));
+            nodeServiceStarter.set(new ServiceStarter(props));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
         }
 
         try {
-            serviceStarter.get().start();
+            nodeServiceStarter.get().start();
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
                     try {
                         log.info("Caught interrupt signal...");
-                        serviceStarter.get().shutdown();
+                        nodeServiceStarter.get().shutdown();
                     } catch (Exception e) {
                         // do nothing
                     }
@@ -201,7 +207,7 @@ public class LocalPravegaEmulator {
 
         //1. LOAD configuration.
         //Initialize the executor service.
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
+        controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
                 new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
         log.info("Creating store client");
@@ -210,10 +216,10 @@ public class LocalPravegaEmulator {
 
         log.info("Creating the stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
-                StreamStoreFactory.StoreType.Zookeeper, executor);
+                StreamStoreFactory.StoreType.Zookeeper, controllerExecutor );
 
         log.info("Creating zk based task store");
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, controllerExecutor );
 
         log.info("Creating the host store");
         HostControllerStore hostStore = HostStoreFactory.createStore(
@@ -232,9 +238,9 @@ public class LocalPravegaEmulator {
         //2. Start the RPC server.
         log.info("Starting RPC server");
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                executor, hostId);
+                controllerExecutor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId);
+                hostStore, taskMetadataStore, controllerExecutor, hostId);
         RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks));
 
