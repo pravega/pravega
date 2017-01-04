@@ -32,14 +32,11 @@ public interface OpStatsLogger {
     public void registerFailedEvent(long eventLatency, TimeUnit unit);
 
     /**
-     * Keep current time for the operation, use in reportFailure and reportSuccess.
-     */
-    public void nowTime();
-
-    /**
      * Report failure, a wrapper to registerFailedEvent.
+     *
+     * @param eventLatency the event latency
      */
-    public void reportFailure();
+    public void reportFailure(long eventLatency);
 
     /**
      * Increment the succeeded op counter with the given eventLatency.
@@ -51,8 +48,10 @@ public interface OpStatsLogger {
 
     /**
      * Report success, a wrapper to registerSuccessfulEvent.
+     *
+     * @param eventLatency the event latency
      */
-    public void reportSuccess();
+    public void reportSuccess(long eventLatency);
 
     /**
      * An operation with the given value succeeded.

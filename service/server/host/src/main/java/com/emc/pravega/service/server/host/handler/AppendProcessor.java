@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -53,6 +54,7 @@ import lombok.extern.slf4j.Slf4j;
 import com.emc.pravega.metrics.MetricsFactory;
 import com.emc.pravega.metrics.StatsLogger;
 import com.emc.pravega.metrics.Gauge;
+
 import static com.emc.pravega.service.server.host.PravegaRequestStats.PENDING_APPEND_BYTES;
 
 /**
@@ -64,6 +66,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     static final int HIGH_WATER_MARK = 128 * 1024;
     static final int LOW_WATER_MARK = 64 * 1024;
+
+    static final StatsLogger STATS_LOGGER = MetricsFactory.getStatsLogger();
 
     private final StreamSegmentStore store;
     private final ServerConnection connection;
@@ -252,17 +256,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 .sum();
         }
         // Register gauges
-        statsLogger.registerGauge(PENDING_APPEND_BYTES, new Gauge<Integer>() {
-            @Override
-            public Integer getDefaultValue() {
-                return 0;
-            }
-
-            @Override
-            public Integer getSample() {
-                return bytesWaiting;
-            }
-        });
+        STATS_LOGGER.registerGauge(PENDING_APPEND_BYTES, Long.valueOf(bytesWaiting));
         if (bytesWaiting > HIGH_WATER_MARK) {
             connection.pauseReading();
         }

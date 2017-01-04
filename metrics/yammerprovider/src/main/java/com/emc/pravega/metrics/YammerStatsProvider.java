@@ -32,13 +32,15 @@ import java.io.File;
 import com.google.common.base.Strings;
 
 import lombok.extern.slf4j.Slf4j;
+import lombok.Synchronized;
 
 @Slf4j
 public class YammerStatsProvider implements StatsProvider {
     MetricRegistry metrics = null;
     List<ScheduledReporter> reporters = new ArrayList<ScheduledReporter>();
 
-    synchronized void init() {
+    @Synchronized
+    void init() {
         if (metrics == null) {
             metrics = MetricsFactory.getMetrics();
             metrics.registerAll(new MemoryUsageGaugeSet());
@@ -46,7 +48,8 @@ public class YammerStatsProvider implements StatsProvider {
         }
     }
 
-    public synchronized MetricRegistry getMetrics() {
+    @Synchronized
+    public MetricRegistry getMetrics() {
         return metrics;
     }
 

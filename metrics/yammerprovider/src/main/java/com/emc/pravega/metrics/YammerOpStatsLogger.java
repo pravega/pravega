@@ -25,12 +25,10 @@ import java.util.concurrent.TimeUnit;
 class YammerOpStatsLogger implements OpStatsLogger {
     final Timer success;
     final Timer fail;
-    long startTime;
 
     YammerOpStatsLogger(Timer success, Timer fail) {
         this.success = success;
         this.fail = fail;
-        startTime = System.nanoTime();
     }
 
     // OpStatsLogger functions
@@ -40,6 +38,14 @@ class YammerOpStatsLogger implements OpStatsLogger {
 
     public void registerSuccessfulEvent(long eventLatency, TimeUnit unit) {
         success.update(eventLatency, unit);
+    }
+
+    public void reportSuccess(long eventLatency) {
+        success.update(eventLatency, TimeUnit.NANOSECONDS);
+    }
+
+    public void reportFailure(long eventLatency) {
+        fail.update(eventLatency, TimeUnit.NANOSECONDS);
     }
 
     public void registerSuccessfulValue(long value) {
@@ -56,19 +62,7 @@ class YammerOpStatsLogger implements OpStatsLogger {
         // can't clear a timer
     }
 
-    public void nowTime() {
-        startTime = System.nanoTime();
-    }
-
-    public void reportSuccess() {
-        registerSuccessfulEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
-    }
-
-    public void reportFailure() {
-        registerFailedEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
-    }
-
-    public synchronized OpStatsData toOpStatsData() {
+    public OpStatsData toOpStatsData() {
         long numFailed = fail.getCount();
         long numSuccess = success.getCount();
         Snapshot s = success.getSnapshot();

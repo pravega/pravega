@@ -43,8 +43,4 @@ public class MetricsFactory {
     public static StatsLogger getStatsLogger() {
         return YAMMERPROVIDER.getStatsLogger("");
     }
-
-    public static StatsLogger getNullStatsLogger() {
-        return NULLPROVIDER.getStatsLogger("");
-    }
 }

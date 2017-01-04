@@ -82,6 +82,19 @@ public class YammerStatsLogger implements StatsLogger {
     }
 
     @Override
+    public void registerGauge(final String statName, final Long value) {
+        String metricName = name(basename, statName);
+        metrics.remove(metricName);
+
+        metrics.register(metricName, new com.codahale.metrics.Gauge<Long>() {
+            @Override
+            public Long getValue() {
+                return value;
+            }
+        });
+    }
+
+    @Override
     public StatsLogger scope(String scope) {
         String scopeName;
         if (0 == basename.length()) {

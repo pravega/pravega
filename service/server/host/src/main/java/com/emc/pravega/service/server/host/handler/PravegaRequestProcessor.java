@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.host.handler;
 
+import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.netty.FailingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
 import com.emc.pravega.common.netty.WireCommands.AbortTransaction;
@@ -93,34 +94,32 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private final ServerConnection connection;
 
-    private final StatsLogger statsLogger = MetricsFactory.getStatsLogger();
-    private final OpStatsLogger createStreamSegmentStats;
-    private final OpStatsLogger readStreamSegmentStats;
-    private final OpStatsLogger readBytesStats;
-    private final Counter readBytes;
+    static final StatsLogger STATS_LOGGER = MetricsFactory.getStatsLogger();
+
+    public static class Metrics {
+        static OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.getOpStatsLogger(CREATE_SEGMENT);
+        static OpStatsLogger READ_STREAM_SEGMENT = STATS_LOGGER.getOpStatsLogger(READ_SEGMENT);
+        static OpStatsLogger READ_BYTES_STATS = STATS_LOGGER.getOpStatsLogger(SEGMENT_READ_BYTES);
+        static Counter READ_BYTES = STATS_LOGGER.getCounter(ALL_READ_BYTES);
+    }
 
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
         this.segmentStore = segmentStore;
         this.connection = connection;
-        this.createStreamSegmentStats = statsLogger.getOpStatsLogger(CREATE_SEGMENT);
-        this.readStreamSegmentStats = statsLogger.getOpStatsLogger(READ_SEGMENT);
-        this.readBytesStats = statsLogger.getOpStatsLogger(SEGMENT_READ_BYTES);
-        this.readBytes = statsLogger.getCounter(ALL_READ_BYTES);
-        readBytes.clear();
     }
 
     @Override
     public void readSegment(ReadSegment readSegment) {
-        readStreamSegmentStats.nowTime();
+        Timer timer = new Timer();
         final String segment = readSegment.getSegment();
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength())); 
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {
-            readStreamSegmentStats.reportSuccess();
+            Metrics.READ_STREAM_SEGMENT.reportSuccess(timer.getElapsedNanos());
             handleReadResult(readSegment, t);
             return null;
         }).exceptionally((Throwable t) -> {
-            readStreamSegmentStats.reportFailure();
+            Metrics.READ_STREAM_SEGMENT.reportFailure(timer.getElapsedNanos());
             handleException(segment, "Read segment", t);
             return null;
         });
@@ -141,8 +140,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         if (!cachedEntries.isEmpty()) {
             int totalSize = cachedEntries.stream().mapToInt(ReadResultEntryContents::getLength).sum();
-            readBytesStats.registerSuccessfulValue(totalSize);
-            readBytes.add(totalSize);
+            Metrics.READ_BYTES_STATS.registerSuccessfulValue(totalSize);
+            Metrics.READ_BYTES.add(totalSize);
             ByteBuffer data = copyData(cachedEntries);
             SegmentRead reply =  new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
             connection.send(reply);
@@ -252,14 +251,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
-        createStreamSegmentStats.nowTime();
+        Timer timer = new Timer();
         CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), TIMEOUT);
         future.thenApply((Void v) -> {
-            createStreamSegmentStats.reportSuccess();
+            Metrics.CREATE_STREAM_SEGMENT.reportSuccess(timer.getElapsedNanos());
             connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
             return null;
         }).exceptionally((Throwable e) -> {
-            createStreamSegmentStats.reportFailure();
+            Metrics.CREATE_STREAM_SEGMENT.reportFailure(timer.getElapsedNanos());
             handleException(createStreamsSegment.getSegment(), "Create segment", e);
             return null;
         });

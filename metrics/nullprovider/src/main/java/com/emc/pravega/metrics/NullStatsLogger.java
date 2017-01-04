@@ -36,6 +36,16 @@ public class NullStatsLogger implements StatsLogger {
         }
 
         @Override
+        public void reportSuccess(long eventLatency){
+            // nop
+        }
+
+        @Override
+        public void reportFailure(long eventLatency){
+            // nop
+        }
+
+        @Override
         public void registerSuccessfulValue(long value) {
             // nop
         }
@@ -52,21 +62,6 @@ public class NullStatsLogger implements StatsLogger {
 
         @Override
         public void clear() {
-            // nop
-        }
-
-        @Override
-        public void nowTime() {
-            // nop
-        }
-
-        @Override
-        public void reportSuccess(){
-            // nop
-        }
-
-        @Override
-        public void reportFailure(){
             // nop
         }
     }
@@ -114,6 +109,11 @@ public class NullStatsLogger implements StatsLogger {
 
     @Override
     public <T extends Number> void registerGauge(String name, Gauge<T> gauge) {
+        // nop
+    }
+
+    @Override
+    public void registerGauge(final String statName, final Long value) {
         // nop
     }
 

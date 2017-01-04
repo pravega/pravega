@@ -47,6 +47,14 @@ public interface StatsLogger {
     public <T extends Number> void registerGauge(String name, Gauge<T> gauge);
 
     /**
+     * Register gauge.
+     *
+     * @param name  gauge name
+     * @param value the gauge value
+     */
+    public void registerGauge(String name, final Long value);
+
+    /**
      * Provide the stats logger under scope <i>name</i>.
      *
      * @param name scope name.
