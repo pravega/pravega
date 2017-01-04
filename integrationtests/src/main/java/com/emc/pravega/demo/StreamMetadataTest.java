@@ -107,7 +107,8 @@ public class StreamMetadataTest {
                 new StreamConfigurationImpl(scope1,
                         "stream4",
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
-        CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(config4);
+        CompletableFuture<UpdateStreamStatus> updateStatus;
+        updateStatus = controller.alterStream(config4);
         System.err.println(String.format("updtaing the stream name (%s, %s)", scope1, "stream4"));
         if (updateStatus.get() != UpdateStreamStatus.STREAM_NOT_FOUND) {
             System.err.println(" Stream name cannot be updated, exiting");
@@ -168,8 +169,8 @@ public class StreamMetadataTest {
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3));
 
         System.err.println(String.format("updating the min Num segments (%s, %s)", scope1, streamName1));
-        CompletableFuture<UpdateStreamStatus> updateStatus4 = controller.alterStream(config9);
-        if (updateStatus4.get() != UpdateStreamStatus.SUCCESS) {
+         updateStatus = controller.alterStream(config9);
+        if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
             System.err.println("Update stream config failed, exiting");
             return;
         }
@@ -183,7 +184,7 @@ public class StreamMetadataTest {
            return;
         }
 
-        //get current position at a given time stamp
+        //get  position at a given time stamp
         Stream stream1 = new StreamImpl(scope1, streamName1, config1);
         final int count1 = 10;
         CompletableFuture<List<PositionInternal>> currentPosition;
@@ -194,6 +195,7 @@ public class StreamMetadataTest {
             return;
         }
 
+        //get position of same stream at different time stamp
         final int count2 = 20;
         System.err.println(String.format("position at given time stamp (%s, %s)", scope1, streamName1));
         currentPosition  =  controller.getPositions(stream1, System.currentTimeMillis(), count2);
@@ -202,6 +204,7 @@ public class StreamMetadataTest {
             return;
         }
 
+        //get position of a different stream at a given time stamp
         Stream stream2 = new StreamImpl(scope1, streamName2, config3);
         System.err.println(String.format("position at given time stamp (%s, %s)", scope1, stream2));
         currentPosition  =  controller.getPositions(stream2, System.currentTimeMillis(), count1);
