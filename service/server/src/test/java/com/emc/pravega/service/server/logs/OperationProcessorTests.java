@@ -19,14 +19,13 @@
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.ObjectClosedException;
+import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
-import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestDurableDataLog;
@@ -67,6 +66,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 
 /**
@@ -99,7 +99,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Setup an OperationProcessor and start it.
         @Cleanup
-        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
+        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, context.executorService);
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
@@ -147,7 +147,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Setup an OperationProcessor and start it.
         @Cleanup
-        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
+        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, context.executorService);
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
@@ -230,7 +230,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Setup an OperationProcessor and start it.
         @Cleanup
-        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
+        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, context.executorService);
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
@@ -286,7 +286,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Setup an OperationProcessor and start it.
         @Cleanup
-        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
+        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, context.executorService);
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
@@ -343,7 +343,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Setup an OperationProcessor and start it.
         @Cleanup
-        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
+        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, context.executorService);
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, stateUpdater, dataLog, getNoOpCheckpointPolicy());
@@ -482,7 +482,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
     }
 
     private static class TestContext implements AutoCloseable {
-        final CloseableExecutorService executorService;
+        final ScheduledExecutorService executorService;
         final CacheManager cacheManager;
         final Storage storage;
         final MemoryOperationLog memoryLog;
@@ -492,17 +492,17 @@ public class OperationProcessorTests extends OperationLogTestBase {
         final MemoryStateUpdater stateUpdater;
 
         TestContext() {
-            this.executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+            this.executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
-            this.storage = new InMemoryStorage(this.executorService.get());
+            this.storage = new InMemoryStorage(this.executorService);
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             ReadIndexConfig readIndexConfig = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
                     PropertyBag.create()
                                .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
                                .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
 
-            this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), this.executorService.get());
-            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, this.executorService.get());
+            this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), this.executorService);
+            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, this.executorService);
             this.memoryLog = new MemoryOperationLog();
             this.stateUpdater = new MemoryStateUpdater(this.memoryLog, new CacheUpdater(this.cache, this.readIndex));
         }
@@ -513,7 +513,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.storage.close();
             this.cache.close();
             this.cacheManager.close();
-            this.executorService.close();
+            this.executorService.shutdown();
         }
     }
 }

@@ -28,7 +28,6 @@ import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.CacheKey;
-import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.ServiceShutdownListener;
@@ -56,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -179,7 +179,7 @@ public class ContainerReadIndexTests {
             // The Read callback is only accumulating data in this test; we will then compare it against the real data.
             TestEntryHandler entryHandler = new TestEntryHandler(readContentsStream);
             entryHandlers.put(segmentId, entryHandler);
-            AsyncReadResultProcessor readResultProcessor = new AsyncReadResultProcessor(readResult, entryHandler, context.executorService.get());
+            AsyncReadResultProcessor readResultProcessor = new AsyncReadResultProcessor(readResult, entryHandler, context.executorService);
             readResultProcessor.startAsync().awaitRunning();
             processorsBySegment.put(segmentId, readResultProcessor);
         }
@@ -991,7 +991,7 @@ public class ContainerReadIndexTests {
     private static class TestContext implements AutoCloseable {
         final UpdateableContainerMetadata metadata;
         final ContainerReadIndex readIndex;
-        final CloseableExecutorService executorService;
+        final ScheduledExecutorService executorService;
         final TestCacheManager cacheManager;
         final TestCache cache;
         final Storage storage;
@@ -1001,12 +1001,12 @@ public class ContainerReadIndexTests {
         }
 
         TestContext(ReadIndexConfig readIndexConfig, CachePolicy cachePolicy) {
-            this.executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+            this.executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
             this.cache = new TestCache(Integer.toString(CONTAINER_ID));
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             this.storage = new InMemoryStorage();
-            this.cacheManager = new TestCacheManager(cachePolicy, this.executorService.get());
-            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, this.executorService.get());
+            this.cacheManager = new TestCacheManager(cachePolicy, this.executorService);
+            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, this.executorService);
         }
 
         @Override
@@ -1015,7 +1015,7 @@ public class ContainerReadIndexTests {
             this.cache.close();
             this.storage.close();
             this.cacheManager.close();
-            this.executorService.close();
+            this.executorService.shutdown();
         }
     }
 

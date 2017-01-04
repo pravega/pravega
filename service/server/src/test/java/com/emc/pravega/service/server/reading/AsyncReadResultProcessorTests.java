@@ -22,7 +22,6 @@ import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
-import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
@@ -37,6 +36,7 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -71,12 +71,12 @@ public class AsyncReadResultProcessorTests {
         };
 
         // Start an AsyncReadResultProcessor.
-        @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        @Cleanup("shutdown")
+        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
         @Cleanup
         StreamSegmentReadResult rr = new StreamSegmentReadResult(0, totalLength, supplier, "");
         TestEntryHandler testEntryHandler = new TestEntryHandler(entries);
-        try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, testEntryHandler, executor.get())) {
+        try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, testEntryHandler, executorService)) {
             rp.startAsync().awaitRunning();
 
             // Wait for it to complete, and then verify that no errors have been recorded via the callbacks.
@@ -102,8 +102,8 @@ public class AsyncReadResultProcessorTests {
         int totalLength = generateEntries(entries);
 
         // Setup an entry provider supplier.
-        @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        @Cleanup("shutdown")
+        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
         AtomicInteger currentIndex = new AtomicInteger();
         StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
             int idx = currentIndex.getAndIncrement();
@@ -112,14 +112,14 @@ public class AsyncReadResultProcessorTests {
             }
 
             Supplier<ReadResultEntryContents> entryContentsSupplier = () -> new ReadResultEntryContents(new ByteArrayInputStream(entries.get(idx)), entries.get(idx).length);
-            return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executor.get());
+            return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executorService);
         };
 
         // Start an AsyncReadResultProcessor.
         @Cleanup
         StreamSegmentReadResult rr = new StreamSegmentReadResult(0, totalLength, supplier, "");
         TestEntryHandler testEntryHandler = new TestEntryHandler(entries);
-        try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, testEntryHandler, executor.get())) {
+        try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, testEntryHandler, executorService)) {
             rp.startAsync().awaitRunning();
 
             // Wait for it to complete, and then verify that no errors have been recorded via the callbacks.
@@ -145,22 +145,22 @@ public class AsyncReadResultProcessorTests {
         final Semaphore barrier = new Semaphore(0);
 
         // Setup an entry provider supplier that returns Future Reads, which will eventually fail.
-        @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        @Cleanup("shutdown")
+        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
         StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
             Supplier<ReadResultEntryContents> entryContentsSupplier = () -> {
                 barrier.acquireUninterruptibly();
                 throw new IntentionalException("Intentional");
             };
 
-            return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executor.get());
+            return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executorService);
         };
 
         // Start an AsyncReadResultProcessor.
         @Cleanup
         StreamSegmentReadResult rr = new StreamSegmentReadResult(0, totalLength, supplier, "");
         TestEntryHandler testEntryHandler = new TestEntryHandler(new ArrayList<>());
-        try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, testEntryHandler, executor.get())) {
+        try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, testEntryHandler, executorService)) {
             rp.startAsync().awaitRunning();
             barrier.release();
 

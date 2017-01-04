@@ -19,15 +19,15 @@
 package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.AutoStopwatch;
+import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.CacheKey;
-import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
-import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.TestStorage;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -40,7 +40,6 @@ import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
-import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
@@ -63,6 +62,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -141,7 +141,7 @@ public class SegmentAggregatorTests {
 
         AssertExtensions.assertThrows(
                 "add() was allowed before initialization.",
-                () -> context.segmentAggregator.flush(TIMEOUT, context.executor.get()),
+                () -> context.segmentAggregator.flush(TIMEOUT, context.executor),
                 ex -> ex instanceof IllegalStateException);
     }
 
@@ -377,7 +377,7 @@ public class SegmentAggregatorTests {
             Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (size threshold).", appendOp.getSequenceNumber(), context.segmentAggregator.getLowestUncommittedSequenceNumber());
 
             // Call flush() and inspect the result.
-            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor.get()).join();
+            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor).join();
             if (expectFlush) {
                 AssertExtensions.assertGreaterThanOrEqual("Not enough bytes were flushed (size threshold).", config.getFlushThresholdBytes(), flushResult.getFlushedBytes());
                 outstandingSize -= flushResult.getFlushedBytes();
@@ -403,7 +403,7 @@ public class SegmentAggregatorTests {
             currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
             Assert.assertTrue("Unexpected value returned by mustFlush() (time threshold).", context.segmentAggregator.mustFlush());
             Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (time threshold).", appendOp.getSequenceNumber(), context.segmentAggregator.getLowestUncommittedSequenceNumber());
-            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor.get()).join();
+            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor).join();
 
             // We are always expecting a flush.
             AssertExtensions.assertGreaterThan("Not enough bytes were flushed (time threshold).", 0, flushResult.getFlushedBytes());
@@ -428,7 +428,7 @@ public class SegmentAggregatorTests {
 
             // Call flush() and inspect the result.
             Assert.assertTrue("Unexpected value returned by mustFlush() (Transaction appends).", context.segmentAggregator.mustFlush());
-            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor.get()).join();
+            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor).join();
 
             // We are always expecting a flush.
             AssertExtensions.assertGreaterThan("Not enough bytes were flushed (Transaction appends).", 0, flushResult.getFlushedBytes());
@@ -454,7 +454,7 @@ public class SegmentAggregatorTests {
             currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
             Assert.assertTrue("Unexpected value returned by mustFlush() (time threshold).", context.segmentAggregator.mustFlush());
             Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (time threshold).", appendOp.getSequenceNumber(), context.segmentAggregator.getLowestUncommittedSequenceNumber());
-            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor.get()).join();
+            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor).join();
 
             // We are always expecting a flush.
             AssertExtensions.assertGreaterThan("Not enough bytes were flushed (time threshold).", 0, flushResult.getFlushedBytes());
@@ -519,7 +519,7 @@ public class SegmentAggregatorTests {
             FlushResult flushResult = null;
 
             try {
-                flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor.get()).join();
+                flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor).join();
                 Assert.assertNull("An exception was expected, but none was thrown.", setException.get());
                 Assert.assertNotNull("No FlushResult provided.", flushResult);
             } catch (Exception ex) {
@@ -582,7 +582,7 @@ public class SegmentAggregatorTests {
             getAppendData(appendOp, writtenData, context);
 
             // Call flush() and verify that we haven't flushed anything (by design).
-            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor.get()).join();
+            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor).join();
             Assert.assertEquals(String.format("Not expecting a flush. OutstandingSize=%d, Threshold=%d", outstandingSize, config.getFlushThresholdBytes()),
                     0, flushResult.getFlushedBytes());
             Assert.assertEquals("Not expecting any merged bytes in this test.", 0, flushResult.getMergedBytes());
@@ -597,7 +597,7 @@ public class SegmentAggregatorTests {
         Assert.assertTrue("Unexpected value returned by mustFlush() after adding StreamSegmentSealOperation.", context.segmentAggregator.mustFlush());
 
         // Call flush and verify that the entire Aggregator got flushed and the Seal got persisted to Storage.
-        FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor.get()).join();
+        FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor).join();
         Assert.assertEquals("Expected the entire Aggregator to be flushed.", outstandingSize, flushResult.getFlushedBytes());
         Assert.assertFalse("Unexpected value returned by mustFlush() after flushing.", context.segmentAggregator.mustFlush());
         Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() after flushing.", Operation.NO_SEQUENCE_NUMBER, context.segmentAggregator.getLowestUncommittedSequenceNumber());
@@ -637,7 +637,7 @@ public class SegmentAggregatorTests {
         context.storage.seal(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
 
         // Call flush and verify no exception is thrown.
-        context.segmentAggregator.flush(TIMEOUT, context.executor.get()).join();
+        context.segmentAggregator.flush(TIMEOUT, context.executor).join();
 
         // Verify data - even though already sealed, make sure the metadata is updated accordingly.
         Assert.assertTrue("Segment is not marked in metadata as sealed in storage post flush.", context.segmentAggregator.getMetadata().isSealedInStorage());
@@ -697,7 +697,7 @@ public class SegmentAggregatorTests {
             // Repeat a number of times, at least once should work.
             setException.set(null);
             try {
-                FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor.get()).join();
+                FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor).join();
                 Assert.assertNull("An exception was expected, but none was thrown.", setException.get());
                 Assert.assertNotNull("No FlushResult provided.", flushResult);
             } catch (Exception ex) {
@@ -994,7 +994,7 @@ public class SegmentAggregatorTests {
             FlushResult flushResult = null;
 
             try {
-                flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                flushResult = context.segmentAggregator.flush(TIMEOUT, context.executor).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 Assert.assertNull("An exception was expected, but none was thrown.", setException.get());
                 Assert.assertNotNull("No FlushResult provided.", flushResult);
             } catch (Exception ex) {
@@ -1053,12 +1053,12 @@ public class SegmentAggregatorTests {
         // First time: attempt to flush/seal, which must end in failure.
         AssertExtensions.assertThrows(
                 "IntentionalException did not propagate to flush() caller.",
-                () -> context.segmentAggregator.flush(TIMEOUT, context.executor.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
+                () -> context.segmentAggregator.flush(TIMEOUT, context.executor).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
                 ex -> ExceptionHelpers.getRealException(ex) instanceof IntentionalException);
 
         context.storage.setSealInterceptor(null);
         // Second time: we are in reconcilation mode, so flush must succeed (and update internal state based on storage).
-        context.segmentAggregator.flush(TIMEOUT, context.executor.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        context.segmentAggregator.flush(TIMEOUT, context.executor).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Verify outcome.
         Assert.assertTrue("Segment not marked as sealed in storage (in metadata).", context.segmentAggregator.getMetadata().isSealedInStorage());
@@ -1098,7 +1098,7 @@ public class SegmentAggregatorTests {
         // Seal & flush everything in the transaction
         transactionAggregator.add(generateSealAndUpdateMetadata(transactionAggregator.getMetadata().getId(), context));
         while (transactionAggregator.mustFlush()) {
-            transactionAggregator.flush(TIMEOUT, context.executor.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            transactionAggregator.flush(TIMEOUT, context.executor).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         }
 
         // The concat succeeds, but we throw some random error, indicating that it didn't.
@@ -1114,18 +1114,18 @@ public class SegmentAggregatorTests {
         // First time: attempt to flush/seal, which must end in failure.
         AssertExtensions.assertThrows(
                 "IntentionalException did not propagate to flush() caller.",
-                () -> context.segmentAggregator.flush(TIMEOUT, context.executor.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
+                () -> context.segmentAggregator.flush(TIMEOUT, context.executor).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
                 ex -> ExceptionHelpers.getRealException(ex) instanceof IntentionalException);
 
         // Second time: we are not yet in reconcilation mode, but we are about to detect that the Transaction segment
         // no longer exists
         AssertExtensions.assertThrows(
                 "IntentionalException did not propagate to flush() caller.",
-                () -> context.segmentAggregator.flush(TIMEOUT, context.executor.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
+                () -> context.segmentAggregator.flush(TIMEOUT, context.executor).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
                 ex -> ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException);
 
         // Third time: we should be in reconciliation mode, and we should be able to recover from it.
-        context.segmentAggregator.flush(TIMEOUT, context.executor.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        context.segmentAggregator.flush(TIMEOUT, context.executor).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Verify outcome.
         Assert.assertFalse("Unexpected value from mustFlush() after merger reconciliation.", context.segmentAggregator.mustFlush());
@@ -1189,7 +1189,7 @@ public class SegmentAggregatorTests {
             while (context.segmentAggregator.mustFlush()) {
                 try {
                     flushCount++;
-                    context.segmentAggregator.flush(TIMEOUT, context.executor.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    context.segmentAggregator.flush(TIMEOUT, context.executor).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 } catch (Exception ex) {
                     errorCount++;
                     Assert.assertTrue("", ExceptionHelpers.getRealException(ex) instanceof BadOffsetException);
@@ -1424,13 +1424,13 @@ public class SegmentAggregatorTests {
             anythingFlushed = false;
             for (SegmentAggregator transactionAggregator : context.transactionAggregators) {
                 if (transactionAggregator.mustFlush()) {
-                    FlushResult transactionFlushResult = transactionAggregator.flush(TIMEOUT, context.executor.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    FlushResult transactionFlushResult = transactionAggregator.flush(TIMEOUT, context.executor).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                     anythingFlushed = anythingFlushed | transactionFlushResult.getFlushedBytes() > 0;
                 }
             }
 
             if (context.segmentAggregator.mustFlush()) {
-                FlushResult parentFlushResult = context.segmentAggregator.flush(TIMEOUT, context.executor.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                FlushResult parentFlushResult = context.segmentAggregator.flush(TIMEOUT, context.executor).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 anythingFlushed = anythingFlushed | (parentFlushResult.getFlushedBytes() + parentFlushResult.getMergedBytes()) > 0;
             }
         }
@@ -1445,14 +1445,14 @@ public class SegmentAggregatorTests {
             for (SegmentAggregator transactionAggregator : context.transactionAggregators) {
                 if (transactionAggregator.mustFlush()) {
                     exceptionReset.run();
-                    FlushResult transactionFlushResult = tryFlushSegment(transactionAggregator, exceptionProvider, context.executor.get());
+                    FlushResult transactionFlushResult = tryFlushSegment(transactionAggregator, exceptionProvider, context.executor);
                     anythingFlushed = anythingFlushed | (transactionFlushResult == null || transactionFlushResult.getFlushedBytes() > 0);
                 }
             }
 
             if (context.segmentAggregator.mustFlush()) {
                 exceptionReset.run();
-                FlushResult parentFlushResult = tryFlushSegment(context.segmentAggregator, exceptionProvider, context.executor.get());
+                FlushResult parentFlushResult = tryFlushSegment(context.segmentAggregator, exceptionProvider, context.executor);
                 anythingFlushed = anythingFlushed | (parentFlushResult == null || (parentFlushResult.getFlushedBytes() + parentFlushResult.getMergedBytes()) > 0);
             }
         }
@@ -1487,7 +1487,7 @@ public class SegmentAggregatorTests {
     // region TestContext
 
     private static class TestContext implements AutoCloseable {
-        final CloseableExecutorService executor;
+        final ScheduledExecutorService executor;
         final UpdateableContainerMetadata containerMetadata;
         final TestWriterDataSource dataSource;
         final TestStorage storage;
@@ -1501,16 +1501,16 @@ public class SegmentAggregatorTests {
         }
 
         TestContext(WriterConfig config, Supplier<Long> stopwatchGetMillis) {
-            this.executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+            this.executor = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
             this.containerMetadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
 
-            this.storage = new TestStorage(new InMemoryStorage(this.executor.get()));
+            this.storage = new TestStorage(new InMemoryStorage(this.executor));
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
             this.stopwatch = new AutoStopwatch(stopwatchGetMillis);
 
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();
             dataSourceConfig.autoInsertCheckpointFrequency = TestWriterDataSource.DataSourceConfig.NO_METADATA_CHECKPOINT;
-            this.dataSource = new TestWriterDataSource(this.containerMetadata, this.cache, this.executor.get(), dataSourceConfig);
+            this.dataSource = new TestWriterDataSource(this.containerMetadata, this.cache, this.executor, dataSourceConfig);
 
             this.transactionAggregators = new SegmentAggregator[TRANSACTION_COUNT];
             UpdateableSegmentMetadata segmentMetadata = initialize(this.containerMetadata.mapStreamSegmentId(SEGMENT_NAME, SEGMENT_ID));
@@ -1532,7 +1532,7 @@ public class SegmentAggregatorTests {
             this.dataSource.close();
             this.cache.close();
             this.storage.close();
-            this.executor.close();
+            this.executor.shutdown();
         }
 
         private UpdateableSegmentMetadata initialize(UpdateableSegmentMetadata segmentMetadata) {

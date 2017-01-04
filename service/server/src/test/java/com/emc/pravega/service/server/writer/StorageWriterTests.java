@@ -23,7 +23,6 @@ import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.CacheKey;
-import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
@@ -61,6 +60,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -617,7 +617,7 @@ public class StorageWriterTests {
     // region TestContext
 
     private static class TestContext implements AutoCloseable {
-        final CloseableExecutorService executor;
+        final ScheduledExecutorService executor;
         final UpdateableContainerMetadata metadata;
         final TestWriterDataSource dataSource;
         final InMemoryStorage baseStorage;
@@ -627,23 +627,23 @@ public class StorageWriterTests {
         StorageWriter writer;
 
         TestContext(WriterConfig config) {
-            this.executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+            this.executor = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-            this.baseStorage = new InMemoryStorage(this.executor.get());
+            this.baseStorage = new InMemoryStorage(this.executor);
             this.storage = new TestStorage(this.baseStorage);
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
             this.config = config;
 
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();
             dataSourceConfig.autoInsertCheckpointFrequency = METADATA_CHECKPOINT_FREQUENCY;
-            this.dataSource = new TestWriterDataSource(this.metadata, this.cache, this.executor.get(), dataSourceConfig);
-            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this.executor.get());
+            this.dataSource = new TestWriterDataSource(this.metadata, this.cache, this.executor, dataSourceConfig);
+            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this.executor);
         }
 
         void resetWriter() {
             this.writer.close();
             this.baseStorage.changeOwner();
-            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this.executor.get());
+            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this.executor);
         }
 
         @Override
@@ -652,7 +652,7 @@ public class StorageWriterTests {
             this.dataSource.close();
             this.cache.close();
             this.storage.close(); // This also closes the baseStorage.
-            this.executor.close();
+            this.executor.shutdown();
         }
     }
 

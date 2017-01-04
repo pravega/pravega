@@ -47,6 +47,8 @@ import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
@@ -55,9 +57,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import lombok.val;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Helps create StreamSegmentStore Instances.
@@ -90,16 +89,16 @@ public final class ServiceBuilder implements AutoCloseable {
     //endregion
 
     //region Constructor
-    
+
     public ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig) {
         this(serviceBuilderConfig, createExecutorService(serviceBuilderConfig.getConfig(ServiceConfig::new)));
     }
-    
+
     /**
      * Creates a new instance of the ServiceBuilder class.
      *
      * @param serviceBuilderConfig The ServiceBuilderConfig to use.
-     * @param executorService The executor to use for backrgound tasks.
+     * @param executorService      The executor to use for background tasks.
      */
     public ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(serviceBuilderConfig, "config");
@@ -219,7 +218,7 @@ public final class ServiceBuilder implements AutoCloseable {
         this.cacheFactoryCreator = cacheFactoryCreator;
         return this;
     }
-    
+
     /**
      * Attaches the given StreamSegmentStore creator to this ServiceBuilder. The given Function will not be invoked
      * right away; it will be called when needed.
@@ -352,15 +351,15 @@ public final class ServiceBuilder implements AutoCloseable {
                                      setup.getContainerRegistry(), setup.getSegmentToContainerMapper()))
                              .withMetadataRepository(setup -> new InMemoryMetadataRepository())
                              .withStorageFactory(setup -> new InMemoryStorageFactory(setup.getExecutor()))
-                             .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory())
+                             .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor()))
                              .withStreamSegmentStore(setup -> new StreamSegmentService(setup.getContainerRegistry(),
                                      setup.getSegmentToContainerMapper()));
     }
-    
+
     /**
      * Same as {@link #newInMemoryBuilder(ServiceBuilderConfig)} but executes all non-delayed tasks in-line.
      * This is for unit tests only. Do not deploy like this.
-     * 
+     *
      * @param config The ServiceBuilderConfig to use.
      */
     public static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
@@ -370,7 +369,7 @@ public final class ServiceBuilder implements AutoCloseable {
                                      setup.getContainerRegistry(), setup.getSegmentToContainerMapper()))
                              .withMetadataRepository(setup -> new InMemoryMetadataRepository())
                              .withStorageFactory(setup -> new InMemoryStorageFactory(setup.getExecutor()))
-                             .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory())
+                             .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor()))
                              .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
                                      setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
     }

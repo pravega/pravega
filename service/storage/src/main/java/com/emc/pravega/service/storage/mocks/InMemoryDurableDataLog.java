@@ -35,6 +35,7 @@ import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -43,17 +44,20 @@ import java.util.concurrent.atomic.AtomicReference;
 class InMemoryDurableDataLog implements DurableDataLog {
     private final EntryCollection entries;
     private final String clientId;
+    private final ScheduledExecutorService executorService;
     private long offset;
     private long lastAppendSequence;
     private boolean closed;
     private boolean initialized;
 
-    InMemoryDurableDataLog(EntryCollection entries) {
+    InMemoryDurableDataLog(EntryCollection entries, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(entries, "entries");
+        Preconditions.checkNotNull(executorService, "executorService");
         this.entries = entries;
         this.offset = Long.MIN_VALUE;
         this.lastAppendSequence = Long.MIN_VALUE;
         this.clientId = UUID.randomUUID().toString();
+        this.executorService = executorService;
     }
 
     //region DurableDataLog Implementation
@@ -123,7 +127,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
             }
 
             return new InMemoryLogAddress(entry.sequenceNumber);
-        });
+        }, this.executorService);
     }
 
     @Override
@@ -137,7 +141,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
                     throw new CompletionException(ex);
                 }
             }
-        });
+        }, this.executorService);
     }
 
     @Override
