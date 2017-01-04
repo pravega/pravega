@@ -35,6 +35,7 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.Service;
 import lombok.Cleanup;
 import org.apache.commons.lang.NotImplementedException;
@@ -488,6 +489,16 @@ public class StreamSegmentMapperTests {
         }
 
         @Override
+        public ListenableFuture<State> start() {
+            return null;
+        }
+
+        @Override
+        public State startAndWait() {
+            return null;
+        }
+
+        @Override
         public Service startAsync() {
             return null;
         }
@@ -499,6 +510,16 @@ public class StreamSegmentMapperTests {
 
         @Override
         public State state() {
+            return null;
+        }
+
+        @Override
+        public ListenableFuture<State> stop() {
+            return null;
+        }
+
+        @Override
+        public State stopAndWait() {
             return null;
         }
 
