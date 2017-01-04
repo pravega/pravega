@@ -241,7 +241,7 @@ public class TurbineHeatSensor {
             Transaction<String> transaction = null;
 
             if (isTransaction) {
-                transaction = producer.beginTransaction(60000);
+                transaction = producer.beginTxn(60000);
             }
 
             Future<Void> retFuture = null;
