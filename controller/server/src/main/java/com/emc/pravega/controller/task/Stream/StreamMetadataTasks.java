@@ -40,6 +40,7 @@ import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.Serializable;
@@ -216,7 +217,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 .thenCompose(sealedSegments -> notifySealedSegments(scope, stream, sealedSegments));
     }
 
-    private CompletableFuture<ScaleResponse> scaleBody(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
+    @VisibleForTesting
+    CompletableFuture<ScaleResponse> scaleBody(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
         // Abort scaling operation in the following error scenarios
         // 1. if the active segments in the stream have ts greater than scaleTimestamp -- ScaleStreamStatus.PRECONDITION_FAILED
         // 2. if active segments having creation timestamp as scaleTimestamp have different key ranges than the ones specified in newRanges (todo) -- ScaleStreamStatus.CONFLICT
@@ -289,7 +291,9 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 .thenApply(x -> null);
     }
 
-    private CompletableFuture<Boolean> notifySealedSegment(final String scope, final String stream, final int sealedSegment) {
+    @VisibleForTesting
+    CompletableFuture<Boolean> notifySealedSegment(final String scope, final String stream, final int
+            sealedSegment) {
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                 .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
