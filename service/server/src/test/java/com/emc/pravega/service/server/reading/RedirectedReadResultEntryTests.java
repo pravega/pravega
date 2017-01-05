@@ -25,7 +25,7 @@ import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
-import com.emc.pravega.testcommon.ThreadPooledTest;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Unit tests for RedirectedReadResultEntry.
  */
-public class RedirectedReadResultEntryTests extends ThreadPooledTest {
+public class RedirectedReadResultEntryTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofSeconds(3);
 
     /**

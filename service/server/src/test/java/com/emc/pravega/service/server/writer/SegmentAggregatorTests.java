@@ -45,7 +45,7 @@ import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.emc.pravega.testcommon.IntentionalException;
-import com.emc.pravega.testcommon.ThreadPooledTest;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -72,7 +72,7 @@ import java.util.function.Supplier;
 /**
  * Unit tests for the SegmentAggregator class.
  */
-public class SegmentAggregatorTests extends ThreadPooledTest {
+public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 0;
     private static final long SEGMENT_ID = 123;
     private static final String SEGMENT_NAME = "Segment";

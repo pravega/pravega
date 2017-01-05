@@ -45,7 +45,7 @@ import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.emc.pravega.testcommon.IntentionalException;
-import com.emc.pravega.testcommon.ThreadPooledTest;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -70,7 +70,7 @@ import java.util.function.Supplier;
 /**
  * Unit tests for the StorageWriter class.
  */
-public class StorageWriterTests extends ThreadPooledTest {
+public class StorageWriterTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 1;
     private static final int SEGMENT_COUNT = 10;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;

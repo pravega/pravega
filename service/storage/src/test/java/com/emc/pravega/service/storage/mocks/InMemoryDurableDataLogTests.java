@@ -24,7 +24,7 @@ import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
-import com.emc.pravega.testcommon.ThreadPooledTest;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -40,7 +40,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Unit tests for InMemoryDurableDataLog.
  */
-public class InMemoryDurableDataLogTests extends ThreadPooledTest {
+public class InMemoryDurableDataLogTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int WRITE_COUNT = 250;
 

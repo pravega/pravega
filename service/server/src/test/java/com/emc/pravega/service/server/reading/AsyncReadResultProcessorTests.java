@@ -25,7 +25,7 @@ import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
-import com.emc.pravega.testcommon.ThreadPooledTest;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -44,7 +44,7 @@ import java.util.function.Supplier;
 /**
  * Unit tests for AsyncReadResultProcessor.
  */
-public class AsyncReadResultProcessorTests extends ThreadPooledTest {
+public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
     private static final int ENTRY_COUNT = 10000;
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
 

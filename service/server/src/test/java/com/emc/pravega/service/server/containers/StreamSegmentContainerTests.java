@@ -57,7 +57,7 @@ import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.emc.pravega.testcommon.AssertExtensions;
-import com.emc.pravega.testcommon.ThreadPooledTest;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -80,7 +80,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * using a real DurableLog, real ReadIndex and real StorageWriter - but all against in-memory mocks of Storage and
  * DurableDataLog.
  */
-public class StreamSegmentContainerTests extends ThreadPooledTest {
+public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int SEGMENT_COUNT = 100;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;

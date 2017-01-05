@@ -18,19 +18,18 @@
 
 package com.emc.pravega.service.server.logs;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
+import com.emc.pravega.common.util.PropertyBag;
+import com.emc.pravega.service.server.ConfigHelpers;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.emc.pravega.testcommon.InlineExecutor;
-import com.emc.pravega.common.util.PropertyBag;
-import com.emc.pravega.service.server.ConfigHelpers;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Unit tests for MetadataCheckpointPolicy.
  */
-public class MetadataCheckpointPolicyTests {
+public class MetadataCheckpointPolicyTests extends ThreadPooledTestSuite {
 
     /**
      * Tests invoking the callback upon calls to commit.
@@ -40,7 +39,6 @@ public class MetadataCheckpointPolicyTests {
         final int recordCount = 10000;
         final int recordLength = 100;
 
-        InlineExecutor executor = new InlineExecutor();
         //1. MinCommit Count: Triggering is delayed until min number of recordings happen.
         DurableLogConfig config = ConfigHelpers.createDurableLogConfig(
                 PropertyBag.create()
@@ -48,7 +46,7 @@ public class MetadataCheckpointPolicyTests {
                            .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, recordCount + 1)
                            .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 1)); // If no minCount, this would trigger every time (due to length).
         AtomicInteger callbackCount = new AtomicInteger();
-        MetadataCheckpointPolicy p = new MetadataCheckpointPolicy(config, callbackCount::incrementAndGet, executor);
+        MetadataCheckpointPolicy p = new MetadataCheckpointPolicy(config, callbackCount::incrementAndGet, executorService());
         for (int i = 0; i < recordCount; i++) {
             p.recordCommit(recordLength);
         }
@@ -63,7 +61,7 @@ public class MetadataCheckpointPolicyTests {
                            .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, Integer.MAX_VALUE));
 
         callbackCount.set(0);
-        p = new MetadataCheckpointPolicy(config, callbackCount::incrementAndGet, executor);
+        p = new MetadataCheckpointPolicy(config, callbackCount::incrementAndGet, executorService());
         for (int i = 0; i < recordCount; i++) {
             p.recordCommit(recordLength);
         }
@@ -79,7 +77,7 @@ public class MetadataCheckpointPolicyTests {
                            .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, recordLength * 10));
 
         callbackCount.set(0);
-        p = new MetadataCheckpointPolicy(config, callbackCount::incrementAndGet, executor);
+        p = new MetadataCheckpointPolicy(config, callbackCount::incrementAndGet, executorService());
         for (int i = 0; i < recordCount; i++) {
             p.recordCommit(recordLength);
         }

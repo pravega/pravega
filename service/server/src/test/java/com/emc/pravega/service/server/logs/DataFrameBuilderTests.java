@@ -18,14 +18,13 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.testcommon.InlineExecutor;
 import com.emc.pravega.common.function.ConsumerWithException;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
-import lombok.Cleanup;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -34,14 +33,13 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
  * Unit tests for DataFrameBuilder class.
  */
-public class DataFrameBuilderTests {
+public class DataFrameBuilderTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 1234567;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int SMALL_RECORD_MIN_SIZE = 0;
@@ -59,9 +57,7 @@ public class DataFrameBuilderTests {
         ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
         records.addAll(DataFrameTestHelpers.generateLogItems(100, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
 
-        @Cleanup("shutdown")
-        ScheduledExecutorService executorService = new InlineExecutor();
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService)) {
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
@@ -111,9 +107,7 @@ public class DataFrameBuilderTests {
         }
         HashSet<Integer> failedIndices = new HashSet<>();
 
-        @Cleanup("shutdown")
-        ScheduledExecutorService executorService = new InlineExecutor();
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService)) {
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
@@ -155,9 +149,7 @@ public class DataFrameBuilderTests {
         records.addAll(DataFrameTestHelpers.generateLogItems(100, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
 
         HashSet<Integer> failedIndices = new HashSet<>();
-        @Cleanup("shutdown")
-        ScheduledExecutorService executorService = new InlineExecutor();
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService)) {
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
 
             ErrorInjector<Exception> syncErrorInjector = new ErrorInjector<>(
@@ -226,9 +218,7 @@ public class DataFrameBuilderTests {
     @Test
     public void testClose() throws Exception {
         // Append two records, make sure they are not flushed, close the Builder, then make sure they are flushed.
-        @Cleanup("shutdown")
-        ScheduledExecutorService executorService = new InlineExecutor();
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService)) {
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(2, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);

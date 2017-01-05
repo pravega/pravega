@@ -27,7 +27,7 @@ import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
-import com.emc.pravega.testcommon.ThreadPooledTest;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
@@ -46,7 +46,7 @@ import java.util.function.Supplier;
 /**
  * Unit tests for the StorageReader class.
  */
-public class StorageReaderTests extends ThreadPooledTest {
+public class StorageReaderTests extends ThreadPooledTestSuite {
     private static final int MIN_SEGMENT_LENGTH = 101;
     private static final int MAX_SEGMENT_LENGTH = MIN_SEGMENT_LENGTH * 100;
     private static final SegmentMetadata SEGMENT_METADATA = new StreamSegmentMetadata("Segment1", 0, 0);

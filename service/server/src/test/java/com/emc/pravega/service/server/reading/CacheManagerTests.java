@@ -20,7 +20,7 @@ package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.testcommon.AssertExtensions;
-import com.emc.pravega.testcommon.ThreadPooledTest;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -35,7 +35,7 @@ import java.util.function.BiFunction;
 /**
  * Unit tests for the CacheManager class.
  */
-public class CacheManagerTests extends ThreadPooledTest {
+public class CacheManagerTests extends ThreadPooledTestSuite {
     @Override
     protected int getThreadPoolSize() {
         return 3;

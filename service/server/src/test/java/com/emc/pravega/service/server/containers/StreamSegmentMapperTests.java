@@ -35,7 +35,7 @@ import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
-import com.emc.pravega.testcommon.ThreadPooledTest;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import com.google.common.util.concurrent.Service;
 import lombok.Cleanup;
 import org.apache.commons.lang.NotImplementedException;
@@ -60,7 +60,7 @@ import java.util.function.Predicate;
 /**
  * Unit tests for StreamSegmentMapper class.
  */
-public class StreamSegmentMapperTests extends ThreadPooledTest {
+public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 123;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 

@@ -28,7 +28,7 @@ import java.util.concurrent.ScheduledExecutorService;
  * Base class for a Unit Test class that makes extensive use of Thread Pools.
  * Automatically creates and shuts down a ScheduledExecutorService with every test, with no further code needed.
  */
-public abstract class ThreadPooledTest {
+public abstract class ThreadPooledTestSuite {
     private static final int INLINE_THREAD_COUNT = 0;
     private ScheduledExecutorService executorService = null;
 

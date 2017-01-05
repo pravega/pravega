@@ -26,7 +26,7 @@ import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.testcommon.AssertExtensions;
-import com.emc.pravega.testcommon.ThreadPooledTest;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import org.junit.Assert;
 
@@ -43,7 +43,7 @@ import java.util.function.Predicate;
 /**
  * Base class for all Operation Log-based classes (i.e., DurableLog and OperationProcessor).
  */
-abstract class OperationLogTestBase extends ThreadPooledTest {
+abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     protected static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     @Override

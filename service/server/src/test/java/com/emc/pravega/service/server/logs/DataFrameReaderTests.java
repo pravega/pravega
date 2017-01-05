@@ -27,7 +27,7 @@ import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
-import com.emc.pravega.testcommon.ThreadPooledTest;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -43,7 +43,7 @@ import java.util.function.Predicate;
 /**
  * Unit tests for DataFrameReader class.
  */
-public class DataFrameReaderTests extends ThreadPooledTest {
+public class DataFrameReaderTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 1234567;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int SMALL_RECORD_MIN_SIZE = 0;
