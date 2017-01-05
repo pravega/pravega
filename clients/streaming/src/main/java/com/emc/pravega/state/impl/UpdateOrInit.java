@@ -27,18 +27,18 @@ import java.util.List;
 import lombok.Data;
 
 @Data
-class UpdateOrInit<StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> {
-    private final List<? extends UpdateT> updates;
-    private final InitT init;
+class UpdateOrInit<StateT extends Revisioned> {
+    private final List<? extends Update<StateT>> updates;
+    private final InitialUpdate<StateT> init;
     private final Revision initRevision;
 
-    UpdateOrInit(List<? extends UpdateT> updates) {
+    UpdateOrInit(List<? extends Update<StateT>> updates) {
         this.updates = updates;
         this.init = null;
         this.initRevision = null;
     }
 
-    UpdateOrInit(InitT init, Revision revision) {
+    UpdateOrInit(InitialUpdate<StateT> init, Revision revision) {
         this.updates = null;
         this.init = init;
         this.initRevision = revision;

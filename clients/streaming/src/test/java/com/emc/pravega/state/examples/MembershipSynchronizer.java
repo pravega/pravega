@@ -71,7 +71,7 @@ public class MembershipSynchronizer extends AbstractService {
 
     private final ScheduledExecutorService executor;
 
-    private final StateSynchronizer<LiveInstances, HeartbeatUpdate, LiveInstances> stateSync;
+    private final StateSynchronizer<LiveInstances> stateSync;
     private final MembershipListener listener;
     private ScheduledFuture<?> task;
 

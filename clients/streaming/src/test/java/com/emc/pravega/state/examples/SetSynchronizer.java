@@ -138,10 +138,10 @@ public class SetSynchronizer<T extends Serializable> {
     
     private static final int REMOVALS_BEFORE_COMPACTION = 5;
 
-    private final StateSynchronizer<UpdatableSet<T>, SetUpdate<T>, CreateSet<T>> stateSynchronizer;
+    private final StateSynchronizer<UpdatableSet<T>> stateSynchronizer;
     private final AtomicInteger countdownToCompaction = new AtomicInteger(REMOVALS_BEFORE_COMPACTION);
 
-    private SetSynchronizer(String scopedStreamName, StateSynchronizer<UpdatableSet<T>, SetUpdate<T>, CreateSet<T>> synchronizer) {
+    private SetSynchronizer(String scopedStreamName, StateSynchronizer<UpdatableSet<T>> synchronizer) {
         this.stateSynchronizer = synchronizer;
         synchronizer.initialize(new CreateSet<T>(new LinkedHashSet<>()));
     }

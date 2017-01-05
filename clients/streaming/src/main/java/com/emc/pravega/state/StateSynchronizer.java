@@ -40,10 +40,8 @@ import java.util.function.Function;
  * should be relatively compact. Implementations might explicitly enforce size limits.
  * 
  * @param <StateT> The type of the object whose updates are being synchronized.
- * @param <UpdateT> The type of updates applied to the state object.
- * @param <InitT> The type of the initializer for the state object.
  */
-public interface StateSynchronizer<StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> {
+public interface StateSynchronizer<StateT extends Revisioned> {
     
     /**
      * Gets the state object currently held in memory.
@@ -69,7 +67,7 @@ public interface StateSynchronizer<StateT extends Revisioned, UpdateT extends Up
      * local state.
      * @param updateGenerator A function that given the current state can supply updates that should be applied.
      */
-    void updateState(Function<StateT, List<UpdateT>> updateGenerator);
+    void updateState(Function<StateT, List<? extends Update<StateT>>> updateGenerator);
 
     /**
      * Persists the provided update. To ensure consistent ordering of updates across hosts the
@@ -77,7 +75,7 @@ public interface StateSynchronizer<StateT extends Revisioned, UpdateT extends Up
      * 
      * @param update The update that all other processes should receive.
      */
-    void unconditionallyUpdateState(UpdateT update);
+    void unconditionallyUpdateState(Update<StateT> update);
     
     /**
      * Same as {@link #unconditionallyUpdateState(Update)}, except it persists multiple updates at
@@ -85,8 +83,8 @@ public interface StateSynchronizer<StateT extends Revisioned, UpdateT extends Up
      * 
      * @param update The updates that all other processes should receive.
      */
-    void unconditionallyUpdateState(List<? extends UpdateT> update);
-    
+    void unconditionallyUpdateState(List<? extends Update<StateT>> update);
+
     /**
      * This method can be used to provide an initial value for a new stream if the stream has not
      * been previously initialized. If the stream was already initialized nothing will be changed,
@@ -94,8 +92,8 @@ public interface StateSynchronizer<StateT extends Revisioned, UpdateT extends Up
      * 
      * @param initial The initializer for the state
      */
-    void initialize(InitT initial);
-    
+    void initialize(InitialUpdate<StateT> initial);
+
     /**
      * Provide a compaction that exactly represents the provided localState so that some of the
      * history of updates can be dropped.
@@ -108,6 +106,5 @@ public interface StateSynchronizer<StateT extends Revisioned, UpdateT extends Up
      *        required to be current)
      * @param compaction An update that will reconstruct the state as of the provided revision.
      */
-    void compact(Revision revision, InitT compaction);
-    
+    void compact(Revision revision, InitialUpdate<StateT> compaction);
 }

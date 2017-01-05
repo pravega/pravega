@@ -135,7 +135,7 @@ public class StateSynchronizerTest {
         assertEquals("fail Initially 5", b.getState().value);
     }
     
-    private int update(StateSynchronizer<TestState, TestUpdate, TestUpdate> sync, String string) {
+    private int update(StateSynchronizer<TestState> sync, String string) {
         AtomicInteger count = new AtomicInteger(0);
         sync.updateState(state -> {
             count.incrementAndGet();

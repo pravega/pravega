@@ -35,16 +35,16 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 import lombok.val;
 
-public class StateSynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>>
-        implements StateSynchronizer<StateT, UpdateT, InitT> {
+public class StateSynchronizerImpl<StateT extends Revisioned>
+        implements StateSynchronizer<StateT> {
 
-    private final RevisionedStreamClient<UpdateOrInit<StateT, UpdateT, InitT>> client;
+    private final RevisionedStreamClient<UpdateOrInit<StateT>> client;
     @GuardedBy("$lock")
     private StateT currentState;
     private Segment segment;
     private RevisionImpl initialRevision;
     
-    public StateSynchronizerImpl(Segment segment, RevisionedStreamClient<UpdateOrInit<StateT, UpdateT, InitT>> client) {
+    public StateSynchronizerImpl(Segment segment, RevisionedStreamClient<UpdateOrInit<StateT>> client) {
         this.segment = segment;
         this.initialRevision = new RevisionImpl(segment, 0, 0);
         this.client = client;
@@ -65,9 +65,9 @@ public class StateSynchronizerImpl<StateT extends Revisioned, UpdateT extends Up
     public void fetchUpdates() {
         val iter = client.readFrom(getRevision());
         while (iter.hasNext()) {
-            Entry<Revision, UpdateOrInit<StateT, UpdateT, InitT>> entry = iter.next();
+            Entry<Revision, UpdateOrInit<StateT>> entry = iter.next();
             if (entry.getValue().isInit()) {
-                InitT init = entry.getValue().getInit();
+                InitialUpdate<StateT> init = entry.getValue().getInit();
                 Revision revision = entry.getValue().getInitRevision();
                 if (isNewer(revision)) {
                     updateCurrentState(init.create(segment.getScopedStreamName(), revision));
@@ -78,9 +78,9 @@ public class StateSynchronizerImpl<StateT extends Revisioned, UpdateT extends Up
         }
     }
 
-    private void applyUpdates(RevisionImpl readRevision, List<? extends UpdateT> updates) {
+    private void applyUpdates(RevisionImpl readRevision, List<? extends Update<StateT>> updates) {
         int i = 0;
-        for (UpdateT update : updates) {
+        for (Update<StateT> update : updates) {
             StateT state = getState();
             RevisionImpl newRevision = new RevisionImpl(segment, readRevision.getOffsetInSegment(), i++);
             if (newRevision.compareTo(state.getRevision()) > 0) {
@@ -90,10 +90,10 @@ public class StateSynchronizerImpl<StateT extends Revisioned, UpdateT extends Up
     }
 
     @Override
-    public void updateState(Function<StateT, List<UpdateT>> updateGenerator) {
+    public void updateState(Function<StateT, List<? extends Update<StateT>>> updateGenerator) {
         while (true) {
             StateT state = getState();
-            List<UpdateT> updates = updateGenerator.apply(state);
+            List<? extends Update<StateT>> updates = updateGenerator.apply(state);
             if (updates == null || updates.isEmpty()) {
                 break;
             }
@@ -108,17 +108,17 @@ public class StateSynchronizerImpl<StateT extends Revisioned, UpdateT extends Up
     }
 
     @Override
-    public void unconditionallyUpdateState(UpdateT update) {
+    public void unconditionallyUpdateState(Update<StateT> update) {
         client.unconditionallyWrite(new UpdateOrInit<>(Collections.singletonList(update)));
     }
 
     @Override
-    public void unconditionallyUpdateState(List<? extends UpdateT> update) {
+    public void unconditionallyUpdateState(List<? extends Update<StateT>> update) {
         client.unconditionallyWrite(new UpdateOrInit<>(update));
     }
 
     @Override
-    public void initialize(InitT initial) {
+    public void initialize(InitialUpdate<StateT> initial) {
         Revision result = client.conditionallyWrite(initialRevision, new UpdateOrInit<>(initial, initialRevision));
         if (result == null) {
             fetchUpdates();
@@ -128,7 +128,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned, UpdateT extends Up
     }
 
     @Override
-    public void compact(Revision revision, InitT compaction) {
+    public void compact(Revision revision, InitialUpdate<StateT> compaction) {
         client.unconditionallyWrite(new UpdateOrInit<>(compaction, revision));
     }
     

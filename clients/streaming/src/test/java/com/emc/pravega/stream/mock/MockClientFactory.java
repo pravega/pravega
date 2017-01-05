@@ -90,10 +90,10 @@ public class MockClientFactory implements ClientFactory {
     
     @Override
     public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
-            StateSynchronizer<StateT, UpdateT, InitT> createStateSynchronizer(String streamName, 
-                                                                    Serializer<UpdateT> updateSerializer, 
-                                                                    Serializer<InitT> initialSerializer,
-                                                                    SynchronizerConfig config) {
+    StateSynchronizer<StateT> createStateSynchronizer(String streamName, 
+            Serializer<UpdateT> updateSerializer, 
+            Serializer<InitT> initialSerializer,
+            SynchronizerConfig config) {
         return impl.createStateSynchronizer(streamName, updateSerializer, initialSerializer, config);
     }
     

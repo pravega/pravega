@@ -63,22 +63,21 @@ public class SynchronizerTest {
         }
     }
 
-    private static class MockRevisionedStreamClient
-            implements RevisionedStreamClient<UpdateOrInit<RevisionedImpl, BlockingUpdate, BlockingUpdate>> {
+    private static class MockRevisionedStreamClient implements RevisionedStreamClient<UpdateOrInit<RevisionedImpl>> {
         private Segment segment;
         private BlockingUpdate init;
         private BlockingUpdate[] updates;
         private int visableLength = 0;
 
         @Override
-        public Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl, BlockingUpdate, BlockingUpdate>>> readFrom(
+        public Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>> readFrom(
                 Revision start) {
-            return new Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl, BlockingUpdate, BlockingUpdate>>>() {
+            return new Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>>() {
                 private int pos = start.asImpl().getEventAtOffset();
 
                 @Override
-                public Entry<Revision, UpdateOrInit<RevisionedImpl, BlockingUpdate, BlockingUpdate>> next() {
-                    UpdateOrInit<RevisionedImpl, BlockingUpdate, BlockingUpdate> value;
+                public Entry<Revision, UpdateOrInit<RevisionedImpl>> next() {
+                    UpdateOrInit<RevisionedImpl> value;
                     RevisionImpl revision = new RevisionImpl(segment, pos, pos);
                     if (pos == 0) {
                         value = new UpdateOrInit<>(init, revision);
@@ -97,13 +96,12 @@ public class SynchronizerTest {
         }
 
         @Override
-        public Revision conditionallyWrite(Revision latestRevision,
-                UpdateOrInit<RevisionedImpl, BlockingUpdate, BlockingUpdate> value) {
+        public Revision conditionallyWrite(Revision latestRevision, UpdateOrInit<RevisionedImpl> value) {
             throw new NotImplementedException();
         }
 
         @Override
-        public void unconditionallyWrite(UpdateOrInit<RevisionedImpl, BlockingUpdate, BlockingUpdate> value) {
+        public void unconditionallyWrite(UpdateOrInit<RevisionedImpl> value) {
             throw new NotImplementedException();
         }
 
@@ -120,8 +118,7 @@ public class SynchronizerTest {
 
         MockRevisionedStreamClient client = new MockRevisionedStreamClient();
         client.segment = segment;
-        StateSynchronizerImpl<RevisionedImpl, BlockingUpdate, BlockingUpdate> sync = new StateSynchronizerImpl<>(
-                segment, client);
+        StateSynchronizerImpl<RevisionedImpl> sync = new StateSynchronizerImpl<RevisionedImpl>(segment, client);
         client.init = new BlockingUpdate(0);
         client.updates = updates;
         client.visableLength = 2;

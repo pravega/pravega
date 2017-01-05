@@ -31,7 +31,7 @@ import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public final class UpdateOrInitSerializer<StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>>
-        implements Serializer<UpdateOrInit<StateT, UpdateT, InitT>> {
+        implements Serializer<UpdateOrInit<StateT>> {
     private static final int INITIALIZATION = 1;
     private static final int UPDATE = 2;
     private final Segment segment;
@@ -39,9 +39,10 @@ public final class UpdateOrInitSerializer<StateT extends Revisioned, UpdateT ext
     private final Serializer<InitT> initSerializer;
 
     @Override
-    public ByteBuffer serialize(UpdateOrInit<StateT, UpdateT, InitT> value) {
+    @SuppressWarnings("unchecked")
+    public ByteBuffer serialize(UpdateOrInit<StateT> value) {
         if (value.isInit()) {
-            ByteBuffer buffer = initSerializer.serialize(value.getInit());
+            ByteBuffer buffer = initSerializer.serialize((InitT) value.getInit());
             ByteBuffer result = ByteBuffer.allocate(buffer.capacity() + 3 * Integer.BYTES + Long.BYTES);
             result.putInt(INITIALIZATION);
             result.putInt(value.getInitRevision().asImpl().getSegment().getSegmentNumber());
@@ -53,8 +54,8 @@ public final class UpdateOrInitSerializer<StateT extends Revisioned, UpdateT ext
         } else {
             List<ByteBuffer> serializedUpdates = new ArrayList<>();
             int size = 0;
-            for (UpdateT u : value.getUpdates()) {
-                ByteBuffer serialized = updateSerializer.serialize(u);
+            for (Update<StateT> u : value.getUpdates()) {
+                ByteBuffer serialized = updateSerializer.serialize((UpdateT) u);
                 size += serialized.remaining();
                 serializedUpdates.add(serialized);
             }
@@ -70,7 +71,7 @@ public final class UpdateOrInitSerializer<StateT extends Revisioned, UpdateT ext
     }
 
     @Override
-    public UpdateOrInit<StateT, UpdateT, InitT> deserialize(ByteBuffer serializedValue) {
+    public UpdateOrInit<StateT> deserialize(ByteBuffer serializedValue) {
         int type = serializedValue.getInt();
         if (type == INITIALIZATION) {
             int segmentNumber = serializedValue.getInt();
@@ -81,7 +82,7 @@ public final class UpdateOrInitSerializer<StateT extends Revisioned, UpdateT ext
             RevisionImpl revision = new RevisionImpl(segment, serializedValue.getLong(), serializedValue.getInt());
             return new UpdateOrInit<>(initSerializer.deserialize(serializedValue), revision);
         } else if (type == UPDATE) {
-            ArrayList<UpdateT> result = new ArrayList<>();
+            ArrayList<Update<StateT>> result = new ArrayList<>();
             int origionalLimit = serializedValue.limit();
             while (serializedValue.hasRemaining()) {
                 int updateLength = serializedValue.getInt();

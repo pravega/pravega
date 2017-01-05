@@ -131,14 +131,14 @@ public class ClientFactoryImpl implements ClientFactory {
 
     @Override
     public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
-            StateSynchronizer<StateT, UpdateT, InitT> createStateSynchronizer(String streamName,
+            StateSynchronizer<StateT> createStateSynchronizer(String streamName,
                     Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer,
                     SynchronizerConfig config) {
         Segment segment = new Segment(scope, streamName, 0);
         UpdateOrInitSerializer<StateT, UpdateT, InitT> serializer = new UpdateOrInitSerializer<>(segment,
                 updateSerializer,
                 initialSerializer);
-        return new StateSynchronizerImpl<StateT, UpdateT, InitT>(segment,
+        return new StateSynchronizerImpl<StateT>(segment,
                 createRevisionedStreamClient(streamName, serializer, config));
     }
 
