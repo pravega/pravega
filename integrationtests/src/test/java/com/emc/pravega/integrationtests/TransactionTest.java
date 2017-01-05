@@ -87,7 +87,7 @@ public class TransactionTest {
                                                                  new JavaSerializer<>(),
                                                                  new EventWriterConfig(null));
         producer.writeEvent(routingKey, nonTxEvent);
-        Transaction<String> transaction = producer.beginTransaction(60000);
+        Transaction<String> transaction = producer.beginTxn(60000);
         producer.writeEvent(routingKey, nonTxEvent);
         transaction.writeEvent(routingKey, txnEvent);
         producer.writeEvent(routingKey, nonTxEvent);
@@ -144,7 +144,7 @@ public class TransactionTest {
         clientFactory.createStream(streamName, null);
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), new EventWriterConfig(null));
-        Transaction<String> transaction = producer.beginTransaction(60000);
+        Transaction<String> transaction = producer.beginTxn(60000);
         transaction.writeEvent(routingKey, event);
         transaction.commit();
         AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit() );    
@@ -166,12 +166,13 @@ public class TransactionTest {
         clientFactory.createStream(streamName, null);
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), new EventWriterConfig(null));
-   
-        Transaction<String> transaction = producer.beginTransaction(60000);
+
+        Transaction<String> transaction = producer.beginTxn(60000);
         transaction.writeEvent(routingKey, txnEvent);
         transaction.flush();
-        transaction.drop();
-        transaction.drop();
+        transaction.abort();
+        transaction.abort();
+
         AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.writeEvent(routingKey, txnEvent));
         AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit());
         
