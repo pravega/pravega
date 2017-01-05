@@ -32,7 +32,7 @@ public interface OpStatsLogger {
     public void registerFailedEvent(long eventLatency, TimeUnit unit);
 
     /**
-     * Report failure, a wrapper to registerFailedEvent.
+     * Report failure, a wrapper to registerFailedEvent, with TimeUnit.NANOSECONDS.
      *
      * @param eventLatency the event latency
      */
@@ -49,7 +49,7 @@ public interface OpStatsLogger {
     public void registerSuccessfulEvent(long eventLatency, TimeUnit unit);
 
     /**
-     * Report success, a wrapper to registerSuccessfulEvent.
+     * Report success, a wrapper to registerSuccessfulEvent, with TimeUnit.NANOSECONDS.
      *
      * @param eventLatency the event latency
      */
@@ -65,7 +65,7 @@ public interface OpStatsLogger {
     public void registerSuccessfulValue(long value);
 
     /**
-     * Report, a wrapper to registerSuccessfulValue.
+     * Report, a wrapper to registerSuccessfulValue to make it short.
      *
      * @param value the value
      */
