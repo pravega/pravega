@@ -36,7 +36,9 @@ public interface OpStatsLogger {
      *
      * @param eventLatency the event latency
      */
-    public void reportFailure(long eventLatency);
+    default public void reportFailure(long eventLatency) {
+        registerFailedEvent(eventLatency, TimeUnit.NANOSECONDS);
+    }
 
     /**
      * Increment the succeeded op counter with the given eventLatency.
@@ -51,7 +53,9 @@ public interface OpStatsLogger {
      *
      * @param eventLatency the event latency
      */
-    public void reportSuccess(long eventLatency);
+    default public void reportSuccess(long eventLatency) {
+        registerSuccessfulEvent(eventLatency, TimeUnit.NANOSECONDS);
+    }
 
     /**
      * An operation with the given value succeeded.
@@ -60,7 +64,12 @@ public interface OpStatsLogger {
      */
     public void registerSuccessfulValue(long value);
 
-    default void report(long value) {
+    /**
+     * Report, a wrapper to registerSuccessfulValue.
+     *
+     * @param value the value
+     */
+    default public void report(long value) {
         registerSuccessfulValue(value);
     }
 

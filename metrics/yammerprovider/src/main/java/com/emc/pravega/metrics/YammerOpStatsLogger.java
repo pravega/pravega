@@ -40,14 +40,6 @@ class YammerOpStatsLogger implements OpStatsLogger {
         success.update(eventLatency, unit);
     }
 
-    public void reportSuccess(long eventLatency) {
-        success.update(eventLatency, TimeUnit.NANOSECONDS);
-    }
-
-    public void reportFailure(long eventLatency) {
-        fail.update(eventLatency, TimeUnit.NANOSECONDS);
-    }
-
     public void registerSuccessfulValue(long value) {
         // Values are inserted as millis, which is the unit they will be presented, to maintain 1:1 scale
         success.update(value, TimeUnit.MILLISECONDS);

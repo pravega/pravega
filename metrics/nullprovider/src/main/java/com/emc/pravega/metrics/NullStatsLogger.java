@@ -38,16 +38,6 @@ public class NullStatsLogger implements StatsLogger {
         }
 
         @Override
-        public void reportSuccess(long eventLatency){
-            // nop
-        }
-
-        @Override
-        public void reportFailure(long eventLatency){
-            // nop
-        }
-
-        @Override
         public void registerSuccessfulValue(long value) {
             // nop
         }
