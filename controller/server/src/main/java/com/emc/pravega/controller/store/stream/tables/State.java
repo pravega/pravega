@@ -21,6 +21,6 @@ package com.emc.pravega.controller.store.stream.tables;
  * This is used to represent the state of the Stream.
  */
 public enum State {
-    NORMAL,
+    ACTIVE,
     SEALED
 }
