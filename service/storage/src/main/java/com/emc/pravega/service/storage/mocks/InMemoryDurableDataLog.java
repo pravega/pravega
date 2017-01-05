@@ -19,6 +19,7 @@
 package com.emc.pravega.service.storage.mocks;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.common.util.TruncateableList;
@@ -37,27 +38,36 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * In-Memory Mock for DurableDataLog. Contents is destroyed when object is garbage collected.
  */
 class InMemoryDurableDataLog implements DurableDataLog {
+    static final Supplier<Duration> DEFAULT_APPEND_DELAY_PROVIDER = () -> Duration.ZERO; // No delay.
     private final EntryCollection entries;
     private final String clientId;
     private final ScheduledExecutorService executorService;
+    private final Supplier<Duration> appendDelayProvider;
     private long offset;
     private long lastAppendSequence;
     private boolean closed;
     private boolean initialized;
 
     InMemoryDurableDataLog(EntryCollection entries, ScheduledExecutorService executorService) {
+        this(entries, DEFAULT_APPEND_DELAY_PROVIDER, executorService);
+    }
+
+    InMemoryDurableDataLog(EntryCollection entries, Supplier<Duration> appendDelayProvider, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(entries, "entries");
+        Preconditions.checkNotNull(appendDelayProvider, "appendDelayProvider");
         Preconditions.checkNotNull(executorService, "executorService");
         this.entries = entries;
+        this.appendDelayProvider = appendDelayProvider;
+        this.executorService = executorService;
         this.offset = Long.MIN_VALUE;
         this.lastAppendSequence = Long.MIN_VALUE;
         this.clientId = UUID.randomUUID().toString();
-        this.executorService = executorService;
     }
 
     //region DurableDataLog Implementation
@@ -110,24 +120,14 @@ class InMemoryDurableDataLog implements DurableDataLog {
     @Override
     public CompletableFuture<LogAddress> append(InputStream data, Duration timeout) {
         ensurePreconditions();
-        return CompletableFuture.supplyAsync(() -> {
-            Entry entry;
-            try {
-                entry = new Entry(data);
-                synchronized (this.entries) {
-                    entry.sequenceNumber = this.offset;
-                    this.entries.add(entry, clientId);
-
-                    // Only update internals after a successful add.
-                    this.offset += entry.data.length;
-                    this.lastAppendSequence = entry.sequenceNumber;
-                }
-            } catch (DataLogWriterNotPrimaryException | IOException ex) {
-                throw new CompletionException(ex);
-            }
-
-            return new InMemoryLogAddress(entry.sequenceNumber);
-        }, this.executorService);
+        Duration delay = this.appendDelayProvider.get();
+        if (delay.compareTo(Duration.ZERO) <= 0) {
+            // No delay, execute right away.
+            return CompletableFuture.supplyAsync(() -> appendInternal(data), this.executorService);
+        } else {
+            // Schedule the append after the given delay.
+            return FutureHelpers.delayedTask(() -> appendInternal(data), delay, this.executorService);
+        }
     }
 
     @Override
@@ -151,6 +151,25 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     //endregion
+
+    private LogAddress appendInternal(InputStream data) {
+        Entry entry;
+        try {
+            entry = new Entry(data);
+            synchronized (this.entries) {
+                entry.sequenceNumber = this.offset;
+                this.entries.add(entry, clientId);
+
+                // Only update internals after a successful add.
+                this.offset += entry.data.length;
+                this.lastAppendSequence = entry.sequenceNumber;
+            }
+        } catch (DataLogWriterNotPrimaryException | IOException ex) {
+            throw new CompletionException(ex);
+        }
+
+        return new InMemoryLogAddress(entry.sequenceNumber);
+    }
 
     private void ensurePreconditions() {
         Exceptions.checkNotClosed(this.closed, this);
