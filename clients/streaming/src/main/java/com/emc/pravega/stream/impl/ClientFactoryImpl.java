@@ -18,17 +18,20 @@ import com.emc.pravega.ClientFactory;
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revisioned;
-import com.emc.pravega.state.Synchronizer;
+import com.emc.pravega.state.RevisionedStreamClient;
+import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.state.impl.CorruptedStateException;
-import com.emc.pravega.state.impl.SynchronizerImpl;
+import com.emc.pravega.state.impl.RevisionedStreamClientImpl;
+import com.emc.pravega.state.impl.StateSynchronizerImpl;
+import com.emc.pravega.state.impl.UpdateOrInitSerializer;
 import com.emc.pravega.stream.EventStreamReader;
-import com.emc.pravega.stream.ReaderConfig;
-import com.emc.pravega.stream.IdempotentEventStreamWriter;
-import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.IdempotentEventStreamWriter;
+import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
@@ -111,10 +114,8 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     @Override
-    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> Synchronizer<StateT, UpdateT, InitT> createSynchronizer(
-            String streamName, Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer,
+    public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
             SynchronizerConfig config) {
-        Stream stream = streamManager.getStream(streamName);
         Segment segment = new Segment(scope, streamName, 0);
         SegmentInputStreamFactoryImpl inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         SegmentInputStream in = inFactory.createInputStreamForSegment(segment, config.getInputConfig());
@@ -125,7 +126,20 @@ public class ClientFactoryImpl implements ClientFactory {
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Attempted to create synchronizer on sealed segment", e);
         }
-        return new SynchronizerImpl<StateT, UpdateT, InitT>(stream, in, out, updateSerializer, initialSerializer);
+        return new RevisionedStreamClientImpl<>(segment, in, out, serializer);
+    }
+
+    @Override
+    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
+            StateSynchronizer<StateT, UpdateT, InitT> createStateSynchronizer(String streamName,
+                    Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer,
+                    SynchronizerConfig config) {
+        Segment segment = new Segment(scope, streamName, 0);
+        UpdateOrInitSerializer<StateT, UpdateT, InitT> serializer = new UpdateOrInitSerializer<>(segment,
+                updateSerializer,
+                initialSerializer);
+        return new StateSynchronizerImpl<StateT, UpdateT, InitT>(segment,
+                createRevisionedStreamClient(streamName, serializer, config));
     }
 
     private static final class SingleStreamOrderer<T> implements Orderer<T> {
@@ -135,6 +149,5 @@ public class ClientFactoryImpl implements ClientFactory {
             return logs.iterator().next();
         }
     }
-
 
 }

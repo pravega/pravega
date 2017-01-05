@@ -18,19 +18,18 @@ import com.emc.pravega.common.util.ReusableLatch;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;
+import com.emc.pravega.state.RevisionedStreamClient;
 import com.emc.pravega.state.Update;
-import com.emc.pravega.stream.Serializer;
-import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.StreamImpl;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
-import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.testcommon.Async;
 
-import java.nio.ByteBuffer;
+import java.util.AbstractMap;
 import java.util.Collections;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Iterator;
+import java.util.Map.Entry;
 
+import org.apache.commons.lang.NotImplementedException;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -51,105 +50,105 @@ public class SynchronizerTest {
         private final int num;
 
         @Override
-        public RevisionedImpl create(Revision revision) {
+        public RevisionedImpl create(String scopedSteamName, Revision revision) {
             latch.awaitUninterruptibly();
-            return new RevisionedImpl(null, new RevisionImpl(num, num));
+            return new RevisionedImpl(scopedSteamName, new RevisionImpl(revision.asImpl().getSegment(), num, num));
         }
 
         @Override
         public RevisionedImpl applyTo(RevisionedImpl oldState, Revision newRevision) {
             latch.awaitUninterruptibly();
-            return new RevisionedImpl(oldState.scopedStreamName, new RevisionImpl(num, num));
+            return new RevisionedImpl(oldState.scopedStreamName,
+                    new RevisionImpl(newRevision.asImpl().getSegment(), num, num));
         }
     }
 
-    private static class MockSegmentInputStream extends SegmentInputStream {
-        private ByteBuffer[] results;
-        private int pos = 0;
+    private static class MockRevisionedStreamClient
+            implements RevisionedStreamClient<UpdateOrInit<RevisionedImpl, BlockingUpdate, BlockingUpdate>> {
+        private Segment segment;
+        private BlockingUpdate init;
+        private BlockingUpdate[] updates;
         private int visableLength = 0;
 
         @Override
-        public void setOffset(long offset) {
-            pos = (int) offset;
+        public Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl, BlockingUpdate, BlockingUpdate>>> readFrom(
+                Revision start) {
+            return new Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl, BlockingUpdate, BlockingUpdate>>>() {
+                private int pos = start.asImpl().getEventAtOffset();
+
+                @Override
+                public Entry<Revision, UpdateOrInit<RevisionedImpl, BlockingUpdate, BlockingUpdate>> next() {
+                    UpdateOrInit<RevisionedImpl, BlockingUpdate, BlockingUpdate> value;
+                    RevisionImpl revision = new RevisionImpl(segment, pos, pos);
+                    if (pos == 0) {
+                        value = new UpdateOrInit<>(init, revision);
+                    } else {
+                        value = new UpdateOrInit<>(Collections.singletonList(updates[pos - 1]));
+                    }
+                    pos++;
+                    return new AbstractMap.SimpleImmutableEntry<>(revision, value);
+                }
+
+                @Override
+                public boolean hasNext() {
+                    return pos <= visableLength;
+                }
+            };
         }
 
         @Override
-        public long getOffset() {
-            return pos;
+        public Revision conditionallyWrite(Revision latestRevision,
+                UpdateOrInit<RevisionedImpl, BlockingUpdate, BlockingUpdate> value) {
+            throw new NotImplementedException();
         }
 
         @Override
-        public long fetchCurrentStreamLength() {
-            return visableLength;
+        public void unconditionallyWrite(UpdateOrInit<RevisionedImpl, BlockingUpdate, BlockingUpdate> value) {
+            throw new NotImplementedException();
         }
 
-        @Override
-        public ByteBuffer read() throws EndOfSegmentException {
-            if (pos >= visableLength) {
-                throw new IllegalArgumentException();
-            }
-            return results[pos++].slice();
-        }
-
-        @Override
-        public void close() {
-        }
     }
 
     @Test(timeout = 20000)
     public void testLocking() throws EndOfSegmentException {
         String streamName = "streamName";
         String scope = "scope";
-        Stream stream = new StreamImpl(scope, streamName, new StreamConfigurationImpl(scope, streamName, null));
+        Segment segment = new Segment(scope, streamName, 0);
 
-        BlockingUpdate[] blocking = new BlockingUpdate[] { new BlockingUpdate(1), new BlockingUpdate(2),
+        BlockingUpdate[] updates = new BlockingUpdate[] { new BlockingUpdate(1), new BlockingUpdate(2),
                 new BlockingUpdate(3), new BlockingUpdate(4) };
-        Serializer<BlockingUpdate> serializer = new Serializer<BlockingUpdate>() {
-            AtomicInteger count = new AtomicInteger(0);
 
-            @Override
-            public ByteBuffer serialize(BlockingUpdate value) {
-                ByteBuffer result = ByteBuffer.allocate(4).putInt(count.getAndIncrement());
-                result.rewind();
-                return result;
-            }
+        MockRevisionedStreamClient client = new MockRevisionedStreamClient();
+        client.segment = segment;
+        StateSynchronizerImpl<RevisionedImpl, BlockingUpdate, BlockingUpdate> sync = new StateSynchronizerImpl<>(
+                segment, client);
+        client.init = new BlockingUpdate(0);
+        client.updates = updates;
+        client.visableLength = 2;
+        client.init.latch.release();
+        updates[0].latch.release();
+        updates[1].latch.release();
+        sync.fetchUpdates();
+        RevisionedImpl state1 = sync.getState();
+        assertEquals(new RevisionImpl(segment, 2, 2), state1.getRevision());
 
-            @Override
-            public BlockingUpdate deserialize(ByteBuffer serializedValue) {
-                int index = serializedValue.getInt();
-                return blocking[index];
-            }
-        };
-        MockSegmentInputStream in = new MockSegmentInputStream();
-        SynchronizerImpl<RevisionedImpl, BlockingUpdate, BlockingUpdate> sync = new SynchronizerImpl<>(stream,
-                in,
-                null,
-                serializer,
-                serializer);
-        in.results = new ByteBuffer[] { sync.encodeInit(blocking[0]),
-                sync.encodeUpdate(Collections.singletonList(blocking[1])),
-                sync.encodeUpdate(Collections.singletonList(blocking[2])),
-                sync.encodeUpdate(Collections.singletonList(blocking[3])), };
-        in.visableLength = 2;
-        blocking[0].latch.release();
-        blocking[1].latch.release();
-        RevisionedImpl state1 = sync.getLatestState();
-        assertEquals(new RevisionImpl(2, 2), state1.getRevision());
+        client.visableLength = 3;
+        Async.testBlocking(() -> {
+            sync.fetchUpdates();
 
-        in.visableLength = 3;
-        RevisionedImpl state2 = Async.testBlocking(() -> {
-            return sync.getLatestState(state1);
-        }, () -> blocking[2].latch.release());
-        assertEquals(new RevisionImpl(3, 3), state2.getRevision());
+        }, () -> updates[2].latch.release());
+        RevisionedImpl state2 = sync.getState();
+        assertEquals(new RevisionImpl(segment, 3, 3), state2.getRevision());
 
-        in.visableLength = 4;
-        RevisionedImpl state3 = Async.testBlocking(() -> {
-            return sync.getLatestState(state2);
+        client.visableLength = 4;
+        Async.testBlocking(() -> {
+            sync.fetchUpdates();
         }, () -> {
-            in.visableLength = 3;
-            sync.getLatestState();
-            blocking[3].latch.release();
+            client.visableLength = 3;
+            sync.getState();
+            updates[3].latch.release();
         });
-        assertEquals(new RevisionImpl(4, 4), state3.getRevision());
+        RevisionedImpl state3 = sync.getState();
+        assertEquals(new RevisionImpl(segment, 4, 4), state3.getRevision());
     }
 }

@@ -21,7 +21,7 @@ import com.emc.pravega.ClientFactory;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;
-import com.emc.pravega.state.Synchronizer;
+import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.impl.JavaSerializer;
@@ -30,12 +30,12 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import lombok.RequiredArgsConstructor;
-import lombok.Synchronized;
 
 /**
- * An example of how to use Synchronizer that coordinates the values in a set.
+ * An example of how to use StateSynchronizer that coordinates the values in a set.
  * @param <T> The type of the values in the set.
  */
 public class SetSynchronizer<T extends Serializable> {
@@ -124,111 +124,106 @@ public class SetSynchronizer<T extends Serializable> {
      */
     @RequiredArgsConstructor
     private static class CreateSet<T> implements InitialUpdate<UpdatableSet<T>>, Serializable {
-        private final String streamName;
         private final LinkedHashSet<T> impl;
         
         @Override
-        public UpdatableSet<T> create(Revision revision) {
+        public UpdatableSet<T> create(String streamName, Revision revision) {
             return new UpdatableSet<>(streamName, impl, revision);
         }
     }
 
     //----
-    // Below this point is some example code that uses the classes above and the Synchronizer.
+    // Below this point is some example code that uses the classes above and the StateSynchronizer.
     //----
     
     private static final int REMOVALS_BEFORE_COMPACTION = 5;
 
-    private final Synchronizer<UpdatableSet<T>, SetUpdate<T>, CreateSet<T>> synchronizer;
-    private UpdatableSet<T> current;
-    private int countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
+    private final StateSynchronizer<UpdatableSet<T>, SetUpdate<T>, CreateSet<T>> stateSynchronizer;
+    private final AtomicInteger countdownToCompaction = new AtomicInteger(REMOVALS_BEFORE_COMPACTION);
 
-    private SetSynchronizer(Synchronizer<UpdatableSet<T>, SetUpdate<T>, CreateSet<T>> synchronizer) {
-        this.synchronizer = synchronizer;
-        String stream = synchronizer.getStream().getScopedName();
-        UpdatableSet<T> state = synchronizer.initialize(new CreateSet<T>(stream, new LinkedHashSet<>()));
-        current = (state != null) ? state : synchronizer.getLatestState();
+    private SetSynchronizer(String scopedStreamName, StateSynchronizer<UpdatableSet<T>, SetUpdate<T>, CreateSet<T>> synchronizer) {
+        this.stateSynchronizer = synchronizer;
+        synchronizer.initialize(new CreateSet<T>(new LinkedHashSet<>()));
     }
 
     /**
-     * A blocking call to get updates from other SetSynchronizers.
+     * Get updates from other SetSynchronizers.
      */
-    @Synchronized
     public void update() {
-        current = synchronizer.getLatestState(current);
+        stateSynchronizer.fetchUpdates();
     }
 
     /**
      * Returns the current values in the set.
      */
-    @Synchronized
     public Set<T> getCurrentValues() {
-        return current.getCurrentValues();
+        return stateSynchronizer.getState().getCurrentValues();
     }
 
     /**
      * Returns the size of the current set.
      */
-    @Synchronized
     public int getCurrentSize() {
-        return current.getCurrentSize();
+        return stateSynchronizer.getState().getCurrentSize();
     }
 
     /**
-     * If the set has all the latest updates, add a new item to it.
-     * @param value the value to be added
-     * @return true if successful
+     * Add a new item to the set if it does not currently have it.
+     * @param value the value to be added.
      */
-    @Synchronized
-    public boolean attemptAdd(T value) {
-        UpdatableSet<T> newSet = synchronizer.conditionallyUpdateState(current, new AddToSet<>(value));
-        if (newSet == null) {
-            return false;
-        }
-        current = newSet;
-        return true;
+    public void add(T value) {
+        stateSynchronizer.updateState(set -> {
+            if (set.impl.contains(value)) {
+                return Collections.emptyList();
+            } else {
+                return Collections.singletonList(new AddToSet<>(value));
+            }
+        });
     }
     
     /**
-     * If the set has all the latest updates, remove an item from.
-     * @param value the value to be removed
-     * @return true if successful
+     * Remove an item from the set if it is present.
+     * @param value the value to be removed.
      */
-    @Synchronized
-    public boolean attemptRemove(T value) {
-        UpdatableSet<T> newSet = synchronizer.conditionallyUpdateState(current, new RemoveFromSet<>(value));
-        if (newSet == null) {
-            return false;
+    public void remove(T value) {
+        stateSynchronizer.updateState(set -> {
+            if (set.impl.contains(value)) {
+                return  Collections.singletonList(new RemoveFromSet<>(value));
+            } else {
+                return Collections.emptyList();
+            }
+        });
+        if (countdownToCompaction.decrementAndGet() <= 0) {
+            compact();
         }
-        current = newSet;
-        countdownToCompaction--;
-        if (countdownToCompaction <= 0) {
-            synchronizer.compact(current, new CreateSet<T>(current.streamName, current.impl));
-            countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
-        }
-        return true;
+    }
+
+    private void compact() {
+        countdownToCompaction.set(REMOVALS_BEFORE_COMPACTION);
+        UpdatableSet<T> current = stateSynchronizer.getState();
+        stateSynchronizer.compact(current.currentRevision, new CreateSet<T>(current.impl));
     }
 
     /**
-     * If the set has all the latest updates, clear it.
-     * @return true if successful
+     * Clears the set.
      */
-    @Synchronized
-    public boolean attemptClear() {
-        UpdatableSet<T> newSet = synchronizer.conditionallyUpdateState(current, new ClearSet<>());
-        if (newSet == null) {
-            return false;
-        }
-        current = newSet;
-        synchronizer.compact(current, new CreateSet<T>(current.streamName, current.impl));
-        countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
-        return true;
+    public void clear() {
+        stateSynchronizer.updateState(set -> { 
+            if (set.getCurrentSize() > 0) {
+                return Collections.singletonList(new ClearSet<>());
+            } else {
+                return Collections.emptyList();
+            }
+        });
+        compact();
     }
     
     public static <T extends Serializable> SetSynchronizer<T> createNewSet(String streamName, ClientFactory factory) {
-        return new SetSynchronizer<>(factory.createSynchronizer(streamName, new JavaSerializer<SetUpdate<T>>(),
-                                   new JavaSerializer<CreateSet<T>>(),
-                                   new SynchronizerConfig(null, null)));
+        return new SetSynchronizer<>(streamName,
+                factory.createStateSynchronizer(streamName,
+                                                new JavaSerializer<SetUpdate<T>>(),
+                                                new JavaSerializer<CreateSet<T>>(),
+                                                new SynchronizerConfig(null, null)));
     }
 
 }
