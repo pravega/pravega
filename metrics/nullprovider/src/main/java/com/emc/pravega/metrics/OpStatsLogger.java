@@ -60,6 +60,10 @@ public interface OpStatsLogger {
      */
     public void registerSuccessfulValue(long value);
 
+    default void report(long value) {
+        registerSuccessfulValue(value);
+    }
+
     /**
      * An operation with the given value failed.
      *
