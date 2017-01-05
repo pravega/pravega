@@ -54,7 +54,7 @@ public class MembershipSynchronizer extends AbstractService {
      * Number of intervals behind before switching to unconditional updates.
      */
     private static final int UNCONDITIONAL_UPDATE_THREASHOLD = 3;
-    
+
     /**
      * Number of intervals behind before we should stop executing for safety.
      */
@@ -224,6 +224,7 @@ public class MembershipSynchronizer extends AbstractService {
 
     public interface MembershipListener {
         void healthy();
+
         void unhealthy();
     }
 
