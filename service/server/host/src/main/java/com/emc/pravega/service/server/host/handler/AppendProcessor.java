@@ -67,7 +67,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     static final int LOW_WATER_MARK = 64 * 1024;
 
     static final StatsLogger STATS_LOGGER = MetricsFactory.getStatsLogger();
-    static AtomicLong pendBytes = new AtomicLong();
+    static Long pendBytes = new Long(0);
     static {
         STATS_LOGGER.registerGauge(PENDING_APPEND_BYTES, pendBytes);
     }
@@ -258,7 +258,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 .sum();
         }
         // Registered gauge value
-        pendBytes.set(bytesWaiting);
+        pendBytes.valueOf(bytesWaiting);
 
         if (bytesWaiting > HIGH_WATER_MARK) {
             connection.pauseReading();

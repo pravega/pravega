@@ -33,9 +33,11 @@ import com.google.common.base.Strings;
 
 import lombok.extern.slf4j.Slf4j;
 import lombok.Synchronized;
+import javax.annotation.concurrent.GuardedBy;
 
 @Slf4j
 public class YammerStatsProvider implements StatsProvider {
+    @GuardedBy("$lock")
     MetricRegistry metrics = null;
     List<ScheduledReporter> reporters = new ArrayList<ScheduledReporter>();
 
@@ -53,6 +55,7 @@ public class YammerStatsProvider implements StatsProvider {
         return metrics;
     }
 
+    @Synchronized
     @Override
     public void start(MetricsConfig conf) {
         init();
@@ -89,6 +92,7 @@ public class YammerStatsProvider implements StatsProvider {
         }
     }
 
+    @Synchronized
     @Override
     public void stop() {
         for (ScheduledReporter r : reporters) {

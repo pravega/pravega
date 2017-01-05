@@ -27,7 +27,7 @@ public class YammerProviderTest {
     @Test
     public void testToOpStatsData() {
         long startTime = System.nanoTime();
-        OpStatsLogger opStatsLogger = statsLogger.getOpStatsLogger("testOpStatsLogger");
+        OpStatsLogger opStatsLogger = statsLogger.getStats("testOpStatsLogger");
         // register 2 event: 1 success, 1 fail.
         opStatsLogger.registerSuccessfulEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
         opStatsLogger.registerFailedEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);

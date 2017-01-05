@@ -19,8 +19,6 @@ package com.emc.pravega.metrics;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.MetricRegistry;
 import static com.codahale.metrics.MetricRegistry.name;
-import java.util.concurrent.atomic.AtomicLong;
-import com.google.common.util.concurrent.AtomicDouble;
 
 public class YammerStatsLogger implements StatsLogger {
     protected final String basename;
@@ -32,7 +30,7 @@ public class YammerStatsLogger implements StatsLogger {
     }
 
     @Override
-    public OpStatsLogger getOpStatsLogger(String statName) {
+    public OpStatsLogger getStats(String statName) {
         Timer success = metrics.timer(name(basename, statName));
         Timer failure = metrics.timer(name(basename, statName+"-fail"));
         return new YammerOpStatsLogger(success, failure);
@@ -84,26 +82,26 @@ public class YammerStatsLogger implements StatsLogger {
     }
 
     @Override
-    public void registerGauge(final String statName, final AtomicLong value) {
+    public void registerGauge(final String statName, final Long value) {
         String metricName = name(basename, statName);
         metrics.remove(metricName);
 
-        metrics.register(metricName, new com.codahale.metrics.Gauge<AtomicLong>() {
+        metrics.register(metricName, new com.codahale.metrics.Gauge<Long>() {
             @Override
-            public AtomicLong getValue() {
+            public Long getValue() {
                 return value;
             }
         });
     }
 
     @Override
-    public void registerGauge(final String statName, final AtomicDouble value) {
+    public void registerGauge(final String statName, final Double value) {
         String metricName = name(basename, statName);
         metrics.remove(metricName);
 
-        metrics.register(metricName, new com.codahale.metrics.Gauge<AtomicDouble>() {
+        metrics.register(metricName, new com.codahale.metrics.Gauge<Double>() {
             @Override
-            public AtomicDouble getValue() {
+            public Double getValue() {
                 return value;
             }
         });
