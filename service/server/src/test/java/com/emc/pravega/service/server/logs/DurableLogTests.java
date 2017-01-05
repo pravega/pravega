@@ -76,7 +76,6 @@ import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -94,7 +93,6 @@ import java.util.function.Supplier;
  */
 public class DurableLogTests extends OperationLogTestBase {
     private static final int CONTAINER_ID = 1234567;
-    private static final int THREAD_POOL_SIZE = 10;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
     private static final int NO_METADATA_CHECKPOINT = 0;
@@ -118,7 +116,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup();
+        ContainerSetup setup = new ContainerSetup(executorService());
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
@@ -163,7 +161,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup();
+        ContainerSetup setup = new ContainerSetup(executorService());
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
@@ -234,7 +232,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup();
+        ContainerSetup setup = new ContainerSetup(executorService());
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
@@ -300,7 +298,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup();
+        ContainerSetup setup = new ContainerSetup(executorService());
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
@@ -349,7 +347,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup();
+        ContainerSetup setup = new ContainerSetup(executorService());
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
@@ -428,7 +426,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup();
+        ContainerSetup setup = new ContainerSetup(executorService());
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
@@ -506,7 +504,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup();
+        ContainerSetup setup = new ContainerSetup(executorService());
         @Cleanup
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
@@ -563,7 +561,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        ContainerSetup setup = new ContainerSetup();
+        ContainerSetup setup = new ContainerSetup(executorService());
         DurableLogConfig durableLogConfig = createDurableLogConfig.get();
         setup.setDurableLogConfig(durableLogConfig);
 
@@ -620,12 +618,10 @@ public class DurableLogTests extends OperationLogTestBase {
         boolean sealStreamSegments = true;
 
         // Setup a DurableLog and start it.
-        @Cleanup("shutdown")
-        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
         @Cleanup
-        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService));
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService);
+        Storage storage = new InMemoryStorage(executorService());
 
         HashSet<Long> streamSegmentIds;
         AbstractMap<Long, Long> transactions;
@@ -637,10 +633,10 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         InMemoryCache cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
         @Cleanup
-        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService);
+        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
         try (
-                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, cacheManager, executorService);
-                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService)) {
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, cacheManager, executorService());
+                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService())) {
             durableLog.startAsync().awaitRunning();
 
             // Generate some test data (we need to do this after we started the DurableLog because in the process of
@@ -663,8 +659,8 @@ public class DurableLogTests extends OperationLogTestBase {
         // Second DurableLog. We use this for recovery.
         metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, cacheManager, executorService);
-                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService)) {
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, cacheManager, executorService());
+                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService())) {
             durableLog.startAsync().awaitRunning();
 
             List<Operation> recoveredOperations = readAllDurableLog(durableLog);
@@ -689,12 +685,10 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         AtomicReference<TestDurableDataLog> dataLog = new AtomicReference<>();
-        @Cleanup("shutdown")
-        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
         @Cleanup
-        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService), dataLog::set);
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService);
+        Storage storage = new InMemoryStorage(executorService());
 
         HashSet<Long> streamSegmentIds;
         List<LogTestHelpers.OperationWithCompletion> completionFutures;
@@ -704,10 +698,10 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         InMemoryCache cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
         @Cleanup
-        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService);
+        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
         try (
-                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, cacheManager, executorService);
-                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService)) {
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, cacheManager, executorService());
+                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService())) {
             durableLog.startAsync().awaitRunning();
 
             // Generate some test data (we need to do this after we started the DurableLog because in the process of
@@ -727,8 +721,8 @@ public class DurableLogTests extends OperationLogTestBase {
         metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         dataLog.set(null);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, cacheManager, executorService);
-                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService)) {
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, cacheManager, executorService());
+                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService())) {
 
             // Inject some artificial error into the DataLogRead after a few reads.
             ErrorInjector<Exception> readNextInjector = new ErrorInjector<>(
@@ -755,8 +749,8 @@ public class DurableLogTests extends OperationLogTestBase {
         metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         dataLog.set(null);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, cacheManager, executorService);
-                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService)) {
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, cacheManager, executorService());
+                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService())) {
 
             // Reset error injectors to nothing.
             dataLog.get().setReadErrorInjectors(null, null);
@@ -808,23 +802,21 @@ public class DurableLogTests extends OperationLogTestBase {
         // Setup a DurableLog and start it.
         AtomicReference<TestDurableDataLog> dataLog = new AtomicReference<>();
         AtomicReference<Boolean> truncationOccurred = new AtomicReference<>();
-        @Cleanup("shutdown")
-        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
         @Cleanup
-        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService), dataLog::set);
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService);
+        Storage storage = new InMemoryStorage(executorService());
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
 
         @Cleanup
         InMemoryCache cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
         @Cleanup
-        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService);
+        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, cacheManager, executorService);
+        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, cacheManager, executorService());
 
         // First DurableLog. We use this for generating data.
-        try (DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService)) {
+        try (DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService())) {
             durableLog.startAsync().awaitRunning();
 
             // Hook up a listener to figure out when truncation actually happens.
@@ -921,26 +913,24 @@ public class DurableLogTests extends OperationLogTestBase {
         // Setup a DurableLog and start it.
         AtomicReference<TestDurableDataLog> dataLog = new AtomicReference<>();
         AtomicReference<Boolean> truncationOccurred = new AtomicReference<>();
-        @Cleanup("shutdown")
-        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
         @Cleanup
-        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService), dataLog::set);
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService);
+        Storage storage = new InMemoryStorage(executorService());
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
 
         @Cleanup
         InMemoryCache cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
         @Cleanup
-        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService);
+        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, cacheManager, executorService);
+        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, cacheManager, executorService());
         HashSet<Long> streamSegmentIds;
         List<LogTestHelpers.OperationWithCompletion> completionFutures;
         List<Operation> originalOperations;
 
         // First DurableLog. We use this for generating data.
-        try (DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService)) {
+        try (DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService())) {
             durableLog.startAsync().awaitRunning();
 
             // Generate some test data (we need to do this after we started the DurableLog because in the process of
@@ -961,7 +951,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // * If the DataLog was truncated:
         // ** Shut down DurableLog, re-start it (recovery) and verify the operations are as they should.
         // At the end, verify all operations and all entries in the DataLog were truncated.
-        DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService);
+        DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService());
         try {
             durableLog.startAsync().awaitRunning();
             dataLog.get().setTruncateCallback(seqNo -> truncationOccurred.set(true));
@@ -977,7 +967,7 @@ public class DurableLogTests extends OperationLogTestBase {
                 if (truncationOccurred.get()) {
                     // Close current DurableLog and start a brand new one, forcing recovery.
                     durableLog.close();
-                    durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService);
+                    durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService());
                     durableLog.startAsync().awaitRunning();
                     dataLog.get().setTruncateCallback(seqNo -> truncationOccurred.set(true));
 
@@ -1083,9 +1073,9 @@ public class DurableLogTests extends OperationLogTestBase {
         DurableLogConfig durableLogConfig;
         private final Cache cache;
 
-        ContainerSetup() {
-            this.executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
+        ContainerSetup(ScheduledExecutorService executorService) {
             this.dataLog = new AtomicReference<>();
+            this.executorService = executorService;
             this.dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, this.executorService), this.dataLog::set);
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
@@ -1101,7 +1091,6 @@ public class DurableLogTests extends OperationLogTestBase {
             this.storage.close();
             this.cache.close();
             this.cacheManager.close();
-            this.executorService.shutdown();
         }
 
         DurableLog createDurableLog() {

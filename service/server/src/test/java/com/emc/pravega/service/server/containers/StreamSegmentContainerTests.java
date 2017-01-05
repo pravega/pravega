@@ -57,6 +57,7 @@ import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.ThreadPooledTest;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -70,8 +71,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -81,13 +80,12 @@ import java.util.concurrent.atomic.AtomicReference;
  * using a real DurableLog, real ReadIndex and real StorageWriter - but all against in-memory mocks of Storage and
  * DurableDataLog.
  */
-public class StreamSegmentContainerTests {
+public class StreamSegmentContainerTests extends ThreadPooledTest {
     private static final int SEGMENT_COUNT = 100;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int CLIENT_COUNT = 10;
     private static final int CONTAINER_ID = 1234567;
-    private static final int THREAD_POOL_SIZE = 50;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
     private static final Duration TIMEOUT = Duration.ofSeconds(100);
 
@@ -109,6 +107,10 @@ public class StreamSegmentContainerTests {
                        .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 25)
                        .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
                        .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250));
+    @Override
+    protected int getThreadPoolSize() {
+        return 10;
+    }
 
     /**
      * Tests the createSegment, append, read, getSegmentInfo, getLastAppendContext.
@@ -550,7 +552,7 @@ public class StreamSegmentContainerTests {
             // The Read callback is only accumulating data in this test; we will then compare it against the real data.
             TestEntryHandler entryHandler = new TestEntryHandler(readContentsStream);
             entryHandlers.put(segmentName, entryHandler);
-            AsyncReadResultProcessor readResultProcessor = new AsyncReadResultProcessor(readResult, entryHandler, context.executorService);
+            AsyncReadResultProcessor readResultProcessor = new AsyncReadResultProcessor(readResult, entryHandler, executorService());
             readResultProcessor.startAsync().awaitRunning();
             readsBySegment.put(segmentName, readResult);
             processorsBySegment.put(segmentName, readResultProcessor);
@@ -818,10 +820,9 @@ public class StreamSegmentContainerTests {
 
     //region TestContext
 
-    private static class TestContext implements AutoCloseable {
+    private class TestContext implements AutoCloseable {
         final SegmentContainer container;
         private final MetadataRepository metadataRepository;
-        private final ScheduledExecutorService executorService;
         private final StorageFactory storageFactory;
         private final DurableDataLogFactory dataLogFactory;
         private final OperationLogFactory operationLogFactory;
@@ -832,14 +833,13 @@ public class StreamSegmentContainerTests {
 
         TestContext() {
             this.metadataRepository = new InMemoryMetadataRepository();
-            this.executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
-            this.storageFactory = new InMemoryStorageFactory(this.executorService);
-            this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, this.executorService);
-            this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService);
+            this.storageFactory = new InMemoryStorageFactory(executorService());
+            this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
+            this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
             this.cacheFactory = new InMemoryCacheFactory();
-            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.storageFactory, this.executorService);
-            this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, this.storageFactory, this.executorService);
-            StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, this.executorService);
+            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.storageFactory, executorService());
+            this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, this.storageFactory, executorService());
+            StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, executorService());
             this.container = factory.createStreamSegmentContainer(CONTAINER_ID);
             this.storage = (InMemoryStorage) this.storageFactory.getStorageAdapter();
         }
@@ -849,7 +849,6 @@ public class StreamSegmentContainerTests {
             this.container.close();
             this.dataLogFactory.close();
             this.storageFactory.close();
-            this.executorService.shutdown();
         }
     }
 

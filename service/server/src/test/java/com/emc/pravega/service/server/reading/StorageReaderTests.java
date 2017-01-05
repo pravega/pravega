@@ -27,6 +27,7 @@ import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
+import com.emc.pravega.testcommon.ThreadPooledTest;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
@@ -39,20 +40,22 @@ import java.util.HashMap;
 import java.util.Random;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
  * Unit tests for the StorageReader class.
  */
-public class StorageReaderTests {
-    private static final int THREAD_POOL_SIZE = 50;
+public class StorageReaderTests extends ThreadPooledTest {
     private static final int MIN_SEGMENT_LENGTH = 101;
     private static final int MAX_SEGMENT_LENGTH = MIN_SEGMENT_LENGTH * 100;
     private static final SegmentMetadata SEGMENT_METADATA = new StreamSegmentMetadata("Segment1", 0, 0);
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 5;
+    }
 
     /**
      * Tests the execute method with valid Requests:
@@ -65,12 +68,10 @@ public class StorageReaderTests {
         final int defaultReadLength = MIN_SEGMENT_LENGTH - 1;
         final int offsetIncrement = defaultReadLength / 3;
 
-        @Cleanup("shutdown")
-        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
         @Cleanup
-        InMemoryStorage storage = new InMemoryStorage(executorService);
+        InMemoryStorage storage = new InMemoryStorage(executorService());
         @Cleanup
-        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService);
+        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
 
         byte[] segmentData = populateSegment(storage);
         HashMap<StorageReader.Request, CompletableFuture<StorageReader.Result>> requestCompletions = new HashMap<>();
@@ -104,12 +105,10 @@ public class StorageReaderTests {
      */
     @Test
     public void testInvalidRequests() {
-        @Cleanup("shutdown")
-        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
         @Cleanup
-        InMemoryStorage storage = new InMemoryStorage(executorService);
+        InMemoryStorage storage = new InMemoryStorage(executorService());
         @Cleanup
-        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService);
+        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
 
         byte[] segmentData = populateSegment(storage);
 
@@ -119,7 +118,7 @@ public class StorageReaderTests {
                 () -> {
                     SegmentMetadata sm = new StreamSegmentMetadata("foo", 0, 0);
                     @Cleanup
-                    StorageReader nonExistentReader = new StorageReader(sm, storage, executorService);
+                    StorageReader nonExistentReader = new StorageReader(sm, storage, executorService());
                     sendRequest(nonExistentReader, 0, 1).join();
                 },
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -149,8 +148,6 @@ public class StorageReaderTests {
      */
     @Test
     public void testDependents() {
-        @Cleanup("shutdown")
-        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
         TestStorage storage = new TestStorage();
         CompletableFuture<Integer> signal = new CompletableFuture<>();
         AtomicBoolean wasReadInvoked = new AtomicBoolean();
@@ -162,7 +159,7 @@ public class StorageReaderTests {
         };
 
         @Cleanup
-        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService);
+        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
 
         // Create some reads.
         CompletableFuture<StorageReader.Result> c1 = new CompletableFuture<>();
@@ -192,12 +189,10 @@ public class StorageReaderTests {
     @Test
     public void testAutoCancelRequests() {
         final int readCount = 100;
-        @Cleanup("shutdown")
-        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
         TestStorage storage = new TestStorage();
         storage.readImplementation = CompletableFuture::new; // Just return a Future which we will never complete - simulates a high latency read.
         @Cleanup
-        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService);
+        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
 
         // Create some reads.
         HashMap<StorageReader.Request, CompletableFuture<StorageReader.Result>> requestCompletions = new HashMap<>();

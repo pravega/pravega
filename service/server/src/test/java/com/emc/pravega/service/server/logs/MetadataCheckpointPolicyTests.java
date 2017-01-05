@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.emc.pravega.common.concurrent.InlineExecutor;
+import com.emc.pravega.testcommon.InlineExecutor;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.ConfigHelpers;
 

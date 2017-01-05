@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.common.concurrent.InlineExecutor;
+import com.emc.pravega.testcommon.InlineExecutor;
 import com.emc.pravega.common.function.ConsumerWithException;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.server.ExceptionHelpers;

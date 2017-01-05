@@ -64,9 +64,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 
 /**
@@ -76,7 +74,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
     private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
-    private static final int THREAD_POOL_SIZE = 10;
 
     /**
      * Tests the ability of the OperationProcessor to process Operations in a failure-free environment.
@@ -99,7 +96,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Setup an OperationProcessor and start it.
         @Cleanup
-        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, context.executorService);
+        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
@@ -147,7 +144,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Setup an OperationProcessor and start it.
         @Cleanup
-        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, context.executorService);
+        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
@@ -230,7 +227,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Setup an OperationProcessor and start it.
         @Cleanup
-        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, context.executorService);
+        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
@@ -286,7 +283,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Setup an OperationProcessor and start it.
         @Cleanup
-        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, context.executorService);
+        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
@@ -343,7 +340,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Setup an OperationProcessor and start it.
         @Cleanup
-        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, context.executorService);
+        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(context.metadata, stateUpdater, dataLog, getNoOpCheckpointPolicy());
@@ -481,8 +478,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 }, ForkJoinPool.commonPool());
     }
 
-    private static class TestContext implements AutoCloseable {
-        final ScheduledExecutorService executorService;
+    private class TestContext implements AutoCloseable {
         final CacheManager cacheManager;
         final Storage storage;
         final MemoryOperationLog memoryLog;
@@ -492,17 +488,16 @@ public class OperationProcessorTests extends OperationLogTestBase {
         final MemoryStateUpdater stateUpdater;
 
         TestContext() {
-            this.executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
-            this.storage = new InMemoryStorage(this.executorService);
+            this.storage = new InMemoryStorage(executorService());
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             ReadIndexConfig readIndexConfig = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
                     PropertyBag.create()
                                .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
                                .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
 
-            this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), this.executorService);
-            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, this.executorService);
+            this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), executorService());
+            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, executorService());
             this.memoryLog = new MemoryOperationLog();
             this.stateUpdater = new MemoryStateUpdater(this.memoryLog, new CacheUpdater(this.cache, this.readIndex));
         }
@@ -513,7 +508,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.storage.close();
             this.cache.close();
             this.cacheManager.close();
-            this.executorService.shutdown();
         }
     }
 }

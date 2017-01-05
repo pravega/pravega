@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.ThreadPooledTest;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -28,16 +29,17 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Random;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 /**
  * Unit tests for the CacheManager class.
  */
-public class CacheManagerTests {
-    private static final int THREAD_POOL_SIZE = 3;
+public class CacheManagerTests extends ThreadPooledTest {
+    @Override
+    protected int getThreadPoolSize() {
+        return 3;
+    }
 
     /**
      * Tests the ability to increment the current generation (or not) based on the activity of the clients.
@@ -49,10 +51,8 @@ public class CacheManagerTests {
         final CachePolicy policy = new CachePolicy(Integer.MAX_VALUE, Duration.ofHours(10000), Duration.ofHours(1));
         Random random = new Random();
 
-        @Cleanup("shutdown")
-        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
         @Cleanup
-        TestCacheManager cm = new TestCacheManager(policy, executorService);
+        TestCacheManager cm = new TestCacheManager(policy, executorService());
 
         // Register a number of clients
         ArrayList<TestClient> clients = new ArrayList<>();
@@ -114,10 +114,8 @@ public class CacheManagerTests {
         final int defaultOldestGeneration = 0;
         final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(10 * cycleCount), Duration.ofHours(1));
         final long excess = policy.getMaxSize(); // This is the excess size when we want to test Oldest Generation increases.
-        @Cleanup("shutdown")
-        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
         @Cleanup
-        TestCacheManager cm = new TestCacheManager(policy, executorService);
+        TestCacheManager cm = new TestCacheManager(policy, executorService());
 
         // Use a single client (we tested multiple clients with Newest Generation).
         TestClient client = new TestClient();
@@ -187,10 +185,8 @@ public class CacheManagerTests {
     @Test
     public void testAutoUnregister() {
         final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(1), Duration.ofHours(1));
-        @Cleanup("shutdown")
-        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
         @Cleanup
-        TestCacheManager cm = new TestCacheManager(policy, executorService);
+        TestCacheManager cm = new TestCacheManager(policy, executorService());
         TestClient client = new TestClient();
         cm.register(client);
 

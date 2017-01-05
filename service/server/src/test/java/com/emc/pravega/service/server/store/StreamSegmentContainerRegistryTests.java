@@ -30,7 +30,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.concurrent.InlineExecutor;
+import com.emc.pravega.testcommon.InlineExecutor;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ContainerNotFoundException;
 import com.emc.pravega.service.contracts.ReadResult;
