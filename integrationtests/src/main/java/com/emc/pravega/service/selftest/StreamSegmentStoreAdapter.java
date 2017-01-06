@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.host.selftest;
+package com.emc.pravega.service.selftest;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -51,11 +51,12 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     private static final String LOG_ID = "SegmentStoreAdapter";
     private static final Consumer<Long> LONG_TO_VOID = ignored -> {
     };
+    protected final Executor testExecutor;
     private final AtomicBoolean closed;
     private final AtomicBoolean initialized;
     private final ServiceBuilder serviceBuilder;
     private final AtomicReference<VerificationStorage> storage;
-    private final AtomicReference<ExecutorService> storeExecutor; // Only for reporting; do not use.
+    private final AtomicReference<ExecutorService> storeExecutor;
     private StreamSegmentStore streamSegmentStore;
 
     //endregion
@@ -65,17 +66,18 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     /**
      * Creates a new instance of the StreamSegmentStoreAdapter class.
      *
-     * @param builderConfig        The ServiceBuilderConfig to use.
-     * @param testCallbackExecutor An Executor to use for test-related async operations.
+     * @param builderConfig The ServiceBuilderConfig to use.
+     * @param testExecutor  An Executor to use for test-related async operations.
      */
-    StreamSegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, Executor testCallbackExecutor) {
+    StreamSegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, Executor testExecutor) {
         Preconditions.checkNotNull(testConfig, "testConfig");
         Preconditions.checkNotNull(builderConfig, "builderConfig");
-        Preconditions.checkNotNull(testCallbackExecutor, "testCallbackExecutor");
+        Preconditions.checkNotNull(testExecutor, "testCallbackExecutor");
         this.closed = new AtomicBoolean();
         this.initialized = new AtomicBoolean();
         this.storage = new AtomicReference<>();
         this.storeExecutor = new AtomicReference<>();
+        this.testExecutor = testExecutor;
         this.serviceBuilder = ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withDataLogFactory(setup -> {
@@ -90,7 +92,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
                     TruncateableStorage innerStorage = new InMemoryStorageFactory(setup.getExecutor()).getStorageAdapter();
 
                     // ... and the Test executor for the verification storage (to invoke callbacks).
-                    VerificationStorage.Factory factory = new VerificationStorage.Factory(innerStorage, testCallbackExecutor);
+                    VerificationStorage.Factory factory = new VerificationStorage.Factory(innerStorage, testExecutor);
                     this.storage.set((VerificationStorage) factory.getStorageAdapter());
 
                     // A bit hack-ish, but we need to get a hold of the Store Executor, so we can request snapshots for it.
@@ -185,6 +187,11 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
         return this.storeExecutor.get() != null ? ExecutorServiceHelpers.getSnapshot(this.storeExecutor.get()) : null;
     }
 
+    @Override
+    public boolean isFeatureSupported(Feature feature) {
+        return true; // All features are supported
+    }
+
     //endregion
 
     //region Helpers
@@ -194,7 +201,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
         Preconditions.checkState(this.initialized.get(), "initialize() must be called before invoking this operation.");
     }
 
-    protected StreamSegmentStore getStreamSegmentStore(){
+    protected StreamSegmentStore getStreamSegmentStore() {
         return this.streamSegmentStore;
     }
 

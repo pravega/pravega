@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.host.selftest;
+package com.emc.pravega.service.selftest;
 
 import com.emc.pravega.common.concurrent.ExecutorServiceHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
@@ -53,6 +53,25 @@ interface StoreAdapter extends AutoCloseable {
 
     ExecutorServiceHelpers.Snapshot getStorePoolSnapshot();
 
+    boolean isFeatureSupported(Feature feature);
+
     @Override
     void close();
+
+    enum Feature {
+        Create,
+        Delete,
+        Append,
+        GetInfo,
+        Seal,
+        Read,
+        Transaction,
+        StorageDirect;
+
+        protected void ensureSupported(StoreAdapter storeAdapter, String operationName) {
+            if (!storeAdapter.isFeatureSupported(this)) {
+                throw new UnsupportedOperationException(String.format("Cannot %s because StoreAdapter does not support '%s'.", operationName, this));
+            }
+        }
+    }
 }

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.host.selftest;
+package com.emc.pravega.service.selftest;
 
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -118,6 +118,7 @@ public class Consumer extends Actor {
     Consumer(String segmentName, TestConfig config, ProducerDataSource dataSource, TestState testState, StoreAdapter store, ScheduledExecutorService executorService) {
         super(config, dataSource, store, executorService);
         Preconditions.checkNotNull(testState, "testState");
+        Preconditions.checkArgument(canUseStoreAdapter(store), "StoreAdapter does not support all required features; cannot create a consumer for it.");
         this.logId = String.format("Consumer[%s]", segmentName);
         this.segmentName = segmentName;
         this.testState = testState;
@@ -151,6 +152,12 @@ public class Consumer extends Actor {
     }
 
     //endregion
+
+    static boolean canUseStoreAdapter(StoreAdapter storeAdapter) {
+        return storeAdapter.isFeatureSupported(StoreAdapter.Feature.GetInfo)
+                && storeAdapter.isFeatureSupported(StoreAdapter.Feature.Read)
+                && storeAdapter.isFeatureSupported(StoreAdapter.Feature.StorageDirect);
+    }
 
     private boolean canRun() {
         return isRunning() && this.canContinue.get();

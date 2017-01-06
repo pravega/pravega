@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.host.selftest;
+package com.emc.pravega.service.selftest;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
@@ -45,8 +45,10 @@ class TestConfig extends ComponentConfig {
     static final String PROPERTY_THREAD_POOL_SIZE = "threadPoolSize";
     static final String PROPERTY_TIMEOUT_MILLIS = "timeoutMillis";
     static final String PROPERTY_VERBOSE_LOGGING = "verboseLogging";
-    static final String PROPERTY_LISTENING_PORT = "listeningPort";
     static final String PROPERTY_DATA_LOG_APPEND_DELAY = "dataLogAppendDelayMillis";
+    static final String PROPERTY_USE_CLIENT = "useClient";
+    static final String PROPERTY_CLIENT_PORT = "clientPort";
+    static final String PROPERTY_CLIENT_AUTO_FLUSH = "clientAutoFlush";
 
     private static final int DEFAULT_OPERATION_COUNT = 1000 * 1000;
     private static final int DEFAULT_SEGMENT_COUNT = 100;
@@ -58,8 +60,10 @@ class TestConfig extends ComponentConfig {
     private static final int DEFAULT_THREAD_POOL_SIZE = 100;
     private static final int DEFAULT_TIMEOUT_MILLIS = 10 * 1000;
     private static final boolean DEFAULT_VERBOSE_LOGGING = false;
-    private static final int DEFAULT_LISTENING_PORT = 9876;
     private static final int DEFAULT_DATA_LOG_APPEND_DELAY = 0;
+    private static final boolean DEFAULT_USE_CLIENT = false;
+    private static final int DEFAULT_CLIENT_PORT = 9876;
+    private static final boolean DEFAULT_CLIENT_AUTO_FLUSH = true;
 
     @Getter
     private int operationCount;
@@ -82,9 +86,13 @@ class TestConfig extends ComponentConfig {
     @Getter
     private boolean verboseLoggingEnabled;
     @Getter
-    private int listeningPort;
-    @Getter
     private Duration dataLogAppendDelay;
+    @Getter
+    private boolean useClient;
+    @Getter
+    private int clientPort;
+    @Getter
+    private boolean clientAutoFlush;
 
     //endregion
 
@@ -119,9 +127,11 @@ class TestConfig extends ComponentConfig {
         int timeoutMillis = getInt32Property(PROPERTY_TIMEOUT_MILLIS, DEFAULT_TIMEOUT_MILLIS);
         this.timeout = Duration.ofMillis(timeoutMillis);
         this.verboseLoggingEnabled = getBooleanProperty(PROPERTY_VERBOSE_LOGGING, DEFAULT_VERBOSE_LOGGING);
-        this.listeningPort = getInt32Property(PROPERTY_LISTENING_PORT, DEFAULT_LISTENING_PORT);
         int appendDelayMillis = getInt32Property(PROPERTY_DATA_LOG_APPEND_DELAY, DEFAULT_DATA_LOG_APPEND_DELAY);
         this.dataLogAppendDelay = Duration.ofMillis(appendDelayMillis);
+        this.useClient = getBooleanProperty(PROPERTY_USE_CLIENT, DEFAULT_USE_CLIENT);
+        this.clientPort = getInt32Property(PROPERTY_CLIENT_PORT, DEFAULT_CLIENT_PORT);
+        this.clientAutoFlush = getBooleanProperty(PROPERTY_CLIENT_AUTO_FLUSH, DEFAULT_CLIENT_AUTO_FLUSH);
     }
 
     //endregion
