@@ -47,9 +47,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
 
-
-//import org.apache.log4j.Level;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.HashSet;
@@ -64,7 +61,7 @@ import java.util.concurrent.ScheduledExecutorService;
 @Slf4j
 public class Main {
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         String hostId;
         try {
             //On each controller process restart, it gets a fresh hostId,
@@ -112,7 +109,7 @@ public class Main {
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, executor, hostId);
         RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks,
-              streamTransactionMetadataTasks));
+                streamTransactionMetadataTasks));
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
@@ -135,9 +132,12 @@ public class Main {
 
         //start a netty server
         log.info("Starting Pravega REST Service");
-        final Channel server = RESTServer.createNettyServer(controllerApplication);
-
-
+        final Channel server;
+        try {
+            server = RESTServer.createNettyServer(controllerApplication);
+        } catch (Exception e) {
+            log.error("Error starting Rest Service {}", e);
+        }
     }
 }
 
