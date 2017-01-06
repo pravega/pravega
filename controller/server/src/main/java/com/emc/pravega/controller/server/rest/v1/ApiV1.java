@@ -73,7 +73,6 @@ public final class ApiV1 {
 
         @DELETE
         @Path("/scopes/{scope}/streams/{stream}")
-        @Produces(MediaType.APPLICATION_JSON)
         public Response deleteStream(StreamConfiguration streamConfig);
 
     }

@@ -25,7 +25,6 @@ import java.util.Set;
  * Application to register the REST resource classes.
  *
  */
-
 public class ControllerApplication extends Application {
 
     private final Set<Object> resource;
@@ -39,6 +38,4 @@ public class ControllerApplication extends Application {
     public Set<Object> getSingletons() {
         return resource;
     }
-
-
 }

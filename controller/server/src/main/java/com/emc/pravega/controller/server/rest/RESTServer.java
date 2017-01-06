@@ -29,7 +29,7 @@ import javax.ws.rs.core.UriBuilder;
 import java.net.URI;
 
 /**
- * Netty REST server implementation. (Initial version)
+ * Netty REST server implementation.
  */
 @Slf4j
 public class RESTServer {

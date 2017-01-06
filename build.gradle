@@ -322,7 +322,6 @@ project('controller:contract') {
         // https://mvnrepository.com/artifact/org.apache.thrift/libthrift
         compile group: 'org.apache.thrift', name: 'libthrift', version: '0.9.3'
         compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
-
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: '2.1-m01'
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-servlet', version: '2.25'
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-netty-http', version: '2.25'

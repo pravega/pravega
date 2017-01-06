@@ -125,7 +125,7 @@ public class Main {
         // 4. start REST server
         log.info("Initializing REST Service");
 
-        //  create an application with the desired resources.
+        //  create an application with the desired resources
         Set<Object> resourceObjs = new HashSet<Object>();
         resourceObjs.add(new ResourceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
         ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
@@ -140,5 +140,3 @@ public class Main {
         }
     }
 }
-
-
