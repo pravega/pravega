@@ -67,6 +67,7 @@ public class TurbineHeatSensor {
     private static String streamName = StartLocalService.STREAM_NAME;
     private static ClientFactoryImpl factory = null;
     private static boolean onlyWrite = true;
+    private static boolean blocking = false;
 
     public static void main(String[] args) throws Exception {
 
@@ -105,6 +106,7 @@ public class TurbineHeatSensor {
         options.addOption("size", true, "Size of each message");
         options.addOption("stream", true, "Stream name");
         options.addOption("writeonly", true, "Just produce vs read after produce");
+        options.addOption("blocking", true, "Block for each ack");
 
         options.addOption("help", false, "Help message");
 
@@ -149,7 +151,10 @@ public class TurbineHeatSensor {
                 }
 
                 if (commandline.hasOption("writeonly")) {
-                    onlyWrite = Boolean.parseBoolean(commandline.getOptionValue("stream"));
+                    onlyWrite = Boolean.parseBoolean(commandline.getOptionValue("writeonly"));
+                }
+                if (commandline.hasOption("blocking")) {
+                    blocking = Boolean.parseBoolean(commandline.getOptionValue("blocking"));
                 }
             } catch (Exception nfe) {
                 System.out.println("Invalid arguments. Starting with default values");
@@ -253,7 +258,10 @@ public class TurbineHeatSensor {
 
                     // wait for next event
                     try {
-                        Thread.sleep(1000 / eventsPerSec);
+                        //There is no need for sleep for blocking calls.
+                        if( !blocking ) {
+                            Thread.sleep(1000 / eventsPerSec);
+                        }
                     } catch (InterruptedException e) {
                         // log exception
                     }
@@ -277,6 +285,16 @@ public class TurbineHeatSensor {
                         },
                                 () -> now,
                                 payload.length());
+                        //If it is a blocking call, wait for the ack
+                        if( blocking ) {
+                            try {
+                                retFuture.get();
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            } catch (ExecutionException e) {
+                                e.printStackTrace();
+                            }
+                        }
                     }
 
                 }
