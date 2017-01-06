@@ -70,6 +70,20 @@ class ReadIndexSummary {
     }
 
     /**
+     * Records the addition of an element of the given size to the given generation.
+     *
+     * @param size       The size of the element to add.
+     * @param generation The generation of the element to add.
+     */
+    synchronized void add(long size, int generation) {
+        Preconditions.checkArgument(size >= 0, "size must be a non-negative number");
+        Preconditions.checkArgument(generation >= 0, "generation must be a non-negative number");
+        this.totalSize += size;
+        int newCount = this.generations.getOrDefault(generation, 0) + 1;
+        this.generations.put(generation, newCount);
+    }
+
+    /**
      * Records the removal of an element of the given size from the given generation.
      *
      * @param size       The size of the element to remove.

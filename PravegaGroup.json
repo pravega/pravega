@@ -88,16 +88,24 @@
     },
     {
       "id": "/pravega/hostgroup",
-      "dependencies": ["/pravega/bkgroup"],
+      "dependencies": ["/pravega/bkgroup","/pravega/controllergroup"],
       "apps": [
       { 
           "id": "/pravega/hostgroup/host", 
-          "cpus": 0.4,
-          "mem": 500,
-          "instances": 1,
+          "cpus": 2,
+          "mem": 1000,
+          "instances": 2,
           "constraints": [["hostname", "UNIQUE"]],
           "container": {
               "type": "DOCKER",
+             "volumes": [
+              {
+                  "containerPath": "/tmp/logs",
+                  "hostPath": "/mnt/logs",
+                  "mode": "RW"
+              }
+                ],
+
               "docker": {
                   "image": "zhaijia/pravega_host",
                   "network": "HOST"
@@ -134,13 +142,12 @@
     },
     {
       "id": "/pravega/controllergroup",
-      "dependencies": ["/pravega/hostgroup"],
       "apps": [
       { 
           "id": "/pravega/controllergroup/controller", 
           "cpus": 0.4,
-          "mem": 500,
-          "instances": 1,
+          "mem": 1000,
+          "instances": 2,
           "constraints": [["hostname", "UNIQUE"]],
           "container": {
               "type": "DOCKER",
@@ -158,7 +165,9 @@
           ],
 
           "requirePorts": true,
-
+          "env": {
+              "SERVER_OPTS": "-DZK_URL=master.mesos:2181"
+          },
           "healthChecks": [
           {
               "protocol": "TCP",

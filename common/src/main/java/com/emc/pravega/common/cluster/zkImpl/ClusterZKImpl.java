@@ -149,7 +149,7 @@ public class ClusterZKImpl implements Cluster {
     /**
      * Get the current cluster members.
      *
-     * @return Set<Host> List of cluster members.
+     * @return List of cluster members.
      * @throws Exception Error while communicating to Zookeeper.
      */
     @Override

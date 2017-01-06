@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import com.emc.pravega.stream.Producer;
+import com.emc.pravega.stream.EventStreamWriter;
 
 import java.nio.ByteBuffer;
 
@@ -43,7 +43,7 @@ public abstract class SegmentInputStream implements AutoCloseable {
     public abstract long getOffset();
     
     /**
-     * Returns the length of the current segment. IE: calling setOffset with the result of this
+     * Returns the length of the current segment. i.e. calling setOffset with the result of this
      * method followed by read would result in read blocking until more data is written.
      */
     public abstract long fetchCurrentStreamLength();
@@ -52,7 +52,7 @@ public abstract class SegmentInputStream implements AutoCloseable {
      * Reads bytes from the segment a single event.
      * Buffering is performed internally to try to prevent blocking.
      *
-     * @return A ByteBuffer containing the serialized data that was written via {@link Producer#publish(String, Object)}
+     * @return A ByteBuffer containing the serialized data that was written via {@link EventStreamWriter#writeEvent(String, Object)}
      * @throws EndOfSegmentException If no event could be read because the end of the segment was reached.
      */
     public abstract ByteBuffer read() throws EndOfSegmentException;

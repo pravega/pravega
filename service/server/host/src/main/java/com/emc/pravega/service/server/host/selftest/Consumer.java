@@ -46,7 +46,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -65,7 +67,8 @@ public class Consumer extends Actor {
     private final String segmentName;
     private final AtomicBoolean canContinue;
     private final TestState testState;
-    private final FutureExecutionSerializer storageVerificationExecutor;
+    private final FutureExecutionSerializer storageVerificationQueue;
+    private final FutureExecutionSerializer catchupVerificationQueue;
     @GuardedBy("lock")
     private final TruncateableArray readBuffer;
 
@@ -123,7 +126,11 @@ public class Consumer extends Actor {
         this.readBufferSegmentOffset = -1;
         this.tailReadValidatedOffset = 0;
         this.catchupReadValidatedOffset = 0;
-        this.storageVerificationExecutor = new FutureExecutionSerializer(this.executorService);
+        this.storageVerificationQueue = new FutureExecutionSerializer(Integer.MAX_VALUE, this.executorService);
+
+        // Catch-up, as opposed from Storage, queues up the same future over and over again (which reads everything to
+        // the end of the Segment). No need to have more than two in the queue.
+        this.catchupVerificationQueue = new FutureExecutionSerializer(2, this.executorService);
     }
 
     //endregion
@@ -149,7 +156,11 @@ public class Consumer extends Actor {
         return isRunning() && this.canContinue.get();
     }
 
-    private void validationFailed(ValidationResult validationResult) {
+    private void validationFailed(String source, ValidationResult validationResult) {
+        if (source != null) {
+            validationResult.setSource(source);
+        }
+
         // Log the event.
         TestLogger.log(this.logId, "VALIDATION FAILED: Segment = %s, %s", this.segmentName, validationResult);
 
@@ -199,7 +210,7 @@ public class Consumer extends Actor {
         val listener = new VerificationStorage.SegmentUpdateListener(
                 this.segmentName,
                 (length, sealed) ->
-                        this.storageVerificationExecutor.queue(() -> {
+                        this.storageVerificationQueue.queue(() -> {
                             try {
                                 return storageSegmentChangedHandler(length, sealed, result);
                             } catch (Throwable ex) {
@@ -259,7 +270,7 @@ public class Consumer extends Actor {
                     ValidationResult validationResult = validateStorageRead(expectedData, storageReadBuffer, segmentStartOffset);
                     validationResult.setSource(SOURCE_STORAGE_READ);
                     if (!validationResult.isSuccess()) {
-                        validationFailed(validationResult);
+                        validationFailed(SOURCE_STORAGE_READ, validationResult);
                         return;
                     }
 
@@ -274,7 +285,10 @@ public class Consumer extends Actor {
                     this.testState.recordStorageRead((int) diff);
                     logState(SOURCE_STORAGE_READ, "StorageLength=%s", segmentLength);
                 }, this.executorService)
-                .thenComposeAsync(v -> this.store.getStorageAdapter().truncate(this.segmentName, this.storageReadValidatedOffset, this.config.getTimeout()), this.executorService)
+                .thenComposeAsync(v -> {
+                    long truncateOffset = Math.min(this.storageReadValidatedOffset, this.catchupReadValidatedOffset);
+                    return this.store.getStorageAdapter().truncate(this.segmentName, truncateOffset, this.config.getTimeout());
+                }, this.executorService)
                 .exceptionally(ex -> {
                     processingFuture.completeExceptionally(ex);
                     return null;
@@ -348,7 +362,8 @@ public class Consumer extends Actor {
         synchronized (this.lock) {
             // Verify that append data blocks are contiguous.
             if (this.readBufferSegmentOffset >= 0) {
-                Preconditions.checkArgument(segmentOffset == this.readBufferSegmentOffset + this.readBuffer.getLength());
+                long expectedOffset = this.readBufferSegmentOffset + this.readBuffer.getLength();
+                Preconditions.checkArgument(segmentOffset == expectedOffset, "Unexpected tail read offset for segment %s. Expected %s, got %s.", this.segmentName, expectedOffset, segmentOffset);
             } else {
                 this.readBufferSegmentOffset = segmentOffset;
             }
@@ -360,7 +375,10 @@ public class Consumer extends Actor {
 
         // Trigger validation (this doesn't necessarily mean validation will happen, though).
         triggerTailReadValidation();
-        triggerCatchupReadValidation();
+
+        // Just like Storage Reads, we want to make sure we execute catch-up reads in sequence. If not, we may get
+        // overlapping requests, which add unnecessary burden on the test and may cause test state discrepancies.
+        this.catchupVerificationQueue.queue(this::triggerCatchupReadValidation);
     }
 
     private void triggerTailReadValidation() {
@@ -381,7 +399,7 @@ public class Consumer extends Actor {
                     logState(SOURCE_TAIL_READ, null);
                 } else if (validationResult.isFailed()) {
                     // Validation failed. Invoke callback.
-                    validationFailed(validationResult);
+                    validationFailed(SOURCE_TAIL_READ, validationResult);
                 }
             }
             while (validationResult.isSuccess() && this.readBufferSegmentOffset + this.readBuffer.getLength() > this.tailReadValidatedOffset);
@@ -397,7 +415,7 @@ public class Consumer extends Actor {
         });
     }
 
-    private void triggerCatchupReadValidation() {
+    private CompletableFuture<Void> triggerCatchupReadValidation() {
         // Issue a read from Store from the first offset in the read buffer up to the validated offset
         // Verify, byte-by-byte, that the data matches.
         long segmentStartOffset;
@@ -413,41 +431,46 @@ public class Consumer extends Actor {
             length = (int) (this.tailReadValidatedOffset - segmentStartOffset);
             if (length <= 0) {
                 // Nothing to validate.
-                return;
+                return CompletableFuture.completedFuture(null);
             }
 
             expectedData = this.readBuffer.getReader(bufferOffset, length);
         }
 
         final Timer timer = new Timer();
-        this.store.read(this.segmentName, segmentStartOffset, length, this.config.getTimeout())
-                  .thenAcceptAsync(readResult -> {
-                      try {
-                          ValidationResult validationResult = validateCatchupRead(readResult, expectedData, segmentStartOffset, length);
-                          if (!validationResult.isSuccess()) {
-                              validationFailed(validationResult);
-                              return;
-                          }
+        return this.store.read(this.segmentName, segmentStartOffset, length, this.config.getTimeout())
+                         .thenAcceptAsync(readResult -> {
+                             ValidationResult validationResult;
+                             try {
+                                 validationResult = validateCatchupRead(readResult, expectedData, segmentStartOffset, length);
+                                 if (!validationResult.isSuccess()) {
+                                     validationFailed(SOURCE_CATCHUP_READ, validationResult);
+                                     return;
+                                 }
 
-                          this.testState.recordDuration(ConsumerOperationType.CATCHUP_READ, timer.getElapsed());
+                                 this.testState.recordDuration(ConsumerOperationType.CATCHUP_READ, timer.getElapsed());
 
-                          // Validation is successful, update current state.
-                          int verifiedLength;
-                          synchronized (this.lock) {
-                              long newLength = segmentStartOffset + length;
-                              verifiedLength = (int) (newLength - this.catchupReadValidatedOffset);
-                              this.catchupReadValidatedOffset = newLength;
-                          }
+                                 // Validation is successful, update current state.
+                                 int verifiedLength;
+                                 synchronized (this.lock) {
+                                     long newLength = segmentStartOffset + length;
+                                     verifiedLength = (int) (newLength - this.catchupReadValidatedOffset);
+                                     this.catchupReadValidatedOffset = newLength;
+                                 }
 
-                          this.testState.recordCatchupRead(verifiedLength);
-                          logState(SOURCE_CATCHUP_READ, null);
-                      } finally {
-                          readResult.close();
-                      }
-                  }, this.executorService);
+                                 this.testState.recordCatchupRead(verifiedLength);
+                                 logState(SOURCE_CATCHUP_READ, null);
+                             } catch (Throwable ex) {
+                                 validationResult = ValidationResult.failed(String.format("General failure: ReadLength = %s, Ex = %s.", length, ex));
+                                 validationResult.setSegmentOffset(segmentStartOffset);
+                                 validationFailed(SOURCE_CATCHUP_READ, validationResult);
+                             } finally {
+                                 readResult.close();
+                             }
+                         }, this.executorService);
     }
 
-    private ValidationResult validateCatchupRead(ReadResult readResult, InputStream expectedData, long segmentOffset, int length) {
+    private ValidationResult validateCatchupRead(ReadResult readResult, InputStream expectedData, long segmentOffset, int length) throws Exception {
         final int initialLength = length;
         ValidationResult result = null;
         while (length > 0) {
@@ -463,24 +486,23 @@ public class Consumer extends Actor {
                 result = ValidationResult.failed(String.format("Unexpected ReadResultEntry type '%s' at offset %s.", entry.getType(), segmentOffset));
             } else {
                 // Validate contents.
-                ReadResultEntryContents contents = entry.getContent().join();
+                entry.requestContent(this.config.getTimeout());
+                //ReadResultEntryContents contents = entry.getContent().join();
+                ReadResultEntryContents contents = entry.getContent().get(this.config.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
+
                 if (contents.getLength() > length) {
                     result = ValidationResult.failed(String.format("ReadResultEntry has more data than requested (Max %s, Actual %s).", length, contents.getLength()));
                 } else {
                     // Check, byte-by-byte, that the data matches what we expect.
                     InputStream actualData = contents.getData();
-                    try {
-                        for (int i = 0; i < contents.getLength(); i++) {
-                            int b1 = expectedData.read();
-                            int b2 = actualData.read();
-                            if (b1 != b2) {
-                                // This also includes the case when one stream ends prematurely.
-                                result = ValidationResult.failed(String.format("Corrupted data at Segment offset %s. Expected '%s', found '%s'.", segmentOffset + i, b1, b2));
-                                break;
-                            }
+                    for (int i = 0; i < contents.getLength(); i++) {
+                        int b1 = expectedData.read();
+                        int b2 = actualData.read();
+                        if (b1 != b2) {
+                            // This also includes the case when one stream ends prematurely.
+                            result = ValidationResult.failed(String.format("Corrupted data at Segment offset %s. Expected '%s', found '%s'.", segmentOffset + i, b1, b2));
+                            break;
                         }
-                    } catch (IOException ex) {
-                        throw new UncheckedIOException(ex);
                     }
 
                     // Contents match. Update Segment pointers.
@@ -551,6 +573,7 @@ public class Consumer extends Actor {
 
         @Override
         public boolean processEntry(ReadResultEntry entry) {
+            entry.requestContent(this.config.getTimeout());
             val contents = entry.getContent().join();
             this.readOffset.addAndGet(contents.getLength());
             this.tailReadConsumer.accept(contents.getData(), entry.getStreamSegmentOffset(), contents.getLength());
@@ -583,14 +606,17 @@ public class Consumer extends Actor {
     //region FutureExecutionSerializer
 
     /**
-     * Helps execute futures sequentially, ensuring that they do never overlap in execution. This uses the CompletableFuture's
+     * Helps execute futures sequentially, ensuring that they never overlap in execution. This uses the CompletableFuture's
      * chaining, which executes the given futures one after another. Note that if one future in the chain resulted in an
      * exception, the subsequent futures will not execute.
      */
     @RequiredArgsConstructor
     private static class FutureExecutionSerializer {
-        private CompletableFuture<Void> storageReadQueueTail = CompletableFuture.completedFuture(null);
+        private final int maxSize;
         private final Executor executorService;
+        private final Object lock = new Object();
+        private final AtomicInteger size = new AtomicInteger();
+        private CompletableFuture<Void> storageReadQueueTail = CompletableFuture.completedFuture(null);
 
         /**
          * Adds the given future at the 'end' of the current queue of future to execute. If no future is currently
@@ -598,11 +624,23 @@ public class Consumer extends Actor {
          *
          * @param future The future to queue up.
          */
-        synchronized void queue(Supplier<CompletableFuture<Void>> future) {
-            Preconditions.checkState(
-                    !this.storageReadQueueTail.isCompletedExceptionally(),
-                    "Unable to queue any more futures because at least one preceding future failed.");
-            this.storageReadQueueTail = this.storageReadQueueTail.thenComposeAsync(v -> future.get(), this.executorService);
+        void queue(Supplier<CompletableFuture<Void>> future) {
+            synchronized (this.lock) {
+                Preconditions.checkState(
+                        !this.storageReadQueueTail.isCompletedExceptionally(),
+                        "Unable to queue any more futures because at least one preceding future failed.");
+                if (this.size.get() >= this.maxSize) {
+                    // Already exceeding max size.
+                    return;
+                }
+
+                // Increment the size and queue up the future.
+                this.size.incrementAndGet();
+                this.storageReadQueueTail = this.storageReadQueueTail.thenComposeAsync(v -> future.get(), this.executorService);
+
+                // Decrement the size when the current future is complete, regardless of outcome.
+                this.storageReadQueueTail.whenComplete((r, e) -> this.size.decrementAndGet());
+            }
         }
     }
 

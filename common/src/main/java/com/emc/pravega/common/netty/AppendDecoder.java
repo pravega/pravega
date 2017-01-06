@@ -47,7 +47,7 @@ import lombok.Data;
  * The AppendBlockEnd command should have all of the information need to construct a single
  * Append object with all of the Events in the block.
  * 
- * @See CommandEncoder For details about handling of PartialEvents
+ * @see CommandEncoder For details about handling of PartialEvents
  */
 public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
 

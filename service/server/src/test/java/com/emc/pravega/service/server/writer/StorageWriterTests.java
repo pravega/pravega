@@ -85,6 +85,7 @@ public class StorageWriterTests {
                        .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
                        .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
                        .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250)
+                       .with(WriterConfig.PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE, 100)
                        .with(WriterConfig.PROPERTY_ERROR_SLEEP_MILLIS, 0));
 
     private static final Duration TIMEOUT = Duration.ofSeconds(20);
@@ -211,17 +212,17 @@ public class StorageWriterTests {
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
         appendDataBreadthFirst(segmentIds, segmentContents, context);
 
+        // Corrupt (one segment should suffice).
         byte[] corruptionData = "foo".getBytes();
+        String corruptedSegmentName = context.metadata.getStreamSegmentMetadata(segmentIds.get(0)).getName();
         Supplier<Exception> exceptionSupplier = () -> {
-            // Corrupt data.
-            for (long segmentId : segmentIds) {
-                String name = context.metadata.getStreamSegmentMetadata(segmentId).getName();
-                long length = context.storage.getStreamSegmentInfo(name, TIMEOUT).join().getLength();
-                context.storage.write(name, length, new ByteArrayInputStream(corruptionData), corruptionData.length, TIMEOUT).join();
-            }
+            // Corrupt data. We use an internal method (append) to atomically write data at the end of the segment.
+            // GetLength+Write would not work well because there may be concurrent writes that modify the data between
+            // requesting the length and attempting to write, thus causing the corruption to fail.
+            context.storage.append(corruptedSegmentName, new ByteArrayInputStream(corruptionData), corruptionData.length, TIMEOUT).join();
 
             // Return some other kind of exception.
-            return new TimeoutException();
+            return new TimeoutException("Intentional");
         };
 
         // We only try to corrupt data once.
@@ -489,13 +490,6 @@ public class StorageWriterTests {
             sealOp.setStreamSegmentOffset(segmentMetadata.getDurableLogLength());
             context.dataSource.add(sealOp);
         }
-    }
-
-    /**
-     * Appends data, depth-first, by filling up one segment before moving on to another.
-     */
-    private void appendDataDepthFirst(Collection<Long> segmentIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
-        appendDataDepthFirst(segmentIds, segmentId -> APPENDS_PER_SEGMENT, segmentContents, context);
     }
 
     /**

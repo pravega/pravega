@@ -19,7 +19,7 @@ package com.emc.pravega.state;
 
 /**
  * An object that has a revision associated with it.
- * It is assumed that if two objects have the same streamName, and revision, that they are equal. IE:
+ * It is assumed that if two objects have the same streamName, and revision, that they are equal. i.e.
  * a.equals(b) should return true.
  */
 public interface Revisioned {

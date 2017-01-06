@@ -22,14 +22,12 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
-import com.emc.pravega.stream.PositionInternal;
-import com.emc.pravega.stream.Producer;
+import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.TxnFailedException;
 
 import java.util.List;
 import java.util.UUID;
@@ -59,10 +57,10 @@ public interface Controller {
      */
     CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig);
 
-    // Controller Apis called by pravega producers for getting stream specific information
+    // Controller Apis called by pravega writers for getting stream specific information
 
     /**
-     * Api to get list of current segments for the stream to produce to.
+     * Api to get list of current segments for the stream to write to.
      * @param scope scope
      * @param streamName stream name
      * @return
@@ -79,8 +77,10 @@ public interface Controller {
     CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout);
 
     /**
-     * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}.
-     * Will fail with {@link TxFailedException} if the transaction has already been committed or dropped.
+     * Commits a transaction, atomically committing all events to the stream, subject to the
+     * ordering guarantees specified in {@link EventStreamWriter}. Will fail with {@link TxnFailedException}
+     * if the transaction has already been committed or aborted.
+     * 
      * @param stream stream name
      * @param txId transaction id
      * @return
@@ -88,7 +88,7 @@ public interface Controller {
     CompletableFuture<TransactionStatus> commitTransaction(final Stream stream, final UUID txId);
 
     /**
-     * Drops a transaction. No events published to it may be read, and no further events may be published.
+     * Drops a transaction. No events written to it may be read, and no further events may be written.
      * @param stream stream name
      * @param txId transaction id
      * @return
@@ -103,7 +103,7 @@ public interface Controller {
      */
     CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
 
-    // Controller Apis that are called by consumers
+    // Controller Apis that are called by readers
 
     /**
      * Returns list of position objects by distributing available segments at the
@@ -117,7 +117,7 @@ public interface Controller {
     CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count);
 
     /**
-     * Called by consumer upon reaching end of segment on some segment in its position obejct.
+     * Called by readers upon reaching end of segment on some segment in its position obejct.
      *
      * @param stream stream name
      * @param positions current position objects
@@ -125,7 +125,7 @@ public interface Controller {
      */
     CompletableFuture<List<PositionInternal>> updatePositions(final Stream stream, final List<PositionInternal> positions);
 
-    //Controller Apis that are called by producers and consumers
+    //Controller Apis that are called by writers and readers
 
     /**
      * Given a segment return the endpoint that currently is the owner of that segment.
@@ -133,7 +133,7 @@ public interface Controller {
      * The result of this function can be cached until the endpoint is unreachable or indicates it
      * is no longer the owner.
      *
-     * @param qualifiedSegmentName The name of the segment. Usually obtained from {@link Segment#getQualifiedName()}.
+     * @param qualifiedSegmentName The name of the segment. Usually obtained from {@link Segment#getScopedName()}.
      */
     CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName);
 

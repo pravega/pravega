@@ -24,6 +24,14 @@ import java.util.concurrent.Executor;
 
 /**
  * Configurable Checkpointing Policy for the Metadata for a single container.
+ * <p>
+ * This uses the following conditions, both of which must be true in order for a checkpoint to be triggered:
+ * <ul>
+ * <li> CheckpointCommitMinCommitCount: the minimum number of commits after which to do any sort of checkpointing. If we
+ * haven't done at least this many commits since the last checkpoint, none will be triggered.
+ * <li> CheckpointCommitCountThreshold and CheckpointTotalCommitLengthThreshold: If neither of them is met (count or total
+ * size), then no checkpointing is done.
+ * </ul>
  */
 public class MetadataCheckpointPolicy {
     // region Members
@@ -68,6 +76,7 @@ public class MetadataCheckpointPolicy {
      */
     public synchronized void recordCommit(int commitLength) {
         Preconditions.checkArgument(commitLength >= 0, "commitLength must be a non-negative number.");
+
         // Update counters.
         this.commitCount++;
         this.accumulatedLength += commitLength;

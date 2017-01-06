@@ -17,11 +17,11 @@
  */
 package com.emc.pravega.common.netty;
 
+import com.emc.pravega.common.netty.WireCommands.AbortTransaction;
 import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
-import com.emc.pravega.common.netty.WireCommands.DropTransaction;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
@@ -78,7 +78,7 @@ public class FailingRequestProcessor implements RequestProcessor {
     }
     
     @Override
-    public void dropTransaction(DropTransaction dropTransaction) {
+    public void abortTransaction(AbortTransaction abortTransaction) {
         throw new IllegalStateException("Unexpected operation");
     }
     
