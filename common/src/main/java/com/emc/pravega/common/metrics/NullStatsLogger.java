@@ -16,9 +16,10 @@
  */
 package com.emc.pravega.common.metrics;
 
+import com.google.common.util.concurrent.AtomicDouble;
+
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import com.google.common.util.concurrent.AtomicDouble;
 
 public class NullStatsLogger implements StatsLogger {
 
@@ -115,7 +116,7 @@ public class NullStatsLogger implements StatsLogger {
     }
 
     @Override
-    public StatsLogger createStatsLogger(String name) {
+    public StatsLogger createScopeLogger(String name) {
         return this;
     }
 

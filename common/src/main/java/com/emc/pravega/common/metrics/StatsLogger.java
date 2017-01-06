@@ -16,8 +16,9 @@
  */
 package com.emc.pravega.common.metrics;
 
-import java.util.concurrent.atomic.AtomicLong;
 import com.google.common.util.concurrent.AtomicDouble;
+
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A simple interface that exposes just 2 kind of methods. One to get the logger for an Op stat
@@ -68,11 +69,11 @@ public interface StatsLogger {
     public void registerGauge(String name, final AtomicDouble value);
 
     /**
-     * Provide the stats logger under scope <i>name</i>.
+     * Provide the stats logger under scope <i>scope</i>.
      *
-     * @param name scope name.
-     * @return stats logger under scope <i>name</i>.
+     * @param scope scope name.
+     * @return stats logger under scope <i>scope</i>.
      */
-    public StatsLogger createStatsLogger(String name);
+    public StatsLogger createScopeLogger(String scope);
 
 }

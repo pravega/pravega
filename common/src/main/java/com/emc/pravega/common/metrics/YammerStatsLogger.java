@@ -110,7 +110,7 @@ public class YammerStatsLogger implements StatsLogger {
     }
 
     @Override
-    public StatsLogger createStatsLogger(String scope) {
+    public StatsLogger createScopeLogger(String scope) {
         String scopeName;
         if (0 == basename.length()) {
             scopeName = scope;
