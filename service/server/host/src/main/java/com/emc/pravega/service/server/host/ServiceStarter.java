@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.emc.pravega.metrics.MetricsConfig;
 import com.emc.pravega.metrics.StatsProvider;
-import com.emc.pravega.metrics.MetricsFactory;
+import com.emc.pravega.metrics.MetricsProvider;
 
 /**
  * Starts the Pravega Service.
@@ -109,8 +109,8 @@ public final class ServiceStarter {
 
         log.info("Initializing metrics provider ...");
         statsProvider = (metricsConfig.enableStatistics()) ?
-                        MetricsFactory.getNullProvider() :
-                        MetricsFactory.getProvider();
+                        MetricsProvider.getNullProvider() :
+                        MetricsProvider.getProvider();
 
         statsProvider.start(metricsConfig);
 

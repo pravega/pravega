@@ -44,7 +44,7 @@ public class YammerStatsProvider implements StatsProvider {
     @Synchronized
     void init() {
         if (metrics == null) {
-            metrics = MetricsFactory.getMetrics();
+            metrics = MetricsProvider.getMetrics();
             metrics.registerAll(new MemoryUsageGaugeSet());
             metrics.registerAll(new GarbageCollectorMetricSet());
         }

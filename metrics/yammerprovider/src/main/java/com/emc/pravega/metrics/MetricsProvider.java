@@ -18,14 +18,14 @@ package com.emc.pravega.metrics;
 
 import com.codahale.metrics.MetricRegistry;
 
-public class MetricsFactory {
-    private static MetricsFactory instance  = new MetricsFactory();
+public class MetricsProvider {
+    private static MetricsProvider instance  = new MetricsProvider();
 
     private static final MetricRegistry YAMMERMETRICS = new MetricRegistry();
     private static final StatsProvider NULLPROVIDER = new NullStatsProvider();
     private static final StatsProvider YAMMERPROVIDER = new YammerStatsProvider();
 
-    private MetricsFactory() {
+    private MetricsProvider() {
     }
 
     public static MetricRegistry getMetrics() {

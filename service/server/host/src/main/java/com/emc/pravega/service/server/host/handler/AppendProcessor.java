@@ -51,7 +51,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.extern.slf4j.Slf4j;
 
-import com.emc.pravega.metrics.MetricsFactory;
+import com.emc.pravega.metrics.MetricsProvider;
 import com.emc.pravega.metrics.StatsLogger;
 
 import static com.emc.pravega.service.server.host.PravegaRequestStats.PENDING_APPEND_BYTES;
@@ -66,7 +66,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     static final int HIGH_WATER_MARK = 128 * 1024;
     static final int LOW_WATER_MARK = 64 * 1024;
 
-    static final StatsLogger STATS_LOGGER = MetricsFactory.createStatsLogger("");
+    static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("");
     static AtomicLong pendBytes = new AtomicLong();
     static {
         STATS_LOGGER.registerGauge(PENDING_APPEND_BYTES, pendBytes);

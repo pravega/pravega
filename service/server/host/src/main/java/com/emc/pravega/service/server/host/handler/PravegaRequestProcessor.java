@@ -58,7 +58,7 @@ import com.google.common.base.Preconditions;
 import com.emc.pravega.metrics.Counter;
 import com.emc.pravega.metrics.StatsLogger;
 import com.emc.pravega.metrics.OpStatsLogger;
-import com.emc.pravega.metrics.MetricsFactory;
+import com.emc.pravega.metrics.MetricsProvider;
 
 import static com.emc.pravega.service.server.host.PravegaRequestStats.CREATE_SEGMENT;
 import static com.emc.pravega.service.server.host.PravegaRequestStats.READ_SEGMENT;
@@ -90,18 +90,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     static final int MAX_READ_SIZE = 2 * 1024 * 1024;
 
-    static final StatsLogger STATS_LOGGER = MetricsFactory.createStatsLogger("");
+    static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("");
 
     public static class Metrics {
         static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
         static final OpStatsLogger READ_STREAM_SEGMENT = STATS_LOGGER.createStats(READ_SEGMENT);
         static final OpStatsLogger READ_BYTES_STATS = STATS_LOGGER.createStats(SEGMENT_READ_BYTES);
         static final Counter READ_BYTES = STATS_LOGGER.createCounter(ALL_READ_BYTES);
-    }
-
-    public static class Metrics2 {
-        //static final OpStatsLogger CREATE_STREAM_SEGMENT2 = MetricProvider.createStats(CREATE_SEGMENT);
-
     }
 
     private final StreamSegmentStore segmentStore;
