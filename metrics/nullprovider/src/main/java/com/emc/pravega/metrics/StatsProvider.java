@@ -17,7 +17,8 @@
 package com.emc.pravega.metrics;
 
 /**
- * Provider to provide stats logger for different scopes.
+ * Provider of StatsLogger instances depending on scope.
+ * An implementation of this interface possibly returns a separate instance per Pravega scope.
  */
 public interface StatsProvider {
     /**
@@ -33,10 +34,10 @@ public interface StatsProvider {
     public void stop();
 
     /**
-     * Return the stats logger to a given <i>scope</i>.
+     * Return the StatsLogger instance associated with the given <i>scope</i>.
      *
      * @param scope Scope for the given stats.
      * @return stats logger for the given <i>scope</i>.
      */
-    public StatsLogger getStatsLogger(String scope);
+    public StatsLogger createStatsLogger(String scope);
 }

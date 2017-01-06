@@ -115,7 +115,7 @@ public class NullStatsLogger implements StatsLogger {
     }
 
     @Override
-    public StatsLogger scope(String name) {
+    public StatsLogger getScopeLogger(String name) {
         return this;
     }
 

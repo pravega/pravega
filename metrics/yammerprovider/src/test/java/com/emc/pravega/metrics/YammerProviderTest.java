@@ -21,11 +21,17 @@ import static org.junit.Assert.assertEquals;
 
 import java.util.concurrent.TimeUnit;
 
+/**
+ * The type Yammer provider test.
+ */
 public class YammerProviderTest {
-    private final StatsLogger statsLogger = MetricsFactory.getStatsLogger();
+    private final StatsLogger statsLogger = MetricsFactory.createStatsLogger();
 
+    /**
+     * Test Event and Value registered and worked well with OpStats.
+     */
     @Test
-    public void testToOpStatsData() {
+    public void testOpStatsData() {
         long startTime = System.nanoTime();
         OpStatsLogger opStatsLogger = statsLogger.getStats("testOpStatsLogger");
         // register 2 event: 1 success, 1 fail.
@@ -41,15 +47,21 @@ public class YammerProviderTest {
         assertEquals(2, statsData.getNumFailedEvents());
     }
 
+    /**
+     * Test counter registered and  worked well with StatsLogger.
+     */
     @Test
-    public void testToCounter() {
+    public void testCounter() {
         Counter testCounter = statsLogger.getCounter("testCounter");
         testCounter.add(17);
         assertEquals(Long.valueOf(17), testCounter.get());
     }
 
+    /**
+     * Test gauge registered and  worked well with StatsLogger..
+     */
     @Test
-    public void testToGauge() {
+    public void testGauge() {
         Gauge gauge = new Gauge<Integer>() {
             @Override
             public Integer getDefaultValue() {

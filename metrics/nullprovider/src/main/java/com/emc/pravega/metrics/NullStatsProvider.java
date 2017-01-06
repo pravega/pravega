@@ -31,7 +31,7 @@ public class NullStatsProvider implements StatsProvider {
     }
 
     @Override
-    public StatsLogger getStatsLogger(String scope) {
+    public StatsLogger createStatsLogger(String scope) {
         return nullStatsLogger;
     }
 

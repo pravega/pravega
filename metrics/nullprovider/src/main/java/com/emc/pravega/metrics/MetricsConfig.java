@@ -73,7 +73,7 @@ public class MetricsConfig extends ComponentConfig {
     /**
      * Gets a value indicating the status of enable statistics.
      */
-    public boolean getEnableStatistics() {
+    public boolean enableStatistics() {
         return this.enableStatistics;
     }
 

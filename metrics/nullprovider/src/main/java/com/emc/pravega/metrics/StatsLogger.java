@@ -73,6 +73,6 @@ public interface StatsLogger {
      * @param name scope name.
      * @return stats logger under scope <i>name</i>.
      */
-    public StatsLogger scope(String name);
+    public StatsLogger getScopeLogger(String name);
 
 }

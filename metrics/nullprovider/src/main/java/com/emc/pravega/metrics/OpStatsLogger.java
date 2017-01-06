@@ -19,7 +19,7 @@ package com.emc.pravega.metrics;
 import java.util.concurrent.TimeUnit;
 
 /**
- * This interface handles logging of statistics related to each operation (PUBLISH, CONSUME etc.).
+ * This interface handles logging of statistics related to each operation (Write, Read etc.).
  */
 public interface OpStatsLogger {
 

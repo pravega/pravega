@@ -102,7 +102,7 @@ public class YammerStatsProvider implements StatsProvider {
     }
 
     @Override
-    public StatsLogger getStatsLogger(String name) {
+    public StatsLogger createStatsLogger(String name) {
         init();
         return new YammerStatsLogger(getMetrics(), name);
     }

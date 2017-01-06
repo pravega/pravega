@@ -32,28 +32,34 @@ class YammerOpStatsLogger implements OpStatsLogger {
     }
 
     // OpStatsLogger functions
+    @Override
     public void registerFailedEvent(long eventLatency, TimeUnit unit) {
         fail.update(eventLatency, unit);
     }
 
+    @Override
     public void registerSuccessfulEvent(long eventLatency, TimeUnit unit) {
         success.update(eventLatency, unit);
     }
 
+    @Override
     public void registerSuccessfulValue(long value) {
         // Values are inserted as millis, which is the unit they will be presented, to maintain 1:1 scale
         success.update(value, TimeUnit.MILLISECONDS);
     }
 
+    @Override
     public void registerFailedValue(long value) {
         // Values are inserted as millis, which is the unit they will be presented, to maintain 1:1 scale
         fail.update(value, TimeUnit.MILLISECONDS);
     }
 
-    public synchronized void clear() {
+    @Override
+    public void clear() {
         // can't clear a timer
     }
 
+    @Override
     public OpStatsData toOpStatsData() {
         long numFailed = fail.getCount();
         long numSuccess = success.getCount();
