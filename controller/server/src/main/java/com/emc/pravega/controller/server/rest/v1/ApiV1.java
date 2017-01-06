@@ -64,7 +64,7 @@ public final class ApiV1 {
         @GET
         @Path("/scopes/{scope}/streams")
         @Produces(MediaType.APPLICATION_JSON)
-        public Response listStreamsInScope();
+        public Response listStreamsInScope(@PathParam("scope") String scope);
 
         @GET
         @Path("/scopes")
@@ -74,7 +74,7 @@ public final class ApiV1 {
         @DELETE
         @Path("/scopes/{scope}/streams/{stream}")
         @Produces(MediaType.APPLICATION_JSON)
-        public Response deleteStream(StreamConfiguration streamConfiguration);
+        public Response deleteStream(StreamConfiguration streamConfig);
 
     }
 }

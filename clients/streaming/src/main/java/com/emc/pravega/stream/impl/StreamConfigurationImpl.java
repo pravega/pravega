@@ -47,4 +47,3 @@ public class StreamConfigurationImpl implements StreamConfiguration {
         return scalingPolicy;
     }
 }
-
