@@ -259,7 +259,7 @@ public class TurbineHeatSensor {
                     // wait for next event
                     try {
                         //There is no need for sleep for blocking calls.
-                        if( !blocking ) {
+                        if ( !blocking ) {
                             Thread.sleep(1000 / eventsPerSec);
                         }
                     } catch (InterruptedException e) {
@@ -286,7 +286,7 @@ public class TurbineHeatSensor {
                                 () -> now,
                                 payload.length());
                         //If it is a blocking call, wait for the ack
-                        if( blocking ) {
+                        if ( blocking ) {
                             try {
                                 retFuture.get();
                             } catch (InterruptedException e) {
