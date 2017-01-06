@@ -18,6 +18,7 @@
 
 package com.emc.pravega.controller.server.rest.resources;
 
+import com.emc.pravega.controller.server.rest.v1.ApiV1;
 import lombok.extern.slf4j.Slf4j;
 import javax.ws.rs.core.Response;
 
@@ -25,7 +26,7 @@ import javax.ws.rs.core.Response;
 Implementation of Resource
  */
 @Slf4j
-public class ResourceImpl implements com.emc.pravega.controller.server.rest.v1.ApiV1.Controller {
+public class PingImpl implements ApiV1.Ping {
 
     @Override
     public Response ping() {

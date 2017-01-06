@@ -25,13 +25,12 @@ import javax.ws.rs.core.Response;
 /*
 Controller APIs exposed via REST
 Different interfaces will hold different groups of APIs
-also new version of APIs will be added through a new interface
 */
 
 public final class ApiV1 {
 
     @Path("/v1")
-    public static interface Controller {
+    public static interface Ping {
 
         @GET
         @Path("/ping")

@@ -18,15 +18,19 @@
 
 package com.emc.pravega.controller.server.rest;
 
+import com.emc.pravega.controller.server.rest.resources.PingImpl;
 import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
-
 import org.glassfish.jersey.netty.httpserver.NettyHttpContainerProvider;
 import org.glassfish.jersey.server.ResourceConfig;
 
-import javax.ws.rs.core.Application;
 import javax.ws.rs.core.UriBuilder;
 import java.net.URI;
+import java.util.HashSet;
+import java.util.Set;
+
+import static com.emc.pravega.controller.util.Config.REST_SERVER_IP;
+import static com.emc.pravega.controller.util.Config.REST_SERVER_PORT;
 
 /**
  * Netty REST server implementation.
@@ -34,10 +38,22 @@ import java.net.URI;
 @Slf4j
 public class RESTServer {
 
-    public static final Channel createNettyServer(Application controllerApplication) throws Exception {
-        URI baseUri = UriBuilder.fromUri("http://localhost/").port(9998).build();
+    public static final void start() {
+
+        Set<Object> resourceObjs = new HashSet<Object>();
+        resourceObjs.add(new PingImpl());
+        ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
+
+        String serverURI = "http://" + REST_SERVER_IP + "/";
+        URI baseUri = UriBuilder.fromUri(serverURI).port(REST_SERVER_PORT).build();
         ResourceConfig resourceConfig = ResourceConfig.forApplication(controllerApplication);
-        Channel server = NettyHttpContainerProvider.createServer(baseUri, resourceConfig, true);
-        return server;
+        Channel server = null;
+        try {
+            server = NettyHttpContainerProvider.createServer(baseUri, resourceConfig, true);
+        } catch (Exception e) {
+            log.error("Error starting Rest Service {}", e);
+            server.close();
+        }
     }
+
 }
