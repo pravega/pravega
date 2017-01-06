@@ -33,6 +33,7 @@ import com.emc.pravega.stream.impl.StreamSegments;
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 
+
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -58,6 +59,8 @@ public class StreamMetadataTest {
         CompletableFuture<CreateStreamStatus> createStatus;
 
         //create stream
+
+        //CS1:create a stream :given a streamName, scope and config
         System.err.println(String.format("Creating stream (%s, %s)", scope1, streamName1));
         createStatus = controller.createStream(config1);
         if (createStatus.get() != CreateStreamStatus.SUCCESS) {
@@ -65,7 +68,28 @@ public class StreamMetadataTest {
             return;
         }
 
-        //stream duplication not allowed
+        //PS5:Get position at time before stream creation
+        Stream stream1 = new StreamImpl(scope1, streamName1, config1);
+        final int count1 = 10;
+        CompletableFuture<List<PositionInternal>> getPositions;
+        System.err.println(String.format("position at time before (%s, %s) creation ", scope1, streamName1));
+        getPositions  =  controller.getPositions(stream1, System.currentTimeMillis()-3600, count1);
+        if (getPositions.get().isEmpty()) {
+            System.err.println("position cannot be fetched for non existent stream");
+        } else {
+            System.err.println("fetching position non existent stream, exiting");
+            return;
+        }
+
+        //PS6:Get positions at a time in future after stream creation
+        System.err.println(String.format("position at given time in future after (%s, %s) creation ", scope1, streamName1));
+        getPositions  =  controller.getPositions(stream1, System.currentTimeMillis()+3600, count1);
+        if (getPositions.get().isEmpty()) {
+            System.err.println("fetching position at given time in furture after stream creation failed, exiting");
+            return;
+        }
+
+        //CS2:stream duplication not allowed
         System.err.println(String.format("duplicating stream (%s, %s)", scope1, streamName1));
         createStatus = controller.createStream(config1);
         if (createStatus.get() == CreateStreamStatus.STREAM_EXISTS) {
@@ -73,9 +97,12 @@ public class StreamMetadataTest {
         } else if (createStatus.get() == CreateStreamStatus.FAILURE) {
             System.err.println("create stream failed, exiting");
             return;
+        } else {
+            System.err.println("stream duplication successful, exiting");
+            return;
         }
 
-        //same stream name in different scopes--> fails --> #250 bug have to be fixed
+        //CS3:create a stream with same stream name in different scopes
         final String scope2 = "scope2";
         final StreamConfiguration config2 =
                 new StreamConfigurationImpl(scope2,
@@ -84,11 +111,11 @@ public class StreamMetadataTest {
         System.err.println(String.format("creating stream with same stream name in different scope (%s, %s)", scope2, streamName1));
         createStatus = controller.createStream(config2);
         if (createStatus.get() != CreateStreamStatus.SUCCESS) {
-            System.err.println("Create stream failed, exiting ");
+            System.err.println("creating stream with same stream name in different scope failed, exiting ");
             return;
         }
 
-        //different stream name and config  in same scope
+        //CS4:create a stream with different stream name and config  in same scope
         final String streamName2 = "stream2";
         final StreamConfiguration config3 =
                 new StreamConfigurationImpl(scope1,
@@ -101,44 +128,46 @@ public class StreamMetadataTest {
             return;
         }
 
-        //update stream config
-        //updating the stream name
+        //update stream config(alter Stream)
+
+        //AS1:update the stream name
         final StreamConfiguration config4 =
                 new StreamConfigurationImpl(scope1,
                         "stream4",
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
         CompletableFuture<UpdateStreamStatus> updateStatus;
         updateStatus = controller.alterStream(config4);
-        System.err.println(String.format("updtaing the stream name (%s, %s)", scope1, "stream4"));
-        if (updateStatus.get() != UpdateStreamStatus.STREAM_NOT_FOUND) {
-            System.err.println(" Stream name cannot be updated, exiting");
+        System.err.println(String.format("updating the stream name (%s, %s)", scope1, "stream4"));
+        if (updateStatus.get() != UpdateStreamStatus.FAILURE) {
+            System.err.println(" stream name updated, exiting");
             return;
         }
 
-        //updating the scope name
+        //AS2:update the scope name
         final StreamConfiguration config5 =
                 new StreamConfigurationImpl("scope5",
                         streamName1,
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
         updateStatus = controller.alterStream(config5);
         System.err.println(String.format("updtaing the scope name (%s, %s)", "scope5", streamName1));
-        if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
-            System.err.println("Update stream config failed, exiting");
+        if (updateStatus.get() != UpdateStreamStatus.FAILURE) {
+            System.err.println("scope name updated, exiting");
             return;
         }
 
-        //change the type of scaling policy
+        //AS3:update the type of scaling policy
         final StreamConfiguration config6 =
                 new StreamConfigurationImpl(scope1,
                         streamName1,
                         new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_BYTES, 100L, 2, 2));
         updateStatus = controller.alterStream(config6);
-        System.err.println(String.format("updating the scaling policy type(%s, %s)", scope1, streamName1));
+        System.err.println(String.format("updating the  type of scaling policy(%s, %s)", scope1, streamName1));
         if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
-            System.err.println("Update stream config failed, exiting");
+            System.err.println("update the  type of scaling policy failed, exiting");
             return;
         }
-        //change the target rate of scaling policy
+
+        //AS4:update the target rate of scaling policy
         final StreamConfiguration config7 =
                 new StreamConfigurationImpl(scope1,
                         streamName1,
@@ -146,11 +175,11 @@ public class StreamMetadataTest {
         System.err.println(String.format("updating the target rate (%s, %s)", scope1, streamName1));
         updateStatus = controller.alterStream(config7);
         if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
-            System.err.println("Update stream config failed, exiting");
+            System.err.println("update the target rate failed, exiting");
             return;
         }
 
-        //change the scalefactor of scaling policy
+        //AS5:update the scale factor of scaling policy
         final StreamConfiguration config8 =
                 new StreamConfigurationImpl(scope1,
                         streamName1,
@@ -158,24 +187,42 @@ public class StreamMetadataTest {
         System.err.println(String.format("updating the scalefactor (%s, %s)", scope1, streamName1));
         updateStatus = controller.alterStream(config8);
         if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
-            System.err.println("Update stream config failed, exiting");
+            System.err.println("update the scalefactor failed, exiting");
             return;
         }
 
-        //change the minNumsegments
+        //AS6:update the minNumsegments of scaling policy
         final StreamConfiguration config9 =
                 new StreamConfigurationImpl(scope1,
                         streamName1,
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3));
-
         System.err.println(String.format("updating the min Num segments (%s, %s)", scope1, streamName1));
-         updateStatus = controller.alterStream(config9);
+        updateStatus = controller.alterStream(config9);
         if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
-            System.err.println("Update stream config failed, exiting");
+            System.err.println("update  min Num segments failed, exiting");
             return;
         }
 
-        //get active segments of the stream
+        //AS7:alter configuration of non-existent stream.
+        final StreamConfiguration config =
+                new StreamConfigurationImpl("scope",
+                        "streamName",
+                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 200L, 2, 3));
+        System.err.println(String.format("altering the  configuration of a non-existent stream (%s, %s)", "scope", "streamName"));
+        updateStatus = controller.alterStream(config);
+        if (updateStatus.get() ==  UpdateStreamStatus.STREAM_NOT_FOUND) {
+            System.err.println("altering the configuration of a non-existent stream is not allowed");
+        } else if (updateStatus.get() == UpdateStreamStatus.FAILURE) {
+            System.err.println("alter configuration failed, exiting");
+            return;
+        } else {
+            System.err.println("altering the configuration of a non-existent stream, exiting");
+            return;
+        }
+
+        //get currently active segments
+
+        //GCS1:get active segments of the stream
         CompletableFuture<StreamSegments> getActiveSegments;
         System.err.println(String.format("get active segments of the stream (%s, %s)", scope1, streamName1));
         getActiveSegments = controller.getCurrentSegments(scope1, streamName1);
@@ -184,34 +231,53 @@ public class StreamMetadataTest {
            return;
         }
 
-        //get  position at a given time stamp
-        Stream stream1 = new StreamImpl(scope1, streamName1, config1);
-        final int count1 = 10;
-        CompletableFuture<List<PositionInternal>> currentPosition;
-        System.err.println(String.format("position at given time stamp (%s,%s)", scope1, streamName1));
-        currentPosition  =  controller.getPositions(stream1, System.currentTimeMillis(), count1);
-        if (currentPosition.get().isEmpty()) {
-            System.err.println("fetching position at given time stamp failed, exiting");
+        //GCS2:Get active segments for a non-existent stream.
+        System.err.println(String.format("get active segments of the stream (%s, %s)", "scope", "streamName"));
+        getActiveSegments = controller.getCurrentSegments("scope", "streamName");
+        if (getActiveSegments.get().getSegments().isEmpty())  {
+            System.err.println("active segments cannot be fetched for non existent stream");
+        } else {
+            System.err.println("fetching active segments for non existent stream, exiting ");
             return;
         }
 
-        //get position of same stream at different time stamp
+        //get  positions at a given time stamp
+
+        //PS1:get  positions at a given time stamp:given stream, time stamp, count
+        System.err.println(String.format("fetching positions at given time stamp of (%s,%s)", scope1, streamName1));
+        getPositions  =  controller.getPositions(stream1, System.currentTimeMillis(), count1);
+        if (getPositions.get().isEmpty()) {
+            System.err.println("fetching positions at given time stamp failed, exiting");
+            return;
+        }
+
+        //PS2:get positions of a stream with different count
         final int count2 = 20;
-        System.err.println(String.format("position at given time stamp (%s, %s)", scope1, streamName1));
-        currentPosition  =  controller.getPositions(stream1, System.currentTimeMillis(), count2);
-        if (currentPosition.get().isEmpty()) {
-            System.err.println("fetching position at given time stamp failed, exiting");
+        System.err.println(String.format("positions at given time stamp (%s, %s)", scope1, streamName1));
+        getPositions  =  controller.getPositions(stream1, System.currentTimeMillis(), count2);
+        if (getPositions.get().isEmpty()) {
+            System.err.println("fetching positions at given time stamp with different count failed, exiting");
             return;
         }
 
-        //get position of a different stream at a given time stamp
+        //PS3:get positions of a different stream at a given time stamp
         Stream stream2 = new StreamImpl(scope1, streamName2, config3);
-        System.err.println(String.format("position at given time stamp (%s, %s)", scope1, stream2));
-        currentPosition  =  controller.getPositions(stream2, System.currentTimeMillis(), count1);
-        if (currentPosition.get().isEmpty()) {
-            System.err.println("fetching position at given time stamp failed, exiting");
+        System.err.println(String.format("fetching positions at given time stamp of (%s, %s)", scope1, stream2));
+        getPositions  =  controller.getPositions(stream2, System.currentTimeMillis(), count1);
+        if (getPositions.get().isEmpty()) {
+            System.err.println("fetching positions at given time stamp failed, exiting");
             return;
         }
 
+        //PS4:get positions at a given timestamp for non-existent stream.
+        Stream stream = new StreamImpl("scope", "streamName", config);
+        System.err.println(String.format("fetching positions at given time stamp for  (%s, %s)", "scope", "streamName"));
+        getPositions   =  controller.getPositions(stream, System.currentTimeMillis(), count1);
+        if (getPositions.get().isEmpty()) {
+            System.err.println("positions cannot be fetched for non existent stream");
+        } else {
+            System.err.println("fetching active segments for non existent stream, exiting ");
+            return;
+        }
     }
 }
