@@ -73,7 +73,7 @@ public class ResourceImpl implements com.emc.pravega.controller.server.rest.v1.A
     }
 
     @Override
-    public Response deleteStream(StreamConfiguration streamConfiguration) {
+    public Response deleteStream(StreamConfiguration streamConfig) {
         return Response.serverError().status(500).build();
     }
 }
