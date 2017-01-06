@@ -52,9 +52,9 @@ public final class ModelHelper {
         return new UUID(txId.getHighBits(), txId.getLowBits());
     }
 
-    public static final com.emc.pravega.stream.impl.TxStatus encode(TxState txStatus) {
+    public static final TxnStatus encode(TxState txStatus) {
         Preconditions.checkNotNull(txStatus, "txStatus");
-        return com.emc.pravega.stream.impl.TxStatus.valueOf(txStatus.name());
+        return TxnStatus.valueOf(txStatus.name());
     }
 
     public static final Segment encode(final SegmentId segment) {
@@ -119,7 +119,7 @@ public final class ModelHelper {
         return new TxId(txId.getMostSignificantBits(), txId.getLeastSignificantBits());
     }
 
-    public static final TxState decode(com.emc.pravega.stream.impl.TxStatus txstatus) {
+    public static final TxState decode(TxnStatus txstatus) {
         Preconditions.checkNotNull(txstatus, "txstatus");
         return TxState.valueOf(txstatus.name());
     }

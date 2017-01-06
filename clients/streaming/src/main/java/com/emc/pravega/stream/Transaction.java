@@ -39,7 +39,7 @@ public interface Transaction<Type> {
     /**
      * Returns a unique ID that can be used to identify this transaction.
      */
-    UUID getTransactionId();
+    UUID getTxnId();
     
     /**
      * Sends an event to the stream just like {@link EventStreamWriter#writeEvent} but with the caveat that the message will not be
@@ -71,7 +71,7 @@ public interface Transaction<Type> {
     /**
      * Drops the transaction, causing all events written to it to be deleted.
      */
-    void drop();
+    void abort();
 
     /**
      * Gets the status of the transaction.

@@ -215,7 +215,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         }
 
         @Override
-        public void drop() {
+        public void abort() {
             FutureHelpers.getAndHandleExceptions(controller.dropTransaction(stream, txId), RuntimeException::new);
             closed.set(true);
         }
@@ -234,14 +234,14 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         }
 
         @Override
-        public UUID getTransactionId() {
+        public UUID getTxnId() {
             return txId;
         }
 
     }
 
     @Override
-    public Transaction<Type> beginTransaction(long timeout) {
+    public Transaction<Type> beginTxn(long timeout) {
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         ArrayList<Segment> segmentIds;
         synchronized (lock) {
@@ -257,7 +257,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     }
     
     @Override
-    public Transaction<Type> getTransaction(UUID txId) {
+    public Transaction<Type> getTxn(UUID txId) {
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         ArrayList<Segment> segmentIds;
         synchronized (lock) {
