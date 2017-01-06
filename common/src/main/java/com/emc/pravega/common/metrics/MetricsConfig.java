@@ -38,7 +38,7 @@ public class MetricsConfig extends ComponentConfig {
 
     public final static boolean DEFAULT_ENABLE_STATISTICS = true;
     public final static int DEFAULT_OUTPUT_FREQUENCY = 60;
-    public final static String DEFAULT_METRICS_PREFIX = "host";
+    public final static String DEFAULT_METRICS_PREFIX = "pravega";
     public final static String DEFAULT_CSV_ENDPOINT = "/tmp/csv";
     public final static String DEFAULT_STATSD_HOST = "localhost";
     public final static int DEFAULT_STATSD_PORT = 8125;
