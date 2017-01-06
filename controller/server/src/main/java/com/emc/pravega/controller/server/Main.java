@@ -22,17 +22,13 @@ import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
-import ch.qos.logback.classic.Level;
-import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.server.rest.ControllerApplication;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rest.resources.ResourceImpl;
-import com.emc.pravega.controller.server.rest.resources.SampleResourceImpl;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -41,15 +37,11 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
-import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.netty.channel.Channel;
@@ -57,14 +49,12 @@ import lombok.extern.slf4j.Slf4j;
 
 
 //import org.apache.log4j.Level;
-import org.eclipse.jetty.server.Server;
-import javax.ws.rs.core.Application;
 
-import java.lang.reflect.Constructor;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -141,17 +131,10 @@ public class Main {
         //  create an application with the desired resources.
         Set<Object> resourceObjs = new HashSet<Object>();
         resourceObjs.add(new ResourceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
-        resourceObjs.add(new SampleResourceImpl());
         ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
 
-        //  start a jetty server
-        /*final Server server = RESTServer.createJettyServer(controllerApplication);
-        server.start();
-        log.info("Pravega REST Service has started");
-        //  wait forever for incoming requests.
-        server.join();*/
-
         //start a netty server
+        log.info("Starting Pravega REST Service");
         final Channel server = RESTServer.createNettyServer(controllerApplication);
 
 

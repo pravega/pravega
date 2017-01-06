@@ -18,7 +18,6 @@
 
 package com.emc.pravega.controller.server.rest.v1;
 
-import com.emc.pravega.controller.server.rest.resources.SampleRequest;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 
@@ -33,66 +32,34 @@ import javax.ws.rs.PathParam;
 
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.io.IOException;
 
 /*
 Controller APIs exposed via REST
 Different interfaces will hold different groups of APIs
 also new version of APIs will be added through a new interface
- */
+*/
+
 public final class ApiV1 {
 
-    @Path("/hello")
-    public static interface Hello {
-
-        @GET
-        @Path("/world")
-        @Produces(MediaType.APPLICATION_JSON)
-        public String helloWorld();
-
-        @GET
-        @Path("/user/{var}")
-        @Produces({MediaType.APPLICATION_JSON})
-        public String printName(@PathParam("var") String name);
-
-        @GET
-        @Path("/wrapper")
-        @Produces(MediaType.APPLICATION_JSON)
-        public Response getWrapper();
-
-        @POST
-        @Path("/jackson")
-        @Produces(MediaType.APPLICATION_JSON)
-        @Consumes(MediaType.APPLICATION_JSON)
-        public Response getResponse(SampleRequest request) throws IOException;
-
-        @POST
-        @Path("/name/{name}/age/{age}/flag/{flag}")
-        @Produces(MediaType.APPLICATION_JSON)
-        @Consumes(MediaType.APPLICATION_JSON)
-        public Response getResponsefromPathURL(SampleRequest request) throws IOException;
-
-    }
-
-    @Path("/pravega")
+    @Path("/v1")
     public static interface Controller {
 
         @POST
         @Path("/scopes/{scope}/streams/{stream}")
         @Produces(MediaType.APPLICATION_JSON)
         @Consumes(MediaType.APPLICATION_JSON)
-        public Response createStream(StreamConfigurationImpl streamConfig) throws Exception;
+        public Response createStream(StreamConfigurationImpl streamConfig);
 
         @PUT
         @Path("/scopes/{scope}/streams/{stream}")
         @Produces(MediaType.APPLICATION_JSON)
         @Consumes(MediaType.APPLICATION_JSON)
-        public Response updateStreamConfig(StreamConfiguration streamConfiguration) throws Exception;
+        public Response updateStreamConfig(StreamConfiguration streamConfig);
 
         @GET
         @Path("/scopes/{scope}/streams/{stream}")
         @Produces(MediaType.APPLICATION_JSON)
-        public Response getStreamConfig(@PathParam("scope") String scope, @PathParam("stream") String stream) throws Exception;
+        public Response getStreamConfig(@PathParam("scope") String scope, @PathParam("stream") String stream);
 
         @GET
         @Path("/scopes/{scope}/streams")
