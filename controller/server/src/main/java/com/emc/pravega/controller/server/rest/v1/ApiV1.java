@@ -18,19 +18,8 @@
 
 package com.emc.pravega.controller.server.rest.v1;
 
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-
 import javax.ws.rs.Path;
 import javax.ws.rs.GET;
-import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.Produces;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.PathParam;
-
-import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 /*
@@ -44,36 +33,8 @@ public final class ApiV1 {
     @Path("/v1")
     public static interface Controller {
 
-        @POST
-        @Path("/scopes/{scope}/streams/{stream}")
-        @Produces(MediaType.APPLICATION_JSON)
-        @Consumes(MediaType.APPLICATION_JSON)
-        public Response createStream(StreamConfigurationImpl streamConfig);
-
-        @PUT
-        @Path("/scopes/{scope}/streams/{stream}")
-        @Produces(MediaType.APPLICATION_JSON)
-        @Consumes(MediaType.APPLICATION_JSON)
-        public Response updateStreamConfig(StreamConfiguration streamConfig);
-
         @GET
-        @Path("/scopes/{scope}/streams/{stream}")
-        @Produces(MediaType.APPLICATION_JSON)
-        public Response getStreamConfig(@PathParam("scope") String scope, @PathParam("stream") String stream);
-
-        @GET
-        @Path("/scopes/{scope}/streams")
-        @Produces(MediaType.APPLICATION_JSON)
-        public Response listStreamsInScope(@PathParam("scope") String scope);
-
-        @GET
-        @Path("/scopes")
-        @Produces(MediaType.APPLICATION_JSON)
-        public Response listScopes();
-
-        @DELETE
-        @Path("/scopes/{scope}/streams/{stream}")
-        public Response deleteStream(StreamConfiguration streamConfig);
-
+        @Path("/ping")
+        public Response ping();
     }
 }

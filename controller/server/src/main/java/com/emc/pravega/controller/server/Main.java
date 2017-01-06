@@ -127,7 +127,7 @@ public class Main {
 
         //  create an application with the desired resources
         Set<Object> resourceObjs = new HashSet<Object>();
-        resourceObjs.add(new ResourceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
+        resourceObjs.add(new ResourceImpl());
         ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
 
         //start a netty server
