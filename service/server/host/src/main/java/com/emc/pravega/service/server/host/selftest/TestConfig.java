@@ -45,6 +45,7 @@ class TestConfig extends ComponentConfig {
     static final String PROPERTY_THREAD_POOL_SIZE = "threadPoolSize";
     static final String PROPERTY_TIMEOUT_MILLIS = "timeoutMillis";
     static final String PROPERTY_VERBOSE_LOGGING = "verboseLogging";
+    static final String PROPERTY_LISTENING_PORT = "listeningPort";
 
     private static final int DEFAULT_OPERATION_COUNT = 1000 * 1000;
     private static final int DEFAULT_SEGMENT_COUNT = 100;
@@ -56,6 +57,7 @@ class TestConfig extends ComponentConfig {
     private static final int DEFAULT_THREAD_POOL_SIZE = 100;
     private static final int DEFAULT_TIMEOUT_MILLIS = 10 * 1000;
     private static final boolean DEFAULT_VERBOSE_LOGGING = false;
+    private static final int DEFAULT_LISTENING_PORT = 9876;
 
     @Getter
     private int operationCount;
@@ -77,6 +79,8 @@ class TestConfig extends ComponentConfig {
     private Duration timeout;
     @Getter
     private boolean verboseLoggingEnabled;
+    @Getter
+    private int listeningPort;
 
     //endregion
 
@@ -111,6 +115,7 @@ class TestConfig extends ComponentConfig {
         int timeoutMillis = getInt32Property(PROPERTY_TIMEOUT_MILLIS, DEFAULT_TIMEOUT_MILLIS);
         this.timeout = Duration.ofMillis(timeoutMillis);
         this.verboseLoggingEnabled = getBooleanProperty(PROPERTY_VERBOSE_LOGGING, DEFAULT_VERBOSE_LOGGING);
+        this.listeningPort = getInt32Property(PROPERTY_LISTENING_PORT, DEFAULT_LISTENING_PORT);
     }
 
     //endregion

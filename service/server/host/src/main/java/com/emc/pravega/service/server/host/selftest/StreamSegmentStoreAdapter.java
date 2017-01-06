@@ -179,9 +179,13 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
 
     //region Helpers
 
-    private void ensureInitializedAndNotClosed() {
+    protected void ensureInitializedAndNotClosed() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.initialized.get(), "initialize() must be called before invoking this operation.");
+    }
+
+    protected StreamSegmentStore getStreamSegmentStore(){
+        return this.streamSegmentStore;
     }
 
     //endregion
