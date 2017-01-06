@@ -327,7 +327,6 @@ project('controller:contract') {
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-servlet', version: '2.25'
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-netty-http', version: '2.25'
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: '2.25'
-
     }
     publishing {
         publications {
