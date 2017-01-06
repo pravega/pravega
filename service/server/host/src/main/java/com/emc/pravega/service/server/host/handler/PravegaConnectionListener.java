@@ -18,12 +18,19 @@
 
 package com.emc.pravega.service.server.host.handler;
 
+import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+
+import java.security.cert.CertificateException;
+
+import javax.net.ssl.SSLException;
+
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.netty.AppendDecoder;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
 import com.emc.pravega.common.netty.ExceptionLoggingHandler;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
+
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
@@ -43,11 +50,6 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
-
-import javax.net.ssl.SSLException;
-import java.security.cert.CertificateException;
-
-import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
 /**
  * Hands off any received data from a client to the CommandProcessor.

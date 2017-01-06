@@ -107,7 +107,7 @@ allprojects {
     }
 }
 
-def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests' ]
+def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
 
 project('common') {
     dependencies {
