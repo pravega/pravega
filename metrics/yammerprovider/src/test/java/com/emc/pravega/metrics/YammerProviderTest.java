@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
  * The type Yammer provider test.
  */
 public class YammerProviderTest {
-    private final StatsLogger statsLogger = MetricsProvider.createStatsLogger();
+    private final StatsLogger statsLogger = MetricsProvider.createStatsLogger("");
 
     /**
      * Test Event and Value registered and worked well with OpStats.
