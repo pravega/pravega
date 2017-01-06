@@ -14,25 +14,40 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.emc.pravega.metrics;
+package com.emc.pravega.common.metrics;
 
-public class NullStatsProvider implements StatsProvider {
+/**
+ * Simple stats that require only increment and decrement
+ * functions on a Long. Metrics like the number of topics, persist queue size
+ * etc. should use this.
+ */
+public interface Counter {
+    /**
+     * Clear this stat.
+     */
+    public void clear();
 
-    final StatsLogger nullStatsLogger = new NullStatsLogger();
+    /**
+     * Increment the value associated with this stat.
+     */
+    public void inc();
 
-    @Override
-    public void start(MetricsConfig metricsConfig ) {
-        // nop
-    }
+    /**
+     * Decrement the value associated with this stat.
+     */
+    public void dec();
 
-    @Override
-    public void stop() {
-        // nop
-    }
+    /**
+     * Add delta to the value associated with this stat.
+     *
+     * @param delta the delta
+     */
+    public void add(long delta);
 
-    @Override
-    public StatsLogger createStatsLogger(String scope) {
-        return nullStatsLogger;
-    }
-
+    /**
+     * Get the value associated with this stat.
+     *
+     * @return the long
+     */
+    public Long get();
 }

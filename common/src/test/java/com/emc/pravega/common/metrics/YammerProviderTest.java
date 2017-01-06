@@ -14,7 +14,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.emc.pravega.metrics;
+package com.emc.pravega.common.metrics;
 
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
@@ -37,14 +37,17 @@ public class YammerProviderTest {
         // register 2 event: 1 success, 1 fail.
         opStatsLogger.registerSuccessfulEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
         opStatsLogger.registerFailedEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
+        opStatsLogger.reportSuccess(System.nanoTime() - startTime);
+        opStatsLogger.reportFailure(System.nanoTime() - startTime);
 
         opStatsLogger.registerSuccessfulValue(1);
         opStatsLogger.registerFailedValue(1);
-        // the following should not throw any exception
+        opStatsLogger.report(1);
+
         OpStatsData statsData = opStatsLogger.toOpStatsData();
-        // 2 = 1 event + 1 value
-        assertEquals(2, statsData.getNumSuccessfulEvents());
-        assertEquals(2, statsData.getNumFailedEvents());
+        // 2 = 2 event + 2 value
+        assertEquals(4, statsData.getNumSuccessfulEvents());
+        assertEquals(3, statsData.getNumFailedEvents());
     }
 
     /**

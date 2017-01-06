@@ -107,7 +107,7 @@ allprojects {
     }
 }
 
-def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests', 'metrics' ]
+def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests' ]
 
 project('common') {
     dependencies {
@@ -115,6 +115,12 @@ project('common') {
         testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
         compile group: 'org.apache.curator', name: 'curator-recipes', version: '2.11.0'
         compile group: 'commons-io', name: 'commons-io', version: '2.5'
+        // for Metrics
+        compile('com.readytalk:metrics3-statsd:4.1.0')
+        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
+        compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: '3.1.0'
+        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-jvm
+        compile group: 'io.dropwizard.metrics', name: 'metrics-jvm', version: '3.1.0'
     }
     publishing {
         publications {
@@ -211,7 +217,6 @@ project('service:server:host') {
         compile project(':service:storage')
         compile project(':service:storage:impl')
         compile project(':service:server')
-        compile project(':metrics')
         testCompile project(':testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
     }
@@ -388,35 +393,6 @@ project('controller:server') {
                 email = 'abhi.j24@gmail.com'
             }
         }
-    }
-}
-
-project('metrics:nullprovider') {
-    dependencies {
-        compile project(':common')
-    }
-}
-
-project('metrics:yammerprovider') {
-    dependencies {
-        compile project(':common')
-        compile project(':metrics:nullprovider')
-        // for Metrics 3.x
-        compile('com.readytalk:metrics3-statsd:4.1.0')
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
-        compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: '3.1.0'
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-jvm
-        compile group: 'io.dropwizard.metrics', name: 'metrics-jvm', version: '3.1.0'
-        testCompile project(':testcommon')
-    }
-}
-
-project('metrics') {
-    dependencies {
-        compile project(':common')
-        compile project(':metrics:nullprovider')
-        compile project(':metrics:yammerprovider')
-        testCompile project(':testcommon')
     }
 }
 

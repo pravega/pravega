@@ -42,9 +42,9 @@ import org.slf4j.LoggerFactory;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.emc.pravega.metrics.MetricsConfig;
-import com.emc.pravega.metrics.StatsProvider;
-import com.emc.pravega.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.MetricsConfig;
+import com.emc.pravega.common.metrics.StatsProvider;
+import com.emc.pravega.common.metrics.MetricsProvider;
 
 /**
  * Starts the Pravega Service.

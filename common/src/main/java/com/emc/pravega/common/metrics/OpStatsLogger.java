@@ -14,7 +14,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.emc.pravega.metrics;
+package com.emc.pravega.common.metrics;
 
 import java.util.concurrent.TimeUnit;
 

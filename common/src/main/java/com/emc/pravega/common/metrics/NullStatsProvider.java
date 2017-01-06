@@ -14,30 +14,25 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.emc.pravega.metrics;
+package com.emc.pravega.common.metrics;
 
-/**
- * Provider of StatsLogger instances depending on scope.
- * An implementation of this interface possibly returns a separate instance per Pravega scope.
- */
-public interface StatsProvider {
-    /**
-     * Intialize the stats provider by loading the given configuration <i>conf</i>.
-     *
-     * @param conf Configuration to configure the stats provider.
-     */
-    public void start(MetricsConfig conf);
+public class NullStatsProvider implements StatsProvider {
 
-    /**
-     * Close the stats provider.
-     */
-    public void stop();
+    final StatsLogger nullStatsLogger = new NullStatsLogger();
 
-    /**
-     * Return the StatsLogger instance associated with the given <i>scope</i>.
-     *
-     * @param scope Scope for the given stats.
-     * @return stats logger for the given <i>scope</i>.
-     */
-    public StatsLogger createStatsLogger(String scope);
+    @Override
+    public void start(MetricsConfig metricsConfig ) {
+        // nop
+    }
+
+    @Override
+    public void stop() {
+        // nop
+    }
+
+    @Override
+    public StatsLogger createStatsLogger(String scope) {
+        return nullStatsLogger;
+    }
+
 }

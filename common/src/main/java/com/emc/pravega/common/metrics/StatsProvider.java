@@ -14,40 +14,30 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.emc.pravega.metrics;
+package com.emc.pravega.common.metrics;
 
 /**
- * Simple stats that require only increment and decrement
- * functions on a Long. Metrics like the number of topics, persist queue size
- * etc. should use this.
+ * Provider of StatsLogger instances depending on scope.
+ * An implementation of this interface possibly returns a separate instance per Pravega scope.
  */
-public interface Counter {
+public interface StatsProvider {
     /**
-     * Clear this stat.
-     */
-    public void clear();
-
-    /**
-     * Increment the value associated with this stat.
-     */
-    public void inc();
-
-    /**
-     * Decrement the value associated with this stat.
-     */
-    public void dec();
-
-    /**
-     * Add delta to the value associated with this stat.
+     * Intialize the stats provider by loading the given configuration <i>conf</i>.
      *
-     * @param delta the delta
+     * @param conf Configuration to configure the stats provider.
      */
-    public void add(long delta);
+    public void start(MetricsConfig conf);
 
     /**
-     * Get the value associated with this stat.
-     *
-     * @return the long
+     * Close the stats provider.
      */
-    public Long get();
+    public void stop();
+
+    /**
+     * Return the StatsLogger instance associated with the given <i>scope</i>.
+     *
+     * @param scope Scope for the given stats.
+     * @return stats logger for the given <i>scope</i>.
+     */
+    public StatsLogger createStatsLogger(String scope);
 }

@@ -14,6 +14,5 @@
 
 include 'common', 'clients:streaming', 'service:contracts', 'service:storage', 'service:storage:impl', 'service:server', 'service:server:host',
         'controller:contract','controller:client', 'controller:server',
-        'integrationtests', 'testcommon', 'benchmark', 
-        'metrics:nullprovider', 'metrics:yammerprovider', 'metrics'
+        'integrationtests', 'testcommon', 'benchmark'
 

@@ -19,6 +19,10 @@
 package com.emc.pravega.service.server.host.handler;
 
 import com.emc.pravega.common.Timer;
+import com.emc.pravega.common.metrics.Counter;
+import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.OpStatsLogger;
+import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.netty.FailingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
 import com.emc.pravega.common.netty.WireCommands.AbortTransaction;
@@ -54,16 +58,7 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
 import com.google.common.base.Preconditions;
-
-import com.emc.pravega.metrics.Counter;
-import com.emc.pravega.metrics.StatsLogger;
-import com.emc.pravega.metrics.OpStatsLogger;
-import com.emc.pravega.metrics.MetricsProvider;
-
-import static com.emc.pravega.service.server.host.PravegaRequestStats.CREATE_SEGMENT;
-import static com.emc.pravega.service.server.host.PravegaRequestStats.READ_SEGMENT;
-import static com.emc.pravega.service.server.host.PravegaRequestStats.SEGMENT_READ_BYTES;
-import static com.emc.pravega.service.server.host.PravegaRequestStats.ALL_READ_BYTES;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -78,10 +73,12 @@ import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Cache;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Future;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.ALL_READ_BYTES;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.CREATE_SEGMENT;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.READ_SEGMENT;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.SEGMENT_READ_BYTES;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-
-import lombok.extern.slf4j.Slf4j;
 
 
 @Slf4j

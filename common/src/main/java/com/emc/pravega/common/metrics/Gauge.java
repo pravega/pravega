@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.metrics;
+package com.emc.pravega.common.metrics;
 
 /**
  * A guage is a value that has only one value at a specific point in time.

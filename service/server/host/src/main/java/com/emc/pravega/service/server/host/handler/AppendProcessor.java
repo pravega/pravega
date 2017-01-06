@@ -51,8 +51,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.extern.slf4j.Slf4j;
 
-import com.emc.pravega.metrics.MetricsProvider;
-import com.emc.pravega.metrics.StatsLogger;
+import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.StatsLogger;
 
 import static com.emc.pravega.service.server.host.PravegaRequestStats.PENDING_APPEND_BYTES;
 
