@@ -90,7 +90,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
         } catch (ExceptionInInitializerError | NoClassDefFoundError e) {
             nio = true;
             bossGroup = new NioEventLoopGroup(1);
-            workerGroup = new NioEventLoopGroup();
+            workerGroup = new NioEventLoopGroup(50);
         }
 
         ServerBootstrap b = new ServerBootstrap();
