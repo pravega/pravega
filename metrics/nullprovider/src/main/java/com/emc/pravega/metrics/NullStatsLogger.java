@@ -90,12 +90,12 @@ public class NullStatsLogger implements StatsLogger {
     static NullCounter nullCounter = new NullCounter();
 
     @Override
-    public OpStatsLogger getStats(String name) {
+    public OpStatsLogger createStats(String name) {
         return nullOpStatsLogger;
     }
 
     @Override
-    public Counter getCounter(String name) {
+    public Counter createCounter(String name) {
         return nullCounter;
     }
 
@@ -115,7 +115,7 @@ public class NullStatsLogger implements StatsLogger {
     }
 
     @Override
-    public StatsLogger getScopeLogger(String name) {
+    public StatsLogger createStatsLogger(String name) {
         return this;
     }
 

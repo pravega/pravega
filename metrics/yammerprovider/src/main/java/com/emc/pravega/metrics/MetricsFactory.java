@@ -40,7 +40,7 @@ public class MetricsFactory {
         return NULLPROVIDER;
     }
 
-    public static StatsLogger createStatsLogger() {
-        return YAMMERPROVIDER.createStatsLogger("");
+    public static StatsLogger createStatsLogger(String loggerName) {
+        return YAMMERPROVIDER.createStatsLogger(loggerName);
     }
 }

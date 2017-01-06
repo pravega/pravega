@@ -33,7 +33,7 @@ public class YammerProviderTest {
     @Test
     public void testOpStatsData() {
         long startTime = System.nanoTime();
-        OpStatsLogger opStatsLogger = statsLogger.getStats("testOpStatsLogger");
+        OpStatsLogger opStatsLogger = statsLogger.createStats("testOpStatsLogger");
         // register 2 event: 1 success, 1 fail.
         opStatsLogger.registerSuccessfulEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
         opStatsLogger.registerFailedEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
@@ -52,7 +52,7 @@ public class YammerProviderTest {
      */
     @Test
     public void testCounter() {
-        Counter testCounter = statsLogger.getCounter("testCounter");
+        Counter testCounter = statsLogger.createCounter("testCounter");
         testCounter.add(17);
         assertEquals(Long.valueOf(17), testCounter.get());
     }

@@ -30,7 +30,7 @@ public interface StatsLogger {
      * @param name Stats Name
      * @return Get the logger for an OpStat described by the <i>name</i>.
      */
-    public OpStatsLogger getStats(String name);
+    public OpStatsLogger createStats(String name);
 
     /**
      * Gets counter.
@@ -38,7 +38,7 @@ public interface StatsLogger {
      * @param name Stats Name
      * @return Get the logger for a simple stat described by the <i>name</i>
      */
-    public Counter getCounter(String name);
+    public Counter createCounter(String name);
 
     /**
      * Register given <i>guage</i> as name <i>name</i>.
@@ -73,6 +73,6 @@ public interface StatsLogger {
      * @param name scope name.
      * @return stats logger under scope <i>name</i>.
      */
-    public StatsLogger getScopeLogger(String name);
+    public StatsLogger createStatsLogger(String name);
 
 }

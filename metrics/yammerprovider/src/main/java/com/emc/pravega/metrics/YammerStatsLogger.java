@@ -32,14 +32,14 @@ public class YammerStatsLogger implements StatsLogger {
     }
 
     @Override
-    public OpStatsLogger getStats(String statName) {
+    public OpStatsLogger createStats(String statName) {
         Timer success = metrics.timer(name(basename, statName));
         Timer failure = metrics.timer(name(basename, statName+"-fail"));
         return new YammerOpStatsLogger(success, failure);
     }
 
     @Override
-    public Counter getCounter(String statName) {
+    public Counter createCounter(String statName) {
         final com.codahale.metrics.Counter c = metrics.counter(name(basename, statName));
         return new Counter() {
             @Override
@@ -110,7 +110,7 @@ public class YammerStatsLogger implements StatsLogger {
     }
 
     @Override
-    public StatsLogger getScopeLogger(String scope) {
+    public StatsLogger createStatsLogger(String scope) {
         String scopeName;
         if (0 == basename.length()) {
             scopeName = scope;

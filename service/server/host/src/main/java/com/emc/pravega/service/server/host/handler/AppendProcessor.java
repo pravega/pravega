@@ -66,7 +66,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     static final int HIGH_WATER_MARK = 128 * 1024;
     static final int LOW_WATER_MARK = 64 * 1024;
 
-    static final StatsLogger STATS_LOGGER = MetricsFactory.createStatsLogger();
+    static final StatsLogger STATS_LOGGER = MetricsFactory.createStatsLogger("");
     static AtomicLong pendBytes = new AtomicLong();
     static {
         STATS_LOGGER.registerGauge(PENDING_APPEND_BYTES, pendBytes);
