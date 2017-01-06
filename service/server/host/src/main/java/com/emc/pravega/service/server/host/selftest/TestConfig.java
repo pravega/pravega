@@ -46,6 +46,7 @@ class TestConfig extends ComponentConfig {
     static final String PROPERTY_TIMEOUT_MILLIS = "timeoutMillis";
     static final String PROPERTY_VERBOSE_LOGGING = "verboseLogging";
     static final String PROPERTY_LISTENING_PORT = "listeningPort";
+    static final String PROPERTY_DATA_LOG_APPEND_DELAY = "dataLogAppendDelayMillis";
 
     private static final int DEFAULT_OPERATION_COUNT = 1000 * 1000;
     private static final int DEFAULT_SEGMENT_COUNT = 100;
@@ -58,6 +59,7 @@ class TestConfig extends ComponentConfig {
     private static final int DEFAULT_TIMEOUT_MILLIS = 10 * 1000;
     private static final boolean DEFAULT_VERBOSE_LOGGING = false;
     private static final int DEFAULT_LISTENING_PORT = 9876;
+    private static final int DEFAULT_DATA_LOG_APPEND_DELAY = 0;
 
     @Getter
     private int operationCount;
@@ -81,6 +83,8 @@ class TestConfig extends ComponentConfig {
     private boolean verboseLoggingEnabled;
     @Getter
     private int listeningPort;
+    @Getter
+    private Duration dataLogAppendDelay;
 
     //endregion
 
@@ -116,11 +120,13 @@ class TestConfig extends ComponentConfig {
         this.timeout = Duration.ofMillis(timeoutMillis);
         this.verboseLoggingEnabled = getBooleanProperty(PROPERTY_VERBOSE_LOGGING, DEFAULT_VERBOSE_LOGGING);
         this.listeningPort = getInt32Property(PROPERTY_LISTENING_PORT, DEFAULT_LISTENING_PORT);
+        int appendDelayMillis = getInt32Property(PROPERTY_DATA_LOG_APPEND_DELAY, DEFAULT_DATA_LOG_APPEND_DELAY);
+        this.dataLogAppendDelay = Duration.ofMillis(appendDelayMillis);
     }
 
     //endregion
 
-    static <T extends Properties> Properties convert(String componentCode, Properties rawProperties) {
+    static Properties convert(String componentCode, Properties rawProperties) {
         Properties p = new Properties();
         for (Map.Entry<Object, Object> e : rawProperties.entrySet()) {
             ServiceBuilderConfig.set(p, componentCode, e.getKey().toString(), e.getValue().toString());

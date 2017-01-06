@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.store;
 
-import com.emc.pravega.common.concurrent.InlineExecutor;
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
@@ -35,7 +34,6 @@ import com.emc.pravega.service.server.logs.DurableLogFactory;
 import com.emc.pravega.service.server.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.server.mocks.InMemoryMetadataRepository;
 import com.emc.pravega.service.server.mocks.LocalSegmentContainerManager;
-import com.emc.pravega.service.server.mocks.SynchronousStreamSegmentStore;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.writer.StorageWriterFactory;
@@ -47,6 +45,8 @@ import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
@@ -55,9 +55,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import lombok.val;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Helps create StreamSegmentStore Instances.
@@ -90,16 +87,16 @@ public final class ServiceBuilder implements AutoCloseable {
     //endregion
 
     //region Constructor
-    
+
     public ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig) {
         this(serviceBuilderConfig, createExecutorService(serviceBuilderConfig.getConfig(ServiceConfig::new)));
     }
-    
+
     /**
      * Creates a new instance of the ServiceBuilder class.
      *
      * @param serviceBuilderConfig The ServiceBuilderConfig to use.
-     * @param executorService The executor to use for backrgound tasks.
+     * @param executorService      The executor to use for background tasks.
      */
     public ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(serviceBuilderConfig, "config");
@@ -219,7 +216,7 @@ public final class ServiceBuilder implements AutoCloseable {
         this.cacheFactoryCreator = cacheFactoryCreator;
         return this;
     }
-    
+
     /**
      * Attaches the given StreamSegmentStore creator to this ServiceBuilder. The given Function will not be invoked
      * right away; it will be called when needed.
@@ -227,7 +224,7 @@ public final class ServiceBuilder implements AutoCloseable {
      * @param streamSegmentStoreCreator The Function to attach.
      * @return This ServiceBuilder.
      */
-    private ServiceBuilder withStreamSegmentStore(Function<ComponentSetup, StreamSegmentStore> streamSegmentStoreCreator) {
+    public ServiceBuilder withStreamSegmentStore(Function<ComponentSetup, StreamSegmentStore> streamSegmentStoreCreator) {
         Preconditions.checkNotNull(streamSegmentStoreCreator, "streamSegmentStoreCreator");
         this.streamSegmentStoreCreator = streamSegmentStoreCreator;
         return this;
@@ -346,33 +343,29 @@ public final class ServiceBuilder implements AutoCloseable {
      * @param config The ServiceBuilderConfig to use.
      */
     public static ServiceBuilder newInMemoryBuilder(ServiceBuilderConfig config) {
-        ServiceBuilder serviceBuilder = new ServiceBuilder(config);
+        return attachDefaultComponents(new ServiceBuilder(config));
+    }
+
+    /**
+     * Creates a new instance of the ServiceBuilder class which is contained in memory. Any data added to this service will
+     * be loss when the object is garbage collected or the process terminates.
+     *
+     * @param config          The ServiceBuilderConfig to use.
+     * @param executorService An ExecutorService to use for async operations.
+     */
+    public static ServiceBuilder newInMemoryBuilder(ServiceBuilderConfig config, ScheduledExecutorService executorService) {
+        return attachDefaultComponents(new ServiceBuilder(config, executorService));
+    }
+
+    private static ServiceBuilder attachDefaultComponents(ServiceBuilder serviceBuilder) {
         return serviceBuilder.withCacheFactory(setup -> new InMemoryCacheFactory())
                              .withContainerManager(setup -> new LocalSegmentContainerManager(
                                      setup.getContainerRegistry(), setup.getSegmentToContainerMapper()))
                              .withMetadataRepository(setup -> new InMemoryMetadataRepository())
                              .withStorageFactory(setup -> new InMemoryStorageFactory(setup.getExecutor()))
-                             .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory())
+                             .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor()))
                              .withStreamSegmentStore(setup -> new StreamSegmentService(setup.getContainerRegistry(),
                                      setup.getSegmentToContainerMapper()));
-    }
-    
-    /**
-     * Same as {@link #newInMemoryBuilder(ServiceBuilderConfig)} but executes all non-delayed tasks in-line.
-     * This is for unit tests only. Do not deploy like this.
-     * 
-     * @param config The ServiceBuilderConfig to use.
-     */
-    public static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
-        ServiceBuilder serviceBuilder = new ServiceBuilder(config, new InlineExecutor());
-        return serviceBuilder.withCacheFactory(setup -> new InMemoryCacheFactory())
-                             .withContainerManager(setup -> new LocalSegmentContainerManager(
-                                     setup.getContainerRegistry(), setup.getSegmentToContainerMapper()))
-                             .withMetadataRepository(setup -> new InMemoryMetadataRepository())
-                             .withStorageFactory(setup -> new InMemoryStorageFactory(setup.getExecutor()))
-                             .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory())
-                             .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
-                                     setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
     }
 
     //endregion
