@@ -30,6 +30,7 @@ import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 
@@ -55,12 +56,15 @@ Implementation of Resource
 public class ResourceImpl implements com.emc.pravega.controller.server.rest.v1.ApiV1.Controller {
 
     private final ControllerService controllerService;
+    private final StreamMetadataStore streamStore;
 
     public ResourceImpl(final StreamMetadataStore streamStore,
                         final HostControllerStore hostStore,
                         final StreamMetadataTasks streamMetadataTasks,
                         final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        this.streamStore = streamStore;
     }
 
     @Override
@@ -72,21 +76,36 @@ public class ResourceImpl implements com.emc.pravega.controller.server.rest.v1.A
         CompletableFuture<CreateStreamStatus> createStreamStatus = controllerService.createStream(streamConfig, System.currentTimeMillis());
 
         if(createStreamStatus.get() == CreateStreamStatus.SUCCESS )
-            return Response.ok().status(201).build();
+            return Response.ok(streamConfig).status(201).build();
         else if(createStreamStatus.get() == CreateStreamStatus.STREAM_EXISTS)
-            return Response.ok().status(409).build();
+            return Response.status(409).build();
         else
-            return Response.ok().status(500).build();
+            return Response.status(500).build();
     }
 
     @Override
-    public Response updateStreamConfig(StreamConfiguration streamConfiguration) {
-        return Response.serverError().status(500).build();
+    public Response updateStreamConfig(StreamConfiguration streamConfig) throws Exception {
+        log.info("updateStream  called for stream name: {}, scope name: {}, scaling policy: {} ",streamConfig.getName(),
+                streamConfig.getScope(), streamConfig.getScalingPolicy());
+
+        CompletableFuture<UpdateStreamStatus> updateStreamStatus = controllerService.alterStream(streamConfig);
+
+        if(updateStreamStatus.get() == UpdateStreamStatus.SUCCESS) {
+            return Response.ok(streamConfig).status(201).build();
+        } else if(updateStreamStatus.get() == UpdateStreamStatus.STREAM_NOT_FOUND)
+            return Response.status(404).build();
+        else
+            return Response.status(500).build();
+
     }
 
     @Override
-    public Response getStreamConfig() {
-        return Response.serverError().status(500).build();
+    public Response getStreamConfig(String scope, String stream) throws Exception {
+        CompletableFuture<StreamConfiguration>  streamConfig = streamStore.getConfiguration(stream);
+        if(streamConfig.get() != null)
+            return Response.ok(streamConfig.get()).status(200).build();
+        else
+            return Response.status(404).build();
     }
 
     @Override

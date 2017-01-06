@@ -52,6 +52,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
 
 
@@ -144,11 +145,15 @@ public class Main {
         ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
 
         //  start a jetty server
-        final Server server = RESTServer.createJettyServer(controllerApplication);
+        /*final Server server = RESTServer.createJettyServer(controllerApplication);
         server.start();
         log.info("Pravega REST Service has started");
         //  wait forever for incoming requests.
-        server.join();
+        server.join();*/
+
+        //start a netty server
+        final Channel server = RESTServer.createNettyServer(controllerApplication);
+
 
     }
 }

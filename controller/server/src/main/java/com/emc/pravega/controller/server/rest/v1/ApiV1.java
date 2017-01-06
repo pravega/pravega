@@ -87,12 +87,12 @@ public final class ApiV1 {
         @Path("/scopes/{scope}/streams/{stream}")
         @Produces(MediaType.APPLICATION_JSON)
         @Consumes(MediaType.APPLICATION_JSON)
-        public Response updateStreamConfig(StreamConfiguration streamConfiguration);
+        public Response updateStreamConfig(StreamConfiguration streamConfiguration) throws Exception;
 
         @GET
         @Path("/scopes/{scope}/streams/{stream}")
         @Produces(MediaType.APPLICATION_JSON)
-        public Response getStreamConfig();
+        public Response getStreamConfig(@PathParam("scope") String scope, @PathParam("stream") String stream) throws Exception;
 
         @GET
         @Path("/scopes/{scope}/streams")
