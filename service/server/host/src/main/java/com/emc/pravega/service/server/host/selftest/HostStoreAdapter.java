@@ -43,7 +43,7 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
      * @param testCallbackExecutor An Executor to use for test-related async operations.
      */
     HostStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, Executor testCallbackExecutor) {
-        super(builderConfig, testCallbackExecutor);
+        super(testConfig, builderConfig, testCallbackExecutor);
         Preconditions.checkNotNull(testConfig, "testConfig");
         this.listeningPort = testConfig.getListeningPort();
     }
