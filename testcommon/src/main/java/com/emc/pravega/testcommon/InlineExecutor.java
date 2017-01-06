@@ -15,7 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.concurrent;
+
+package com.emc.pravega.testcommon;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -35,8 +36,7 @@ import java.util.concurrent.TimeoutException;
  * Delayed tasks are run on a background thread.
  */
 public class InlineExecutor implements ScheduledExecutorService {
-    
-    ScheduledExecutorService delayedExecutor = new ScheduledThreadPoolExecutor(1);
+    private final ScheduledExecutorService delayedExecutor = new ScheduledThreadPoolExecutor(1);
 
     @Override
     public void execute(Runnable command) {
@@ -73,7 +73,7 @@ public class InlineExecutor implements ScheduledExecutorService {
         try {
             return CompletableFuture.completedFuture(task.call());
         } catch (Exception e) {
-            return FutureHelpers.failedFuture(e);
+            return failedFuture(e);
         }
     }
 
@@ -83,7 +83,7 @@ public class InlineExecutor implements ScheduledExecutorService {
             task.run();
             return CompletableFuture.completedFuture(result);
         } catch (Exception e) {
-            return FutureHelpers.failedFuture(e);
+            return failedFuture(e);
         }
     }
 
@@ -93,7 +93,7 @@ public class InlineExecutor implements ScheduledExecutorService {
             task.run();
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
-            return FutureHelpers.failedFuture(e);
+            return failedFuture(e);
         }
     }
 
@@ -150,4 +150,9 @@ public class InlineExecutor implements ScheduledExecutorService {
         return delayedExecutor.scheduleWithFixedDelay(command, initialDelay, delay, unit);
     }
 
+    private static <T> CompletableFuture<T> failedFuture(Throwable exception) {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        result.completeExceptionally(exception);
+        return result;
+    }
 }
