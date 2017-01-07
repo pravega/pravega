@@ -253,6 +253,7 @@ public class TurbineHeatSensor {
             for (int i = 0; i < secondsToRun; i++) {
                 int currentEventsPerSec = 0;
 
+                long loopStartTime = System.currentTimeMillis();
                 while ( currentEventsPerSec < eventsPerSec) {
                     currentEventsPerSec++;
 
@@ -297,6 +298,17 @@ public class TurbineHeatSensor {
                         }
                     }
 
+                }
+                long timeSpent = System.currentTimeMillis() - loopStartTime;
+                // wait for next event
+                try {
+                    //There is no need for sleep for blocking calls.
+                    if ( !blocking ) {
+                        if ( timeSpent < 1000 )
+                        Thread.sleep(1000 - timeSpent);
+                    }
+                } catch (InterruptedException e) {
+                    // log exception
                 }
             }
             producer.flush();
