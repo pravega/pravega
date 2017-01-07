@@ -257,7 +257,7 @@ public class TurbineHeatSensor {
                 while ( currentEventsPerSec < eventsPerSec) {
                     currentEventsPerSec++;
 
-                    // wait for next event
+                 /*   // wait for next event
                     try {
                         //There is no need for sleep for blocking calls.
                         if ( !blocking ) {
@@ -265,8 +265,8 @@ public class TurbineHeatSensor {
                         }
                     } catch (InterruptedException e) {
                         // log exception
-                    }
-
+                          }
+                    */
                     // Construct event payload
                     String val = System.currentTimeMillis() + ", " + producerId + ", " + city + ", " + (int) (Math.random() * 200);
                     String payload = String.format("%-" + messageSize + "s", val);
