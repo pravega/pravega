@@ -20,7 +20,7 @@ package com.emc.pravega.stream.impl.segment;
 import java.io.IOException;
 
 /**
- * A segment has been sealed and no more events may be published to it.
+ * A segment has been sealed and no more events may be written to it.
  */
 public class SegmentSealedException extends IOException {
 

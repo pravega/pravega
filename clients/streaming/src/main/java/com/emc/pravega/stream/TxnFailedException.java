@@ -19,7 +19,7 @@ package com.emc.pravega.stream;
 
 /**
  * A transaction has failed. Usually because of it timed out or someone called
- * {@link Transaction#drop()}
+ * {@link Transaction#abort()}
  */
 public class TxnFailedException extends Exception {
 

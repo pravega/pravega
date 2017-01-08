@@ -20,7 +20,7 @@ package com.emc.pravega.stream.impl.segment;
 import java.io.IOException;
 
 /**
- * A segment has ended. No more events may be consumed from it.
+ * A segment has ended. No more events may be read from it.
  */
 public class EndOfSegmentException extends IOException {
 

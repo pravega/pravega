@@ -15,27 +15,47 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.stream.impl;
 
-package com.emc.pravega.service.server;
+import org.junit.Ignore;
+import org.junit.Test;
 
-import java.util.concurrent.ScheduledExecutorService;
+import static org.junit.Assert.fail;
 
-/**
- * Wrapper around an ExecutorService that auto-shuts it down.
- */
-public class CloseableExecutorService implements AutoCloseable {
-    private final ScheduledExecutorService executorService;
-
-    public CloseableExecutorService(ScheduledExecutorService executorService) {
-        this.executorService = executorService;
+@Ignore
+public class SegmentEventWriterTest {
+    @Test
+    public void testConfigChange() {
+        fail();
     }
 
-    public ScheduledExecutorService get() {
-        return this.executorService;
+    @Test
+    public void testEOF() {
+        fail();
     }
 
-    @Override
-    public void close() {
-        this.executorService.shutdown();
+    @Test
+    public void testTimeout() {
+        fail();
+    }
+
+    @Test
+    public void testRetransmit() {
+        fail();
+    }
+
+    @Test
+    public void testTxOnClosedSegment() {
+        fail();
+    }
+
+    @Test
+    public void testAckLevels() {
+        fail();
+    }
+
+    @Test
+    public void testContentsOfUnackedMessages() {
+        fail();
     }
 }

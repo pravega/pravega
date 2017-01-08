@@ -15,21 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream;
+package com.emc.pravega.stream.impl;
 
-import java.io.Serializable;
-
-import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
-
-import lombok.Data;
-
-@Data
-public class ProducerConfig implements Serializable {
-
-    /**
-     * 
-     */
-    private static final long serialVersionUID = 1L;
-    private final SegmentOutputConfiguration segmentConfig;
-
+public enum TxnStatus {
+    UNKNOWN,
+    OPEN,
+    SEALED,
+    COMMITTED,
+    ABORTED;
 }

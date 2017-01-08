@@ -23,7 +23,7 @@ import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
-import com.emc.pravega.stream.Producer;
+import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -73,7 +73,7 @@ public interface Controller {
     // Controller Apis called by pravega producers for getting stream specific information
 
     /**
-     * Api to get list of current segments for the stream to produce to.
+     * Api to get list of current segments for the stream to write to.
      * @param scope scope
      * @param streamName stream name
      * @return current stream segments.
@@ -90,8 +90,10 @@ public interface Controller {
     CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout);
 
     /**
-     * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}.
-     * Will fail with {@link TxnFailedException} if the transaction has already been committed or aborted.
+     * Commits a transaction, atomically committing all events to the stream, subject to the
+     * ordering guarantees specified in {@link EventStreamWriter}. Will fail with {@link TxnFailedException}
+     * if the transaction has already been committed or aborted.
+     * 
      * @param stream stream name
      * @param txId transaction id
      * @return status of commit transaction operation.
@@ -99,7 +101,7 @@ public interface Controller {
     CompletableFuture<TransactionStatus> commitTransaction(final Stream stream, final UUID txId);
 
     /**
-     * Drops a transaction. No events published to it may be read, and no further events may be published.
+     * Drops a transaction. No events written to it may be read, and no further events may be written.
      * @param stream stream name
      * @param txId transaction id
      * @return status of drop transaction operation.
@@ -114,7 +116,7 @@ public interface Controller {
      */
     CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
 
-    // Controller Apis that are called by consumers
+    // Controller Apis that are called by readers
 
     /**
      * Returns list of position objects by distributing available segments at the
@@ -128,7 +130,7 @@ public interface Controller {
     CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count);
 
     /**
-     * Called by consumer upon reaching end of segment on some segment in its position obejct.
+     * Called by readers upon reaching end of segment on some segment in its position obejct.
      *
      * @param stream stream name
      * @param positions current position objects
@@ -136,7 +138,7 @@ public interface Controller {
      */
     CompletableFuture<List<PositionInternal>> updatePositions(final Stream stream, final List<PositionInternal> positions);
 
-    //Controller Apis that are called by producers and consumers
+    //Controller Apis that are called by writers and readers
 
     /**
      * Given a segment return the endpoint that currently is the owner of that segment.

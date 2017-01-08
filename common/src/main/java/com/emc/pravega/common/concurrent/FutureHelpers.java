@@ -78,7 +78,7 @@ public final class FutureHelpers {
      *
      * @param future               The future whose result is wanted
      * @param exceptionConstructor This can be any function that either transforms an exception
-     *                             IE: Passing RuntimeException::new will wrap the exception in a new RuntimeException.
+     *                             i.e. Passing RuntimeException::new will wrap the exception in a new RuntimeException.
      *                             If null is returned from the function no exception will be thrown.
      * @param <ResultT>            Type of the result.
      * @param <ExceptionT>         Type of the Exception.
@@ -105,7 +105,7 @@ public final class FutureHelpers {
      *
      * @param future               The future whose result is wanted
      * @param exceptionConstructor This can be any function that either transforms an exception
-     *                             IE: Passing RuntimeException::new will wrap the exception in a new RuntimeException.
+     *                             i.e. Passing RuntimeException::new will wrap the exception in a new RuntimeException.
      *                             If null is returned from the function no exception will be thrown.
      * @param timeoutMillis        the timeout expressed in milliseconds before throwing {@link TimeoutException}
      * @param <ResultT>            Type of the result.
@@ -247,13 +247,13 @@ public final class FutureHelpers {
     }
 
     /**
-     * Executes the asynchronous task returning a CompletableFuture<T> with specified delay and returns the task result.
+     * Executes the asynchronous task after the specified delay.
      *
      * @param task            Asynchronous task.
      * @param delay           Delay in milliseconds.
      * @param executorService Executor on which to execute the task.
      * @param <T>             Type parameter.
-     * @return The result of task execution.
+     * @return A CompletableFuture that will be completed with the result of the given task.
      */
     public static <T> CompletableFuture<T> delayedFuture(final Supplier<CompletableFuture<T>> task,
                                                          final long delay,
@@ -262,6 +262,33 @@ public final class FutureHelpers {
         executorService.schedule(
                 () -> task.get().whenComplete((r, ex) -> complete(result, r, ex)),
                 delay,
+                TimeUnit.MILLISECONDS);
+        return result;
+    }
+
+    /**
+     * Executes the given task after the specified delay.
+     *
+     * @param task            Asynchronous task.
+     * @param delay           Delay.
+     * @param executorService Executor on which to execute the task.
+     * @param <T>             Type parameter.
+     * @return A CompletableFuture that will be completed with the result of the given task, or completed exceptionally
+     * if the task fails.
+     */
+    public static <T> CompletableFuture<T> delayedTask(final Supplier<T> task,
+                                                       final Duration delay,
+                                                       final ScheduledExecutorService executorService) {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        executorService.schedule(
+                () -> {
+                    try {
+                        result.complete(task.get());
+                    } catch (Throwable ex) {
+                        result.completeExceptionally(ex);
+                    }
+                },
+                delay.toMillis(),
                 TimeUnit.MILLISECONDS);
         return result;
     }

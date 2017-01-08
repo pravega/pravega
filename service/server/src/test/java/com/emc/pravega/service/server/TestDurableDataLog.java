@@ -32,6 +32,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 
 /**
@@ -190,12 +191,13 @@ public class TestDurableDataLog implements DurableDataLog {
     /**
      * Creates a new TestDurableDataLog backed by an InMemoryDurableDataLog.
      *
-     * @param containerId   The Id of the container.
-     * @param maxAppendSize The maximum append size for the log.
+     * @param containerId     The Id of the container.
+     * @param maxAppendSize   The maximum append size for the log.
+     * @param executorService An executor to use for async operations.
      * @return The newly created log.
      */
-    public static TestDurableDataLog create(int containerId, int maxAppendSize) {
-        try (InMemoryDurableDataLogFactory factory = new InMemoryDurableDataLogFactory(maxAppendSize)) {
+    public static TestDurableDataLog create(int containerId, int maxAppendSize, ScheduledExecutorService executorService) {
+        try (InMemoryDurableDataLogFactory factory = new InMemoryDurableDataLogFactory(maxAppendSize, executorService)) {
             DurableDataLog log = factory.createDurableDataLog(containerId);
             return create(log);
         }

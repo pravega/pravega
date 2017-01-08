@@ -75,7 +75,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.executor = Executors.newScheduledThreadPool(
                 testConfig.getThreadPoolSize(),
                 new ThreadFactoryBuilder().setNameFormat("self-test-%d").build());
-        this.store = new StreamSegmentStoreAdapter(builderConfig, this.executor);
+        this.store = new StreamSegmentStoreAdapter(testConfig, builderConfig, this.executor);
         this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
         this.testCompletion = new AtomicReference<>();
         addListener(new ServiceShutdownListener(this::shutdownCallback, this::shutdownCallback), this.executor);

@@ -29,6 +29,7 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.TruncateableStorage;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
+import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
 
@@ -67,13 +68,22 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
      * @param builderConfig        The ServiceBuilderConfig to use.
      * @param testCallbackExecutor An Executor to use for test-related async operations.
      */
-    StreamSegmentStoreAdapter(ServiceBuilderConfig builderConfig, Executor testCallbackExecutor) {
+    StreamSegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, Executor testCallbackExecutor) {
+        Preconditions.checkNotNull(testConfig, "testConfig");
+        Preconditions.checkNotNull(builderConfig, "builderConfig");
+        Preconditions.checkNotNull(testCallbackExecutor, "testCallbackExecutor");
         this.closed = new AtomicBoolean();
         this.initialized = new AtomicBoolean();
         this.storage = new AtomicReference<>();
         this.storeExecutor = new AtomicReference<>();
         this.serviceBuilder = ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
+                .withDataLogFactory(setup -> {
+                    InMemoryDurableDataLogFactory factory = new InMemoryDurableDataLogFactory(setup.getExecutor());
+                    Duration appendDelay = testConfig.getDataLogAppendDelay();
+                    factory.setAppendDelayProvider(() -> appendDelay);
+                    return factory;
+                })
                 .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new)))
                 .withStorageFactory(setup -> {
                     // We use the Segment Store Executor for the real storage.

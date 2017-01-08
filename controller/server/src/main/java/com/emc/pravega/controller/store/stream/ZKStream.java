@@ -28,7 +28,7 @@ import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxStatus;
+import com.emc.pravega.stream.impl.TxnStatus;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
@@ -199,7 +199,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> createNewTransaction(final UUID txId, final long timestamp) {
         final String activePath = getActiveTxPath(txId.toString());
         return createZNodeIfNotExist(activePath,
-                new ActiveTxRecord(timestamp, TxStatus.OPEN).toByteArray())
+                new ActiveTxRecord(timestamp, TxnStatus.OPEN).toByteArray())
                 .thenApply(x -> cache.invalidateCache(activePath));
     }
 
@@ -217,7 +217,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return getActiveTx(txId)
                 .thenCompose(x -> {
                     ActiveTxRecord previous = ActiveTxRecord.parse(x.getData());
-                    ActiveTxRecord updated = new ActiveTxRecord(previous.getTxCreationTimestamp(), TxStatus.SEALED);
+                    ActiveTxRecord updated = new ActiveTxRecord(previous.getTxCreationTimestamp(), TxnStatus.SEALED);
                     return setData(activePath, new Data<>(updated.toByteArray(), x.getVersion()));
                 })
                 .thenApply(x -> cache.invalidateCache(activePath));
@@ -242,7 +242,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxStatus complete, final long timestamp) {
+    CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp) {
         final String completedTxPath = getCompletedTxPath(txId.toString());
         return createZNodeIfNotExist(completedTxPath,
                 new CompletedTxRecord(timestamp, complete).toByteArray())
