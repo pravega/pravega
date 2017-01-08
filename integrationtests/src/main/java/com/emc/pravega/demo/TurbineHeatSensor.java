@@ -135,11 +135,11 @@ public class TurbineHeatSensor {
                 }
 
                 if (commandline.hasOption("runtimesec")) {
-                    producerCount = Integer.parseInt(commandline.getOptionValue("runtimesec"));
+                    runtimeSec = Integer.parseInt(commandline.getOptionValue("runtimesec"));
                 }
 
                 if (commandline.hasOption("transaction")) {
-                    producerCount = Integer.parseInt(commandline.getOptionValue("transaction"));
+                    isTransaction = Boolean.parseBoolean(commandline.getOptionValue("transaction"));
                 }
 
                 if (commandline.hasOption("size")) {
@@ -211,6 +211,7 @@ public class TurbineHeatSensor {
 
         System.out.println("\nFinished all producers");
         produceStats.printTotal();
+        produceStats.printAll();
         if ( !onlyWrite ) {
             consumeStats.printTotal();
         }
@@ -256,7 +257,8 @@ public class TurbineHeatSensor {
                 long loopStartTime = System.currentTimeMillis();
                 while ( currentEventsPerSec < eventsPerSec) {
                     currentEventsPerSec++;
-                 /*   // wait for next event
+                    /*
+                    // wait for next event
                     try {
                         //There is no need for sleep for blocking calls.
                         if ( !blocking ) {
@@ -264,7 +266,7 @@ public class TurbineHeatSensor {
                         }
                     } catch (InterruptedException e) {
                         // log exception
-                          }
+                    }
                     */
                     // Construct event payload
                     String val = System.currentTimeMillis() + ", " + producerId + ", " + city + ", " + (int) (Math.random() * 200);
@@ -303,8 +305,9 @@ public class TurbineHeatSensor {
                 try {
                     //There is no need for sleep for blocking calls.
                     if ( !blocking ) {
-                        if ( timeSpent < 1000 )
-                        Thread.sleep(1000 - timeSpent);
+                        if ( timeSpent < 1000 ) {
+                            Thread.sleep(1000 - timeSpent);
+                        }
                     }
                 } catch (InterruptedException e) {
                     // log exception
@@ -378,7 +381,8 @@ public class TurbineHeatSensor {
 
         public Stats(long numRecords, int reportingInterval) {
             this.start = System.currentTimeMillis();
-            this.windowStart = System.currentTimeMillis();
+            //  this.windowStart = System.currentTimeMillis();
+            this.windowStart = 0;
             this.index = 0;
             this.iteration = 0;
             this.sampling = (int) (numRecords / Math.min(numRecords, 500000));
@@ -408,9 +412,9 @@ public class TurbineHeatSensor {
                 this.index++;
             }
             /* maybe report the recent perf */
-            if (time - windowStart >= reportingInterval) {
+            if (count - windowStart >= reportingInterval) {
                 printWindow();
-                newWindow(iter);
+                newWindow(count);
             }
         }
 
@@ -426,13 +430,20 @@ public class TurbineHeatSensor {
                     (double) windowMaxLatency);
         }
 
-        public void newWindow(int currentNumber) {
+        public void newWindow(long currentNumber) {
             //  this.windowStart = System.currentTimeMillis();
             this.windowStart = currentNumber;
             this.windowCount = 0;
             this.windowMaxLatency = 0;
             this.windowTotalLatency = 0;
             this.windowBytes = 0;
+        }
+
+        public void printAll() {
+            for (int latency : latencies) {
+                System.out.printf("%d", latency);
+
+            }
         }
 
         public void printTotal() {
