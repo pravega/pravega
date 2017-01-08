@@ -180,7 +180,7 @@ public class TurbineHeatSensor {
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 5,
                                     producerCount)));
 
-            produceStats = new Stats(producerCount * eventsPerSec * runtimeSec, 2);
+            produceStats = new Stats(producerCount * eventsPerSec * runtimeSec, 200);
 
             if ( !onlyWrite ) {
                 consumeStats = new Stats(producerCount * eventsPerSec * runtimeSec, 2);
@@ -256,7 +256,6 @@ public class TurbineHeatSensor {
                 long loopStartTime = System.currentTimeMillis();
                 while ( currentEventsPerSec < eventsPerSec) {
                     currentEventsPerSec++;
-
                  /*   // wait for next event
                     try {
                         //There is no need for sleep for blocking calls.
@@ -411,7 +410,7 @@ public class TurbineHeatSensor {
             /* maybe report the recent perf */
             if (time - windowStart >= reportingInterval) {
                 printWindow();
-                newWindow();
+                newWindow(iter);
             }
         }
 
@@ -427,8 +426,9 @@ public class TurbineHeatSensor {
                     (double) windowMaxLatency);
         }
 
-        public void newWindow() {
-            this.windowStart = System.currentTimeMillis();
+        public void newWindow(int currentNumber) {
+            //  this.windowStart = System.currentTimeMillis();
+            this.windowStart = currentNumber;
             this.windowCount = 0;
             this.windowMaxLatency = 0;
             this.windowTotalLatency = 0;
