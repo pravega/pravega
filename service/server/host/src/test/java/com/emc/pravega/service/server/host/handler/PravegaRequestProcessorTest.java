@@ -66,7 +66,7 @@ import lombok.Data;
 public class PravegaRequestProcessorTest {
 
     @Data
-    private static class TestReadResult implements ReadResult {
+    protected static class TestReadResult implements ReadResult {
         final long streamSegmentStartOffset;
         final int maxResultLength;
         boolean closed = false;
@@ -96,7 +96,7 @@ public class PravegaRequestProcessorTest {
         }
     }
 
-    private static class TestReadResultEntry extends ReadResultEntryBase {
+    protected static class TestReadResultEntry extends ReadResultEntryBase {
         TestReadResultEntry(ReadResultEntryType type, long streamSegmentOffset, int requestedReadLength) {
             super(type, streamSegmentOffset, requestedReadLength);
         }
@@ -182,14 +182,14 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new SegmentDeleted(streamSegmentName));
     }
 
-    private boolean append(String streamSegmentName, int number, StreamSegmentStore store) {
+    protected boolean append(String streamSegmentName, int number, StreamSegmentStore store) {
         return FutureHelpers.await(store.append(streamSegmentName,
                                                 new byte[] { (byte) number },
                                                 new AppendContext(UUID.randomUUID(), number),
                                                 PravegaRequestProcessor.TIMEOUT));
     }
 
-    private static ServiceBuilderConfig getBuilderConfig() {
+    protected static ServiceBuilderConfig getBuilderConfig() {
         Properties p = new Properties();
         ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "1");
         ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "3");

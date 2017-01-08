@@ -41,7 +41,6 @@ import com.emc.pravega.service.server.store.ServiceConfig;
 
 import com.emc.pravega.common.metrics.OpStatsData;
 import com.emc.pravega.common.metrics.Counter;
-import com.emc.pravega.common.metrics.YammerOpStatsLogger;
 
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
@@ -68,57 +67,10 @@ import static org.mockito.Mockito.when;
 import lombok.Cleanup;
 import lombok.Data;
 
-public class PravegaRequestProcessorMetricTest {
-
-    @Data
-    private static class TestReadResult implements ReadResult {
-        final long streamSegmentStartOffset;
-        final int maxResultLength;
-        boolean closed = false;
-        final List<ReadResultEntry> results;
-        long currentOffset = 0;
-
-        @Override
-        public boolean hasNext() {
-            return !results.isEmpty();
-        }
-
-        @Override
-        public ReadResultEntry next() {
-            ReadResultEntry result = results.remove(0);
-            currentOffset = result.getStreamSegmentOffset();
-            return result;
-        }
-
-        @Override
-        public void close() {
-            closed = true;
-        }
-
-        @Override
-        public int getConsumedLength() {
-            return (int) (currentOffset - streamSegmentStartOffset);
-        }
-    }
-
-    private static class TestReadResultEntry extends ReadResultEntryBase {
-        TestReadResultEntry(ReadResultEntryType type, long streamSegmentOffset, int requestedReadLength) {
-            super(type, streamSegmentOffset, requestedReadLength);
-        }
-
-        @Override
-        protected void complete(ReadResultEntryContents readResultEntryContents) {
-            super.complete(readResultEntryContents);
-        }
-
-        @Override
-        protected void fail(Throwable exception) {
-            super.fail(exception);
-        }
-    }
+public class PravegaRequestProcessorMetricTest extends PravegaRequestProcessorTest{
 
     @Test
-    public void testReadSegment() {
+    public void testMetricsInReadSegment() {
         String streamSegmentName = "testReadSegment";
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         int readLength = 1000;
@@ -161,7 +113,7 @@ public class PravegaRequestProcessorMetricTest {
     }
 
     @Test
-    public void testCreateSegment() throws InterruptedException, ExecutionException {
+    public void testMetricsInCreateSegment() throws InterruptedException, ExecutionException {
         String streamSegmentName = "testCreateSegment";
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInlineExecutionInMemoryBuilder(getBuilderConfig());
@@ -173,27 +125,12 @@ public class PravegaRequestProcessorMetricTest {
         processor.createSegment(new CreateSegment(streamSegmentName));
         assertTrue(append(streamSegmentName, 1, store));
         processor.getStreamSegmentInfo(new GetStreamSegmentInfo(streamSegmentName));
-        assertTrue(append(streamSegmentName, 2, store));
         order.verify(connection).send(new SegmentCreated(streamSegmentName));
         order.verify(connection).send(Mockito.any(StreamSegmentInfo.class));
 
         OpStatsData createSegmentStats = PravegaRequestProcessor.Metrics.CREATE_STREAM_SEGMENT.toOpStatsData();
         assertEquals(1, createSegmentStats.getNumSuccessfulEvents());
         assertEquals(0, createSegmentStats.getNumFailedEvents());
-    }
-
-    private boolean append(String streamSegmentName, int number, StreamSegmentStore store) {
-        return FutureHelpers.await(store.append(streamSegmentName,
-                                                new byte[] { (byte) number },
-                                                new AppendContext(UUID.randomUUID(), number),
-                                                PravegaRequestProcessor.TIMEOUT));
-    }
-
-    private static ServiceBuilderConfig getBuilderConfig() {
-        Properties p = new Properties();
-        ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "1");
-        ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "3");
-        return new ServiceBuilderConfig(p);
     }
 
 }
