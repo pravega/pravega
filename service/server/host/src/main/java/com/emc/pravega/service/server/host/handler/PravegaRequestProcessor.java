@@ -136,9 +136,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         boolean atTail = nonCachedEntry != null && nonCachedEntry.getType() == Future;
 
         if (!cachedEntries.isEmpty()) {
-            int totalSize = cachedEntries.stream().mapToInt(ReadResultEntryContents::getLength).sum();
-            Metrics.READ_BYTES_STATS.registerSuccessfulValue(totalSize);
-            Metrics.READ_BYTES.add(totalSize);
             ByteBuffer data = copyData(cachedEntries);
             SegmentRead reply =  new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
             connection.send(reply);
@@ -184,6 +181,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     private ByteBuffer copyData(List<ReadResultEntryContents> contents) {
         int totalSize = contents.stream().mapToInt(ReadResultEntryContents::getLength).sum();
+
+        Metrics.READ_BYTES_STATS.registerSuccessfulValue(totalSize);
+        Metrics.READ_BYTES.add(totalSize);
+
         ByteBuffer data = ByteBuffer.allocate(totalSize);
         int bytesCopied = 0;
         for (ReadResultEntryContents content : contents) {
