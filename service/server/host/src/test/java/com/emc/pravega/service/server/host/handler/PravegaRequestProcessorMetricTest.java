@@ -53,7 +53,11 @@ import static org.mockito.Mockito.when;
 
 public class PravegaRequestProcessorMetricTest extends PravegaRequestProcessorTest {
 
-    @Test
+    /**
+     * Test metrics in readSegment.
+     * Verify that after processor.readSegment execute correctly, metrics all record right value.
+     */
+    @Test(timeout = 20000)
     public void testMetricsInReadSegment() {
         String streamSegmentName = "testReadSegment";
         byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
@@ -95,7 +99,14 @@ public class PravegaRequestProcessorMetricTest extends PravegaRequestProcessorTe
         assertEquals(Long.valueOf(data.length), readBytes.get());
     }
 
-    @Test
+    /**
+     * Test metrics in createSegment.
+     * Verify that after processor.createSegment execute correctly, metric all record right value.
+     *
+     * @throws InterruptedException the interrupted exception
+     * @throws ExecutionException   the execution exception
+     */
+    @Test(timeout = 20000)
     public void testMetricsInCreateSegment() throws InterruptedException, ExecutionException {
         String streamSegmentName = "testCreateSegment";
         @Cleanup
