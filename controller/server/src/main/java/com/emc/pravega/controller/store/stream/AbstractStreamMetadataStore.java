@@ -169,6 +169,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return getStream(stream).abortTransaction(txId);
     }
 
+    @Override
+    public CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream) {
+        return getStream(stream).isTransactionOngoing();
+    }
+
     private Stream getStream(final String name) {
         Stream stream = cache.getUnchecked(name);
         stream.refresh();
