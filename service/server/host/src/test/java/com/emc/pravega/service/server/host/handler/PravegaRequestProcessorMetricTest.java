@@ -56,7 +56,7 @@ public class PravegaRequestProcessorMetricTest extends PravegaRequestProcessorTe
     @Test
     public void testMetricsInReadSegment() {
         String streamSegmentName = "testReadSegment";
-        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
+        byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
         int readLength = 1000;
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -80,7 +80,6 @@ public class PravegaRequestProcessorMetricTest extends PravegaRequestProcessorTe
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
         entry2.complete(new ReadResultEntryContents(new ByteArrayInputStream(data), data.length));
-
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
 
@@ -100,7 +99,7 @@ public class PravegaRequestProcessorMetricTest extends PravegaRequestProcessorTe
     public void testMetricsInCreateSegment() throws InterruptedException, ExecutionException {
         String streamSegmentName = "testCreateSegment";
         @Cleanup
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         ServerConnection connection = mock(ServerConnection.class);
