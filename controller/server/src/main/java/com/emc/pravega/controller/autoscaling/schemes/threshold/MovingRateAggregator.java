@@ -28,8 +28,7 @@ import lombok.Data;
 public class MovingRateAggregator implements FunctionalInterfaces.AggregateFunction<MovingRateValue, Event, EventHistory> {
 
     /**
-     * This method computes a moving rate average of the metric per segment.
-     * This average rate is an approximation.
+     * This method stores moving rate as computed by pravega host over the rolling window.
      *
      * @param metric  Incoming metric
      * @param value   Previous aggregate value
@@ -38,10 +37,7 @@ public class MovingRateAggregator implements FunctionalInterfaces.AggregateFunct
      */
     @Override
     public MovingRateValue compute(final StreamMetric metric, final MovingRateValue value, final EventHistory history) {
-        final long previousAverage = value.getValue().get(metric.getSegmentId().getNumber());
-        // TODO: compute moving average rate for this segment with exponential smoothening
-        final long newAverage = metric.getAvgRate();
-        value.update(metric.getSegmentId().getNumber(), newAverage);
+        value.update(metric.getSegmentId().getNumber(), metric.getKQuantileAvgRate() * metric.getQuantiles().size());
 
         return value;
     }

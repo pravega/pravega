@@ -55,7 +55,7 @@ public class SegmentQuantileValue implements AggregatedValue<Map<Integer, List<D
     }
 
     public void update(final StreamMetric m) {
-        final List<Double> incoming = m.getChunks();
+        final List<Double> incoming = m.getQuantiles();
         aggregate.put(m.getSegmentId().getNumber(), new SegmentMetricDistribution(incoming, m.getTimestamp()));
     }
 

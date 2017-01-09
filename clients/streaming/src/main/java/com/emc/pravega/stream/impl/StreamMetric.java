@@ -42,7 +42,8 @@ public class StreamMetric implements Metric {
     final Duration period;
     final RateType rateType;
     final long avgRate;
-    final List<Double> chunks;
+    final long kQuantileAvgRate;
+    final List<Double> quantiles;
 
     @Override
     public MetricType getType() {
