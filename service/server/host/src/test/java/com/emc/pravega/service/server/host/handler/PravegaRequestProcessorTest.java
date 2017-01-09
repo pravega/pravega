@@ -34,10 +34,18 @@ import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
+import com.emc.pravega.service.server.mocks.SynchronousStreamSegmentStore;
 import com.emc.pravega.service.server.reading.ReadResultEntryBase;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
+import com.emc.pravega.service.server.store.StreamSegmentService;
+import com.emc.pravega.testcommon.InlineExecutor;
+import lombok.Cleanup;
+import lombok.Data;
+import org.junit.Test;
+import org.mockito.InOrder;
+import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
@@ -48,10 +56,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
-import org.junit.Test;
-import org.mockito.InOrder;
-import org.mockito.Mockito;
-
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.inOrder;
@@ -59,9 +63,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
-
-import lombok.Cleanup;
-import lombok.Data;
 
 public class PravegaRequestProcessorTest {
 
@@ -115,7 +116,7 @@ public class PravegaRequestProcessorTest {
     @Test
     public void testReadSegment() {
         String streamSegmentName = "testReadSegment";
-        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
+        byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
         int readLength = 1000;
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -147,7 +148,7 @@ public class PravegaRequestProcessorTest {
     public void testCreateSegment() throws InterruptedException, ExecutionException {
         String streamSegmentName = "testCreateSegment";
         @Cleanup
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         ServerConnection connection = mock(ServerConnection.class);
@@ -162,10 +163,10 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test
-    public void testCreatSealDelete() throws InterruptedException, ExecutionException {
-        String streamSegmentName = "testCreatSealDelete";
+    public void testCreateSealDelete() throws InterruptedException, ExecutionException {
+        String streamSegmentName = "testCreateSealDelete";
         @Cleanup
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         ServerConnection connection = mock(ServerConnection.class);
@@ -184,9 +185,9 @@ public class PravegaRequestProcessorTest {
 
     protected boolean append(String streamSegmentName, int number, StreamSegmentStore store) {
         return FutureHelpers.await(store.append(streamSegmentName,
-                                                new byte[] { (byte) number },
-                                                new AppendContext(UUID.randomUUID(), number),
-                                                PravegaRequestProcessor.TIMEOUT));
+                new byte[]{(byte) number},
+                new AppendContext(UUID.randomUUID(), number),
+                PravegaRequestProcessor.TIMEOUT));
     }
 
     protected static ServiceBuilderConfig getBuilderConfig() {
@@ -196,4 +197,9 @@ public class PravegaRequestProcessorTest {
         return new ServiceBuilderConfig(p);
     }
 
+    private static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
+        return ServiceBuilder.newInMemoryBuilder(config, new InlineExecutor())
+                             .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
+                                     setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
+    }
 }

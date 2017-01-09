@@ -247,12 +247,13 @@ public final class FutureHelpers {
     }
 
     /**
-     * Executes the asynchronous task returning a CompletableFuture with specified delay and returns the task result.
-     * @param task Asynchronous task.
-     * @param delay Delay in milliseconds.
+     * Executes the asynchronous task after the specified delay.
+     *
+     * @param task            Asynchronous task.
+     * @param delay           Delay in milliseconds.
      * @param executorService Executor on which to execute the task.
-     * @param <T> Type parameter.
-     * @return The result of task execution.
+     * @param <T>             Type parameter.
+     * @return A CompletableFuture that will be completed with the result of the given task.
      */
     public static <T> CompletableFuture<T> delayedFuture(final Supplier<CompletableFuture<T>> task,
                                                          final long delay,
@@ -266,13 +267,40 @@ public final class FutureHelpers {
     }
 
     /**
+     * Executes the given task after the specified delay.
+     *
+     * @param task            Asynchronous task.
+     * @param delay           Delay.
+     * @param executorService Executor on which to execute the task.
+     * @param <T>             Type parameter.
+     * @return A CompletableFuture that will be completed with the result of the given task, or completed exceptionally
+     * if the task fails.
+     */
+    public static <T> CompletableFuture<T> delayedTask(final Supplier<T> task,
+                                                       final Duration delay,
+                                                       final ScheduledExecutorService executorService) {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        executorService.schedule(
+                () -> {
+                    try {
+                        result.complete(task.get());
+                    } catch (Throwable ex) {
+                        result.completeExceptionally(ex);
+                    }
+                },
+                delay.toMillis(),
+                TimeUnit.MILLISECONDS);
+        return result;
+    }
+
+    /**
      * Completes the supplied CompletableFuture object with either the exception or a valid value. Preference is given
      * to exception e when both the exception e and result value are non-null.
      *
      * @param result The result object to complete.
-     * @param value The result value.
-     * @param e Exception.
-     * @param <T> Type parameter.
+     * @param value  The result value.
+     * @param e      Exception.
+     * @param <T>    Type parameter.
      */
     public static <T> void complete(final CompletableFuture<T> result, final T value, final Throwable e) {
         if (e != null) {
@@ -286,9 +314,9 @@ public final class FutureHelpers {
      * A variant of .exceptionally that admits an exception handler returning value of type T in future. Exceptionally
      * and flatExceptionally can be thought of as analogous to map and flatMap method for transforming Futures.
      *
-     * @param input The input future.
+     * @param input            The input future.
      * @param exceptionHandler Exception handler.
-     * @param <T> Type parameter.
+     * @param <T>              Type parameter.
      * @return result of exceptionHandler if input completed exceptionally, otherwise input.
      */
     public static <T> CompletableFuture<T> flatExceptionally(final CompletableFuture<T> input,
@@ -297,7 +325,7 @@ public final class FutureHelpers {
         input.whenComplete((r, e) -> {
             if (e != null) {
                 exceptionHandler.apply(e)
-                        .whenComplete((ir, ie) -> complete(result, ir, ie));
+                                .whenComplete((ir, ie) -> complete(result, ir, ie));
             } else {
                 result.complete(r);
             }

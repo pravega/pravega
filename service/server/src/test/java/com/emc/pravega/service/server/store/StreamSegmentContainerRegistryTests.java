@@ -18,19 +18,7 @@
 
 package com.emc.pravega.service.server.store;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import org.junit.Assert;
-import org.junit.Test;
-
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.concurrent.InlineExecutor;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ContainerNotFoundException;
 import com.emc.pravega.service.contracts.ReadResult;
@@ -41,14 +29,24 @@ import com.emc.pravega.service.server.SegmentContainerFactory;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import com.google.common.util.concurrent.AbstractService;
-
 import lombok.Cleanup;
+import org.junit.Assert;
+import org.junit.Test;
+
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Unit tests for the StreamSegmentContainerRegistry class.
  */
-public class StreamSegmentContainerRegistryTests {
+public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     /**
@@ -57,10 +55,9 @@ public class StreamSegmentContainerRegistryTests {
     @Test
     public void testGetContainer() throws Exception {
         final int containerCount = 1000;
-        InlineExecutor executor = new InlineExecutor();
         TestContainerFactory factory = new TestContainerFactory();
         @Cleanup
-        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor);
+        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executorService());
 
         HashSet<Integer> expectedContainerIds = new HashSet<>();
         Collection<CompletableFuture<ContainerHandle>> handleFutures = new ArrayList<>();
@@ -93,10 +90,9 @@ public class StreamSegmentContainerRegistryTests {
     @Test
     public void testStopContainer() throws Exception {
         final int containerId = 123;
-        InlineExecutor executor = new InlineExecutor();
         TestContainerFactory factory = new TestContainerFactory();
         @Cleanup
-        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor);
+        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executorService());
         ContainerHandle handle = registry.startContainer(containerId, TIMEOUT).join();
 
         // Register a Listener for the Container.Stop event.
@@ -121,10 +117,9 @@ public class StreamSegmentContainerRegistryTests {
     @Test
     public void testContainerFailureOnStartup() throws Exception {
         final int containerId = 123;
-        InlineExecutor executor = new InlineExecutor();
         TestContainerFactory factory = new TestContainerFactory(new IntentionalException());
         @Cleanup
-        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor);
+        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executorService());
 
         AssertExtensions.assertThrows(
                 "Unexpected exception thrown upon failed container startup.",
@@ -143,10 +138,9 @@ public class StreamSegmentContainerRegistryTests {
     @Test
     public void testContainerFailureWhileRunning() throws Exception {
         final int containerId = 123;
-        InlineExecutor executor = new InlineExecutor();
         TestContainerFactory factory = new TestContainerFactory();
         @Cleanup
-        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor);
+        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executorService());
 
         ContainerHandle handle = registry.startContainer(containerId, TIMEOUT).join();
 
