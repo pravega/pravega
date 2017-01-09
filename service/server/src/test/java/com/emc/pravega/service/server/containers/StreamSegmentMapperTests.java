@@ -25,16 +25,17 @@ import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
-import com.emc.pravega.service.server.OperationLog;
-import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
+import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import com.google.common.util.concurrent.Service;
 import lombok.Cleanup;
 import org.apache.commons.lang.NotImplementedException;
@@ -49,8 +50,6 @@ import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -61,10 +60,14 @@ import java.util.function.Predicate;
 /**
  * Unit tests for StreamSegmentMapper class.
  */
-public class StreamSegmentMapperTests {
+public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 123;
-    private static final int THREAD_POOL_SIZE = 10;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 3;
+    }
 
     /**
      * Tests the ability of the StreamSegmentMapper to create a new StreamSegment.
@@ -430,26 +433,23 @@ public class StreamSegmentMapperTests {
 
     //region TestContext
 
-    private static class TestContext implements AutoCloseable {
+    private class TestContext implements AutoCloseable {
         public final UpdateableContainerMetadata metadata;
         public final TestStorage storage;
         public final TestOperationLog operationLog;
         public final StreamSegmentMapper mapper;
-        private final ExecutorService executorService;
 
         public TestContext() {
-            this.executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
             this.storage = new TestStorage();
             this.operationLog = new TestOperationLog();
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-            this.mapper = new StreamSegmentMapper(this.metadata, this.operationLog, this.storage, this.executorService);
+            this.mapper = new StreamSegmentMapper(this.metadata, this.operationLog, this.storage, executorService());
         }
 
         @Override
         public void close() {
             this.storage.close();
             this.operationLog.close();
-            this.executorService.shutdown();
         }
     }
 
@@ -564,12 +564,12 @@ public class StreamSegmentMapperTests {
         }
 
         //region Unimplemented methods
-        
+
         @Override
         public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
             throw new NotImplementedException();
         }
-        
+
         @Override
         public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
             throw new NotImplementedException();

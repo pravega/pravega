@@ -32,6 +32,7 @@ import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.Segment;
@@ -50,6 +51,7 @@ import com.google.common.collect.ImmutableList;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -77,6 +79,11 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<UpdateStreamStatus> alterStream(StreamConfiguration streamConfig) {
         return null;
+    }
+
+    @Override
+    public CompletableFuture<ScaleResponse> scaleStream(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges) {
+        throw new NotImplementedException();
     }
 
     boolean createSegment(String name, PravegaNodeUri uri) {

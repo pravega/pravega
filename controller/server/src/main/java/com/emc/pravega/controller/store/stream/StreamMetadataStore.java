@@ -164,6 +164,14 @@ public interface StreamMetadataStore {
     CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final UUID txId);
 
     /**
+     * Returns a boolean indicating whether any transaction is active on the specified stream.
+     * @param scope  scope.
+     * @param stream stream.
+     * @return boolean indicating whether any transaction is active on the specified stream.
+     */
+    CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream);
+
+    /**
      * Returns all active transactions for all streams.
      * This is used for periodically identifying timedout transactions which can be aborted
      *
