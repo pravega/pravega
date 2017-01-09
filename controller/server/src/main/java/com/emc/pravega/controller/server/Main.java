@@ -119,7 +119,7 @@ public class Main {
                 streamTransactionMetadataTasks);
 
         // 4. Start metric listener
-        final AutoScaler autoScaler = new ThresholdAutoScaler(hostStore, streamMetadataTasks);
+        final AutoScaler autoScaler = new ThresholdAutoScaler(hostStore, streamMetadataTasks, streamStore);
         final MetricReader listener = new MetricReader(streamStore, hostStore, autoScaler);
         listener.run();
     }

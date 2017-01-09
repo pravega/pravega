@@ -22,11 +22,12 @@ import com.emc.pravega.controller.autoscaling.ActionProcessor;
 import com.emc.pravega.controller.autoscaling.ActionQueue;
 import com.emc.pravega.controller.autoscaling.AutoScaler;
 import com.emc.pravega.controller.autoscaling.FunctionalInterfaces;
-import com.emc.pravega.controller.autoscaling.HostMonitorWorker;
-import com.emc.pravega.controller.autoscaling.StreamMonitorWorker;
+import com.emc.pravega.controller.autoscaling.HostMonitor;
+import com.emc.pravega.controller.autoscaling.StreamMonitor;
 import com.emc.pravega.controller.autoscaling.util.RollingWindow;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
+import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.impl.StreamMetric;
@@ -69,26 +70,30 @@ public class ThresholdAutoScaler extends AutoScaler<Double, HostWeightHistory, E
             new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
     private final HostControllerStore hostStore;
+    private final StreamMetadataStore streamStore;
 
-    public ThresholdAutoScaler(final HostControllerStore hostStore, final StreamMetadataTasks streamMetadataTasks) {
+    public ThresholdAutoScaler(final HostControllerStore hostStore,
+                               final StreamMetadataTasks streamMetadataTasks,
+                               final StreamMetadataStore streamStore) {
         super(streamMetadataTasks);
         this.hostStore = hostStore;
+        this.streamStore = streamStore;
     }
 
     @Override
-    protected HostMonitorWorker<Double, HostWeightHistory> getHostMonitor(final Host host) {
+    protected HostMonitor<Double, HostWeightHistory> getHostMonitor(final Host host) {
         final HostWeightHistory history = new HostWeightHistory();
-        return new HostMonitorWorker<>(history);
+        return new HostMonitor<>(history);
     }
 
     @Override
-    public StreamMonitorWorker<Event, EventHistory> getStreamMonitor(final ActionQueue actionQueue,
+    public StreamMonitor<Event, EventHistory> getStreamMonitor(final ActionQueue actionQueue,
                                                                final ActionProcessor actionProcessor,
                                                                final String stream,
                                                                final String scope,
                                                                final ScalingPolicy policy,
                                                                final List<Segment> activeSegments) {
-        final Function<StreamMetric, HostMonitorWorker<Double, HostWeightHistory>> hostMonitorFunction = metric -> {
+        final Function<StreamMetric, HostMonitor<Double, HostWeightHistory>> hostMonitorFunction = metric -> {
             final String ipAddr = hostStore.getHostForSegment(metric.getSegmentId().getScope(),
                     metric.getSegmentId().getStream(), metric.getSegmentId().getNumber()).getIpAddr();
             return metricCollector.<Double, HostWeightHistory>getHostMonitor(ipAddr);
@@ -114,9 +119,11 @@ public class ThresholdAutoScaler extends AutoScaler<Double, HostWeightHistory, E
 
         final FunctionalInterfaces.SplitFunction<Event, EventHistory> splitFunction = new SplitFunctionImpl();
         final FunctionalInterfaces.MergeFunction<Event, EventHistory> mergeFunction = new MergeFunctionImpl(scaleFunction,
-                COOLDOWN_PERIOD.toMillis());
+                COOLDOWN_PERIOD.toMillis(),
+                stream,
+                scope);
 
-        final StreamMonitorWorker<Event, EventHistory> monitor = new StreamMonitorWorker<>(actionQueue,
+        final StreamMonitor<Event, EventHistory> monitor = new StreamMonitor<>(actionQueue,
                 actionProcessor,
                 history,
                 scaleFunction,

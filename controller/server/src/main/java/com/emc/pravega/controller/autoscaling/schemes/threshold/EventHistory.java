@@ -19,7 +19,7 @@ package com.emc.pravega.controller.autoscaling.schemes.threshold;
 
 import com.emc.pravega.controller.autoscaling.AggregatedValue;
 import com.emc.pravega.controller.autoscaling.History;
-import com.emc.pravega.controller.autoscaling.HostMonitorWorker;
+import com.emc.pravega.controller.autoscaling.HostMonitor;
 import com.emc.pravega.controller.autoscaling.util.RollingWindow;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.impl.StreamMetric;
@@ -100,7 +100,7 @@ public class EventHistory implements History<StreamMetric, Event> {
 
     @Data
     public static class WeightFunctionImpl implements WeightFunction {
-        final Function<StreamMetric, HostMonitorWorker<Double, HostWeightHistory>> hostMonitorFunction;
+        final Function<StreamMetric, HostMonitor<Double, HostWeightHistory>> hostMonitorFunction;
 
         @Override
         public Double weight(final StreamMetric metric) {

@@ -22,7 +22,6 @@ import com.emc.pravega.controller.store.stream.Segment;
 import lombok.Data;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -35,49 +34,47 @@ import static com.emc.pravega.controller.autoscaling.FunctionalInterfaces.ScaleF
 public class MergeFunctionImpl implements FunctionalInterfaces.MergeFunction<Event, EventHistory> {
     private final ScaleFunctionImpl scaleFunction;
     private final long cooldownPeriod;
+    private final String stream;
+    private final String scope;
 
     /**
      * This function calculates merge candidates for the given segment number.
      * We will fetch both neighbours (adjacent key ranged segments) and check if any of them is below low-threshold
      * for sustained periods. Any neighbour that is also Cold is a merge candidate.
-     *
+     * <p>
      * Note: With the first implementation we are not doing any complex merges. We will only merge 3 to 1 or 2 to 1.
      * But in future we could look for doing complex merges like m to n.
      *
-     * @param segmentNumber             Segment that has been below threshold for sustained period of time.
-     * @param history                   History for this stream over rolling window.
-     * @param activeSegments            Active segments, used to find neighbours.
-     *
+     * @param segment Segment that has been below threshold for sustained period of time.
+     * @param history History for this stream over rolling window.
      * @return list of segments that can be safely merged with the given segment.
      */
     @Override
-    public List<Integer> mergeCandidates(final int segmentNumber, final EventHistory history, final List<Segment> activeSegments) {
-        final Optional<Segment> segment = activeSegments.stream().filter(x -> x.getNumber() == segmentNumber).findFirst();
-        if (segment.isPresent() && System.currentTimeMillis() - segment.get().getStart() > cooldownPeriod) {
-            // Find neighbours.
-            // Merge with all neighbours that are below low threshold as that is a safe mergeCandidates.
-            final Stream<Segment> neighbourStream = activeSegments.stream()
-                    .filter(x -> x.getKeyEnd() == segment.get().getKeyStart() || x.getKeyStart() == segment.get().getKeyEnd());
+    public List<Integer> mergeCandidates(final Segment segment, final EventHistory history, final List<Segment> activeSegments) {
 
-            final List<Integer> coldNeighbours = neighbourStream
-                    .filter(x -> System.currentTimeMillis() - x.getStart() > cooldownPeriod &&
-                            scaleFunction.canScale(x.getNumber(),
-                                    System.currentTimeMillis(),
-                                    history,
-                                    ScaleFunction.Direction.Down))
-                    .map(Segment::getNumber)
-                    .collect(Collectors.toList());
+        // Merge with all neighbours that are below low threshold as that is a safe mergeCandidates.
+        final Stream<Segment> neighbourStream = activeSegments.stream()
+                .filter(x -> x.getKeyEnd() == segment.getKeyStart() ||
+                        x.getKeyStart() == segment.getKeyEnd());
 
-            if (coldNeighbours.size() > 0) {
-                coldNeighbours.add(segmentNumber);
-                return coldNeighbours;
-            }
+        final List<Integer> coldNeighbours = neighbourStream
+                .filter(x -> System.currentTimeMillis() - x.getStart() > cooldownPeriod &&
+                        scaleFunction.canScale(x.getNumber(),
+                                System.currentTimeMillis(),
+                                history,
+                                ScaleFunction.Direction.Down))
+                .map(Segment::getNumber)
+                .collect(Collectors.toList());
 
-            // TODO:
-            // if no cold neighbours, look at m to n merge options (2 to 2 or 3 to 2)
-            // for this we will have to look at quantiles and average rates from aggregates to figure out if we want to
-            // take all non hot neighbours and rebalance -- split non-hot neighbours into two.
+        if (coldNeighbours.size() > 0) {
+            coldNeighbours.add(segment.getNumber());
+            return coldNeighbours;
         }
+
+        // In Future we could try other schemes like :
+        // if no cold neighbours, look at m to n merge options (2 to 2 or 3 to 2)
+        // for this we will have to look at quantiles and average rates from aggregates to figure out if we want to
+        // take all non hot neighbours and rebalance -- split non-hot neighbours into two.
 
         return null;
     }

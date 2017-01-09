@@ -43,8 +43,8 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class MetricCollector<V1, H1 extends History<HostMetric, V1>, V2, H2 extends History<StreamMetric, V2>> {
 
-    private final ConcurrentMap<Pair<String, String>, StreamMonitorWorker<V2, H2>> streams;
-    private final ConcurrentMap<String, HostMonitorWorker<V1, H1>> hosts;
+    private final ConcurrentMap<Pair<String, String>, StreamMonitor<V2, H2>> streams;
+    private final ConcurrentMap<String, HostMonitor<V1, H1>> hosts;
 
     public MetricCollector() {
         this.streams = new ConcurrentHashMap<>();
@@ -80,7 +80,7 @@ public class MetricCollector<V1, H1 extends History<HostMetric, V1>, V2, H2 exte
      * @param scope         scope of stream
      * @param streamMonitor Stream monitor object
      */
-    public void addStreamMonitor(final String streamName, final String scope, final StreamMonitorWorker<V2, H2> streamMonitor) {
+    public void addStreamMonitor(final String streamName, final String scope, final StreamMonitor<V2, H2> streamMonitor) {
         final Pair<String, String> stream = new ImmutablePair<>(streamName, scope);
         streams.put(stream, streamMonitor);
     }
@@ -93,7 +93,7 @@ public class MetricCollector<V1, H1 extends History<HostMetric, V1>, V2, H2 exte
      */
     public void removeStreamMonitor(final String streamName, final String scope) {
         final Pair<String, String> stream = new ImmutablePair<>(streamName, scope);
-        final StreamMonitorWorker<V2, H2> monitor = streams.get(stream);
+        final StreamMonitor<V2, H2> monitor = streams.get(stream);
         if (monitor != null) {
             monitor.stop();
             streams.remove(stream);
@@ -106,7 +106,7 @@ public class MetricCollector<V1, H1 extends History<HostMetric, V1>, V2, H2 exte
      * @param hostIp      Ip of host to be added
      * @param hostMonitor Host monitor oject
      */
-    public void addHostMonitor(final String hostIp, final HostMonitorWorker<V1, H1> hostMonitor) {
+    public void addHostMonitor(final String hostIp, final HostMonitor<V1, H1> hostMonitor) {
         hosts.put(hostIp, hostMonitor);
     }
 
@@ -119,12 +119,12 @@ public class MetricCollector<V1, H1 extends History<HostMetric, V1>, V2, H2 exte
         hosts.remove(hostIp);
     }
 
-    public StreamMonitorWorker<V2, H2> getStreamMonitor(final String streamName, final String scope) {
+    public StreamMonitor<V2, H2> getStreamMonitor(final String streamName, final String scope) {
         final Pair<String, String> stream = new ImmutablePair<>(streamName, scope);
         return streams.get(stream);
     }
 
-    public HostMonitorWorker<V1, H1> getHostMonitor(final String hostIp) {
+    public HostMonitor<V1, H1> getHostMonitor(final String hostIp) {
         return hosts.get(hostIp);
     }
 }

@@ -60,7 +60,7 @@ public class FunctionalInterfaces {
      */
     @FunctionalInterface
     public interface MergeFunction<V, H extends History<StreamMetric, V>> {
-        List<Integer> mergeCandidates(final int segmentNumber, final H history, final List<Segment> activeSegments);
+        List<Integer> mergeCandidates(final Segment segment, final H history, final List<Segment> activeSegments);
     }
 
     /**

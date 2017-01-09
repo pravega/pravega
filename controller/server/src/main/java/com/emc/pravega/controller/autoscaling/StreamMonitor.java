@@ -35,7 +35,7 @@ import java.util.stream.Stream;
  * @param <V> Type of values stored in the history.
  * @param <H> History where all interesting data computed from metric is stored.
  */
-public class StreamMonitorWorker<V, H extends History<StreamMetric, V>> extends MonitorWorker<StreamMetric> {
+public class StreamMonitor<V, H extends History<StreamMetric, V>> extends MonitorWorker<StreamMetric> {
 
     private final FunctionalInterfaces.ScaleFunction<V, H> scaleFunction;
     private final FunctionalInterfaces.SplitFunction<V, H> splitFunction;
@@ -55,15 +55,15 @@ public class StreamMonitorWorker<V, H extends History<StreamMetric, V>> extends 
      * @param scaleFunction   Injected scale function
      * @param splitFunction   Injected split function
      * @param mergeFunction   Injected merge function
-     * @param activeSegments  list of current active segments.
+     * @param activeSegments  List of active segments
      */
-    public StreamMonitorWorker(final ActionQueue actionQueue,
-                               final ActionProcessor actionProcessor,
-                               final H history,
-                               final FunctionalInterfaces.ScaleFunction<V, H> scaleFunction,
-                               final FunctionalInterfaces.SplitFunction<V, H> splitFunction,
-                               final FunctionalInterfaces.MergeFunction<V, H> mergeFunction,
-                               final List<Segment> activeSegments) {
+    public StreamMonitor(final ActionQueue actionQueue,
+                         final ActionProcessor actionProcessor,
+                         final H history,
+                         final FunctionalInterfaces.ScaleFunction<V, H> scaleFunction,
+                         final FunctionalInterfaces.SplitFunction<V, H> splitFunction,
+                         final FunctionalInterfaces.MergeFunction<V, H> mergeFunction,
+                         final List<Segment> activeSegments) {
         super();
         this.history = history;
 
@@ -101,24 +101,25 @@ public class StreamMonitorWorker<V, H extends History<StreamMetric, V>> extends 
         history.record(metric);
         // scale up
         final int segmentNumber = metric.getSegmentId().getNumber();
-        if (scaleFunction.canScale(metric.getSegmentId().getNumber(), metric.getTimestamp(), history, Direction.Up)) {
-            // TODO: find out how many splits need to be made. Right now just doing two by default.
-            // canScale should return number of splits too -- (metric val) / target rate
-            Optional<Segment> segment = activeSegments.stream().filter(x -> x.getNumber() == segmentNumber).findFirst();
-            if (segment.isPresent()) {
+        Optional<Segment> segment = activeSegments.stream().filter(x -> x.getNumber() == segmentNumber).findFirst();
+        if (segment.isPresent()) {
+            if (scaleFunction.canScale(metric.getSegmentId().getNumber(), metric.getTimestamp(), history, Direction.Up)) {
+                // TODO: find out how many splits need to be made. Right now just doing two by default.
+                // canScale should return number of splits too -- (metric val) / target rate
                 final Map<Double, Double> newRanges = splitFunction.split(segment.get(), history, 2)
                         .stream().collect(Collectors.toMap(Pair::getLeft, Pair::getRight));
                 if (newRanges != null) {
                     actionQueue.addAction(new Action.ScaleUp(segmentNumber, newRanges));
                 }
-            }
-        } else if (scaleFunction.canScale(metric.getSegmentId().getNumber(), metric.getTimestamp(), history, Direction.Down)) {
-            final List<Integer> segmentsToMerge = mergeFunction.mergeCandidates(segmentNumber, history, activeSegments);
-            if (segmentsToMerge != null) {
-                final Stream<Segment> filtered = activeSegments.stream().filter(x -> segmentsToMerge.contains(x.getNumber()));
-                final Double low = filtered.mapToDouble(Segment::getKeyStart).min().getAsDouble();
-                final Double high = filtered.mapToDouble(Segment::getKeyStart).max().getAsDouble();
-                actionQueue.addAction(new Action.ScaleDown(segmentsToMerge, new ImmutablePair<>(low, high)));
+
+            } else if (scaleFunction.canScale(metric.getSegmentId().getNumber(), metric.getTimestamp(), history, Direction.Down)) {
+                final List<Integer> segmentsToMerge = mergeFunction.mergeCandidates(segment.get(), history, activeSegments);
+                if (segmentsToMerge != null) {
+                    final Stream<Segment> filtered = activeSegments.stream().filter(x -> segmentsToMerge.contains(x.getNumber()));
+                    final Double low = filtered.mapToDouble(Segment::getKeyStart).min().getAsDouble();
+                    final Double high = filtered.mapToDouble(Segment::getKeyStart).max().getAsDouble();
+                    actionQueue.addAction(new Action.ScaleDown(segmentsToMerge, new ImmutablePair<>(low, high)));
+                }
             }
         }
     }

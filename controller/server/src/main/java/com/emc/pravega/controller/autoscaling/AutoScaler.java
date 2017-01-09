@@ -51,7 +51,7 @@ public abstract class AutoScaler<V1, H1 extends History<HostMetric, V1>, V2, H2 
     }
 
     public void addHost(final Host host) {
-        final HostMonitorWorker<V1, H1> hostMonitor = getHostMonitor(host);
+        final HostMonitor<V1, H1> hostMonitor = getHostMonitor(host);
         metricCollector.addHostMonitor(host.getIpAddr(), hostMonitor);
     }
 
@@ -67,7 +67,7 @@ public abstract class AutoScaler<V1, H1 extends History<HostMetric, V1>, V2, H2 
         final ActionQueue actionQueue = new ActionQueue();
         final ActionProcessor actionProcessor = new ActionProcessor(actionQueue, streamMetadataTasks, stream, scope);
 
-        final StreamMonitorWorker<V2, H2> monitor = getStreamMonitor(actionQueue, actionProcessor, stream, scope, policy, activeSegments);
+        final StreamMonitor<V2, H2> monitor = getStreamMonitor(actionQueue, actionProcessor, stream, scope, policy, activeSegments);
         metricCollector.addStreamMonitor(stream, scope, monitor);
     }
 
@@ -97,9 +97,9 @@ public abstract class AutoScaler<V1, H1 extends History<HostMetric, V1>, V2, H2 
         addStream(streamData);
     }
 
-    protected abstract HostMonitorWorker<V1, H1> getHostMonitor(final Host host);
+    protected abstract HostMonitor<V1, H1> getHostMonitor(final Host host);
 
-    protected abstract StreamMonitorWorker<V2, H2> getStreamMonitor(final ActionQueue actionQueue,
+    protected abstract StreamMonitor<V2, H2> getStreamMonitor(final ActionQueue actionQueue,
                                                               final ActionProcessor actionProcessor,
                                                               final String stream,
                                                               final String scope,
