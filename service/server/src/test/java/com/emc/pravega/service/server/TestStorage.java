@@ -20,6 +20,7 @@ package com.emc.pravega.service.server;
 
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
 import lombok.Setter;
@@ -33,7 +34,7 @@ import java.util.concurrent.CompletableFuture;
  * errors, simulating non-availability, etc.
  */
 public class TestStorage implements Storage {
-    private final Storage wrappedStorage;
+    private final InMemoryStorage wrappedStorage;
     @Setter
     private ErrorInjector<Exception> writeSyncErrorInjector;
     @Setter
@@ -65,7 +66,7 @@ public class TestStorage implements Storage {
     @Setter
     private ConcatInterceptor concatInterceptor;
 
-    public TestStorage(Storage wrappedStorage) {
+    public TestStorage(InMemoryStorage wrappedStorage) {
         Preconditions.checkNotNull(wrappedStorage, "wrappedStorage");
         this.wrappedStorage = wrappedStorage;
     }
@@ -146,6 +147,10 @@ public class TestStorage implements Storage {
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.existsErrorInjector)
                             .thenCompose(v -> this.wrappedStorage.exists(streamSegmentName, timeout));
+    }
+
+    public CompletableFuture<Void> append(String streamSegmentName, InputStream data, int length, Duration timeout) {
+        return this.wrappedStorage.append(streamSegmentName, data, length, timeout);
     }
 
     @FunctionalInterface

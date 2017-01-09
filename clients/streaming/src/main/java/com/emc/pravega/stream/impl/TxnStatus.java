@@ -15,27 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.stream.impl;
 
-package com.emc.pravega.service.server;
-
-import java.util.concurrent.ScheduledExecutorService;
-
-/**
- * Wrapper around an ExecutorService that auto-shuts it down.
- */
-public class CloseableExecutorService implements AutoCloseable {
-    private final ScheduledExecutorService executorService;
-
-    public CloseableExecutorService(ScheduledExecutorService executorService) {
-        this.executorService = executorService;
-    }
-
-    public ScheduledExecutorService get() {
-        return this.executorService;
-    }
-
-    @Override
-    public void close() {
-        this.executorService.shutdown();
-    }
+public enum TxnStatus {
+    UNKNOWN,
+    OPEN,
+    SEALED,
+    COMMITTED,
+    ABORTED;
 }

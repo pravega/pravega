@@ -205,6 +205,9 @@ project('service:server') {
 project('service:server:host') {
     apply plugin: 'application'
     mainClassName = "com.emc.pravega.service.server.host.ServiceStarter"
+
+    applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError"]
+
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
@@ -225,10 +228,9 @@ project('service:server:host') {
         conventionMapping.imageName = { buildPravegaHostImage.getTag() }
         docker {
             registryCredentials {
-                url = 'https://hub.docker.com/r/abhijeet78/pravega/'
-                username = 'abhijeet78'
-                password = 'pravega@123'
-                email = 'abhi.j24@gmail.com'
+                url = "$dockerRegistryUrl"
+                username = "$dockerRegistryUser"
+                password = "$dockerRegistryPass"
             }
         }
     }
@@ -288,6 +290,12 @@ project('integrationtests') {
 
     task startController(type: JavaExec) {
         main = "com.emc.pravega.controller.server.Main"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+    }
+
+    task startScaleTest(type: JavaExec) {
+        main = "com.emc.pravega.demo.ScaleTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
@@ -381,10 +389,9 @@ project('controller:server') {
         conventionMapping.imageName = { buildPravegaControllerImage.getTag() }
         docker {
             registryCredentials {
-                url = 'https://hub.docker.com/r/abhijeet78/pravega/'
-                username = 'abhijeet78'
-                password = 'pravega@123'
-                email = 'abhi.j24@gmail.com'
+                url = "$dockerRegistryUrl"
+                username = "$dockerRegistryUser"
+                password = "$dockerRegistryPass"
             }
         }
     }

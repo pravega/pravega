@@ -36,7 +36,7 @@ public class StartProducer {
         EventStreamWriter<String> producer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME,
                                                                 new JavaSerializer<>(),
                                                                 new EventWriterConfig(null));
-        Transaction<String> transaction = producer.beginTransaction(60000);
+        Transaction<String> transaction = producer.beginTxn(60000);
         for (int i = 0; i < 10; i++) {
             String event = "\n Transactional Publish \n";
             System.err.println("Producing event: " + event);

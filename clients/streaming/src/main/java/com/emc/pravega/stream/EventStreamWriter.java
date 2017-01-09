@@ -61,14 +61,14 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      *            streams may configure an upper limit to this value.
      * @return A transaction through which multiple events can be written atomically.
      */
-    Transaction<Type> beginTransaction(long transactionTimeout);
+    Transaction<Type> beginTxn(long transactionTimeout);
     
     /**
      * Returns a previously created transaction.
      * 
-     * @param transactionId The result retained from calling {@link Transaction#getTransactionId()}
+     * @param transactionId The result retained from calling {@link Transaction#getTxnId()}
      */
-    Transaction<Type> getTransaction(UUID transactionId);
+    Transaction<Type> getTxn(UUID transactionId);
 
     /**
      * Returns the configuration that this writer was create with.
