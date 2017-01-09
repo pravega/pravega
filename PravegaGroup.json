@@ -6,9 +6,9 @@
       "apps": [
       { 
           "id": "/pravega/bkgroup/bookie", 
-          "cpus": 1,
-          "mem": 1024,
-          "instances": 3,
+          "cpus": 2,
+          "mem": 1000,
+          "instances": 5,
           "constraints": [["hostname", "UNIQUE"]],
           "container": {
               "type": "DOCKER",
@@ -33,14 +33,18 @@
                   "containerPath": "persist",
                   "mode": "RW",
                   "persistent": {
-                      "size": 70
+                      "size": 7000
                   }
               }
               ],
 
               "docker": {
-                  "image": "zhaijia/bookie",
-                  "network": "HOST"
+                  "image": "zhaijia/bookkeeper",
+                  "network": "HOST",
+                   "parameters": [
+                                        { "key": "env",
+                                          "value": "DLOG_EXTRA_OPTS=-Xms512m " }]
+
               }
           },
 
@@ -48,14 +52,6 @@
           {
               "protocol": "tcp",
               "port": 3181
-          },
-          {
-              "protocol": "tcp",
-              "port": 12345
-          },
-          {
-              "protocol": "tcp",
-              "port": 9090 
           }
 
           ],
@@ -65,18 +61,6 @@
           "env": {
               "ZK": "master.mesos:2181"
           },
-
-          "healthChecks": [
-          {
-              "protocol": "TCP",
-              "port": 3181,
-              "gracePeriodSeconds": 900,
-              "intervalSeconds": 60,
-              "timeoutSeconds": 20,
-              "maxConsecutiveFailures": 0,
-              "ignoreHttp1xx": false
-          }
-          ],
 
           "upgradeStrategy": {
               "maximumOverCapacity": 0,
@@ -88,27 +72,29 @@
     },
     {
       "id": "/pravega/hostgroup",
-      "dependencies": ["/pravega/bkgroup","/pravega/controllergroup"],
+      "dependencies": ["/pravega/bkgroup"],
+      "dependencies": ["/pravega/controllergroup"],
       "apps": [
       { 
-          "id": "/pravega/hostgroup/host", 
+          "id": "/pravega/hostgroup/host",
+	  "backoffSeconds": 7200, 
           "cpus": 2,
           "mem": 1000,
-          "instances": 2,
+          "instances": 3,
           "constraints": [["hostname", "UNIQUE"]],
           "container": {
               "type": "DOCKER",
-             "volumes": [
+	    "volumes": [
               {
                   "containerPath": "/tmp/logs",
                   "hostPath": "/mnt/logs",
                   "mode": "RW"
               }
-                ],
-
+		],
               "docker": {
-                  "image": "zhaijia/pravega_host",
-                  "network": "HOST"
+                  "image": "arvindkandhare/pravega_host",
+                  "network": "HOST",
+		  "forcePullImage": true
               }
           },
 
@@ -121,18 +107,6 @@
 
           "requirePorts": true,
 
-          "healthChecks": [
-          {
-              "protocol": "TCP",
-              "port": 12345,
-              "gracePeriodSeconds": 900,
-              "intervalSeconds": 60,
-              "timeoutSeconds": 20,
-              "maxConsecutiveFailures": 0,
-              "ignoreHttp1xx": false
-          }
-          ],
-
           "upgradeStrategy": {
               "maximumOverCapacity": 0,
               "minimumHealthCapacity": 0
@@ -142,18 +116,24 @@
     },
     {
       "id": "/pravega/controllergroup",
+      "dependencies": ["/pravega/bkgroup"],
       "apps": [
       { 
           "id": "/pravega/controllergroup/controller", 
           "cpus": 0.4,
-          "mem": 1000,
+          "mem": 500,
           "instances": 2,
           "constraints": [["hostname", "UNIQUE"]],
           "container": {
               "type": "DOCKER",
               "docker": {
-                  "image": "zhaijia/pravega_controller",
-                  "network": "HOST"
+                  "image": "arvindkandhare/pravega_controller",
+                  "network": "HOST",
+		   "parameters": [
+        				{ "key": "env",
+        				  "value": "SERVER_OPTS=\"-DZK_URL=master.mesos:2181\"" }
+		    ],
+		  "forcePullImage": true
               }
           },
 
@@ -165,20 +145,6 @@
           ],
 
           "requirePorts": true,
-          "env": {
-              "SERVER_OPTS": "-DZK_URL=master.mesos:2181"
-          },
-          "healthChecks": [
-          {
-              "protocol": "TCP",
-              "port": 9090,
-              "gracePeriodSeconds": 900,
-              "intervalSeconds": 60,
-              "timeoutSeconds": 20,
-              "maxConsecutiveFailures": 0,
-              "ignoreHttp1xx": false
-          }
-          ],
 
           "upgradeStrategy": {
               "maximumOverCapacity": 0,
