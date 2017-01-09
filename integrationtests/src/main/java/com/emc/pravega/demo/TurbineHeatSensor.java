@@ -18,8 +18,11 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.StreamManager;
+import com.emc.pravega.stream.EventRead;
+import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamManagerImpl;
@@ -35,7 +38,6 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 
-import javax.annotation.concurrent.GuardedBy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
@@ -58,13 +60,14 @@ import java.util.function.Supplier;
 public class TurbineHeatSensor {
 
 
-    private static final int NUM_SEGMENTS = 5;
     private static Stream stream;
-    private static Stats stats;
+    private static Stats produceStats, consumeStats;
     private static String controllerUri = "http://10.249.250.154:9090";
     private static int messageSize = 100;
     private static String streamName = StartLocalService.STREAM_NAME;
-    private static ClientFactoryImpl factory;
+    private static ClientFactoryImpl factory = null;
+    private static boolean onlyWrite = true;
+    private static boolean blocking = false;
 
     public static void main(String[] args) throws Exception {
 
@@ -102,6 +105,8 @@ public class TurbineHeatSensor {
         options.addOption("transaction", true, "Producers use transactions or not");
         options.addOption("size", true, "Size of each message");
         options.addOption("stream", true, "Stream name");
+        options.addOption("writeonly", true, "Just produce vs read after produce");
+        options.addOption("blocking", true, "Block for each ack");
 
         options.addOption("help", false, "Help message");
 
@@ -129,12 +134,12 @@ public class TurbineHeatSensor {
                     eventsPerSec = Integer.parseInt(commandline.getOptionValue("eventspersec"));
                 }
 
-                if (commandline.hasOption("runtimesec")) {
-                    producerCount = Integer.parseInt(commandline.getOptionValue("runtimesec"));
+                if (commandline.hasOption("runtime")) {
+                    runtimeSec = Integer.parseInt(commandline.getOptionValue("runtime"));
                 }
 
                 if (commandline.hasOption("transaction")) {
-                    producerCount = Integer.parseInt(commandline.getOptionValue("transaction"));
+                    isTransaction = Boolean.parseBoolean(commandline.getOptionValue("transaction"));
                 }
 
                 if (commandline.hasOption("size")) {
@@ -145,6 +150,12 @@ public class TurbineHeatSensor {
                     streamName = commandline.getOptionValue("stream");
                 }
 
+                if (commandline.hasOption("writeonly")) {
+                    onlyWrite = Boolean.parseBoolean(commandline.getOptionValue("writeonly"));
+                }
+                if (commandline.hasOption("blocking")) {
+                    blocking = Boolean.parseBoolean(commandline.getOptionValue("blocking"));
+                }
             } catch (Exception nfe) {
                 System.out.println("Invalid arguments. Starting with default values");
                 nfe.printStackTrace();
@@ -167,29 +178,43 @@ public class TurbineHeatSensor {
             stream = streamManager.createStream(streamName,
                     new StreamConfigurationImpl("hi", streamName,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 5,
-                                    NUM_SEGMENTS)));
-            factory = new ClientFactoryImpl("hi", new URI(controllerUri));
+                                    producerCount)));
 
-            stats = new Stats(producerCount * eventsPerSec * runtimeSec, 2);
+            produceStats = new Stats(producerCount * eventsPerSec * runtimeSec, 200);
+
+            if ( !onlyWrite ) {
+                consumeStats = new Stats(producerCount * eventsPerSec * runtimeSec, 2);
+            }
 
         } catch (URISyntaxException e) {
             e.printStackTrace();
             System.exit(1);
         }
+        if ( !onlyWrite ) {
+            SensorReader reader = new SensorReader(producerCount * eventsPerSec * runtimeSec);
+            executor.execute(reader);
+        }
         /* Create producerCount number of threads to simulate sensors. */
         for (int i = 0; i < producerCount; i++) {
+            factory = new ClientFactoryImpl("hi", new URI(controllerUri));
             EventStreamWriter<String> producer = factory.createEventWriter(streamName, new JavaSerializer<>(),
                     new EventWriterConfig(null));
             TemperatureSensors worker = new TemperatureSensors(i, locations[i % locations.length], eventsPerSec,
                     runtimeSec, isTransaction, producer);
             executor.execute(worker);
+
         }
+
         executor.shutdown();
         // Wait until all threads are finished.
         executor.awaitTermination(1, TimeUnit.HOURS);
 
         System.out.println("\nFinished all producers");
-        stats.printTotal();
+        produceStats.printAll();
+        produceStats.printTotal();
+        if ( !onlyWrite ) {
+            consumeStats.printTotal();
+        }
         System.exit(0);
     }
 
@@ -229,35 +254,63 @@ public class TurbineHeatSensor {
             for (int i = 0; i < secondsToRun; i++) {
                 int currentEventsPerSec = 0;
 
+                long loopStartTime = System.currentTimeMillis();
                 while ( currentEventsPerSec < eventsPerSec) {
                     currentEventsPerSec++;
-
+                    /*
                     // wait for next event
                     try {
-                        Thread.sleep(1000 / eventsPerSec);
+                        //There is no need for sleep for blocking calls.
+                        if ( !blocking ) {
+                            Thread.sleep(1000 / eventsPerSec);
+                        }
                     } catch (InterruptedException e) {
                         // log exception
                     }
-
+                    */
                     // Construct event payload
-                    String val = System.currentTimeMillis() + ", " + producerId + ", " + city + ", " +
-                            (int) (Math.random() * 200);
+                    String val = System.currentTimeMillis() + ", " + producerId + ", " + city + ", " + (int) (Math.random() * 200);
                     String payload = String.format("%-" + messageSize + "s", val);
                     // event ingestion
                     if (isTransaction) {
                         try {
-                            transaction.writeEvent(city, payload);
+                            transaction.writeEvent(new Integer(producerId).toString(), payload);
                         } catch (TxnFailedException e) {
                             System.out.println("Publish to transaction failed");
                             e.printStackTrace();
                             break;
                         }
                     } else {
-                        retFuture = stats.runAndRecordTime( () -> {
-                            return (CompletableFuture<Void>) producer.writeEvent(city, payload);
-                        }, payload.length());
-
+                        long now = System.currentTimeMillis();
+                        retFuture = produceStats.runAndRecordTime(() -> {
+                                    return (CompletableFuture<Void>) producer.writeEvent(new Integer(producerId).toString(), payload);
+                                },
+                                () -> now,
+                                payload.length());
+                        //If it is a blocking call, wait for the ack
+                        if ( blocking ) {
+                            try {
+                                retFuture.get();
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            } catch (ExecutionException e) {
+                                e.printStackTrace();
+                            }
+                        }
                     }
+
+                }
+                long timeSpent = System.currentTimeMillis() - loopStartTime;
+                // wait for next event
+                try {
+                    //There is no need for sleep for blocking calls.
+                    if ( !blocking ) {
+                        if ( timeSpent < 1000 ) {
+                            Thread.sleep(1000 - timeSpent);
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    // log exception
                 }
             }
             producer.flush();
@@ -281,12 +334,39 @@ public class TurbineHeatSensor {
     }
 
 
+    /**
+     * A Sensor reader class that reads the temperative data
+     */
+    private static class SensorReader implements Runnable {
+        private int totalEvents;
+
+        public SensorReader(int totalEvents) {
+            this.totalEvents = totalEvents;
+        }
+
+        @Override
+        public void run() {
+            EventStreamReader<String> reader = factory.createReader(streamName,
+                    new JavaSerializer<>(), new ReaderConfig(), null);
+
+            do {
+                final EventRead<String>[] result = new EventRead[1];
+                result[0].getEvent();
+                produceStats.runAndRecordTime(() -> {
+                    result[0] = reader.readNextEvent(0);
+                    return CompletableFuture.completedFuture(null);
+                }, () -> {
+                    return Long.parseLong(result[0].getEvent());
+                }, 100);
+            } while ( totalEvents-- > 0 );
+        }
+    }
+
     private static class Stats {
         private long start;
         private long windowStart;
         private int[] latencies;
         private int sampling;
-        @GuardedBy("this")
         private int iteration;
         private int index;
         private long count;
@@ -301,11 +381,12 @@ public class TurbineHeatSensor {
 
         public Stats(long numRecords, int reportingInterval) {
             this.start = System.currentTimeMillis();
-            this.windowStart = System.currentTimeMillis();
+            //  this.windowStart = System.currentTimeMillis();
+            this.windowStart = 0;
             this.index = 0;
             this.iteration = 0;
             this.sampling = (int) (numRecords / Math.min(numRecords, 500000));
-            this.latencies = new int[(int) (numRecords / this.sampling) + 1];
+            this.latencies = new int[(int) (numRecords / this.sampling) ];
             this.index = 0;
             this.maxLatency = 0;
             this.totalLatency = 0;
@@ -331,9 +412,9 @@ public class TurbineHeatSensor {
                 this.index++;
             }
             /* maybe report the recent perf */
-            if (time - windowStart >= reportingInterval) {
+            if (count - windowStart >= reportingInterval) {
                 printWindow();
-                newWindow();
+                newWindow(count);
             }
         }
 
@@ -349,12 +430,20 @@ public class TurbineHeatSensor {
                     (double) windowMaxLatency);
         }
 
-        public void newWindow() {
-            this.windowStart = System.currentTimeMillis();
+        public void newWindow(long currentNumber) {
+            //  this.windowStart = System.currentTimeMillis();
+            this.windowStart = currentNumber;
             this.windowCount = 0;
             this.windowMaxLatency = 0;
             this.windowTotalLatency = 0;
             this.windowBytes = 0;
+        }
+
+        public void printAll() {
+            for (int i = 0; i < latencies.length; i++) {
+                System.out.printf("%d %d\n", i, latencies[i]);
+
+            }
         }
 
         public void printTotal() {
@@ -386,11 +475,12 @@ public class TurbineHeatSensor {
             return values;
         }
 
-        public CompletableFuture<Void> runAndRecordTime(Supplier<CompletableFuture<Void>> fn, int length) {
-            long now = System.currentTimeMillis();
+        public CompletableFuture<Void> runAndRecordTime(Supplier<CompletableFuture<Void>> fn,
+                                                        Supplier<Long> startTimeProvider,
+                                                        int length) {
             int iter = this.iteration++;
             return fn.get().thenAccept( (lmn) -> {
-                stats.record(iter, (int) (System.currentTimeMillis() - now), length,
+                record(iter, (int) (System.currentTimeMillis() - startTimeProvider.get()), length,
                         System.currentTimeMillis());
             });
 
