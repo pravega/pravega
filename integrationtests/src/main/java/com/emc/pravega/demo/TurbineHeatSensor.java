@@ -134,8 +134,8 @@ public class TurbineHeatSensor {
                     eventsPerSec = Integer.parseInt(commandline.getOptionValue("eventspersec"));
                 }
 
-                if (commandline.hasOption("runtimesec")) {
-                    runtimeSec = Integer.parseInt(commandline.getOptionValue("runtimesec"));
+                if (commandline.hasOption("runtime")) {
+                    runtimeSec = Integer.parseInt(commandline.getOptionValue("runtime"));
                 }
 
                 if (commandline.hasOption("transaction")) {
@@ -210,8 +210,8 @@ public class TurbineHeatSensor {
         executor.awaitTermination(1, TimeUnit.HOURS);
 
         System.out.println("\nFinished all producers");
-        produceStats.printTotal();
         produceStats.printAll();
+        produceStats.printTotal();
         if ( !onlyWrite ) {
             consumeStats.printTotal();
         }
@@ -386,7 +386,7 @@ public class TurbineHeatSensor {
             this.index = 0;
             this.iteration = 0;
             this.sampling = (int) (numRecords / Math.min(numRecords, 500000));
-            this.latencies = new int[(int) (numRecords / this.sampling) + 1];
+            this.latencies = new int[(int) (numRecords / this.sampling) ];
             this.index = 0;
             this.maxLatency = 0;
             this.totalLatency = 0;
@@ -440,8 +440,8 @@ public class TurbineHeatSensor {
         }
 
         public void printAll() {
-            for (int latency : latencies) {
-                System.out.printf("%d", latency);
+            for (int i = 0; i < latencies.length; i++) {
+                System.out.printf("%d %d\n", i, latencies[i]);
 
             }
         }
