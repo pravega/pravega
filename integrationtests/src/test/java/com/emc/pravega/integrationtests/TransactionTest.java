@@ -166,12 +166,13 @@ public class TransactionTest {
         clientFactory.createStream(streamName, null);
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), new EventWriterConfig(null));
-   
+
         Transaction<String> transaction = producer.beginTxn(60000);
         transaction.writeEvent(routingKey, txnEvent);
         transaction.flush();
         transaction.abort();
         transaction.abort();
+
         AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.writeEvent(routingKey, txnEvent));
         AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit());
         
