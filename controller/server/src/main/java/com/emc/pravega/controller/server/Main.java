@@ -22,8 +22,11 @@ import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
+import com.emc.pravega.controller.autoscaling.MetricReader;
+import com.emc.pravega.controller.autoscaling.AutoScaler;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
+import com.emc.pravega.controller.autoscaling.schemes.threshold.ThresholdAutoScaler;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.store.StoreClient;
@@ -57,7 +60,7 @@ public class Main {
     public static void main(String[] args) {
         String hostId;
         try {
-            //On each controller process restart, it gets a fresh hostId,
+            //On each controller incoming restart, it gets a fresh hostId,
             //which is a combination of hostname and random GUID.
             hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
         } catch (UnknownHostException e) {
@@ -110,9 +113,14 @@ public class Main {
         // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
         // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
         // are processed and deleted, that failed HostId is removed from FH folder.
-        // Moreover, on controller process startup, it detects any hostIds not in the currently active set of
+        // Moreover, on controller incoming startup, it detects any hostIds not in the currently active set of
         // controllers and starts sweeping tasks orphaned by those hostIds.
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
+
+        // 4. Start metric listener
+        final AutoScaler autoScaler = new ThresholdAutoScaler(hostStore, streamMetadataTasks);
+        final MetricReader listener = new MetricReader(streamStore, hostStore, autoScaler);
+        listener.run();
     }
 }

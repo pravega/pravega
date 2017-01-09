@@ -187,9 +187,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         CompletableFuture<Boolean> checkValidity =
                 streamMetadataStore.getActiveSegments(stream)
                         .thenApply(activeSegments ->
-                                activeSegments
-                                        .stream()
-                                        .anyMatch(segment -> segment.getStart() > scaleTimestamp));
+                                activeSegments.containsAll(sealedSegments) &&
+                                        !activeSegments.stream().anyMatch(segment -> segment.getStart() > scaleTimestamp));
 
         return checkValidity.thenCompose(result -> {
 

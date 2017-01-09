@@ -36,8 +36,8 @@ public interface StreamMetadataStore {
     /**
      * Creates a new stream with the given name and configuration.
      *
-     * @param name          stream name.
-     * @param configuration stream configuration.
+     * @param name            stream name.
+     * @param configuration   stream configuration.
      * @param createTimestamp stream creation timestamp.
      * @return boolean indicating whether the stream was created
      */
@@ -64,7 +64,8 @@ public interface StreamMetadataStore {
 
     /**
      * Get Segment.
-     *  @param name   stream name.
+     *
+     * @param name   stream name.
      * @param number segment number.
      * @return segment at given number.
      */
@@ -170,4 +171,18 @@ public interface StreamMetadataStore {
      * @return
      */
     CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx();
+
+    /**
+     * Api to get data corresponding to all streams in the system.
+     *
+     * @return
+     */
+    CompletableFuture<List<StreamData>> getAllStreams();
+
+    /**
+     * Method to register listener for all stream events.
+     *
+     * @param listener          Listener for changes to stream
+     */
+    void registerListener(final StreamChangeListener listener);
 }

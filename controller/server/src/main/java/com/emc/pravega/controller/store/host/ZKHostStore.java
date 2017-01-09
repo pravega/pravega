@@ -29,7 +29,9 @@ import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -54,8 +56,8 @@ public class ZKHostStore implements HostControllerStore {
     /**
      * Zookeeper based host store implementation.
      *
-     * @param client                    The curator client instance.
-     * @param clusterName               The name of the cluster.
+     * @param client      The curator client instance.
+     * @param clusterName The name of the cluster.
      */
     public ZKHostStore(CuratorFramework client, String clusterName) {
         Preconditions.checkNotNull(client, "client");
@@ -117,15 +119,26 @@ public class ZKHostStore implements HostControllerStore {
             throw new HostStoreException("Could not find host for container id: " + String.valueOf(containerId));
         }
     }
-    
+
     @Override
     public int getContainerCount() {
         return segmentMapper.getTotalContainerCount();
     }
-    
+
     @Override
     public Host getHostForSegment(String scope, String stream, int segmentNumber) {
         String qualifiedName = Segment.getScopedName(scope, stream, segmentNumber);
         return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
     }
+
+    @Override
+    public void registerListener(final HostChangeListener listener) {
+        // TODO: shivesh
+    }
+
+    @Override
+    public List<Host> getAllHosts() {
+        return new ArrayList<>(getHostContainersMap().keySet());
+    }
+
 }
