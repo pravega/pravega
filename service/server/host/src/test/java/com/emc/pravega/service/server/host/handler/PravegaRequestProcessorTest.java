@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.service.server.host.handler;
 
+import com.emc.pravega.common.metrics.Counter;
+import com.emc.pravega.common.metrics.OpStatsData;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
@@ -58,6 +60,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -67,7 +70,7 @@ import static org.mockito.Mockito.when;
 public class PravegaRequestProcessorTest {
 
     @Data
-    protected static class TestReadResult implements ReadResult {
+    private static class TestReadResult implements ReadResult {
         final long streamSegmentStartOffset;
         final int maxResultLength;
         boolean closed = false;
@@ -97,7 +100,7 @@ public class PravegaRequestProcessorTest {
         }
     }
 
-    protected static class TestReadResultEntry extends ReadResultEntryBase {
+    private static class TestReadResultEntry extends ReadResultEntryBase {
         TestReadResultEntry(ReadResultEntryType type, long streamSegmentOffset, int requestedReadLength) {
             super(type, streamSegmentOffset, requestedReadLength);
         }
@@ -183,21 +186,95 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new SegmentDeleted(streamSegmentName));
     }
 
-    protected boolean append(String streamSegmentName, int number, StreamSegmentStore store) {
+    /**
+     * Test metrics in readSegment.
+     * This is similar to above testReadSegment, except adding test to the metrics.
+     */
+    @Test(timeout = 10000)
+    public void testMetricsInReadSegment() {
+        String streamSegmentName = "testReadSegment";
+        byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
+        int readLength = 1000;
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
+
+        TestReadResultEntry entry1 = new TestReadResultEntry(ReadResultEntryType.Cache, 0, readLength);
+        entry1.complete(new ReadResultEntryContents(new ByteArrayInputStream(data), data.length));
+        TestReadResultEntry entry2 = new TestReadResultEntry(ReadResultEntryType.Future, data.length, readLength);
+
+        List<ReadResultEntry> results = new ArrayList<>();
+        results.add(entry1);
+        results.add(entry2);
+        CompletableFuture<ReadResult> readResult = new CompletableFuture<>();
+        readResult.complete(new TestReadResult(0, readLength, results));
+        when(store.read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult);
+
+        processor.readSegment(new ReadSegment(streamSegmentName, 0, readLength));
+        verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
+        verify(connection).send(new SegmentRead(streamSegmentName, 0, true, false, ByteBuffer.wrap(data)));
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+        entry2.complete(new ReadResultEntryContents(new ByteArrayInputStream(data), data.length));
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+
+        OpStatsData readSegmentStats = PravegaRequestProcessor.Metrics.READ_STREAM_SEGMENT.toOpStatsData();
+        assertEquals(1, readSegmentStats.getNumSuccessfulEvents());
+        assertEquals(0, readSegmentStats.getNumFailedEvents());
+
+        OpStatsData readBytesStats = PravegaRequestProcessor.Metrics.READ_BYTES_STATS.toOpStatsData();
+        assertEquals(1, readBytesStats.getNumSuccessfulEvents());
+        assertEquals(0, readBytesStats.getNumFailedEvents());
+
+        Counter readBytes = PravegaRequestProcessor.Metrics.READ_BYTES;
+        assertEquals(Long.valueOf(data.length), readBytes.get());
+    }
+
+    /**
+     * Test metrics in createSegment.
+     * This is similar to above testCreateSegment, except adding test to the metrics.
+     *
+     * @throws InterruptedException the interrupted exception
+     * @throws ExecutionException   the execution exception
+     */
+    @Test(timeout = 10000)
+    public void testMetricsInCreateSegment() throws InterruptedException, ExecutionException {
+        String streamSegmentName = "testCreateSegment";
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize().get();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
+        processor.createSegment(new CreateSegment(streamSegmentName));
+        assertTrue(append(streamSegmentName, 1, store));
+        processor.getStreamSegmentInfo(new GetStreamSegmentInfo(streamSegmentName));
+        order.verify(connection).send(new SegmentCreated(streamSegmentName));
+        order.verify(connection).send(Mockito.any(StreamSegmentInfo.class));
+
+        OpStatsData createSegmentStats = PravegaRequestProcessor.Metrics.CREATE_STREAM_SEGMENT.toOpStatsData();
+        assertEquals(1, createSegmentStats.getNumSuccessfulEvents());
+        assertEquals(0, createSegmentStats.getNumFailedEvents());
+    }
+
+    private boolean append(String streamSegmentName, int number, StreamSegmentStore store) {
         return FutureHelpers.await(store.append(streamSegmentName,
                 new byte[]{(byte) number},
                 new AppendContext(UUID.randomUUID(), number),
                 PravegaRequestProcessor.TIMEOUT));
     }
 
-    protected static ServiceBuilderConfig getBuilderConfig() {
+    private static ServiceBuilderConfig getBuilderConfig() {
         Properties p = new Properties();
         ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "1");
         ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "3");
         return new ServiceBuilderConfig(p);
     }
 
-    protected static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
+    private static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
         return ServiceBuilder.newInMemoryBuilder(config, new InlineExecutor())
                              .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
                                      setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
