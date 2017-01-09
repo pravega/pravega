@@ -25,7 +25,7 @@ import java.util.function.Function;
  * higher level abstraction over {@link RevisionedStreamClient}.
  * 
  * The pattern is to have an object of type StateT that can be updated by objects of type UpdateT.
- * Each host can perform logic based on its current StateT object and apply updates by suppling a
+ * Each host can perform logic based on its current StateT object and apply updates by supplying a
  * function to create UpdateT objects. Updates from other hosts can be obtained by calling
  * {@link #fetchUpdates()}
  * 

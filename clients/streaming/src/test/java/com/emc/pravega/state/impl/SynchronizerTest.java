@@ -96,12 +96,12 @@ public class SynchronizerTest {
         }
 
         @Override
-        public Revision conditionallyWrite(Revision latestRevision, UpdateOrInit<RevisionedImpl> value) {
+        public Revision writeConditionally(Revision latestRevision, UpdateOrInit<RevisionedImpl> value) {
             throw new NotImplementedException();
         }
 
         @Override
-        public void unconditionallyWrite(UpdateOrInit<RevisionedImpl> value) {
+        public void writeUnconditionally(UpdateOrInit<RevisionedImpl> value) {
             throw new NotImplementedException();
         }
 

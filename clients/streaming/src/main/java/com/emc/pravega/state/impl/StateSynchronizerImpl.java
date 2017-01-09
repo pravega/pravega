@@ -97,7 +97,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             if (updates == null || updates.isEmpty()) {
                 break;
             }
-            Revision newRevision = client.conditionallyWrite(state.getRevision(), new UpdateOrInit<>(updates));
+            Revision newRevision = client.writeConditionally(state.getRevision(), new UpdateOrInit<>(updates));
             if (newRevision == null) {
                 fetchUpdates();
             } else {
@@ -109,17 +109,17 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Override
     public void unconditionallyUpdateState(Update<StateT> update) {
-        client.unconditionallyWrite(new UpdateOrInit<>(Collections.singletonList(update)));
+        client.writeUnconditionally(new UpdateOrInit<>(Collections.singletonList(update)));
     }
 
     @Override
     public void unconditionallyUpdateState(List<? extends Update<StateT>> update) {
-        client.unconditionallyWrite(new UpdateOrInit<>(update));
+        client.writeUnconditionally(new UpdateOrInit<>(update));
     }
 
     @Override
     public void initialize(InitialUpdate<StateT> initial) {
-        Revision result = client.conditionallyWrite(initialRevision, new UpdateOrInit<>(initial, initialRevision));
+        Revision result = client.writeConditionally(initialRevision, new UpdateOrInit<>(initial, initialRevision));
         if (result == null) {
             fetchUpdates();
         } else {
@@ -129,7 +129,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Override
     public void compact(Revision revision, InitialUpdate<StateT> compaction) {
-        client.unconditionallyWrite(new UpdateOrInit<>(compaction, revision));
+        client.writeUnconditionally(new UpdateOrInit<>(compaction, revision));
     }
     
     @Synchronized

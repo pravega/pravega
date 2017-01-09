@@ -35,10 +35,10 @@ import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.concurrent.GuardedBy;
 
-import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -53,7 +53,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     private final Object lock = new Object();
 
     @Override
-    public Revision conditionallyWrite(Revision latestRevision, T value) {
+    public Revision writeConditionally(Revision latestRevision, T value) {
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         long offset = latestRevision.asImpl().getOffsetInSegment();
         ByteBuffer serialized = serializer.serialize(value);
@@ -77,7 +77,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     }
 
     @Override
-    public void unconditionallyWrite(T value) {
+    public void writeUnconditionally(T value) {
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         ByteBuffer serialized = serializer.serialize(value);
         try {
@@ -99,33 +99,37 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         }
     }
 
-    @AllArgsConstructor
     private class StreamIterator implements Iterator<Entry<Revision, T>> {
-        long offset;
-        final long endOffset;
+        private final AtomicLong offset;
+        private final long endOffset;
 
+        StreamIterator(long startingOffset, long endOffset) {
+            this.offset = new AtomicLong(startingOffset);
+            this.endOffset = endOffset;
+        }
+        
         @Override
         public boolean hasNext() {
-            return offset < endOffset;
+            return offset.get() < endOffset;
         }
 
         @Override
         public Entry<Revision, T> next() {
-            if (!hasNext()) {
-                throw new NoSuchElementException();
-            }
             Revision revision;
             ByteBuffer data;
             synchronized (lock) {
-                in.setOffset(offset);
+                if (!hasNext()) {
+                    throw new NoSuchElementException();
+                }
+                in.setOffset(offset.get());
                 try {
                     data = in.read();
                 } catch (EndOfSegmentException e) {
                     throw new IllegalStateException(
-                            "SegmentInputStream: " + in + " shrunk from its origional length: " + endOffset);
+                            "SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
                 }
-                offset = in.getOffset();
-                revision = new RevisionImpl(segment, offset, 0);
+                offset.set(in.getOffset());
+                revision = new RevisionImpl(segment, offset.get(), 0);
             }
             return new AbstractMap.SimpleImmutableEntry<>(revision, serializer.deserialize(data));
         }

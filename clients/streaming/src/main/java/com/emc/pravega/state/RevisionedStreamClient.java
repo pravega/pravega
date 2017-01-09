@@ -44,12 +44,12 @@ public interface RevisionedStreamClient<T> {
      * @param value The value to be written to the stream.
      * @return The new revision if the data was written successfully or null if it was not.
      */
-    Revision conditionallyWrite(Revision latestRevision, T value);
+    Revision writeConditionally(Revision latestRevision, T value);
     
     /**
      * Write a new value to the stream.
      * @param value The value to be written.
      */
-    void unconditionallyWrite(T value);
+    void writeUnconditionally(T value);
 
 }

@@ -53,17 +53,17 @@ public class MembershipSynchronizer extends AbstractService {
     /**
      * Number of intervals behind before switching to unconditional updates.
      */
-    private static final int UNCONDITIONAL_UPDATE_THREASHOLD = 3;
+    private static final int UNCONDITIONAL_UPDATE_THRESHOLD = 3;
 
     /**
      * Number of intervals behind before we should stop executing for safety.
      */
-    private static final int UNHEALTHY_THREASHOLD = 5;
+    private static final int UNHEALTHY_THRESHOLD = 5;
 
     /**
      * Number of intervals behind before another host should be considered dead.
      */
-    private static final int DEATH_THREASHOLD = 10;
+    private static final int DEATH_THRESHOLD = 10;
 
     private final String instanceId = UUID.randomUUID().toString();
 
@@ -107,9 +107,9 @@ public class MembershipSynchronizer extends AbstractService {
         }
 
         public boolean isHealthy(String instance) {
-            long unhealthyThreashold = vectorTime - UNHEALTHY_THREASHOLD * liveInstances.size();
+            long unhealthyThreshold = vectorTime - UNHEALTHY_THRESHOLD * liveInstances.size();
             Long time = liveInstances.get(instance);
-            return time == null || time >= unhealthyThreashold;
+            return time == null || time >= unhealthyThreshold;
         }
 
         /**
@@ -117,17 +117,17 @@ public class MembershipSynchronizer extends AbstractService {
          * need to halt execution. So it can use unconditional writes to updates itself more quickly
          * by avoiding contention.
          */
-        public boolean isOverUnconditionalThreashold(String instance) {
-            long updateThreashold = vectorTime - UNCONDITIONAL_UPDATE_THREASHOLD * liveInstances.size();
+        public boolean isOverUnconditionalThreshold(String instance) {
+            long updateThreshold = vectorTime - UNCONDITIONAL_UPDATE_THRESHOLD * liveInstances.size();
             Long time = liveInstances.get(instance);
-            return time == null || time < updateThreashold;
+            return time == null || time < updateThreshold;
         }
 
         public List<String> findInstancesThatWillDieBy(long vectorTime) {
-            long deathThreashold = vectorTime - DEATH_THREASHOLD * liveInstances.size();
+            long deathThreshold = vectorTime - DEATH_THRESHOLD * liveInstances.size();
             return liveInstances.entrySet()
                                 .stream()
-                                .filter(entry -> entry.getValue() < deathThreashold)
+                                .filter(entry -> entry.getValue() < deathThreshold)
                                 .map(entry -> entry.getKey())
                                 .collect(Collectors.toList());
         }
@@ -143,7 +143,7 @@ public class MembershipSynchronizer extends AbstractService {
             try {
                 stateSync.fetchUpdates();
                 notifyListener();
-                if (stateSync.getState().isOverUnconditionalThreashold(instanceId)) {
+                if (stateSync.getState().isOverUnconditionalThreshold(instanceId)) {
                     stateSync.updateState(state -> {
                         List<HeartbeatUpdate> result = new ArrayList<>(2);
                         long vectorTime = state.getVectorTime() + 1;
@@ -162,6 +162,9 @@ public class MembershipSynchronizer extends AbstractService {
                 notifyListener();
             } catch (Exception e) {
                 log.warn("Encountered an error while heartbeating: " + e);
+                if (healthy.compareAndSet(true, false)) {
+                    listener.unhealthy();
+                }
             }
         }
     }
@@ -215,7 +218,7 @@ public class MembershipSynchronizer extends AbstractService {
     }
 
     public boolean isCurrentlyHealthy() {
-        return stateSync.getState().isHealthy(instanceId);
+        return healthy.get();
     }
 
     public Set<String> getCurrentMembers() {
