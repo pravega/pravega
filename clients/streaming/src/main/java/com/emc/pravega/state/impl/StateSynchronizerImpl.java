@@ -108,12 +108,12 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     }
 
     @Override
-    public void unconditionallyUpdateState(Update<StateT> update) {
+    public void updateStateUnconditionally(Update<StateT> update) {
         client.writeUnconditionally(new UpdateOrInit<>(Collections.singletonList(update)));
     }
 
     @Override
-    public void unconditionallyUpdateState(List<? extends Update<StateT>> update) {
+    public void updateStateUnconditionally(List<? extends Update<StateT>> update) {
         client.writeUnconditionally(new UpdateOrInit<>(update));
     }
 

@@ -75,15 +75,15 @@ public interface StateSynchronizer<StateT extends Revisioned> {
      * 
      * @param update The update that all other processes should receive.
      */
-    void unconditionallyUpdateState(Update<StateT> update);
+    void updateStateUnconditionally(Update<StateT> update);
     
     /**
-     * Same as {@link #unconditionallyUpdateState(Update)}, except it persists multiple updates at
+     * Same as {@link #updateStateUnconditionally(Update)}, except it persists multiple updates at
      * the same time so they will not be interleaved with other updates.
      * 
      * @param update The updates that all other processes should receive.
      */
-    void unconditionallyUpdateState(List<? extends Update<StateT>> update);
+    void updateStateUnconditionally(List<? extends Update<StateT>> update);
 
     /**
      * This method can be used to provide an initial value for a new stream if the stream has not

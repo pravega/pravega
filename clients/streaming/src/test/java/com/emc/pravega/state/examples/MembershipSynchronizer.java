@@ -156,7 +156,7 @@ public class MembershipSynchronizer extends AbstractService {
                         return result;
                     });
                 } else {
-                    stateSync.unconditionallyUpdateState(new HeartBeat(instanceId, stateSync.getState().vectorTime));
+                    stateSync.updateStateUnconditionally(new HeartBeat(instanceId, stateSync.getState().vectorTime));
                     stateSync.fetchUpdates();
                 }
                 notifyListener();
