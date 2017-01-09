@@ -324,13 +324,20 @@ public class Consumer extends Actor {
 
     //region Store Reads
 
+    /**
+     * Performs Tail & Catchup reads by issuing a long read from offset 0 to infinity, processing the output
+     * of that read as a 'tail read', then re-issuing concise reads from the store for those offsets.
+     */
     private CompletableFuture<Void> processStoreReads() {
         val entryHandler = new ReadResultEntryHandler(this.config, this::processTailRead, this::canRun, this::fail);
+        // We run in a loop because it may be possible that we write more than Integer.MAX_VALUE to the segment; if that's
+        // the case, we reissue the read for the next offset.
         return FutureHelpers.loop(
                 this::canRun,
                 () -> this.store
                         .read(this.segmentName, entryHandler.getCurrentOffset(), Integer.MAX_VALUE, READ_TIMEOUT)
                         .thenComposeAsync(readResult -> {
+                            // Process the read result by reading all bits of available data as soon as they are available.
                             // Create a future that we will immediately return.
                             CompletableFuture<Void> processComplete = new CompletableFuture<>();
 
