@@ -90,6 +90,7 @@ public class SelfTestRunner {
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
                            .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 50)
                            .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 50)
+                           .with(TestConfig.PROPERTY_DATA_LOG_APPEND_DELAY, 0)
                            .with(TestConfig.PROPERTY_TIMEOUT_MILLIS, 3000)));
     }
 

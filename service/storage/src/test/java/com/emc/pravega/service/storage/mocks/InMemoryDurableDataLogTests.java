@@ -24,6 +24,7 @@ import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -34,11 +35,12 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Unit tests for InMemoryDurableDataLog.
  */
-public class InMemoryDurableDataLogTests {
+public class InMemoryDurableDataLogTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int WRITE_COUNT = 250;
 
@@ -49,7 +51,7 @@ public class InMemoryDurableDataLogTests {
      */
     @Test
     public void testAppend() throws Exception {
-        try (DurableDataLog log = createDurableDataLog()) {
+        try (DurableDataLog log = createIndependentDurableDataLog(executorService())) {
             // Check Append pre-initialization.
             AssertExtensions.assertThrows(
                     "append() worked before initialize()",
@@ -79,7 +81,7 @@ public class InMemoryDurableDataLogTests {
      */
     @Test
     public void testGetReader() throws Exception {
-        try (DurableDataLog log = createDurableDataLog()) {
+        try (DurableDataLog log = createIndependentDurableDataLog(executorService())) {
             // Check Read pre-initialization.
             AssertExtensions.assertThrows(
                     "read() worked before initialize()",
@@ -107,7 +109,7 @@ public class InMemoryDurableDataLogTests {
      */
     @Test
     public void testTruncate() throws Exception {
-        try (DurableDataLog log = createDurableDataLog()) {
+        try (DurableDataLog log = createIndependentDurableDataLog(executorService())) {
             // Check Read pre-initialization.
             AssertExtensions.assertThrows(
                     "truncate() worked before initialize()",
@@ -132,7 +134,7 @@ public class InMemoryDurableDataLogTests {
      */
     @Test
     public void testConcurrentIterator() throws Exception {
-        try (DurableDataLog log = createDurableDataLog()) {
+        try (DurableDataLog log = createIndependentDurableDataLog(executorService())) {
             log.initialize(TIMEOUT);
             populate(log, WRITE_COUNT);
 
@@ -163,14 +165,14 @@ public class InMemoryDurableDataLogTests {
     public void testExclusiveWriteLock() throws Exception {
         InMemoryDurableDataLog.EntryCollection entries = new InMemoryDurableDataLog.EntryCollection();
 
-        try (DurableDataLog log = new InMemoryDurableDataLog(entries)) {
+        try (DurableDataLog log = new InMemoryDurableDataLog(entries, executorService())) {
             log.initialize(TIMEOUT);
 
             // 1. No two logs can use the same EntryCollection.
             AssertExtensions.assertThrows(
                     "A second log was able to acquire the exclusive write lock, even if another log held it.",
                     () -> {
-                        try (DurableDataLog log2 = new InMemoryDurableDataLog(entries)) {
+                        try (DurableDataLog log2 = new InMemoryDurableDataLog(entries, executorService())) {
                             log2.initialize(TIMEOUT);
                         }
                     },
@@ -205,14 +207,15 @@ public class InMemoryDurableDataLogTests {
     public void testConstructor() throws Exception {
         InMemoryDurableDataLog.EntryCollection entries = new InMemoryDurableDataLog.EntryCollection();
         TreeMap<Long, byte[]> writeData;
+
         // Create first log and write some data to it.
-        try (DurableDataLog log = new InMemoryDurableDataLog(entries)) {
+        try (DurableDataLog log = new InMemoryDurableDataLog(entries, executorService())) {
             log.initialize(TIMEOUT);
             writeData = populate(log, WRITE_COUNT);
         }
 
         // Close the first log, and open a second one, with the same EntryCollection in the constructor.
-        try (DurableDataLog log = new InMemoryDurableDataLog(entries)) {
+        try (DurableDataLog log = new InMemoryDurableDataLog(entries, executorService())) {
             log.initialize(TIMEOUT);
 
             // Verify it contains the same entries.
@@ -255,7 +258,7 @@ public class InMemoryDurableDataLogTests {
         }
     }
 
-    private DurableDataLog createDurableDataLog() {
-        return new InMemoryDurableDataLog(new InMemoryDurableDataLog.EntryCollection());
+    private DurableDataLog createIndependentDurableDataLog(ScheduledExecutorService executor) {
+        return new InMemoryDurableDataLog(new InMemoryDurableDataLog.EntryCollection(), executor);
     }
 }

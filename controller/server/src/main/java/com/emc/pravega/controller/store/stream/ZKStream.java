@@ -38,6 +38,7 @@ import org.apache.zookeeper.data.Stat;
 
 import java.util.AbstractMap;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -95,6 +96,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
         completedTxPath = String.format(COMPLETED_TX_PATH, name);
 
         cache = new Cache<>(ZKStream::getData);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> isTransactionOngoing() {
+        return getChildren(activeTxPath).thenApply(list -> list != null && !list.isEmpty());
     }
 
     @Override
@@ -399,6 +405,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return client.getChildren().forPath(path);
+            } catch (KeeperException.NoNodeException nne) {
+                return Collections.emptyList();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
