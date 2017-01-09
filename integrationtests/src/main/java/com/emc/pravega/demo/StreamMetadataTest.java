@@ -50,7 +50,6 @@ public class StreamMetadataTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
-        String testFlag = "true";
         final String scope1 = "scope1";
         final String streamName1 = "stream1";
         final StreamConfiguration config1 =
@@ -66,7 +65,6 @@ public class StreamMetadataTest {
         createStatus = controller.createStream(config1);
         if (createStatus.get() != CreateStreamStatus.SUCCESS) {
             System.err.println("Create stream failed, exiting");
-            testFlag = "false";
             return;
         }
 
@@ -80,7 +78,6 @@ public class StreamMetadataTest {
             System.err.println("Position cannot be fetched for non existent stream");
         } else {
             System.err.println("Fetching position non existent stream, exiting");
-            testFlag = "false";
             return;
         }
 
@@ -89,7 +86,6 @@ public class StreamMetadataTest {
         getPositions  =  controller.getPositions(stream1, System.currentTimeMillis()+3600, count1);
         if (getPositions.get().isEmpty()) {
             System.err.println("Fetching position at given time in furture after stream creation failed, exiting");
-            testFlag = "false";
             return;
         }
 
@@ -100,11 +96,9 @@ public class StreamMetadataTest {
             System.err.println("Stream duplication not allowed ");
         } else if (createStatus.get() == CreateStreamStatus.FAILURE) {
             System.err.println("Create stream failed, exiting");
-            testFlag = "false";
             return;
         } else {
             System.err.println("Stream duplication successful, exiting");
-            testFlag = "false";
             return;
         }
 
@@ -118,7 +112,6 @@ public class StreamMetadataTest {
         createStatus = controller.createStream(config2);
         if (createStatus.get() != CreateStreamStatus.SUCCESS) {
             System.err.println("Creating stream with same stream name in different scope failed, exiting ");
-            testFlag = "false";
             return;
         }
 
@@ -132,7 +125,6 @@ public class StreamMetadataTest {
         createStatus = controller.createStream(config3);
         if (createStatus.get() != CreateStreamStatus.SUCCESS) {
             System.err.println("Create stream failed, exiting");
-            testFlag = "false";
             return;
         }
 
@@ -148,7 +140,6 @@ public class StreamMetadataTest {
         System.err.println(String.format("Updating the stream name (%s, %s)", scope1, "stream4"));
         if (updateStatus.get() != UpdateStreamStatus.FAILURE) {
             System.err.println(" Stream name updated, exiting");
-            testFlag = "false";
             return;
         }
 
@@ -161,7 +152,6 @@ public class StreamMetadataTest {
         System.err.println(String.format("Updtaing the scope name (%s, %s)", "scope5", streamName1));
         if (updateStatus.get() != UpdateStreamStatus.FAILURE) {
             System.err.println("Scope name updated, exiting");
-            testFlag = "false";
             return;
         }
 
@@ -174,7 +164,6 @@ public class StreamMetadataTest {
         System.err.println(String.format("Updating the  type of scaling policy(%s, %s)", scope1, streamName1));
         if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
             System.err.println("Update the  type of scaling policy failed, exiting");
-            testFlag = "false";
             return;
         }
 
@@ -187,7 +176,6 @@ public class StreamMetadataTest {
         updateStatus = controller.alterStream(config7);
         if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
             System.err.println("Update the target rate failed, exiting");
-            testFlag = "false";
             return;
         }
 
@@ -200,7 +188,6 @@ public class StreamMetadataTest {
         updateStatus = controller.alterStream(config8);
         if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
             System.err.println("Udate the scalefactor failed, exiting");
-            testFlag = "false";
             return;
         }
 
@@ -213,7 +200,6 @@ public class StreamMetadataTest {
         updateStatus = controller.alterStream(config9);
         if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
             System.err.println("Update  min Num segments failed, exiting");
-            testFlag = "false";
             return;
         }
 
@@ -228,11 +214,9 @@ public class StreamMetadataTest {
             System.err.println("Altering the configuration of a non-existent stream is not allowed");
         } else if (updateStatus.get() == UpdateStreamStatus.FAILURE) {
             System.err.println("Alter configuration failed, exiting");
-            testFlag = "false";
             return;
         } else {
             System.err.println("Altering the configuration of a non-existent stream, exiting");
-            testFlag = "false";
             return;
         }
 
@@ -244,7 +228,6 @@ public class StreamMetadataTest {
         getActiveSegments = controller.getCurrentSegments(scope1, streamName1);
         if (getActiveSegments.get().getSegments().isEmpty()) {
            System.err.println("Fetching active segments failed, exiting");
-           testFlag = "false";
            return;
         }
 
@@ -255,7 +238,6 @@ public class StreamMetadataTest {
             System.err.println("Active segments cannot be fetched for non existent stream");
         } else {
             System.err.println("Fetching active segments for non existent stream, exiting ");
-            testFlag = "false";
             return;
         }
 
@@ -266,7 +248,6 @@ public class StreamMetadataTest {
         getPositions  =  controller.getPositions(stream1, System.currentTimeMillis(), count1);
         if (getPositions.get().isEmpty()) {
             System.err.println("Fetching positions at given time stamp failed, exiting");
-            testFlag = "false";
             return;
         }
 
@@ -276,7 +257,6 @@ public class StreamMetadataTest {
         getPositions  =  controller.getPositions(stream1, System.currentTimeMillis(), count2);
         if (getPositions.get().isEmpty()) {
             System.err.println("Fetching positions at given time stamp with different count failed, exiting");
-            testFlag = "false";
             return;
         }
 
@@ -286,7 +266,6 @@ public class StreamMetadataTest {
         getPositions  =  controller.getPositions(stream2, System.currentTimeMillis(), count1);
         if (getPositions.get().isEmpty()) {
             System.err.println("Fetching positions at given time stamp failed, exiting");
-            testFlag = "false";
             return;
         }
 
@@ -298,13 +277,12 @@ public class StreamMetadataTest {
             System.err.println("Positions cannot be fetched for non existent stream");
         } else {
             System.err.println("Fetching active segments for non existent stream, exiting ");
-            testFlag = "false";
             return;
         }
 
-        if (testFlag.equals("true")) {
-            System.out.println("All stream metadata tests passed.");
-            System.exit(0);
-        }
+        System.out.println("All stream metadata tests PASSED");
+
+        System.exit(0);
+
     }
 }
