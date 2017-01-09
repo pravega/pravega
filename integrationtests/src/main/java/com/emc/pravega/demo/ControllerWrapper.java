@@ -69,7 +69,7 @@ public class ControllerWrapper implements Controller {
     public ControllerWrapper(String connectionString) {
         String hostId;
         try {
-            // On each controller incoming restart, it gets a fresh hostId,
+            // On each controller process restart, it gets a fresh hostId,
             // which is a combination of hostname and random GUID.
             hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
         } catch (UnknownHostException e) {

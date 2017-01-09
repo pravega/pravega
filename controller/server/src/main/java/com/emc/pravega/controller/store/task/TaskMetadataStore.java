@@ -30,7 +30,7 @@ public interface TaskMetadataStore {
     /**
      * Locks a resource for update.
      * If (oldOwner, oldTag) are specified then it revokes old owner's lock and itself acquires it.
-     * This is non-reentrant lock, i.e., a incoming/thread cannot lock the same resource twice.
+     * This is non-reentrant lock, i.e., a process/thread cannot lock the same resource twice.
      * If oldOwner is null then
      * atomically create the key value pair resource -> (owner, tag, taskData) if it does not exist.
      * If oldOwner is non-null

@@ -48,11 +48,6 @@ public class ScaleFunctionImpl implements FunctionalInterfaces.ScaleFunction<Eve
      */
     private final double frequencyLimit;
 
-    @FunctionalInterface
-    interface Comparator<T> {
-        boolean apply(T x, T y);
-    }
-
     /**
      * Implements algorithm to identify if a segment has shown similar load characteristics for sustained periods of time.
      *
@@ -97,5 +92,10 @@ public class ScaleFunctionImpl implements FunctionalInterfaces.ScaleFunction<Eve
         }
 
         return toScale;
+    }
+
+    @FunctionalInterface
+    interface Comparator<T> {
+        boolean apply(T x, T y);
     }
 }

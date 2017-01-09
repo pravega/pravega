@@ -32,16 +32,16 @@ import java.util.stream.Collectors;
  */
 public interface Action {
 
-    enum ActionType {
-        ScaleUp,
-        ScaleDown
-    }
-
     ArrayList<Integer> getSegments();
 
     ArrayList<AbstractMap.SimpleEntry<Double, Double>> getNewRanges();
 
     ActionType getType();
+
+    enum ActionType {
+        ScaleUp,
+        ScaleDown
+    }
 
     class ScaleUp implements Action {
         private final int segmentNumber;

@@ -26,29 +26,23 @@ import java.util.List;
 
 /**
  * Class for storing history for Host's metric.
- * This is specific to threshold scheme.
- * It records and updates its weight after each handle metric.
- * Currently we have a very simplistic weight calculator -
- * weight = Max(1, max(cpu, memory, bandwidth) / peak-load)
  */
-public class HostWeightHistory implements History<HostMetric, Double> {
-    private static final double PEAK_LOAD = 0.9;
-
-    private double weight;
-
-    public HostWeightHistory() {
-        weight = 1.0;
-    }
+public class HostLastMetricHistory implements History<HostMetric, Double> {
+    private double cpu;
+    private double memory;
+    private double bandwidth;
 
     @Override
     public void record(final HostMetric metric) {
         // All metrics are assumed to be percentage of resource utilization
-        weight = Math.max(1, Math.max(Math.max(metric.getCpu(), metric.getMemory()), metric.getBandwidth()) / PEAK_LOAD);
+        this.cpu = metric.getCpu();
+        this.memory = metric.getMemory();
+        this.bandwidth = metric.getBandwidth();
     }
 
     @Override
     public List<Double> getStoredValues() {
-        return Lists.newArrayList(weight);
+        return Lists.newArrayList(cpu, memory, bandwidth);
     }
 
     @Override

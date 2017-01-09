@@ -93,11 +93,11 @@ public class SegmentContainerMonitor extends AbstractIdleService {
     }
 
     /**
-     * Start the leader selection incoming.
+     * Start the leader selection process.
      */
     @Override
     protected void startUp() {
-        //Ensure this incoming always competes for leadership.
+        //Ensure this process always competes for leadership.
         leaderSelector.autoRequeue();
         leaderSelector.start();
     }

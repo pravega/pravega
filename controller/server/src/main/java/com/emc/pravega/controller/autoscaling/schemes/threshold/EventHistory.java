@@ -19,7 +19,6 @@ package com.emc.pravega.controller.autoscaling.schemes.threshold;
 
 import com.emc.pravega.controller.autoscaling.AggregatedValue;
 import com.emc.pravega.controller.autoscaling.History;
-import com.emc.pravega.controller.autoscaling.HostMonitor;
 import com.emc.pravega.controller.autoscaling.util.RollingWindow;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.impl.StreamMetric;
@@ -27,7 +26,6 @@ import com.google.common.collect.Lists;
 import lombok.Data;
 
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -35,12 +33,6 @@ import java.util.stream.Collectors;
  * and aggregates
  */
 public class EventHistory implements History<StreamMetric, Event> {
-
-    @FunctionalInterface
-    public interface WeightFunction {
-        Double weight(StreamMetric metric);
-    }
-
     /**
      * Rolling window object in which events are stored.
      */
@@ -99,25 +91,14 @@ public class EventHistory implements History<StreamMetric, Event> {
     }
 
     @Data
-    public static class WeightFunctionImpl implements WeightFunction {
-        final Function<StreamMetric, HostMonitor<Double, HostWeightHistory>> hostMonitorFunction;
-
-        @Override
-        public Double weight(final StreamMetric metric) {
-            return metric.getAvgRate() * hostMonitorFunction.apply(metric).getStoredValues().get(0);
-        }
-    }
-
-    @Data
     public static class EventFunction {
         private final ScalingPolicy policy;
-        private final WeightFunction weightFunction;
 
         public Event generateEvent(final StreamMetric metric) {
             final long thresholdLow = policy.getTargetRate() / 2;
             final long thresholdHigh = policy.getTargetRate() * 2;
 
-            if (weightFunction.weight(metric) > thresholdHigh) {
+            if (metric.getAvgRate() > thresholdHigh) {
                 return new Events.HighThreshold(metric.getSegmentId().getNumber(),
                         metric.getTimestamp(),
                         metric.getAvgRate(),

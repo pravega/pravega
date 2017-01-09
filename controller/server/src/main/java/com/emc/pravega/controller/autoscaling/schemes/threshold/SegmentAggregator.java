@@ -28,9 +28,9 @@ public class SegmentAggregator implements FunctionalInterfaces.AggregateFunction
     /**
      * Function to update SegmentQuantileValue.
      *
-     * @param metric        Incoming metric
-     * @param value         Previous aggregate value
-     * @param history       History
+     * @param metric  Incoming metric
+     * @param value   Previous aggregate value
+     * @param history History
      * @return
      */
     @Override

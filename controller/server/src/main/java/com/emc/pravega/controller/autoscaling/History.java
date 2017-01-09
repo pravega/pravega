@@ -31,6 +31,7 @@ import java.util.List;
 public interface History<MetricType extends Metric, ValueType> {
     /**
      * Record a new metric received.
+     *
      * @param metric incoming metric
      */
     void record(MetricType metric);
@@ -38,7 +39,7 @@ public interface History<MetricType extends Metric, ValueType> {
     /**
      * Function to retrieve all stored values in the history.
      *
-     * @return  returns all stored values.
+     * @return returns all stored values.
      */
     List<ValueType> getStoredValues();
 

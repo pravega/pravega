@@ -33,12 +33,12 @@ public class FunctionalInterfaces {
      */
     @FunctionalInterface
     public interface ScaleFunction<V, H extends History<StreamMetric, V>> {
+        boolean canScale(final int segmentNumber, final long timeStamp, final H history, final Direction direction);
+
         enum Direction {
             Up,
             Down
         }
-
-        boolean canScale(final int segmentNumber, final long timeStamp, final H history, final Direction direction);
     }
 
     /**

@@ -19,18 +19,12 @@ package com.emc.pravega.controller.autoscaling;
 
 import com.emc.pravega.stream.impl.HostMetric;
 
-import java.util.List;
-
 public class HostMonitor<V, H extends History<HostMetric, V>> extends MonitorWorker<HostMetric> {
     private final H history;
 
     public HostMonitor(final H history) {
         super();
         this.history = history;
-    }
-
-    public List<V> getStoredValues() {
-        return history.getStoredValues();
     }
 
     @Override

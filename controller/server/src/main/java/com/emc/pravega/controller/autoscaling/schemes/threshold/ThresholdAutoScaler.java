@@ -30,14 +30,12 @@ import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.impl.StreamMetric;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Function;
 
 import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
 
@@ -50,7 +48,7 @@ import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
  * This class is responsible for bootstrapping the auto-scaling
  * Note: The parts for listening to metric are merely representational.
  */
-public class ThresholdAutoScaler extends AutoScaler<Double, HostWeightHistory, Event, EventHistory> {
+public class ThresholdAutoScaler extends AutoScaler<Double, HostLastMetricHistory, Event, EventHistory> {
 
     // TODO: make these configurable
     /**
@@ -69,20 +67,15 @@ public class ThresholdAutoScaler extends AutoScaler<Double, HostWeightHistory, E
     private static final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
             new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
-    private final HostControllerStore hostStore;
-    private final StreamMetadataStore streamStore;
-
     public ThresholdAutoScaler(final HostControllerStore hostStore,
                                final StreamMetadataTasks streamMetadataTasks,
                                final StreamMetadataStore streamStore) {
         super(streamMetadataTasks);
-        this.hostStore = hostStore;
-        this.streamStore = streamStore;
     }
 
     @Override
-    protected HostMonitor<Double, HostWeightHistory> getHostMonitor(final Host host) {
-        final HostWeightHistory history = new HostWeightHistory();
+    protected HostMonitor<Double, HostLastMetricHistory> getHostMonitor(final Host host) {
+        final HostLastMetricHistory history = new HostLastMetricHistory();
         return new HostMonitor<>(history);
     }
 
@@ -93,18 +86,10 @@ public class ThresholdAutoScaler extends AutoScaler<Double, HostWeightHistory, E
                                                                final String scope,
                                                                final ScalingPolicy policy,
                                                                final List<Segment> activeSegments) {
-        final Function<StreamMetric, HostMonitor<Double, HostWeightHistory>> hostMonitorFunction = metric -> {
-            final String ipAddr = hostStore.getHostForSegment(metric.getSegmentId().getScope(),
-                    metric.getSegmentId().getStream(), metric.getSegmentId().getNumber()).getIpAddr();
-            return metricCollector.<Double, HostWeightHistory>getHostMonitor(ipAddr);
-        };
-
         final RollingWindow<Event> rollingWindow = new RollingWindow<>(ROLLING_WINDOW, EXECUTOR);
 
         final EventHistory history = new EventHistory(rollingWindow,
-                new EventHistory.EventFunction(
-                        policy,
-                        new EventHistory.WeightFunctionImpl(hostMonitorFunction)),
+                new EventHistory.EventFunction(policy),
                 /**
                  * Two aggregates are attached to our history - one for quantile, second for moving rate.
                  */

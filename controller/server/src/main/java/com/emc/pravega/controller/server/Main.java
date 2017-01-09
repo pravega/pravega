@@ -60,7 +60,7 @@ public class Main {
     public static void main(String[] args) {
         String hostId;
         try {
-            //On each controller incoming restart, it gets a fresh hostId,
+            //On each controller process restart, it gets a fresh hostId,
             //which is a combination of hostname and random GUID.
             hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
         } catch (UnknownHostException e) {
@@ -113,7 +113,7 @@ public class Main {
         // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
         // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
         // are processed and deleted, that failed HostId is removed from FH folder.
-        // Moreover, on controller incoming startup, it detects any hostIds not in the currently active set of
+        // Moreover, on controller process startup, it detects any hostIds not in the currently active set of
         // controllers and starts sweeping tasks orphaned by those hostIds.
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);

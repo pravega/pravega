@@ -59,7 +59,7 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
 
     @Override
     public void alterStream(final StreamConfig streamConfig, final AsyncMethodCallback resultHandler) throws TException {
-        log.debug("policyUpdate called for stream " + streamConfig.getScope() + "/" + streamConfig.getName());
+        log.debug("alterStream called for stream " + streamConfig.getScope() + "/" + streamConfig.getName());
         processResult(controllerService.alterStream(ModelHelper.encode(streamConfig)), resultHandler);
     }
 
