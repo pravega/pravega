@@ -62,13 +62,11 @@ public class StreamMetadataTasksTest {
     private final String stream1 = "stream1";
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
-    private final StreamMetadataStore streamStore =
-            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executor);
-
     private ControllerService consumer;
 
     private TestingServer zkServer;
 
+    private StreamMetadataStore streamStorePartialMock;
     private StreamMetadataTasks streamMetadataTasksPartialMock;
 
     @Before
@@ -79,30 +77,35 @@ public class StreamMetadataTasksTest {
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
-        final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(zkClient), executor);
-        final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+        StreamMetadataStore streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType
+                .InMemory, executor);
+        streamStorePartialMock = spy(streamStore); //create a partial mock.
+        doReturn(CompletableFuture.completedFuture(false)).when(streamStorePartialMock).isTransactionOngoing(
+                anyString(), anyString()); //mock only isTransactionOngoing call.
+
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(zkClient), executor);
+        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
+
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStorePartialMock, hostStore,
+                taskMetadataStore,
                 executor, "host");
-        //create a partial mock
-        streamMetadataTasksPartialMock = spy(streamMetadataTasks);
-
-        //mock only the actual calls to Pravega
+        streamMetadataTasksPartialMock = spy(streamMetadataTasks); //create a partial mock
         doReturn(CompletableFuture.completedFuture(true)).when(streamMetadataTasksPartialMock).notifySealedSegment(
-                anyString(), anyString(), anyInt());
+                anyString(), anyString(), anyInt()); //mock only the actual calls to Pravega.
 
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, "host");
-        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasksPartialMock,
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
+                streamStorePartialMock, hostStore, taskMetadataStore, executor, "host");
+        consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasksPartialMock,
                 streamTransactionMetadataTasks);
 
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
 
-        streamStore.createStream(stream1, configuration1, System.currentTimeMillis());
+        streamStorePartialMock.createStream(stream1, configuration1, System.currentTimeMillis());
 
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20);
+        streamStorePartialMock.scale(stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20);
     }
 
     @After
@@ -120,7 +123,7 @@ public class StreamMetadataTasksTest {
 
         //a sealed stream should have zero active/current segments
         assertEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
-        assertTrue(streamStore.isSealed(stream1).get());
+        assertTrue(streamStorePartialMock.isSealed(stream1).get());
 
         //scale operation on the sealed stream.
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.2);

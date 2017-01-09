@@ -67,7 +67,6 @@ public interface Controller {
      */
     CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String streamName);
 
-    // Controller Apis called by pravega writers for getting stream specific information
     /**
      * API to merge or split stream segments.
      * @param stream stream object.
