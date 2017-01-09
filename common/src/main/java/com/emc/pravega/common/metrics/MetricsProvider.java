@@ -41,6 +41,8 @@ public class MetricsProvider {
     }
 
     public static StatsLogger createStatsLogger(String loggerName) {
-        return YAMMERPROVIDER.createStatsLogger(loggerName);
+        return  MetricsConfig.enableStatistics() ?
+                YAMMERPROVIDER.createStatsLogger(loggerName) :
+                NULLPROVIDER.createStatsLogger(loggerName);
     }
 }

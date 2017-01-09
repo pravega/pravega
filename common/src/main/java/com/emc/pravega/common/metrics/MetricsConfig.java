@@ -43,7 +43,7 @@ public class MetricsConfig extends ComponentConfig {
     public final static String DEFAULT_STATSD_HOST = "localhost";
     public final static int DEFAULT_STATSD_PORT = 8125;
 
-    private boolean enableStatistics;
+    private static boolean enableStatistics = true;
     private int yammerStatsOutputFrequencySeconds;
     private String yammerMetricsPrefix;
     private String yammerCSVEndpoint;
@@ -73,8 +73,8 @@ public class MetricsConfig extends ComponentConfig {
     /**
      * Gets a value indicating the status of enable statistics.
      */
-    public boolean enableStatistics() {
-        return this.enableStatistics;
+    public static boolean enableStatistics() {
+        return enableStatistics;
     }
 
     /**
