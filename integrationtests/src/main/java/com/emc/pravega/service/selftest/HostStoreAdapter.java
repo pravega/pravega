@@ -27,6 +27,7 @@ import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.impl.ByteArraySerializer;
 import com.emc.pravega.stream.mock.MockClientFactory;
 
 import java.time.Duration;

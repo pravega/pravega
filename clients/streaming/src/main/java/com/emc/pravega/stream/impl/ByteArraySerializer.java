@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.service.selftest;
+package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.stream.Serializer;
 
