@@ -22,7 +22,7 @@ package com.emc.pravega.common.metrics;
  */
 public interface StatsProvider {
     /**
-     * Intialize the stats provider by loading the given configuration <i>conf</i>.
+     * Initialize the stats provider by loading the given configuration <i>conf</i>.
      *
      * @param conf Configuration to configure the stats provider.
      */

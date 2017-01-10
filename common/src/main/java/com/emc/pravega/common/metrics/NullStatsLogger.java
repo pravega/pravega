@@ -83,7 +83,7 @@ public class NullStatsLogger implements StatsLogger {
         }
 
         @Override
-        public Long get() {
+        public long get() {
             return 0L;
         }
     }

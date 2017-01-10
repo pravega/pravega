@@ -36,8 +36,8 @@ public interface OpStatsLogger {
      *
      * @param eventLatency the event latency
      */
-    default public void reportFailure(long eventLatency) {
-        registerFailedEvent(eventLatency, TimeUnit.NANOSECONDS);
+    default public void reportFailure(long eventLatencyNanos) {
+        registerFailedEvent(eventLatencyNanos, TimeUnit.NANOSECONDS);
     }
 
     /**
@@ -53,8 +53,8 @@ public interface OpStatsLogger {
      *
      * @param eventLatency the event latency
      */
-    default public void reportSuccess(long eventLatency) {
-        registerSuccessfulEvent(eventLatency, TimeUnit.NANOSECONDS);
+    default public void reportSuccess(long eventLatencyNanos) {
+        registerSuccessfulEvent(eventLatencyNanos, TimeUnit.NANOSECONDS);
     }
 
     /**
@@ -81,7 +81,7 @@ public interface OpStatsLogger {
     public void registerFailedValue(long value);
 
     /**
-     * To op stats data op stats data. Need this function to support JMX exports.
+     * To op Stats data. Need this function to support JMX exports and inner test.
      *
      * @return Returns an OpStatsData object with necessary values.
      */

@@ -49,5 +49,5 @@ public interface Counter {
      *
      * @return the long
      */
-    public Long get();
+    public long get();
 }

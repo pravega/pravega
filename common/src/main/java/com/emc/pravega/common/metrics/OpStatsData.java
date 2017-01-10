@@ -20,8 +20,6 @@ import java.util.Arrays;
 
 /**
  * This class provides a read view of operation specific stats.
- * We expose this to JMX.
- * We use primitives because the class has to conform to CompositeViewData.
  */
 public class OpStatsData {
     private final long numSuccessfulEvents, numFailedEvents;
@@ -31,6 +29,8 @@ public class OpStatsData {
     private final long[] percentileLatenciesMillis;
     public OpStatsData(long numSuccessfulEvents, long numFailedEvents,
                         double avgLatencyMillis, long[] percentileLatenciesMillis) {
+        assert numSuccessfulEvents >= 0;
+        assert numFailedEvents >= 0;
         this.numSuccessfulEvents = numSuccessfulEvents;
         this.numFailedEvents = numFailedEvents;
         this.avgLatencyMillis = avgLatencyMillis;

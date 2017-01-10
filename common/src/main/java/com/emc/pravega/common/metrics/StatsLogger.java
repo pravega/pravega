@@ -42,7 +42,7 @@ public interface StatsLogger {
     public Counter createCounter(String name);
 
     /**
-     * Register given <i>guage</i> as name <i>name</i>.
+     * Register given <i>gauge</i> as name <i>name</i>.
      *
      * @param <T>   the type parameter
      * @param name  gauge name

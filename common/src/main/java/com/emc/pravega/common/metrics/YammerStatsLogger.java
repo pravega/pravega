@@ -38,36 +38,44 @@ public class YammerStatsLogger implements StatsLogger {
         return new YammerOpStatsLogger(success, failure);
     }
 
+    private static class CounterImpl implements Counter {
+        private com.codahale.metrics.Counter counter;
+
+        CounterImpl (com.codahale.metrics.Counter c) {
+             counter = c;
+        }
+
+        @Override
+        public synchronized void clear() {
+            long cur = counter.getCount();
+            counter.dec(cur);
+        }
+
+        @Override
+        public long get() {
+            return counter.getCount();
+        }
+
+        @Override
+        public void inc() {
+            counter.inc();
+        }
+
+        @Override
+        public void dec() {
+            counter.dec();
+        }
+
+        @Override
+        public void add(long delta) {
+            counter.inc(delta);
+        }
+    }
+
     @Override
     public Counter createCounter(String statName) {
         final com.codahale.metrics.Counter c = metrics.counter(name(basename, statName));
-        return new Counter() {
-            @Override
-            public synchronized void clear() {
-                long cur = c.getCount();
-                c.dec(cur);
-            }
-
-            @Override
-            public Long get() {
-                return c.getCount();
-            }
-
-            @Override
-            public void inc() {
-                c.inc();
-            }
-
-            @Override
-            public void dec() {
-                c.dec();
-            }
-
-            @Override
-            public void add(long delta) {
-                c.inc(delta);
-            }
-        };
+        return new CounterImpl(c);
     }
 
     @Override

@@ -231,7 +231,7 @@ public class PravegaRequestProcessorTest {
         return new ServiceBuilderConfig(p);
     }
 
-    protected static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
+    private static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
         return ServiceBuilder.newInMemoryBuilder(config, new InlineExecutor())
                              .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
                                      setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
