@@ -158,8 +158,8 @@ public class TestStorage implements Storage {
                             .thenCompose(v -> this.wrappedStorage.exists(streamSegmentName, timeout));
     }
 
-    public CompletableFuture<Void> append(String streamSegmentName, InputStream data, int length, Duration timeout) {
-        return this.wrappedStorage.append(streamSegmentName, data, length, timeout);
+    public void append(String streamSegmentName, InputStream data, int length) {
+        this.wrappedStorage.append(streamSegmentName, data, length);
     }
 
     @FunctionalInterface

@@ -197,22 +197,19 @@ public class InMemoryStorage implements TruncateableStorage {
 
     /**
      * Appends the given data to the end of the StreamSegment.
+     * Note: since this is a custom operation exposed only on InMemoryStorage, there is no need to make it return a Future.
      *
      * @param streamSegmentName The name of the StreamSegment to append to.
      * @param data              An InputStream representing the data to append.
      * @param length            The length of the data to append.
-     * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that will complete when the operation is done.
      */
-    public CompletableFuture<Void> append(String streamSegmentName, InputStream data, int length, Duration timeout) {
-        CompletableFuture<Void> result = CompletableFuture.runAsync(() ->
-                getStreamSegmentData(streamSegmentName).append(data, length), this.executor);
-        result.thenRunAsync(
+    public void append(String streamSegmentName, InputStream data, int length) {
+        getStreamSegmentData(streamSegmentName).append(data, length);
+        this.executor.execute(
                 () -> {
                     long segmentLength = getStreamSegmentData(streamSegmentName).getInfo().getLength();
                     fireOffsetTriggers(streamSegmentName, segmentLength);
-                }, this.executor);
-        return result;
+                });
     }
 
     /**
