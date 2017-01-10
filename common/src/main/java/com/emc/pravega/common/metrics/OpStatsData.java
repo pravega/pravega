@@ -16,7 +16,10 @@
  */
 package com.emc.pravega.common.metrics;
 
-import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.lang.Long;
+import com.codahale.metrics.Snapshot;
 
 /**
  * This class provides a read view of operation specific stats.
@@ -25,41 +28,45 @@ public class OpStatsData {
     private final long numSuccessfulEvents, numFailedEvents;
     // All latency values are in Milliseconds.
     private final double avgLatencyMillis;
-    // 10.0 50.0, 90.0, 99.0, 99.9, 99.99 in that order.
-    private final long[] percentileLatenciesMillis;
+
+    public enum Percentile {
+        P10(10),
+        P50(50),
+        P90(90),
+        P99(99),
+        P999(99.9),
+        P9999(99.99);
+
+        private double numVal;
+
+        Percentile (double numVal) {
+            this.numVal = numVal;
+        }
+
+        public double getValue() {
+            return numVal;
+        }
+    }
+
+    private final EnumMap<Percentile, Long> percentileLongMap = new EnumMap<Percentile, Long>(Percentile.class);
+
     public OpStatsData(long numSuccessfulEvents, long numFailedEvents,
-                        double avgLatencyMillis, long[] percentileLatenciesMillis) {
+                       double avgLatencyMillis, Snapshot snapshot) {
         assert numSuccessfulEvents >= 0;
         assert numFailedEvents >= 0;
+        assert avgLatencyMillis >= 0;
         this.numSuccessfulEvents = numSuccessfulEvents;
         this.numFailedEvents = numFailedEvents;
         this.avgLatencyMillis = avgLatencyMillis;
-        this.percentileLatenciesMillis =
-            Arrays.copyOf(percentileLatenciesMillis, percentileLatenciesMillis.length);
+
+        EnumSet<Percentile> percentileSet = EnumSet.allOf(Percentile.class);
+        for (Percentile percent : percentileSet) {
+            percentileLongMap.put(percent, (long) snapshot.getValue(percent.getValue() / 100));
+        }
     }
 
-    public long getP10Latency() {
-        return this.percentileLatenciesMillis[0];
-    }
-
-    public long getP50Latency() {
-        return this.percentileLatenciesMillis[1];
-    }
-
-    public long getP90Latency() {
-        return this.percentileLatenciesMillis[2];
-    }
-
-    public long getP99Latency() {
-        return this.percentileLatenciesMillis[3];
-    }
-
-    public long getP999Latency() {
-        return this.percentileLatenciesMillis[4];
-    }
-
-    public long getP9999Latency() {
-        return this.percentileLatenciesMillis[5];
+    public long getPercentile(Percentile percentile) {
+        return  percentileLongMap.get(percentile);
     }
 
     public long getNumSuccessfulEvents() {

@@ -19,7 +19,6 @@ package com.emc.pravega.common.metrics;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.Snapshot;
 
-import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 class YammerOpStatsLogger implements OpStatsLogger {
@@ -65,13 +64,6 @@ class YammerOpStatsLogger implements OpStatsLogger {
         long numSuccess = success.getCount();
         Snapshot s = success.getSnapshot();
         double avgLatencyMillis = s.getMean();
-
-        double[] defaultPercentiles = {10, 50, 90, 99, 99.9, 99.99};
-        long[] latenciesMillis = new long[defaultPercentiles.length];
-        Arrays.fill(latenciesMillis, Long.MAX_VALUE);
-        for (int i = 0; i < defaultPercentiles.length; i++) {
-            latenciesMillis[i] = (long) s.getValue(defaultPercentiles[i] / 100);
-        }
-        return new OpStatsData(numSuccess, numFailed, avgLatencyMillis, latenciesMillis);
+        return new OpStatsData(numSuccess, numFailed, avgLatencyMillis, s);
     }
 }

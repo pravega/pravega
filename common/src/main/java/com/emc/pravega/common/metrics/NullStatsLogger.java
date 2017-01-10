@@ -26,7 +26,7 @@ public class NullStatsLogger implements StatsLogger {
     public static final NullStatsLogger INSTANCE = new NullStatsLogger();
 
     static class NullOpStatsLogger implements OpStatsLogger {
-        final OpStatsData nullOpStats = new OpStatsData(0, 0, 0, new long[6]);
+        final OpStatsData nullOpStats = new OpStatsData(0, 0, 0, null);
 
         @Override
         public void registerFailedEvent(long eventLatency, TimeUnit unit) {
