@@ -17,17 +17,12 @@
  */
 package com.emc.pravega.controller.server;
 
-import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
-import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
-import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
-import static com.emc.pravega.controller.util.Config.STORE_TYPE;
-
-import com.emc.pravega.controller.autoscaling.AutoScaleMain;
-import com.emc.pravega.controller.autoscaling.AbstractScaleManager;
-import com.emc.pravega.controller.autoscaling.StreamStoreChangeWorker;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
-import com.emc.pravega.controller.autoscaling.schemes.threshold.ThresholdScaleManager;
+import com.emc.pravega.controller.monitoring.MetricManager;
+import com.emc.pravega.controller.monitoring.MonitoringMain;
+import com.emc.pravega.controller.monitoring.StreamStoreChangeWorker;
+import com.emc.pravega.controller.monitoring.schemes.threshold.ThresholdMetricManager;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.store.StoreClient;
@@ -52,6 +47,11 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+
+import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
+import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
+import static com.emc.pravega.controller.util.Config.STORE_TYPE;
+import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 
 /**
  * Entry point of controller server.
@@ -122,8 +122,8 @@ public class Main {
 
         // 4. Start metric listener
         StreamStoreChangeWorker.initialize(streamStore);
-        final AbstractScaleManager abstractScaleManager = new ThresholdScaleManager(streamMetadataTasks);
-        final AutoScaleMain autoscaler = new AutoScaleMain(streamStore, hostStore, abstractScaleManager);
+        final MetricManager metricManager = new ThresholdMetricManager(streamMetadataTasks);
+        final MonitoringMain autoscaler = new MonitoringMain(streamStore, hostStore, metricManager);
         CompletableFuture.runAsync(autoscaler);
     }
 }
