@@ -230,7 +230,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else {
             // TODO: don't know what to do here...
             connection.close();
-            log.error("Unknown excpetion on append for segment " + segment, u);
+            log.error("Unknown exception on append for segment " + segment, u);
         }
     }
 
