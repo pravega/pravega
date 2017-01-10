@@ -222,7 +222,9 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             // Corrupt data. We use an internal method (append) to atomically write data at the end of the segment.
             // GetLength+Write would not work well because there may be concurrent writes that modify the data between
             // requesting the length and attempting to write, thus causing the corruption to fail.
-            context.storage.append(corruptedSegmentName, new ByteArrayInputStream(corruptionData), corruptionData.length, TIMEOUT).join();
+            // NOTE: this is a synchronous call, but append() is also a sync method. If append() would become async,
+            // care must be taken not to block a thread while waiting for it.
+            context.storage.append(corruptedSegmentName, new ByteArrayInputStream(corruptionData), corruptionData.length);
 
             // Return some other kind of exception.
             return new TimeoutException("Intentional");
