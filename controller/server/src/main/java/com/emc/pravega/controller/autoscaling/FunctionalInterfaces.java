@@ -26,7 +26,7 @@ import java.util.List;
 public class FunctionalInterfaces {
 
     /**
-     * Interface for injecting behaviour to answer the question - 'to scale or not to scale'.
+     * Interface for injecting behaviour to answer the question - 'to scaled or not to scaled'.
      *
      * @param <V> History's value type.
      * @param <H> History type

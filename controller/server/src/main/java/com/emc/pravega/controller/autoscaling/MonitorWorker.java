@@ -29,6 +29,9 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
  * @param <T> Type of value to be put in the queue
  */
 public abstract class MonitorWorker<T extends Metric> extends BackgroundWorker<T> {
+    /**
+     * Static executor shared by all monitors across streams and hosts.
+     */
     private static final ScheduledThreadPoolExecutor EXECUTOR = new ScheduledThreadPoolExecutor(100);
     private final ConcurrentLinkedQueue<T> queue;
 
@@ -42,7 +45,7 @@ public abstract class MonitorWorker<T extends Metric> extends BackgroundWorker<T
     }
 
     @Override
-    public T dequeue() {
+    public T getNextWork() {
         return queue.poll();
     }
 }

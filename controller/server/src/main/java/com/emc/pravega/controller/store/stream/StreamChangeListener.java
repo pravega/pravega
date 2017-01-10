@@ -47,10 +47,10 @@ public interface StreamChangeListener {
     void updateStream(final String stream, final String scope, final StreamConfiguration streamConfiguration);
 
     /**
-     * Callback for when a stream's scale operation completes.
+     * Callback for when a stream's scaled operation completes.
      * @param stream                Stream name.
      * @param scope                 Stream scope.
-     * @param activeSegments        New list of active segments after the scale operation completes.
+     * @param activeSegments        New list of active segments after the scaled operation completes.
      */
-    void scaleStream(final String stream, final String scope, final List<Segment> activeSegments);
+    void scaledStream(final String stream, final String scope, final List<Segment> activeSegments);
 }

@@ -55,7 +55,7 @@ public abstract class BackgroundWorker<T> implements Runnable {
     /**
      * Schedule the work asynchronously after a delay.
      *
-     * @param delay duration after which to poll again
+     * @param delay duration after which to poll again.
      */
     public void schedule(final Duration delay) {
         if (!stopped) {
@@ -78,7 +78,7 @@ public abstract class BackgroundWorker<T> implements Runnable {
 
     @Override
     public void run() {
-        final T e = dequeue();
+        final T e = getNextWork();
         if (e == null) {
             // relinquish, go back in the queue. Let it be scheduled again after 1 ms and depending on number of threads
             schedule(Duration.ofMillis(1));
@@ -88,7 +88,18 @@ public abstract class BackgroundWorker<T> implements Runnable {
         }
     }
 
-    public abstract T dequeue();
+    /**
+     * Implement this method to getNextWork next work that will be processed.
+     * Do not block. If work is available, return. Otherwise return null. It will be scheduled and polled again in 1 millis
+     * @return returns next work or Null. Null means no work available.
+     */
+    public abstract T getNextWork();
 
+    /**
+     * This is a blocking call.
+     * Ensure that you do not hold this thread for long as others using the same executor may need it to be freed up
+     * to run their workloads.
+     * @param e element to process
+     */
     public abstract void process(T e);
 }

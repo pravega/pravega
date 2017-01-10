@@ -18,16 +18,14 @@
 package com.emc.pravega.controller.autoscaling.schemes.threshold;
 
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.controller.autoscaling.AbstractScaleManager;
 import com.emc.pravega.controller.autoscaling.ActionProcessor;
 import com.emc.pravega.controller.autoscaling.ActionQueue;
-import com.emc.pravega.controller.autoscaling.AutoScaler;
 import com.emc.pravega.controller.autoscaling.FunctionalInterfaces;
 import com.emc.pravega.controller.autoscaling.HostMonitor;
 import com.emc.pravega.controller.autoscaling.StreamMonitor;
 import com.emc.pravega.controller.autoscaling.util.RollingWindow;
-import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -40,7 +38,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
 
 /**
- * This is implementation of threshold based scheme for autoscaler. Here we inject all the behaviour corresponding
+ * This is implementation of threshold based scheme for AbstractScaleManager. Here we inject all the behaviour corresponding
  * too threshold based scheme in the Auto-scaler's flow.
  * Auto-scaler is the entry point for metrics. Streams for which metrics needs to be monitored are registered
  * with this class.
@@ -48,11 +46,11 @@ import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
  * This class is responsible for bootstrapping the auto-scaling
  * Note: The parts for listening to metric are merely representational.
  */
-public class ThresholdAutoScaler extends AutoScaler<Double, HostLastMetricHistory, Event, EventHistory> {
+public class ThresholdScaleManager extends AbstractScaleManager<Double, HostLastMetricHistory, Event, EventHistory> {
 
     // TODO: make these configurable
     /**
-     * What should be percentage of events in the sampling window period before we kick off scale.
+     * What should be percentage of events in the sampling window period before we kick off scaled.
      */
     private static final Double MIN_PERCENTAGE_FOR_SCALE = 0.8;
     /**
@@ -67,9 +65,7 @@ public class ThresholdAutoScaler extends AutoScaler<Double, HostLastMetricHistor
     private static final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
             new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
-    public ThresholdAutoScaler(final HostControllerStore hostStore,
-                               final StreamMetadataTasks streamMetadataTasks,
-                               final StreamMetadataStore streamStore) {
+    public ThresholdScaleManager(final StreamMetadataTasks streamMetadataTasks) {
         super(streamMetadataTasks);
     }
 
@@ -104,9 +100,7 @@ public class ThresholdAutoScaler extends AutoScaler<Double, HostLastMetricHistor
 
         final FunctionalInterfaces.SplitFunction<Event, EventHistory> splitFunction = new SplitFunctionImpl();
         final FunctionalInterfaces.MergeFunction<Event, EventHistory> mergeFunction = new MergeFunctionImpl(scaleFunction,
-                COOLDOWN_PERIOD.toMillis(),
-                stream,
-                scope);
+                COOLDOWN_PERIOD.toMillis());
 
         final StreamMonitor<Event, EventHistory> monitor = new StreamMonitor<>(actionQueue,
                 actionProcessor,
@@ -114,8 +108,9 @@ public class ThresholdAutoScaler extends AutoScaler<Double, HostLastMetricHistor
                 scaleFunction,
                 splitFunction,
                 mergeFunction,
+                stream,
+                scope,
                 activeSegments);
-        monitor.run();
         return monitor;
     }
 }

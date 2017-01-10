@@ -26,11 +26,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Behaviour class injected into stream monitor to determine whether to scale.
+ * Behaviour class injected into stream monitor to determine whether to scaled.
  * This implementation is specific to threshold scheme.
  * It looks at the number of events in the sampling duration to see if the load is sustained for
  * the sampling duration.
- * Works for both scale ups and scale downs.
+ * Works for both scaled ups and scaled downs.
  */
 @Data
 public class ScaleFunctionImpl implements FunctionalInterfaces.ScaleFunction<Event, EventHistory> {
@@ -44,7 +44,7 @@ public class ScaleFunctionImpl implements FunctionalInterfaces.ScaleFunction<Eve
      */
     private final long rollingWindowDuration;
     /**
-     * Limit beyond which we scale.
+     * Limit beyond which we scaled.
      */
     private final double frequencyLimit;
 

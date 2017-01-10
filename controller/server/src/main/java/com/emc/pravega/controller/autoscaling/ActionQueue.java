@@ -24,9 +24,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class ActionQueue {
     /**
-     * Segment number to action mapping
-     * Only one outstanding action per value
-     * Outdated actions need to be outdated purged
+     * Segment number to action mapping.
+     * Only one outstanding action per value.
+     * Outdated actions need to be outdated purged.
      */
     private final ConcurrentHashMap<Integer, Action> table;
 
@@ -42,7 +42,7 @@ public class ActionQueue {
      * Ignore if a pending action already exists for any segment impacted by the action.
      * If a segment is already a candidate for a previous action, let it complete. It will result in
      * some new segments being created (either through splits or merges) which will render
-     * subsequent action irrelevant. Even if a scale action is performed after a conflict with an external manual
+     * subsequent action irrelevant. Even if a scaled action is performed after a conflict with an external manual
      * action, it will fail at precondition.
      * So we will ingest all actions that do not conflict with another in our action queue.
      * However, there is no guarantee that the action may succeed.
@@ -64,9 +64,21 @@ public class ActionQueue {
         }
     }
 
+    /**
+     * Returns next action in the queue for processing.
+     *
+     * @return returns first action in the queue
+     */
     public Action getNextAction() {
-        final Action action = queue.poll();
+        return queue.poll();
+    }
+
+    /**
+     * Marking action done frees up its segments to start accepting new actions.
+     *
+     * @param action Action that just completed (both success and failures)
+     */
+    public void done(final Action action) {
         table.keySet().removeAll(action.getSegments());
-        return action;
     }
 }

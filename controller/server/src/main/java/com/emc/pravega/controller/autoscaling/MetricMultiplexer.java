@@ -33,7 +33,7 @@ import java.util.concurrent.ConcurrentMap;
  * It creates a monitor object per entity that it needs to monitor. So one streamMonitor object per stream and
  * one hostMonitor object per host.
  * All metrics specific to a stream is sent to its corresponding stream monitor object.
- * This class also listens for changes to any stream's policy, any scale event or any new stream addition and passes
+ * This class also listens for changes to any stream's policy, any scaled event or any new stream addition and passes
  * these events to respective monitors to process.
  *
  * @param <V1> Host's History's Value type.
@@ -41,12 +41,12 @@ import java.util.concurrent.ConcurrentMap;
  * @param <V2> Streams History's value type.
  * @param <H2> Streams history type.
  */
-public class MetricCollector<V1, H1 extends History<HostMetric, V1>, V2, H2 extends History<StreamMetric, V2>> {
+public class MetricMultiplexer<V1, H1 extends History<HostMetric, V1>, V2, H2 extends History<StreamMetric, V2>> {
 
     private final ConcurrentMap<Pair<String, String>, StreamMonitor<V2, H2>> streams;
     private final ConcurrentMap<String, HostMonitor<V1, H1>> hosts;
 
-    public MetricCollector() {
+    public MetricMultiplexer() {
         this.streams = new ConcurrentHashMap<>();
         this.hosts = new ConcurrentHashMap<>();
     }

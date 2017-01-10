@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Interface to define scale actions.
+ * Interface to define scaled actions.
  * Scale up and Scale Down are its two implementation.
  */
 public interface Action {

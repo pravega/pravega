@@ -43,18 +43,22 @@ public class StreamMonitor<V, H extends History<StreamMetric, V>> extends Monito
     private final H history;
     private final ActionQueue actionQueue;
     private final ActionProcessor actionProcessor;
+    private final String stream;
+    private final String scope;
     private List<Segment> activeSegments;
 
     /**
      * One stream monitor is created per stream.
-     * Allows for injection of different behaviours into the stream monitor object to determine how to scale, split and merge segments.
+     * Allows for injection of different behaviours into the stream monitor object to determine how to scaled, split and merge segments.
      *
      * @param actionQueue     Queue where actions need to be published.
      * @param actionProcessor Action processor for this stream that processes actions received.
      * @param history         History to be used for this monitor.
-     * @param scaleFunction   Injected scale function
+     * @param scaleFunction   Injected scaled function
      * @param splitFunction   Injected split function
      * @param mergeFunction   Injected merge function
+     * @param stream          Stream
+     * @param scope           Scope
      * @param activeSegments  List of active segments
      */
     public StreamMonitor(final ActionQueue actionQueue,
@@ -63,6 +67,8 @@ public class StreamMonitor<V, H extends History<StreamMetric, V>> extends Monito
                          final FunctionalInterfaces.ScaleFunction<V, H> scaleFunction,
                          final FunctionalInterfaces.SplitFunction<V, H> splitFunction,
                          final FunctionalInterfaces.MergeFunction<V, H> mergeFunction,
+                         final String stream,
+                         final String scope,
                          final List<Segment> activeSegments) {
         super();
         this.history = history;
@@ -74,6 +80,9 @@ public class StreamMonitor<V, H extends History<StreamMetric, V>> extends Monito
         this.actionQueue = actionQueue;
         this.actionProcessor = actionProcessor;
         this.actionProcessor.start();
+
+        this.stream = stream;
+        this.scope = scope;
 
         this.activeSegments = activeSegments;
     }
@@ -88,10 +97,10 @@ public class StreamMonitor<V, H extends History<StreamMetric, V>> extends Monito
     }
 
     /**
-     * Method to process a new metric. When a metric is received, we check if we need to scale upon receing this metric
+     * Method to process a new metric. When a metric is received, we check if we need to scaled upon receing this metric
      * by calling scaleFunction.canScale.
-     * ScaleFunction is the injected behaviour that will determine if we need to scale at this point or not.
-     * If can scale returns true, we call the split (or merge functions) to determine segments to seal and new ranges to
+     * ScaleFunction is the injected behaviour that will determine if we need to scaled at this point or not.
+     * If can scaled returns true, we call the split (or merge functions) to determine segments to seal and new ranges to
      * create.
      *
      * @param metric incoming stream metric
@@ -99,7 +108,7 @@ public class StreamMonitor<V, H extends History<StreamMetric, V>> extends Monito
     @Override
     public void process(final StreamMetric metric) {
         history.record(metric);
-        // scale up
+        // scaled up
         final int segmentNumber = metric.getSegmentId().getNumber();
         Optional<Segment> segment = activeSegments.stream().filter(x -> x.getNumber() == segmentNumber).findFirst();
         if (segment.isPresent()) {
@@ -111,7 +120,6 @@ public class StreamMonitor<V, H extends History<StreamMetric, V>> extends Monito
                 if (newRanges != null) {
                     actionQueue.addAction(new Action.ScaleUp(segmentNumber, newRanges));
                 }
-
             } else if (scaleFunction.canScale(metric.getSegmentId().getNumber(), metric.getTimestamp(), history, Direction.Down)) {
                 final List<Integer> segmentsToMerge = mergeFunction.mergeCandidates(segment.get(), history, activeSegments);
                 if (segmentsToMerge != null) {
@@ -121,6 +129,9 @@ public class StreamMonitor<V, H extends History<StreamMetric, V>> extends Monito
                     actionQueue.addAction(new Action.ScaleDown(segmentsToMerge, new ImmutablePair<>(low, high)));
                 }
             }
+        } else { // Note: we have recorded the metric, and since we are seeing this segment for the first time,
+            // there is no possibility of it being a scaled candidate. We can safely request for stream's update
+            StreamStoreChangeWorker.requestStreamUpdate(stream, scope);
         }
     }
 

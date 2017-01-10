@@ -22,11 +22,12 @@ import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
-import com.emc.pravega.controller.autoscaling.MetricReader;
-import com.emc.pravega.controller.autoscaling.AutoScaler;
+import com.emc.pravega.controller.autoscaling.AutoScaleMain;
+import com.emc.pravega.controller.autoscaling.AbstractScaleManager;
+import com.emc.pravega.controller.autoscaling.StreamStoreChangeWorker;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
-import com.emc.pravega.controller.autoscaling.schemes.threshold.ThresholdAutoScaler;
+import com.emc.pravega.controller.autoscaling.schemes.threshold.ThresholdScaleManager;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.store.StoreClient;
@@ -48,6 +49,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -119,8 +121,9 @@ public class Main {
                 streamTransactionMetadataTasks);
 
         // 4. Start metric listener
-        final AutoScaler autoScaler = new ThresholdAutoScaler(hostStore, streamMetadataTasks, streamStore);
-        final MetricReader listener = new MetricReader(streamStore, hostStore, autoScaler);
-        listener.run();
+        StreamStoreChangeWorker.initialize(streamStore);
+        final AbstractScaleManager abstractScaleManager = new ThresholdScaleManager(streamMetadataTasks);
+        final AutoScaleMain autoscaler = new AutoScaleMain(streamStore, hostStore, abstractScaleManager);
+        CompletableFuture.runAsync(autoscaler);
     }
 }

@@ -34,20 +34,20 @@ import java.util.Observer;
  * This class is responsible for reading metrics from an external source.
  * It is also an observer for hostSet and streamSet and listens for any changes
  * to hosts or streams. It calls into appropriate methods of autoscaler corresponding to the signal received.
- * The signals could be about new host added, new stream created, any scale event done, any policy updated.
+ * The signals could be about new host added, new stream created, any scaled event done, any policy updated.
  */
 @Data
-public class MetricReader implements Observer, Runnable {
-    private final AutoScaler autoScaler;
+public class AutoScaleMain implements Observer, Runnable {
+    private final AbstractScaleManager abstractScaleManager;
     private final StreamsSet streamObservable;
     private final HostSet clusterObservable;
     private final StreamMetadataStore streamStore;
     private final HostControllerStore hostStore;
 
-    public MetricReader(final StreamMetadataStore streamStore,
-                        final HostControllerStore hostStore,
-                        final AutoScaler autoScaler) {
-        this.autoScaler = autoScaler;
+    public AutoScaleMain(final StreamMetadataStore streamStore,
+                         final HostControllerStore hostStore,
+                         final AbstractScaleManager abstractScaleManager) {
+        this.abstractScaleManager = abstractScaleManager;
         this.streamStore = streamStore;
         this.hostStore = hostStore;
 
@@ -60,12 +60,12 @@ public class MetricReader implements Observer, Runnable {
 
     private void initialize() {
         // add all hosts
-        clusterObservable.getHosts().stream().parallel().forEach(autoScaler::addHost);
+        clusterObservable.getHosts().stream().parallel().forEach(abstractScaleManager::addHost);
 
         // add all applicable streams
         streamObservable.getStreams().stream().parallel()
                 .filter(y -> toMonitor(y.getName(), y.getScope()))
-                .forEach(autoScaler::addStream);
+                .forEach(abstractScaleManager::addStream);
     }
 
     private boolean toMonitor(final String stream, final String scope) {
@@ -88,13 +88,13 @@ public class MetricReader implements Observer, Runnable {
 
         switch (notification.getNotificationType()) {
             case Add:
-                autoScaler.addStream(stream);
+                abstractScaleManager.addStream(stream);
                 break;
             case Alter:
-                autoScaler.policyUpdate(stream);
+                abstractScaleManager.policyUpdate(stream);
                 break;
             case Scale:
-                autoScaler.scale(stream);
+                abstractScaleManager.scaled(stream);
                 break;
         }
     }
@@ -104,20 +104,20 @@ public class MetricReader implements Observer, Runnable {
 
         switch (notification.getNotificationType()) {
             case Add:
-                autoScaler.addHost(host);
+                abstractScaleManager.addHost(host);
                 break;
             case Remove:
-                autoScaler.removeHost(host);
+                abstractScaleManager.removeHost(host);
                 break;
         }
     }
 
     @Override
     public void run() {
-        // read metrics
+        // TODO: read metrics. Once we finalize on how and where to read metrics from, this component can be activated.
         while (true) {
             List<Metric> metrics = null;
-            autoScaler.readMetrics(metrics);
+            abstractScaleManager.readMetrics(metrics);
         }
     }
 }

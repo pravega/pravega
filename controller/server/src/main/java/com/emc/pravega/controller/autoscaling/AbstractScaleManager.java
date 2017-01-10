@@ -38,25 +38,25 @@ import java.util.List;
  * @param <V2> Stream's History's value type
  * @param <H2> Stream's history type.
  */
-public abstract class AutoScaler<V1, H1 extends History<HostMetric, V1>, V2, H2 extends History<StreamMetric, V2>> {
+public abstract class AbstractScaleManager<V1, H1 extends History<HostMetric, V1>, V2, H2 extends History<StreamMetric, V2>> {
     /**
      * Metric Collector object. This class is multiplexing all metrics to their respective monitors.
      */
-    protected final MetricCollector<V1, H1, V2, H2> metricCollector;
+    protected final MetricMultiplexer<V1, H1, V2, H2> metricMultiplexer;
     private final StreamMetadataTasks streamMetadataTasks;
 
-    protected AutoScaler(final StreamMetadataTasks streamMetadataTasks) {
+    protected AbstractScaleManager(final StreamMetadataTasks streamMetadataTasks) {
         this.streamMetadataTasks = streamMetadataTasks;
-        this.metricCollector = new MetricCollector<>();
+        this.metricMultiplexer = new MetricMultiplexer<>();
     }
 
     public void addHost(final Host host) {
         final HostMonitor<V1, H1> hostMonitor = getHostMonitor(host);
-        metricCollector.addHostMonitor(host.getIpAddr(), hostMonitor);
+        metricMultiplexer.addHostMonitor(host.getIpAddr(), hostMonitor);
     }
 
     public void removeHost(Host host) {
-        metricCollector.removeHostMonitor(host.getIpAddr());
+        metricMultiplexer.removeHostMonitor(host.getIpAddr());
     }
 
     public void addStream(final StreamData streamData) {
@@ -68,19 +68,20 @@ public abstract class AutoScaler<V1, H1 extends History<HostMetric, V1>, V2, H2 
         final ActionProcessor actionProcessor = new ActionProcessor(actionQueue, streamMetadataTasks, stream, scope);
 
         final StreamMonitor<V2, H2> monitor = getStreamMonitor(actionQueue, actionProcessor, stream, scope, policy, activeSegments);
-        metricCollector.addStreamMonitor(stream, scope, monitor);
+        metricMultiplexer.addStreamMonitor(stream, scope, monitor);
+        monitor.run();
     }
 
     public void readMetrics(final List<Metric> metrics) {
-        metricCollector.handleIncomingMetrics(metrics);
+        metricMultiplexer.handleIncomingMetrics(metrics);
     }
 
-    public void scale(final StreamData streamData) {
+    public void scaled(final StreamData streamData) {
         final String stream = streamData.getName();
         final String scope = streamData.getScope();
         final List<Segment> activeSegments = streamData.getActiveSegments();
 
-        metricCollector.getStreamMonitor(stream, scope).scaled(activeSegments);
+        metricMultiplexer.getStreamMonitor(stream, scope).scaled(activeSegments);
     }
 
     public void policyUpdate(final StreamData streamData) {
@@ -93,7 +94,7 @@ public abstract class AutoScaler<V1, H1 extends History<HostMetric, V1>, V2, H2 
         // If its decreased, then it implies that much lesser events were generated in the past. So even that is undesirable.
         // how to get active segments
         // stop previous action processor. create a new action processor.
-        metricCollector.removeStreamMonitor(stream, scope);
+        metricMultiplexer.removeStreamMonitor(stream, scope);
         addStream(streamData);
     }
 

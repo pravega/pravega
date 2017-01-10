@@ -28,14 +28,12 @@ import java.util.stream.Stream;
 import static com.emc.pravega.controller.autoscaling.FunctionalInterfaces.ScaleFunction;
 
 /**
- * This function is supplied to core auto-scale component (stream monitor) to inject behaviour for how to mergeCandidates.
+ * This function is supplied to core auto-scaled component (stream monitor) to inject behaviour for how to mergeCandidates.
  */
 @Data
 public class MergeFunctionImpl implements FunctionalInterfaces.MergeFunction<Event, EventHistory> {
     private final ScaleFunctionImpl scaleFunction;
     private final long cooldownPeriod;
-    private final String stream;
-    private final String scope;
 
     /**
      * This function calculates merge candidates for the given segment number.

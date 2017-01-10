@@ -33,11 +33,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.Observable;
 import java.util.Optional;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Class to maintain all the streams and receive changes to any metadata pertaining to all streams in the system.
  */
 public class StreamsSet extends Observable implements StreamChangeListener {
+    /**
+     * Single Scheduler thread that periodically wakes up and posts refresh work for all streams in
+     * streamStoreShangeWorker's queue. It does this for all streams in this stream set and then sleeps.
+     * <p>
+     * Since putting watches on stream store for all streams would we very costly, so we will perform this task periodically.
+     * However, everytime a scale event occurs (either initiated by auto-scale or via manual scaling) it will result in
+     * new segments being created. Stream monitor, upon seeing a new segment will also request Stream Change worker to fetch
+     * latest active segments list.
+     */
+    private static final ScheduledThreadPoolExecutor EXECUTOR = new ScheduledThreadPoolExecutor(1);
+
     private final Map<Pair<String, String>, StreamData> streams;
 
     public StreamsSet(final StreamMetadataStore streamMetadataStore) {
@@ -45,7 +58,14 @@ public class StreamsSet extends Observable implements StreamChangeListener {
         FutureHelpers.getAndHandleExceptions(streamMetadataStore.getAllStreams()
                 .thenAccept(x -> x.stream().forEach(y -> streams.put(new ImmutablePair<>(y.getName(), y.getScope()), y))), RuntimeException::new);
 
+        EXECUTOR.schedule(this::periodicUpdate, 20, TimeUnit.MINUTES);
+
         streamMetadataStore.registerListener(this);
+        StreamStoreChangeWorker.addListener(this);
+    }
+
+    private void periodicUpdate() {
+        streams.keySet().stream().forEach(x -> StreamStoreChangeWorker.requestStreamUpdate(x.getKey(), x.getValue()));
     }
 
     @Override
@@ -64,21 +84,30 @@ public class StreamsSet extends Observable implements StreamChangeListener {
     public void updateStream(final String stream, final String scope, final StreamConfiguration streamConfiguration) {
         final ImmutablePair<String, String> key = new ImmutablePair<>(stream, scope);
         final StreamData previous = streams.get(key);
-        final StreamData streamData = new StreamData(stream, scope, streamConfiguration, previous.getActiveSegments(), previous.getLastScaleTimestamp());
-        streams.put(key, streamData);
-        setChanged();
-        notifyObservers(new StreamNotification(StreamNotification.NotificationType.Alter, streamData));
+        if (!previous.getStreamConfiguration().equals(streamConfiguration)) {
+            final StreamData streamData = new StreamData(stream, scope, streamConfiguration, previous.getActiveSegments(), previous.getLastScaleTimestamp());
+            streams.put(key, streamData);
+            setChanged();
+            notifyObservers(new StreamNotification(StreamNotification.NotificationType.Alter, streamData));
+        }
     }
 
     @Override
-    public void scaleStream(final String stream, final String scope, final List<Segment> activeSegments) {
+    public void scaledStream(final String stream, final String scope, final List<Segment> activeSegments) {
         final ImmutablePair<String, String> key = new ImmutablePair<>(stream, scope);
         final StreamData previous = streams.get(key);
-        final Optional<Long> lastScaleTimestamp = activeSegments.stream().map(Segment::getStart).reduce(Long::max);
-        final StreamData streamData = new StreamData(stream, scope, previous.getStreamConfiguration(), activeSegments, lastScaleTimestamp.get());
-        streams.put(key, streamData);
-        setChanged();
-        notifyObservers(new StreamNotification(StreamNotification.NotificationType.Scale, streamData));
+
+        // if previous max segment number is less than Max segment number in new list, then a scale has occured
+        final int previousMax = previous.getActiveSegments().stream().mapToInt(Segment::getNumber).max().getAsInt();
+        final int newMax = activeSegments.stream().mapToInt(Segment::getNumber).max().getAsInt();
+
+        if (previousMax < newMax) {
+            final Optional<Long> lastScaleTimestamp = activeSegments.stream().map(Segment::getStart).reduce(Long::max);
+            final StreamData streamData = new StreamData(stream, scope, previous.getStreamConfiguration(), activeSegments, lastScaleTimestamp.get());
+            streams.put(key, streamData);
+            setChanged();
+            notifyObservers(new StreamNotification(StreamNotification.NotificationType.Scale, streamData));
+        }
     }
 
     public Collection<StreamData> getStreams() {
