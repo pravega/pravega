@@ -109,7 +109,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                        .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250));
     @Override
     protected int getThreadPoolSize() {
-        return 20;
+        return 5;
     }
 
     /**
@@ -167,7 +167,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         checkReadIndex(segmentContents, lengths, context);
 
         // 5. Writer moving data to Storage.
-        waitForSegmentsInStorage(segmentNames, context).join();
+        waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, context);
 
         context.container.stopAsync().awaitTerminated();
@@ -205,7 +205,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
-        FutureHelpers.allOf(appendFutures).join();
+        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 2.1 Verify that if we pass wrong offsets, the append is failed.
         for (String segmentName : segmentNames) {
@@ -224,7 +224,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         checkReadIndex(segmentContents, lengths, context);
 
         // 4. Writer moving data to Storage.
-        waitForSegmentsInStorage(segmentNames, context).join();
+        waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, context);
 
         context.container.stopAsync().awaitTerminated();
@@ -260,7 +260,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
-        FutureHelpers.allOf(appendFutures).join();
+        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 3. Seal first half of segments.
         ArrayList<CompletableFuture<Long>> sealFutures = new ArrayList<>();
@@ -268,7 +268,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             sealFutures.add(context.container.sealStreamSegment(segmentNames.get(i), TIMEOUT));
         }
 
-        FutureHelpers.allOf(sealFutures).join();
+        FutureHelpers.allOf(sealFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Check that the segments were properly sealed.
         for (int i = 0; i < segmentNames.size(); i++) {
@@ -311,7 +311,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                     Assert.assertEquals("Unexpected value for isEndOfStreamSegment when reaching the end of sealed segment " + segmentName, ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
                     AssertExtensions.assertThrows(
                             "ReadResultEntry.getContent() returned a result when reached the end of sealed segment " + segmentName,
-                            () -> readEntry.getContent().join(),
+                            readEntry::getContent,
                             ex -> ex instanceof IllegalStateException);
                 } else {
                     Assert.assertNotEquals("Unexpected value for isEndOfStreamSegment before reaching end of sealed segment " + segmentName, ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
@@ -327,7 +327,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         // 5. Writer moving data to Storage.
-        waitForSegmentsInStorage(segmentNames, context).join();
+        waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, context);
 
         context.container.stopAsync().awaitTerminated();
@@ -495,13 +495,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
-        FutureHelpers.allOf(appendFutures).join();
+        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 5. Verify their contents.
         checkReadIndex(segmentContents, lengths, context);
 
         // 6. Writer moving data to Storage.
-        waitForSegmentsInStorage(segmentNames, context).join();
+        waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, context);
 
         context.container.stopAsync().awaitTerminated();
@@ -579,7 +579,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         segmentsToSeal.forEach(segmentName -> operationFutures
                 .add(FutureHelpers.toVoid(context.container.sealStreamSegment(segmentName, TIMEOUT))));
-        FutureHelpers.allOf(operationFutures).join();
+        FutureHelpers.allOf(operationFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Now wait for all the reads to complete, and verify their results against the expected output.
         ServiceShutdownListener.awaitShutdown(processorsBySegment.values(), TIMEOUT, true);
@@ -614,7 +614,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         // 6. Writer moving data to Storage.
-        waitForSegmentsInStorage(segmentNames, context).join();
+        waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, context);
     }
 
@@ -705,7 +705,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
-        FutureHelpers.allOf(appendFutures).join();
+        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private void mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
@@ -726,7 +726,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
-        FutureHelpers.allOf(mergeFutures).join();
+        FutureHelpers.allOf(mergeFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private byte[] getAppendData(String segmentName, int appendId) {
