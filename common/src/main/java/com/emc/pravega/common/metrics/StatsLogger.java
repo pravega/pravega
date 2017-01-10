@@ -16,9 +16,7 @@
  */
 package com.emc.pravega.common.metrics;
 
-import com.google.common.util.concurrent.AtomicDouble;
-
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * A simple interface that exposes just 2 kind of methods. One to get the logger for an Op stat
@@ -42,31 +40,13 @@ public interface StatsLogger {
     public Counter createCounter(String name);
 
     /**
-     * Register given <i>gauge</i> as name <i>name</i>.
-     *
-     * @param <T>   the type parameter
-     * @param name  gauge name
-     * @param gauge the gauge
-     */
-    public <T extends Number> void registerGauge(String name, Gauge<T> gauge);
-
-    /**
      * Register gauge.
-     * Long value is use widely, so add this interface.
      *
-     * @param name  gauge name
-     * @param value the gauge value
+     * @param <T>   the type of value
+     * @param name  the name of gauge
+     * @param value the supplier to provide value through get()
      */
-    public void registerGauge(String name, final AtomicLong value);
-
-    /**
-     * Register gauge.
-     * Double value is use widely, so add this interface
-     *
-     * @param name  gauge name
-     * @param value the gauge value
-     */
-    public void registerGauge(String name, final AtomicDouble value);
+    public <T extends Number> void registerGauge(String name, Supplier<T> value);
 
     /**
      * Provide the stats logger under scope <i>scope</i>.

@@ -87,7 +87,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     static final int MAX_READ_SIZE = 2 * 1024 * 1024;
 
-    static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
+    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
 
     public static class Metrics {
         static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);

@@ -138,6 +138,7 @@ public final class ServiceStarter {
 
             if (this.statsProvider != null) {
                 statsProvider.stop();
+                statsProvider = null;
                 log.info("Metrics statsProvider is now closed.");
             }
 

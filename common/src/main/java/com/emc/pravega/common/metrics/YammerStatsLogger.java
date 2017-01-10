@@ -17,10 +17,10 @@
 package com.emc.pravega.common.metrics;
 
 import com.codahale.metrics.Timer;
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 import static com.codahale.metrics.MetricRegistry.name;
-import java.util.concurrent.atomic.AtomicLong;
-import com.google.common.util.concurrent.AtomicDouble;
+import java.util.function.Supplier;
 
 public class YammerStatsLogger implements StatsLogger {
     protected final String basename;
@@ -79,42 +79,18 @@ public class YammerStatsLogger implements StatsLogger {
     }
 
     @Override
-    public <T extends Number> void registerGauge(final String statName, final Gauge<T> gauge) {
+    public <T extends Number> void registerGauge(final String statName, Supplier<T> value) {
         String metricName = name(basename, statName);
         metrics.remove(metricName);
 
-        metrics.register(metricName, new com.codahale.metrics.Gauge<T>() {
-                @Override
-                public T getValue() {
-                    return gauge.getSample();
-                }
-            });
-    }
-
-    @Override
-    public void registerGauge(final String statName, final AtomicLong value) {
-        String metricName = name(basename, statName);
-        metrics.remove(metricName);
-
-        metrics.register(metricName, new com.codahale.metrics.Gauge<Long>() {
+        Gauge gauge = new Gauge<T>() {
             @Override
-            public Long getValue() {
+            public T getValue() {
                 return value.get();
             }
-        });
-    }
+        };
 
-    @Override
-    public void registerGauge(final String statName, final AtomicDouble value) {
-        String metricName = name(basename, statName);
-        metrics.remove(metricName);
-
-        metrics.register(metricName, new com.codahale.metrics.Gauge<Double>() {
-            @Override
-            public Double getValue() {
-                return value.get();
-            }
-        });
+        metrics.register(metricName, gauge);
     }
 
     @Override

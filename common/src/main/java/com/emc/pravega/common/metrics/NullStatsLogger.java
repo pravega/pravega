@@ -16,11 +16,9 @@
  */
 package com.emc.pravega.common.metrics;
 
-import com.google.common.util.concurrent.AtomicDouble;
-
 import java.util.EnumMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 public class NullStatsLogger implements StatsLogger {
 
@@ -102,17 +100,7 @@ public class NullStatsLogger implements StatsLogger {
     }
 
     @Override
-    public <T extends Number> void registerGauge(String name, Gauge<T> gauge) {
-        // nop
-    }
-
-    @Override
-    public void registerGauge(final String statName, final AtomicLong value) {
-        // nop
-    }
-
-    @Override
-    public void registerGauge(String name, final AtomicDouble value) {
+    public <T extends Number> void registerGauge(String name, Supplier<T> value){
         // nop
     }
 

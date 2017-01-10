@@ -20,6 +20,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * The type Yammer provider test.
@@ -65,18 +66,11 @@ public class YammerProviderTest {
      */
     @Test
     public void testGauge() {
-        Gauge gauge = new Gauge<Integer>() {
-            @Override
-            public Integer getDefaultValue() {
-                return 0;
-            }
-
-            @Override
-            public Integer getSample() {
-                return 27;
-            }
-        };
-        statsLogger.registerGauge("testGauge", gauge);
-        assertEquals(27, MetricsProvider.getMetrics().getGauges().get("testGauge").getValue());
+        AtomicInteger value = new AtomicInteger(1);
+        statsLogger.registerGauge("testGauge", value::get);
+        for (int i = 1; i < 10; i++) {
+            value.set(i);
+            assertEquals(i, MetricsProvider.getMetrics().getGauges().get("testGauge").getValue());
+        }
     }
 }
