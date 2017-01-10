@@ -1045,13 +1045,13 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 readContents.write(data);
                 return true;
             } catch (Exception ex) {
-                processError(e, ex);
+                processError(ex);
                 return false;
             }
         }
 
         @Override
-        public void processError(ReadResultEntry entry, Throwable cause) {
+        public void processError(Throwable cause) {
             this.error.set(cause);
         }
 

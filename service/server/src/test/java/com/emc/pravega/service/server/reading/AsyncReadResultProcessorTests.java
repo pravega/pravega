@@ -84,7 +84,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
             ServiceShutdownListener.awaitShutdown(rp, TIMEOUT, true);
 
             if (testEntryHandler.error.get() != null) {
-                Assert.fail("Read failure: " + testEntryHandler.error.toString());
+                Assert.fail("Read failure: " + testEntryHandler.error.get().toString());
             }
 
             Assert.assertEquals("Unexpected number of reads processed.", entries.size(), testEntryHandler.readCount.get());
@@ -166,7 +166,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
 
             Assert.assertEquals("Unexpected number of reads processed.", 0, testEntryHandler.readCount.get());
             Assert.assertNotNull("No read failure encountered.", testEntryHandler.error.get());
-            Assert.assertTrue("Unexpected type of exception was raised.", testEntryHandler.error.get() instanceof IntentionalException);
+            Assert.assertTrue("Unexpected type of exception was raised: " + testEntryHandler.error.get(), testEntryHandler.error.get() instanceof IntentionalException);
         }
 
         Assert.assertTrue("ReadResult was not closed when the AsyncReadResultProcessor was closed.", rr.isClosed());
@@ -218,7 +218,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public void processError(ReadResultEntry entry, Throwable cause) {
+        public void processError(Throwable cause) {
             this.error.set(cause);
         }
 

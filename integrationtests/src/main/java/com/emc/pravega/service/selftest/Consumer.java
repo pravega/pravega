@@ -595,7 +595,7 @@ public class Consumer extends Actor {
         }
 
         @Override
-        public void processError(ReadResultEntry entry, Throwable cause) {
+        public void processError(Throwable cause) {
             cause = ExceptionHelpers.getRealException(cause);
             if (!(cause instanceof StreamSegmentSealedException)) {
                 CallbackHelpers.invokeSafely(this.failureHandler, cause, null);
