@@ -77,7 +77,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 10;
+        return 20;
     }
 
     /**
