@@ -41,7 +41,7 @@ public class YammerStatsLogger implements StatsLogger {
     private static class CounterImpl implements Counter {
         private com.codahale.metrics.Counter counter;
 
-        CounterImpl (com.codahale.metrics.Counter c) {
+        CounterImpl(com.codahale.metrics.Counter c) {
              counter = c;
         }
 

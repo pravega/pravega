@@ -18,7 +18,6 @@ package com.emc.pravega.common.metrics;
 
 import java.util.EnumMap;
 import java.util.EnumSet;
-import java.lang.Long;
 import com.codahale.metrics.Snapshot;
 
 /**
@@ -39,7 +38,7 @@ public class OpStatsData {
 
         private double numVal;
 
-        Percentile (double numVal) {
+        Percentile(double numVal) {
             this.numVal = numVal;
         }
 

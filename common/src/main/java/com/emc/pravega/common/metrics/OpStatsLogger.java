@@ -34,7 +34,7 @@ public interface OpStatsLogger {
     /**
      * Report failure, a wrapper to registerFailedEvent, with TimeUnit.NANOSECONDS.
      *
-     * @param eventLatency the event latency
+     * @param eventLatencyNanos the event latency
      */
     default public void reportFailure(long eventLatencyNanos) {
         registerFailedEvent(eventLatencyNanos, TimeUnit.NANOSECONDS);
@@ -51,7 +51,7 @@ public interface OpStatsLogger {
     /**
      * Report success, a wrapper to registerSuccessfulEvent, with TimeUnit.NANOSECONDS.
      *
-     * @param eventLatency the event latency
+     * @param eventLatencyNanos the event latency
      */
     default public void reportSuccess(long eventLatencyNanos) {
         registerSuccessfulEvent(eventLatencyNanos, TimeUnit.NANOSECONDS);
