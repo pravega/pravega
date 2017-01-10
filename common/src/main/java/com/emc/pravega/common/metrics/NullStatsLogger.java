@@ -18,6 +18,7 @@ package com.emc.pravega.common.metrics;
 
 import com.google.common.util.concurrent.AtomicDouble;
 
+import java.util.EnumMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -26,7 +27,7 @@ public class NullStatsLogger implements StatsLogger {
     public static final NullStatsLogger INSTANCE = new NullStatsLogger();
 
     static class NullOpStatsLogger implements OpStatsLogger {
-        final OpStatsData nullOpStats = new OpStatsData(0, 0, 0, null);
+        final OpStatsData nullOpStats = new OpStatsData(0, 0, 0, new EnumMap<OpStatsData.Percentile, Long>(OpStatsData.Percentile.class));
 
         @Override
         public void registerFailedEvent(long eventLatency, TimeUnit unit) {

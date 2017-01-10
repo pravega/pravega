@@ -17,8 +17,6 @@
 package com.emc.pravega.common.metrics;
 
 import java.util.EnumMap;
-import java.util.EnumSet;
-import com.codahale.metrics.Snapshot;
 
 /**
  * This class provides a read view of operation specific stats.
@@ -47,21 +45,17 @@ public class OpStatsData {
         }
     }
 
-    private final EnumMap<Percentile, Long> percentileLongMap = new EnumMap<Percentile, Long>(Percentile.class);
+    private EnumMap<Percentile, Long> percentileLongMap = new EnumMap<Percentile, Long>(Percentile.class);
 
     public OpStatsData(long numSuccessfulEvents, long numFailedEvents,
-                       double avgLatencyMillis, Snapshot snapshot) {
+                       double avgLatencyMillis, EnumMap<Percentile, Long> percentileLongMap) {
         assert numSuccessfulEvents >= 0;
         assert numFailedEvents >= 0;
         assert avgLatencyMillis >= 0;
         this.numSuccessfulEvents = numSuccessfulEvents;
         this.numFailedEvents = numFailedEvents;
         this.avgLatencyMillis = avgLatencyMillis;
-
-        EnumSet<Percentile> percentileSet = EnumSet.allOf(Percentile.class);
-        for (Percentile percent : percentileSet) {
-            percentileLongMap.put(percent, (long) snapshot.getValue(percent.getValue() / 100));
-        }
+        this.percentileLongMap = percentileLongMap;
     }
 
     public long getPercentile(Percentile percentile) {

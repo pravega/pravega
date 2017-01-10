@@ -19,6 +19,8 @@ package com.emc.pravega.common.metrics;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.Snapshot;
 
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.concurrent.TimeUnit;
 
 class YammerOpStatsLogger implements OpStatsLogger {
@@ -64,6 +66,12 @@ class YammerOpStatsLogger implements OpStatsLogger {
         long numSuccess = success.getCount();
         Snapshot s = success.getSnapshot();
         double avgLatencyMillis = s.getMean();
-        return new OpStatsData(numSuccess, numFailed, avgLatencyMillis, s);
+
+        EnumMap<OpStatsData.Percentile, Long> percentileLongMap  = new EnumMap<OpStatsData.Percentile, Long>(OpStatsData.Percentile.class);
+        EnumSet<OpStatsData.Percentile> percentileSet = EnumSet.allOf(OpStatsData.Percentile.class);
+        for (OpStatsData.Percentile percent : percentileSet) {
+            percentileLongMap.put(percent, (long) s.getValue(percent.getValue() / 100));
+        }
+        return new OpStatsData(numSuccess, numFailed, avgLatencyMillis, percentileLongMap);
     }
 }
