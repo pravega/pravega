@@ -27,10 +27,7 @@ import java.nio.ByteBuffer;
 public class ByteArraySerializer implements Serializer<byte[]> {
     @Override
     public ByteBuffer serialize(byte[] value) {
-        ByteBuffer result = ByteBuffer.allocate(value.length);
-        result.put(value);
-        result.position(0);
-        return result;
+        return ByteBuffer.wrap(value);
     }
 
     @Override
