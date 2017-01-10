@@ -35,7 +35,6 @@ import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 
-import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -106,18 +105,21 @@ public class SegmentHelper {
                                                          final HostControllerStore hostControllerStore,
                                                          final ConnectionFactory clientCF) {
         final NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
-        final CompletableFuture<Boolean> result = new CompletableFuture<>();
 
+        final CompletableFuture<Boolean> result = new CompletableFuture<>();
+        final WireCommandType type = WireCommandType.SEAL_SEGMENT;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
-                result.completeExceptionally(new ConnectionClosedException());
+                result.completeExceptionally(
+                        new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                result.completeExceptionally(new UnknownHostException());
+                result.completeExceptionally(
+                        new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override

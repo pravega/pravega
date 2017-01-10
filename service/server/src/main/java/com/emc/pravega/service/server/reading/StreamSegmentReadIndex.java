@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
@@ -41,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -475,7 +477,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 // We have attempted to read beyond the end of the stream. Fail the read request with the appropriate message.
                 r.fail(new StreamSegmentSealedException(String.format("StreamSegment has been sealed at offset %d. There can be no more reads beyond this offset.", this.metadata.getDurableLogLength())));
             } else {
-                entry.getContent().thenAccept(r::complete);
+                CompletableFuture<ReadResultEntryContents> entryContent = entry.getContent();
+                entryContent.thenAccept(r::complete);
+                FutureHelpers.exceptionListener(entryContent, r::fail);
             }
         }
     }

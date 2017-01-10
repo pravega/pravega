@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.PropertyBag;
@@ -77,7 +78,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 20;
+        return 5;
     }
 
     /**
@@ -1038,6 +1039,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         @Override
         public boolean processEntry(ReadResultEntry e) {
+            Assert.assertTrue("Received Entry that is not ready to serve data yet.", FutureHelpers.isSuccessful(e.getContent()));
             ReadResultEntryContents c = e.getContent().join();
             byte[] data = new byte[c.getLength()];
             try {

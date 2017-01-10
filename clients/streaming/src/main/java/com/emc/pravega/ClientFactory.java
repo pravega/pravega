@@ -16,7 +16,8 @@ package com.emc.pravega;
 
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revisioned;
-import com.emc.pravega.state.Synchronizer;
+import com.emc.pravega.state.RevisionedStreamClient;
+import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.EventStreamReader;
@@ -126,20 +127,31 @@ public interface ClientFactory {
     <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config);
 
     /**
-     * Creates a new Synchronizer that will work on the specified stream.
+     * Creates a new RevisionedStreamClient that will work with the specified stream.
+     * 
+     * @param streamName The name of the stream for the synchronizer
+     * @param serializer The serializer for updates.
+     * @param config The client configuration
+     * @param <T> The type of events
+     */
+    <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
+            SynchronizerConfig config);
+    
+    /**
+     * Creates a new StateSynchronizer that will work on the specified stream.
      * 
      * @param <StateT> The type of the state being synchronized.
-     * @param <UpdateT> The type of updates applied to the state object.
-     * @param <InitT> The type of the initializer of the stat object.
+     * @param <UpdateT> The type of the updates being written. 
+     * @param <InitT> The type of the initial update used.
      * @param streamName The name of the stream for the synchronizer
      * @param updateSerializer The serializer for updates.
      * @param initialSerializer The serializer for the initial update.
-     * @param config The Serializer configuration
+     * @param config The synchronizer configuration
      */
     <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
-            Synchronizer<StateT, UpdateT, InitT> createSynchronizer(String streamName,
-                                                                    Serializer<UpdateT> updateSerializer,
-                                                                    Serializer<InitT> initialSerializer,
-                                                                    SynchronizerConfig config);
+    StateSynchronizer<StateT> createStateSynchronizer(String streamName,
+                                                      Serializer<UpdateT> updateSerializer,
+                                                      Serializer<InitT> initialSerializer,
+                                                      SynchronizerConfig config);
 
 }

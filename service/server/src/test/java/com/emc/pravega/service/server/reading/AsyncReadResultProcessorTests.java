@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -201,6 +202,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
         @Override
         public boolean processEntry(ReadResultEntry e) {
             try {
+                Assert.assertTrue("Received Entry that is not ready to serve data yet.", FutureHelpers.isSuccessful(e.getContent()));
                 ReadResultEntryContents c = e.getContent().join();
                 byte[] data = new byte[c.getLength()];
                 StreamHelpers.readAll(c.getData(), data, 0, data.length);
