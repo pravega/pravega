@@ -972,12 +972,15 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.storage.setWriteInterceptor((segmentName, offset, data, length, storage) -> {
             if (writeCount.incrementAndGet() % failEvery == 0) {
                 // Time to wreak some havoc.
-                storage.write(segmentName, offset, data, length, TIMEOUT).join();
-                IntentionalException ex = new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
-                setException.set(ex);
-                throw ex;
+                return storage.write(segmentName, offset, data, length, TIMEOUT)
+                              .thenAccept(v -> {
+                                  IntentionalException ex = new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
+                                  setException.set(ex);
+                                  throw ex;
+                              });
             } else {
                 setException.set(null);
+                return null;
             }
         });
 

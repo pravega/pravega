@@ -90,7 +90,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 100; // Need a larger TP since this test has a large number of Segments and ops (thus many concurrent ops).
+        return 5;
     }
 
     /**
@@ -259,10 +259,14 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         AtomicInteger writeFailCount = new AtomicInteger();
         context.storage.setWriteInterceptor((segmentName, offset, data, length, storage) -> {
             if (writeCount.incrementAndGet() % failWriteEvery == 0) {
-                storage.write(segmentName, offset, data, length, TIMEOUT).join();
-                writeFailCount.incrementAndGet();
-                throw new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
+                return storage.write(segmentName, offset, data, length, TIMEOUT)
+                              .thenAccept(v -> {
+                                  writeFailCount.incrementAndGet();
+                                  throw new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
+                              });
             }
+
+            return null;
         });
 
         // Inject Seal errors every now and then.
@@ -270,10 +274,14 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         AtomicInteger sealFailCount = new AtomicInteger();
         context.storage.setSealInterceptor((segmentName, storage) -> {
             if (sealCount.incrementAndGet() % failSealEvery == 0) {
-                storage.seal(segmentName, TIMEOUT).join();
-                sealFailCount.incrementAndGet();
-                throw new IntentionalException(String.format("S=%s", segmentName));
+                return storage.seal(segmentName, TIMEOUT)
+                              .thenAccept(v -> {
+                                  sealFailCount.incrementAndGet();
+                                  throw new IntentionalException(String.format("S=%s", segmentName));
+                              });
             }
+
+            return null;
         });
 
         // Inject Merge/Concat errors every now and then.
@@ -281,10 +289,14 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         AtomicInteger mergeFailCount = new AtomicInteger();
         context.storage.setConcatInterceptor((targetSegment, offset, sourceSegment, storage) -> {
             if (mergeCount.incrementAndGet() % failMergeEvery == 0) {
-                storage.concat(targetSegment, offset, sourceSegment, TIMEOUT).join();
-                mergeFailCount.incrementAndGet();
-                throw new IntentionalException(String.format("T=%s,O=%d,S=%s", targetSegment, offset, sourceSegment));
+                return storage.concat(targetSegment, offset, sourceSegment, TIMEOUT)
+                              .thenAccept(v -> {
+                                  mergeFailCount.incrementAndGet();
+                                  throw new IntentionalException(String.format("T=%s,O=%d,S=%s", targetSegment, offset, sourceSegment));
+                              });
             }
+
+            return null;
         });
 
         testWriter(context);
