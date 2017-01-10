@@ -66,7 +66,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 3;
+        return 5;
     }
 
     /**

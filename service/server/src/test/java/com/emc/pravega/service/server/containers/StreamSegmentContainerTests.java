@@ -109,7 +109,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                        .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250));
     @Override
     protected int getThreadPoolSize() {
-        return 10;
+        return 20;
     }
 
     /**
