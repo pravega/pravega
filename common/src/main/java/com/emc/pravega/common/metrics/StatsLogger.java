@@ -41,6 +41,7 @@ public interface StatsLogger {
 
     /**
      * Register gauge.
+     * <i>value</i> is usually get of Number: AtomicInteger::get, AtomicLong::get
      *
      * @param <T>   the type of value
      * @param name  the name of gauge

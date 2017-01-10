@@ -94,10 +94,14 @@ public class YammerStatsProvider implements StatsProvider {
 
     @Synchronized
     @Override
-    public void stop() {
+    public void close() {
         for (ScheduledReporter r : reporters) {
-            r.report();
-            r.stop();
+            try {
+                r.report();
+                r.stop();
+            } catch (Exception e) {
+                log.error("Exception report or stop reporter", e);
+            }
         }
     }
 

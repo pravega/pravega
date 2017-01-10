@@ -26,7 +26,7 @@ public class NullStatsProvider implements StatsProvider {
     }
 
     @Override
-    public void stop() {
+    public void close() {
         // nop
     }
 

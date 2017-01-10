@@ -20,7 +20,7 @@ package com.emc.pravega.common.metrics;
  * Provider of StatsLogger instances depending on scope.
  * An implementation of this interface possibly returns a separate instance per Pravega scope.
  */
-public interface StatsProvider {
+public interface StatsProvider extends AutoCloseable {
     /**
      * Initialize the stats provider by loading the given configuration <i>conf</i>.
      *
@@ -31,7 +31,8 @@ public interface StatsProvider {
     /**
      * Close the stats provider.
      */
-    public void stop();
+    @Override
+    public void close();
 
     /**
      * Return the StatsLogger instance associated with the given <i>scope</i>.

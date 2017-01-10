@@ -82,14 +82,12 @@ public class YammerStatsLogger implements StatsLogger {
     public <T extends Number> void registerGauge(final String statName, Supplier<T> value) {
         String metricName = name(basename, statName);
         metrics.remove(metricName);
-
         Gauge gauge = new Gauge<T>() {
             @Override
             public T getValue() {
                 return value.get();
             }
         };
-
         metrics.register(metricName, gauge);
     }
 
