@@ -20,7 +20,8 @@ package com.emc.pravega.stream.mock;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revisioned;
-import com.emc.pravega.state.Synchronizer;
+import com.emc.pravega.state.RevisionedStreamClient;
+import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.EventStreamReader;
@@ -83,12 +84,18 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
     }
 
     @Override
-    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>>
-            Synchronizer<StateT, UpdateT, InitT> createSynchronizer(String streamName,
-                                                                    Serializer<UpdateT> updateSerializer,
-                                                                    Serializer<InitT> initialSerializer,
-                                                                    SynchronizerConfig config) {
-        return impl.createSynchronizer(streamName, updateSerializer, initialSerializer, config);
+    public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
+            SynchronizerConfig config) {
+        return impl.createRevisionedStreamClient(streamName, serializer, config);
+    }
+
+    @Override
+    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
+    StateSynchronizer<StateT> createStateSynchronizer(String streamName,
+            Serializer<UpdateT> updateSerializer,
+            Serializer<InitT> initialSerializer,
+            SynchronizerConfig config) {
+        return impl.createStateSynchronizer(streamName, updateSerializer, initialSerializer, config);
     }
 
     public void createStream(String streamName, StreamConfiguration config) {

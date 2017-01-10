@@ -138,6 +138,12 @@ interface Stream {
     CompletableFuture<TxnStatus> abortTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
 
     /**
+     * Return whether any transaction is active on the stream.
+     * @return a boolean indicating whether a transaction is active on the stream.
+     */
+    CompletableFuture<Boolean> isTransactionOngoing();
+
+    /**
      * Refresh the stream object. Typically to be used to invalidate any caches.
      * This allows us reuse of stream object without having to recreate a new stream object for each new operation
      */
