@@ -297,7 +297,6 @@ public class StreamMetadataTest {
             System.err.println("FAILURE: Fetching positions at given time before stream creation failed, exiting");
             return;
         }
-        System.out.println(getPositions.get());
 
         //PS6:Get positions at a time in future after stream creation
         System.err.println(String.format("Get positions at given time in future after (%s, %s) creation ", scope1, streamName1));
@@ -308,7 +307,6 @@ public class StreamMetadataTest {
         } else {
             System.err.println("SUCCESS: Fetching positions at given time in furture after stream creation");
         }
-        System.out.println(getPositions.get());
 
         System.out.println("All stream metadata tests PASSED");
 
