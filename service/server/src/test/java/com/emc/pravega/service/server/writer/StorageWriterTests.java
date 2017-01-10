@@ -159,11 +159,12 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         // to pick them up and end up failing when attempting to fetch the cache contents.
         context.cache.clear();
 
-        context.writer.startAsync().awaitRunning();
-
         AssertExtensions.assertThrows(
                 "StorageWriter did not fail when a fatal data retrieval error occurred.",
-                () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
+                () -> {
+                    context.writer.startAsync().awaitRunning();
+                    ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true);
+                },
                 ex -> ex instanceof IllegalStateException);
 
         Assert.assertTrue("Unexpected failure cause for StorageWriter: " + context.writer.failureCause(), ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof DataCorruptionException);
