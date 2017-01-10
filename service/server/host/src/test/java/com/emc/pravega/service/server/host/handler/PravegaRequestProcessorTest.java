@@ -161,7 +161,7 @@ public class PravegaRequestProcessorTest {
 
         // Have read all the bytes in data[], so readBytes count equals to data.length.
         Counter readBytes = PravegaRequestProcessor.Metrics.READ_BYTES;
-        assertEquals(Long.valueOf(data.length), readBytes.get());
+        assertEquals(data.length, readBytes.get());
     }
 
     @Test(timeout = 20000)

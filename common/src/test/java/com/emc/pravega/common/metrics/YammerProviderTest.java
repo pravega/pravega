@@ -57,7 +57,7 @@ public class YammerProviderTest {
     public void testCounter() {
         Counter testCounter = statsLogger.createCounter("testCounter");
         testCounter.add(17);
-        assertEquals(Long.valueOf(17), testCounter.get());
+        assertEquals(17, testCounter.get());
     }
 
     /**
