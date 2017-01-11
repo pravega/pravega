@@ -18,7 +18,7 @@
 package com.emc.pravega.controller.monitoring;
 
 import com.emc.pravega.controller.monitoring.history.History;
-import com.emc.pravega.stream.impl.HostMetric;
+import com.emc.pravega.common.metric.HostMetric;
 
 public class HostMonitor<V, H extends History<HostMetric, V>> extends MonitorBase<HostMetric> {
     private final H history;

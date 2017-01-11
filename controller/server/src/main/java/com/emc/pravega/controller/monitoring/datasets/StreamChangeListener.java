@@ -15,13 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.impl;
+package com.emc.pravega.controller.monitoring.datasets;
 
-public interface Metric {
-    enum MetricType {
-        StreamMetric,
-        HostMetric
-    }
+import com.emc.pravega.controller.store.stream.StreamData;
 
-    MetricType getType();
+/**
+ * Interface for listener for changes to stream.
+ */
+public interface StreamChangeListener {
+    void updateStream(final StreamData streamData);
 }

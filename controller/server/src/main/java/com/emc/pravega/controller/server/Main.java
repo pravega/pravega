@@ -21,7 +21,7 @@ import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.monitoring.MetricManager;
 import com.emc.pravega.controller.monitoring.MonitoringMain;
-import com.emc.pravega.controller.monitoring.StreamStoreChangeWorker;
+import com.emc.pravega.controller.monitoring.datasets.StreamStoreChangeWorker;
 import com.emc.pravega.controller.monitoring.schemes.threshold.ThresholdMetricManager;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
@@ -122,8 +122,8 @@ public class Main {
 
         // 4. Start metric listener
         StreamStoreChangeWorker.initialize(streamStore);
-        final MetricManager metricManager = new ThresholdMetricManager(streamMetadataTasks);
-        final MonitoringMain autoscaler = new MonitoringMain(streamStore, hostStore, metricManager);
+        final MetricManager metricManager = new ThresholdMetricManager(streamMetadataTasks, streamStore, hostStore);
+        final MonitoringMain autoscaler = new MonitoringMain(metricManager);
         CompletableFuture.runAsync(autoscaler);
     }
 }

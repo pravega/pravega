@@ -17,12 +17,12 @@
  */
 package com.emc.pravega.controller.monitoring.schemes.threshold.aggregates;
 
-import com.emc.pravega.controller.monitoring.FunctionalInterfaces;
+import com.emc.pravega.controller.monitoring.InjectableBehaviours;
 import com.emc.pravega.controller.monitoring.history.Aggregate;
 import com.emc.pravega.controller.monitoring.history.AggregatedValue;
 import com.emc.pravega.controller.monitoring.schemes.threshold.Event;
 import com.emc.pravega.controller.monitoring.schemes.threshold.history.EventHistory;
-import com.emc.pravega.stream.impl.StreamMetric;
+import com.emc.pravega.common.metric.StreamMetric;
 
 /**
  * Base class for Aggregates for Event History used in threshold based auto-scaling scheme.
@@ -32,10 +32,10 @@ import com.emc.pravega.stream.impl.StreamMetric;
  * @param <T> Aggregated Value
  */
 public class ThresholdAggregateBase<V, T extends AggregatedValue<V>> extends Aggregate<V, T, Event, StreamMetric, EventHistory> {
-    private final FunctionalInterfaces.AggregateFunction<T, Event, StreamMetric, EventHistory> aggFunction;
+    private final InjectableBehaviours.AggregateFunction<T, Event, StreamMetric, EventHistory> aggFunction;
     private final T aggregatedValue;
 
-    public ThresholdAggregateBase(FunctionalInterfaces.AggregateFunction<T, Event, StreamMetric, EventHistory> aggFunction, T aggregatedValue) {
+    public ThresholdAggregateBase(InjectableBehaviours.AggregateFunction<T, Event, StreamMetric, EventHistory> aggFunction, T aggregatedValue) {
         super(aggFunction, aggregatedValue);
 
         this.aggFunction = aggFunction;
@@ -48,7 +48,7 @@ public class ThresholdAggregateBase<V, T extends AggregatedValue<V>> extends Agg
     }
 
     @Override
-    public FunctionalInterfaces.AggregateFunction<T, Event, StreamMetric, EventHistory> getAggFunction() {
+    public InjectableBehaviours.AggregateFunction<T, Event, StreamMetric, EventHistory> getAggFunction() {
         return aggFunction;
     }
 }

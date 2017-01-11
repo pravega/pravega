@@ -166,6 +166,7 @@ public interface StreamMetadataStore {
 
     /**
      * Returns a boolean indicating whether any transaction is active on the specified stream.
+     *
      * @param scope  scope.
      * @param stream stream.
      * @return boolean indicating whether any transaction is active on the specified stream.
@@ -179,18 +180,4 @@ public interface StreamMetadataStore {
      * @return
      */
     CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx();
-
-    /**
-     * Api to get data corresponding to all streams in the system.
-     *
-     * @return
-     */
-    CompletableFuture<List<StreamData>> getAllStreams();
-
-    /**
-     * Method to register listener for all stream events.
-     *
-     * @param listener          Listener for changes to stream
-     */
-    void registerListener(final StreamChangeListener listener);
 }

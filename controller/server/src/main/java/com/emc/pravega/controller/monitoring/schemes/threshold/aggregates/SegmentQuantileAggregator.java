@@ -17,15 +17,15 @@
  */
 package com.emc.pravega.controller.monitoring.schemes.threshold.aggregates;
 
-import com.emc.pravega.controller.monitoring.FunctionalInterfaces;
+import com.emc.pravega.controller.monitoring.InjectableBehaviours;
 import com.emc.pravega.controller.monitoring.schemes.threshold.Event;
 import com.emc.pravega.controller.monitoring.schemes.threshold.history.EventHistory;
-import com.emc.pravega.stream.impl.StreamMetric;
+import com.emc.pravega.common.metric.StreamMetric;
 
 /**
  * Behaviour injected that tells history how to compute aggregate upon receiving a metric sample.
  */
-public class SegmentAggregator implements FunctionalInterfaces.AggregateFunction<SegmentQuantileValue, Event, StreamMetric, EventHistory> {
+public class SegmentQuantileAggregator implements InjectableBehaviours.AggregateFunction<SegmentQuantileValue, Event, StreamMetric, EventHistory> {
 
     /**
      * Function to update SegmentQuantileValue.

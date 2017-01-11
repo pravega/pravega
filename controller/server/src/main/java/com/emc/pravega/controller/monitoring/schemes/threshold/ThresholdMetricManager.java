@@ -18,7 +18,7 @@
 package com.emc.pravega.controller.monitoring.schemes.threshold;
 
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.controller.monitoring.FunctionalInterfaces;
+import com.emc.pravega.controller.monitoring.InjectableBehaviours;
 import com.emc.pravega.controller.monitoring.HostMonitor;
 import com.emc.pravega.controller.monitoring.MetricManager;
 import com.emc.pravega.controller.monitoring.StreamMonitor;
@@ -29,16 +29,18 @@ import com.emc.pravega.controller.monitoring.schemes.threshold.aggregates.LastMe
 import com.emc.pravega.controller.monitoring.schemes.threshold.aggregates.LatestMetricAggregator;
 import com.emc.pravega.controller.monitoring.schemes.threshold.aggregates.MovingRateAggregator;
 import com.emc.pravega.controller.monitoring.schemes.threshold.aggregates.MovingRateValue;
-import com.emc.pravega.controller.monitoring.schemes.threshold.aggregates.SegmentAggregator;
+import com.emc.pravega.controller.monitoring.schemes.threshold.aggregates.SegmentQuantileAggregator;
 import com.emc.pravega.controller.monitoring.schemes.threshold.aggregates.SegmentQuantileValue;
 import com.emc.pravega.controller.monitoring.schemes.threshold.aggregates.ThresholdAggregateBase;
 import com.emc.pravega.controller.monitoring.schemes.threshold.history.EventHistory;
 import com.emc.pravega.controller.monitoring.schemes.threshold.history.HostHistory;
+import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
+import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.util.RollingWindow;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.impl.HostMetric;
+import com.emc.pravega.common.metric.HostMetric;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import java.time.Duration;
@@ -76,8 +78,10 @@ public class ThresholdMetricManager extends MetricManager<Void, HostHistory, Eve
     private static final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
             new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
-    public ThresholdMetricManager(final StreamMetadataTasks streamMetadataTasks) {
-        super(streamMetadataTasks);
+    public ThresholdMetricManager(final StreamMetadataTasks streamMetadataTasks,
+                                  final StreamMetadataStore streamStore,
+                                  final HostControllerStore hostStore) {
+        super(streamMetadataTasks, streamStore, hostStore);
     }
 
     @Override
@@ -101,7 +105,7 @@ public class ThresholdMetricManager extends MetricManager<Void, HostHistory, Eve
                 /**
                  * Two aggregates are attached to our history - one for quantile, second for moving rate.
                  */
-                new ThresholdAggregateBase<>(new SegmentAggregator(), new SegmentQuantileValue()),
+                new ThresholdAggregateBase<>(new SegmentQuantileAggregator(), new SegmentQuantileValue()),
                 new ThresholdAggregateBase<>(new MovingRateAggregator(), new MovingRateValue())
         );
 
@@ -110,8 +114,8 @@ public class ThresholdMetricManager extends MetricManager<Void, HostHistory, Eve
                 ROLLING_WINDOW.toMillis(),
                 MIN_PERCENTAGE_FOR_SCALE);
 
-        final FunctionalInterfaces.SplitFunction<Event, EventHistory> splitFunction = new SplitFunctionImpl();
-        final FunctionalInterfaces.MergeFunction<Event, EventHistory> mergeFunction = new MergeFunctionImpl(scaleFunction,
+        final InjectableBehaviours.SplitFunction<Event, EventHistory> splitFunction = new SplitFunctionImpl();
+        final InjectableBehaviours.MergeFunction<Event, EventHistory> mergeFunction = new MergeFunctionImpl(scaleFunction,
                 COOLDOWN_PERIOD.toMillis());
 
         final StreamMonitor<Event, EventHistory> monitor = new StreamMonitor<>(scaleActionQueue,

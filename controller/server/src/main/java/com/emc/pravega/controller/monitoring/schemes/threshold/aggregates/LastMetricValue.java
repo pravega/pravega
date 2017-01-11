@@ -18,7 +18,7 @@
 package com.emc.pravega.controller.monitoring.schemes.threshold.aggregates;
 
 import com.emc.pravega.controller.monitoring.history.AggregatedValue;
-import com.emc.pravega.stream.impl.Metric;
+import com.emc.pravega.common.metric.Metric;
 import lombok.Data;
 
 /**

@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.monitoring.action;
 
-import com.emc.pravega.controller.monitoring.StreamStoreChangeWorker;
+import com.emc.pravega.controller.monitoring.datasets.StreamStoreChangeWorker;
 import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.util.action.ActionProcessor;

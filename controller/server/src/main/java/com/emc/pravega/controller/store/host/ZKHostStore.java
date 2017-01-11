@@ -29,9 +29,7 @@ import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -130,15 +128,4 @@ public class ZKHostStore implements HostControllerStore {
         String qualifiedName = Segment.getScopedName(scope, stream, segmentNumber);
         return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
     }
-
-    @Override
-    public void registerListener(final HostChangeListener listener) {
-        // TODO: shivesh
-    }
-
-    @Override
-    public List<Host> getAllHosts() {
-        return new ArrayList<>(getHostContainersMap().keySet());
-    }
-
 }

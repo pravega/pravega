@@ -24,7 +24,7 @@ import com.emc.pravega.controller.monitoring.schemes.threshold.Events;
 import com.emc.pravega.controller.monitoring.schemes.threshold.aggregates.ThresholdAggregateBase;
 import com.emc.pravega.controller.util.RollingWindow;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.impl.StreamMetric;
+import com.emc.pravega.common.metric.StreamMetric;
 import com.google.common.collect.Lists;
 import lombok.Data;
 

@@ -17,8 +17,8 @@
  */
 package com.emc.pravega.controller.monitoring.history;
 
-import com.emc.pravega.controller.monitoring.FunctionalInterfaces;
-import com.emc.pravega.stream.impl.Metric;
+import com.emc.pravega.controller.monitoring.InjectableBehaviours;
+import com.emc.pravega.common.metric.Metric;
 
 /**
  * Base class for aggregates.
@@ -30,11 +30,11 @@ import com.emc.pravega.stream.impl.Metric;
  * @param <H> History's type.
  */
 public class Aggregate<V, T extends AggregatedValue<V>, S, M extends Metric, H extends History<M, S>> {
-    private final FunctionalInterfaces.AggregateFunction<T, S, M, H> aggFunction;
+    private final InjectableBehaviours.AggregateFunction<T, S, M, H> aggFunction;
 
     private final T aggregatedValue;
 
-    public Aggregate(FunctionalInterfaces.AggregateFunction<T, S, M, H> aggFunction, T aggregatedValue) {
+    public Aggregate(InjectableBehaviours.AggregateFunction<T, S, M, H> aggFunction, T aggregatedValue) {
         this.aggFunction = aggFunction;
         this.aggregatedValue = aggregatedValue;
     }
@@ -43,7 +43,7 @@ public class Aggregate<V, T extends AggregatedValue<V>, S, M extends Metric, H e
         return aggregatedValue;
     }
 
-    public FunctionalInterfaces.AggregateFunction<T, S, M, H> getAggFunction() {
+    public InjectableBehaviours.AggregateFunction<T, S, M, H> getAggFunction() {
         return aggFunction;
     }
 }

@@ -17,14 +17,15 @@
  */
 package com.emc.pravega.controller.monitoring;
 
-import com.emc.pravega.controller.monitoring.FunctionalInterfaces.ScaleFunction.Direction;
+import com.emc.pravega.controller.monitoring.InjectableBehaviours.ScaleFunction.Direction;
 import com.emc.pravega.controller.monitoring.action.ScaleActionProcessor;
 import com.emc.pravega.controller.monitoring.action.ScaleActionQueue;
 import com.emc.pravega.controller.monitoring.action.ScaleDown;
 import com.emc.pravega.controller.monitoring.action.ScaleUp;
+import com.emc.pravega.controller.monitoring.datasets.StreamStoreChangeWorker;
 import com.emc.pravega.controller.monitoring.history.History;
 import com.emc.pravega.controller.store.stream.Segment;
-import com.emc.pravega.stream.impl.StreamMetric;
+import com.emc.pravega.common.metric.StreamMetric;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -42,9 +43,9 @@ import java.util.stream.Stream;
  */
 public class StreamMonitor<V, H extends History<StreamMetric, V>> extends MonitorBase<StreamMetric> {
 
-    private final FunctionalInterfaces.ScaleFunction<V, H> scaleFunction;
-    private final FunctionalInterfaces.SplitFunction<V, H> splitFunction;
-    private final FunctionalInterfaces.MergeFunction<V, H> mergeFunction;
+    private final InjectableBehaviours.ScaleFunction<V, H> scaleFunction;
+    private final InjectableBehaviours.SplitFunction<V, H> splitFunction;
+    private final InjectableBehaviours.MergeFunction<V, H> mergeFunction;
     private final H history;
     private final ScaleActionQueue scaleActionQueue;
     private final ScaleActionProcessor actionProcessor;
@@ -69,9 +70,9 @@ public class StreamMonitor<V, H extends History<StreamMetric, V>> extends Monito
     public StreamMonitor(final ScaleActionQueue scaleActionQueue,
                          final ScaleActionProcessor actionProcessor,
                          final H history,
-                         final FunctionalInterfaces.ScaleFunction<V, H> scaleFunction,
-                         final FunctionalInterfaces.SplitFunction<V, H> splitFunction,
-                         final FunctionalInterfaces.MergeFunction<V, H> mergeFunction,
+                         final InjectableBehaviours.ScaleFunction<V, H> scaleFunction,
+                         final InjectableBehaviours.SplitFunction<V, H> splitFunction,
+                         final InjectableBehaviours.MergeFunction<V, H> mergeFunction,
                          final String stream,
                          final String scope,
                          final List<Segment> activeSegments) {

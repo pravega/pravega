@@ -26,7 +26,6 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -82,15 +81,5 @@ public class InMemoryHostStore implements HostControllerStore {
     public Host getHostForSegment(String scope, String stream, int segmentNumber) {
         String qualifiedName = Segment.getScopedName(scope, stream, segmentNumber);
         return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
-    }
-
-    @Override
-    public void registerListener(HostChangeListener listener) {
-
-    }
-
-    @Override
-    public List<Host> getAllHosts() {
-        return null;
     }
 }

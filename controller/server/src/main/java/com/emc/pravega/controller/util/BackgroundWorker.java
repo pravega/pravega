@@ -80,8 +80,8 @@ public abstract class BackgroundWorker<T> implements Runnable {
     public void run() {
         final T e = getNextWork();
         if (e == null) {
-            // relinquish, go back in the queue. Let it be scheduled again after 1 ms and depending on number of threads
-            schedule(Duration.ofMillis(1));
+            // relinquish, go back in the queue. Let it be scheduled again after 10 ms and depending on number of threads
+            schedule(Duration.ofMillis(10));
         } else {
             // Process the message asynchronously. Once processing is complete, schedule to poll the queue again.
             CompletableFuture.runAsync(() -> process(e)).thenAccept(x -> schedule());

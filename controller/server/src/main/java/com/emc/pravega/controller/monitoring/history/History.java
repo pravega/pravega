@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.monitoring.history;
 
-import com.emc.pravega.stream.impl.Metric;
+import com.emc.pravega.common.metric.Metric;
 
 import java.util.List;
 

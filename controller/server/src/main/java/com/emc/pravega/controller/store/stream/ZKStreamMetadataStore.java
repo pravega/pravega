@@ -85,15 +85,4 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
         return ZKStream.getAllActiveTx();
     }
-
-    @Override
-    public CompletableFuture<List<StreamData>> getAllStreams() {
-        // TODO: shivesh
-        return null;
-    }
-
-    @Override
-    public void registerListener(final StreamChangeListener listener) {
-        // TODO: shivesh
-    }
 }

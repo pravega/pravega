@@ -20,7 +20,7 @@ package com.emc.pravega.controller.monitoring.schemes.threshold.history;
 import com.emc.pravega.controller.monitoring.history.Aggregate;
 import com.emc.pravega.controller.monitoring.history.AggregatedValue;
 import com.emc.pravega.controller.monitoring.history.History;
-import com.emc.pravega.stream.impl.HostMetric;
+import com.emc.pravega.common.metric.HostMetric;
 import com.google.common.collect.Lists;
 
 import java.util.List;

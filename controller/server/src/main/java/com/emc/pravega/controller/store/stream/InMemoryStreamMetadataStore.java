@@ -60,14 +60,4 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
         throw new NotImplementedException();
     }
-
-    @Override
-    public CompletableFuture<List<StreamData>> getAllStreams() {
-        throw new NotImplementedException();
-    }
-
-    @Override
-    public void registerListener(StreamChangeListener listener) {
-        throw new NotImplementedException();
-    }
 }

@@ -15,8 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.stream;
+package com.emc.pravega.controller.monitoring.datasets;
 
+import com.emc.pravega.controller.store.stream.StreamData;
 import lombok.Data;
 
 @Data

@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.monitoring.schemes.threshold;
 
-import com.emc.pravega.controller.monitoring.FunctionalInterfaces;
+import com.emc.pravega.controller.monitoring.InjectableBehaviours;
 import com.emc.pravega.controller.monitoring.schemes.threshold.history.EventHistory;
 import lombok.Data;
 
@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
  * Works for both scaled ups and scaled downs.
  */
 @Data
-public class ScaleFunctionImpl implements FunctionalInterfaces.ScaleFunction<Event, EventHistory> {
+public class ScaleFunctionImpl implements InjectableBehaviours.ScaleFunction<Event, EventHistory> {
 
     /**
      * Desired target rate for segment. Extracted from scaling policy.

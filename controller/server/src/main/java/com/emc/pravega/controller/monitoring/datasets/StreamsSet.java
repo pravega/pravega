@@ -18,22 +18,18 @@
 package com.emc.pravega.controller.monitoring.datasets;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.monitoring.StreamStoreChangeWorker;
 import com.emc.pravega.controller.store.stream.Segment;
-import com.emc.pravega.controller.store.stream.StreamChangeListener;
 import com.emc.pravega.controller.store.stream.StreamData;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.store.stream.StreamNotification;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Observable;
-import java.util.Optional;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -52,66 +48,55 @@ public class StreamsSet extends Observable implements StreamChangeListener {
      */
     private static final ScheduledThreadPoolExecutor EXECUTOR = new ScheduledThreadPoolExecutor(1);
 
-    private final Map<Pair<String, String>, StreamData> streams;
+    private final LoadingCache<Pair<String, String>, StreamData> streams;
 
-    public StreamsSet(final StreamMetadataStore streamMetadataStore) {
-        streams = new HashMap<>();
-        FutureHelpers.getAndHandleExceptions(streamMetadataStore.getAllStreams()
-                .thenAccept(x -> x.stream().forEach(y -> streams.put(new ImmutablePair<>(y.getName(), y.getScope()), y))), RuntimeException::new);
+    public StreamsSet(final StreamMetadataStore streamStore) {
+        streams = CacheBuilder.newBuilder()
+                .initialCapacity(1000)
+                .maximumSize(10000)
+                .build(
+                        new CacheLoader<Pair<String, String>, StreamData>() {
+                            @Override
+                            public StreamData load(Pair<String, String> key) throws Exception {
+                                List<Segment> segments = FutureHelpers.getAndHandleExceptions(streamStore.getActiveSegments(key.getRight()), RuntimeException::new);
+                                StreamConfiguration configuration = FutureHelpers.getAndHandleExceptions(streamStore.getConfiguration(key.getRight()), RuntimeException::new);
+                                return new StreamData(key.getKey(), key.getValue(), configuration, segments);
+                            }
+                        });
 
         EXECUTOR.schedule(this::periodicUpdate, 20, TimeUnit.MINUTES);
 
-        streamMetadataStore.registerListener(this);
         StreamStoreChangeWorker.addListener(this);
     }
 
     private void periodicUpdate() {
-        streams.keySet().stream().forEach(x -> StreamStoreChangeWorker.requestStreamUpdate(x.getKey(), x.getValue()));
+        streams.asMap().keySet().stream().forEach(x -> StreamStoreChangeWorker.requestStreamUpdate(x.getKey(), x.getValue()));
     }
 
     @Override
-    public void addStream(final StreamData stream) {
-        streams.put(new ImmutablePair<>(stream.getName(), stream.getScope()), stream);
-        setChanged();
-        notifyObservers(new StreamNotification(StreamNotification.NotificationType.Add, stream));
-    }
+    public void updateStream(final StreamData streamData) {
+        final ImmutablePair<String, String> key = new ImmutablePair<>(streamData.getName(), streamData.getScope());
+        final StreamData previous = streams.getIfPresent(key);
+        if (previous != null) {
+            if (!previous.getStreamConfiguration().equals(streamData.getStreamConfiguration())) {
+                streams.invalidate(key);
+                setChanged();
+                notifyObservers(new StreamNotification(StreamNotification.NotificationType.Alter, streamData));
+            }
 
-    @Override
-    public void removeStream(final String stream, final String scope) {
-        // TODO
-    }
+            // if previous max segment number is less than Max segment number in new list, then a scale has occured
+            final int previousMax = previous.getActiveSegments().stream().mapToInt(Segment::getNumber).max().getAsInt();
+            final int newMax = streamData.getActiveSegments().stream().mapToInt(Segment::getNumber).max().getAsInt();
 
-    @Override
-    public void updateStream(final String stream, final String scope, final StreamConfiguration streamConfiguration) {
-        final ImmutablePair<String, String> key = new ImmutablePair<>(stream, scope);
-        final StreamData previous = streams.get(key);
-        if (!previous.getStreamConfiguration().equals(streamConfiguration)) {
-            final StreamData streamData = new StreamData(stream, scope, streamConfiguration, previous.getActiveSegments(), previous.getLastScaleTimestamp());
-            streams.put(key, streamData);
-            setChanged();
-            notifyObservers(new StreamNotification(StreamNotification.NotificationType.Alter, streamData));
+            if (previousMax < newMax) {
+                streams.invalidate(key);
+                setChanged();
+                notifyObservers(new StreamNotification(StreamNotification.NotificationType.Scale, streamData));
+            }
         }
     }
 
-    @Override
-    public void scaledStream(final String stream, final String scope, final List<Segment> activeSegments) {
-        final ImmutablePair<String, String> key = new ImmutablePair<>(stream, scope);
-        final StreamData previous = streams.get(key);
-
-        // if previous max segment number is less than Max segment number in new list, then a scale has occured
-        final int previousMax = previous.getActiveSegments().stream().mapToInt(Segment::getNumber).max().getAsInt();
-        final int newMax = activeSegments.stream().mapToInt(Segment::getNumber).max().getAsInt();
-
-        if (previousMax < newMax) {
-            final Optional<Long> lastScaleTimestamp = activeSegments.stream().map(Segment::getStart).reduce(Long::max);
-            final StreamData streamData = new StreamData(stream, scope, previous.getStreamConfiguration(), activeSegments, lastScaleTimestamp.get());
-            streams.put(key, streamData);
-            setChanged();
-            notifyObservers(new StreamNotification(StreamNotification.NotificationType.Scale, streamData));
-        }
-    }
-
-    public Collection<StreamData> getStreams() {
-        return streams.values();
+    public StreamData getStream(String stream, String scope) {
+        return streams.getUnchecked(new ImmutablePair<>(stream, scope));
     }
 }

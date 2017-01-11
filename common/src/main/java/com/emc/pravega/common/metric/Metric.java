@@ -15,23 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.host;
+package com.emc.pravega.common.metric;
 
-import com.emc.pravega.common.cluster.Host;
+public interface Metric {
+    enum MetricType {
+        StreamMetric,
+        HostMetric
+    }
 
-/**
- * Interface to listen to changes in the cluster.
- */
-public interface HostChangeListener {
-    /**
-     * Callback method for when a new host is added to the cluster.
-     * @param host              New host added.
-     */
-    void addHost(final Host host);
-
-    /**
-     * Callback method for when a host is removed from the cluster.
-     * @param host              Host removed.
-     */
-    void removeHost(final Host host);
+    MetricType getType();
 }

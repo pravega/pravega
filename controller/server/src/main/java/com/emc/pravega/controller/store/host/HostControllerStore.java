@@ -19,7 +19,6 @@ package com.emc.pravega.controller.store.host;
 
 import com.emc.pravega.common.cluster.Host;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -60,18 +59,4 @@ public interface HostControllerStore {
      * @throws HostStoreException On error while fetching host info from the ownership Map.
      */
     Host getHostForSegment(String scope, String stream, int segmentNumber);
-
-    /**
-     * Api to register for changes in the cluster.
-     *
-     * @param listener Listener object that will receive events whenever there is a change in the cluster.
-     */
-    void registerListener(final HostChangeListener listener);
-
-    /**
-     * Api to get all hosts in the cluster.
-     *
-     * @return
-     */
-    List<Host> getAllHosts();
 }

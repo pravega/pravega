@@ -20,7 +20,6 @@ package com.emc.pravega.controller.fault;
 import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
-import com.emc.pravega.controller.store.host.HostChangeListener;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.ZKHostStore;
@@ -35,7 +34,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
@@ -102,24 +100,14 @@ public class SegmentContainerMonitorTest {
                 //Notify the test case of the update.
                 sync.release();
             }
-            
+
             @Override
             public int getContainerCount() {
                 return hostStore.getContainerCount();
             }
-            
+
             @Override
             public Host getHostForSegment(String scope, String stream, int segmentNumber) {
-                return null;
-            }
-
-            @Override
-            public void registerListener(HostChangeListener listener) {
-
-            }
-
-            @Override
-            public List<Host> getAllHosts() {
                 return null;
             }
         }

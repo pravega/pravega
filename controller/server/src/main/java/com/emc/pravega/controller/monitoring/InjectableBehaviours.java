@@ -20,13 +20,13 @@ package com.emc.pravega.controller.monitoring;
 import com.emc.pravega.controller.monitoring.history.AggregatedValue;
 import com.emc.pravega.controller.monitoring.history.History;
 import com.emc.pravega.controller.store.stream.Segment;
-import com.emc.pravega.stream.impl.Metric;
-import com.emc.pravega.stream.impl.StreamMetric;
+import com.emc.pravega.common.metric.Metric;
+import com.emc.pravega.common.metric.StreamMetric;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
 
-public class FunctionalInterfaces {
+public class InjectableBehaviours {
 
     /**
      * Interface for injecting behaviour to answer the question - 'to scaled or not to scaled'.

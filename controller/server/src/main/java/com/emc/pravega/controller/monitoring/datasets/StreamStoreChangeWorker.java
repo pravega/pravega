@@ -15,17 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.monitoring;
+package com.emc.pravega.controller.monitoring.datasets;
 
-import com.emc.pravega.controller.store.stream.StreamChangeListener;
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.store.stream.Segment;
+import com.emc.pravega.controller.store.stream.StreamData;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.util.BackgroundWorker;
+import com.emc.pravega.stream.StreamConfiguration;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
@@ -107,11 +111,15 @@ public class StreamStoreChangeWorker extends BackgroundWorker<Pair<String, Strin
      */
     @Override
     public void process(final Pair<String, String> stream) {
-        streamStore.getActiveSegments(stream.getRight())
-                .thenAccept(active -> streamListeners.stream()
-                        .forEach(x -> x.scaledStream(stream.getKey(), stream.getValue(), active)));
-        streamStore.getConfiguration(stream.getRight())
-                .thenAccept(streamConfiguration -> streamListeners.stream()
-                        .forEach(x -> x.updateStream(stream.getKey(), stream.getValue(), streamConfiguration)));
+        final CompletableFuture<List<Segment>> activeSegments = streamStore.getActiveSegments(stream.getRight());
+        final CompletableFuture<StreamConfiguration> configuration = streamStore.getConfiguration(stream.getRight());
+
+        CompletableFuture.allOf(activeSegments, configuration)
+                .thenAccept(x -> streamListeners.stream()
+                        .forEach(listeners -> listeners.updateStream(new StreamData(stream.getKey(),
+                                        stream.getValue(),
+                                        FutureHelpers.getAndHandleExceptions(configuration, RuntimeException::new),
+                                        FutureHelpers.getAndHandleExceptions(activeSegments, RuntimeException::new)))
+                        ));
     }
 }

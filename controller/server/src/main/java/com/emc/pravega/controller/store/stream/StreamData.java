@@ -28,5 +28,4 @@ public class StreamData {
     private final String scope;
     private final StreamConfiguration streamConfiguration;
     private final List<Segment> activeSegments;
-    private final long lastScaleTimestamp;
 }

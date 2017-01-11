@@ -17,9 +17,9 @@
  */
 package com.emc.pravega.controller.monitoring.schemes.threshold.aggregates;
 
-import com.emc.pravega.controller.monitoring.FunctionalInterfaces;
+import com.emc.pravega.controller.monitoring.InjectableBehaviours;
 import com.emc.pravega.controller.monitoring.history.History;
-import com.emc.pravega.stream.impl.Metric;
+import com.emc.pravega.common.metric.Metric;
 import lombok.Data;
 
 /**
@@ -27,7 +27,7 @@ import lombok.Data;
  */
 @Data
 public class LatestMetricAggregator<M extends Metric, S, H extends History<M, S>>
-        implements FunctionalInterfaces.AggregateFunction<LastMetricValue<M>, S, M, H> {
+        implements InjectableBehaviours.AggregateFunction<LastMetricValue<M>, S, M, H> {
 
     /**
      * This method stores last metric.

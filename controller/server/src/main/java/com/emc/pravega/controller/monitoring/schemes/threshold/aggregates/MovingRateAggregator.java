@@ -17,17 +17,17 @@
  */
 package com.emc.pravega.controller.monitoring.schemes.threshold.aggregates;
 
-import com.emc.pravega.controller.monitoring.FunctionalInterfaces;
+import com.emc.pravega.controller.monitoring.InjectableBehaviours;
 import com.emc.pravega.controller.monitoring.schemes.threshold.Event;
 import com.emc.pravega.controller.monitoring.schemes.threshold.history.EventHistory;
-import com.emc.pravega.stream.impl.StreamMetric;
+import com.emc.pravega.common.metric.StreamMetric;
 import lombok.Data;
 
 /**
  * Behaviour injected that tells history how to compute aggregate upon receiving a metric sample.
  */
 @Data
-public class MovingRateAggregator implements FunctionalInterfaces.AggregateFunction<MovingRateValue, Event, StreamMetric, EventHistory> {
+public class MovingRateAggregator implements InjectableBehaviours.AggregateFunction<MovingRateValue, Event, StreamMetric, EventHistory> {
 
     /**
      * This method stores moving rate as computed by pravega host over the rolling window.

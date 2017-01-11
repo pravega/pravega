@@ -18,7 +18,7 @@
 package com.emc.pravega.controller.monitoring;
 
 import com.emc.pravega.controller.util.BackgroundWorker;
-import com.emc.pravega.stream.impl.Metric;
+import com.emc.pravega.common.metric.Metric;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledThreadPoolExecutor;

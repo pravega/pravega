@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.monitoring.schemes.threshold;
 
-import com.emc.pravega.controller.monitoring.FunctionalInterfaces;
+import com.emc.pravega.controller.monitoring.InjectableBehaviours;
 import com.emc.pravega.controller.monitoring.schemes.threshold.history.EventHistory;
 import com.emc.pravega.controller.store.stream.Segment;
 import lombok.Data;
@@ -26,13 +26,13 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static com.emc.pravega.controller.monitoring.FunctionalInterfaces.ScaleFunction;
+import static com.emc.pravega.controller.monitoring.InjectableBehaviours.ScaleFunction;
 
 /**
  * This function is supplied to core auto-scaled component (stream monitor) to inject behaviour for how to mergeCandidates.
  */
 @Data
-public class MergeFunctionImpl implements FunctionalInterfaces.MergeFunction<Event, EventHistory> {
+public class MergeFunctionImpl implements InjectableBehaviours.MergeFunction<Event, EventHistory> {
     private final ScaleFunctionImpl scaleFunction;
     private final long cooldownPeriod;
 

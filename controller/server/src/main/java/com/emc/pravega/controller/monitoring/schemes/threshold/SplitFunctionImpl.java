@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.monitoring.schemes.threshold;
 
-import com.emc.pravega.controller.monitoring.FunctionalInterfaces;
+import com.emc.pravega.controller.monitoring.InjectableBehaviours;
 import com.emc.pravega.controller.monitoring.history.AggregatedValue;
 import com.emc.pravega.controller.monitoring.schemes.threshold.aggregates.SegmentQuantileValue;
 import com.emc.pravega.controller.monitoring.schemes.threshold.history.EventHistory;
@@ -32,7 +32,7 @@ import java.util.Optional;
 /**
  * Split function for event history with quantile aggregates.
  */
-public class SplitFunctionImpl implements FunctionalInterfaces.SplitFunction<Event, EventHistory> {
+public class SplitFunctionImpl implements InjectableBehaviours.SplitFunction<Event, EventHistory> {
 
     /**
      * This function gets quantile aggregate and based on the quantile, returns key ranges for new splits.
