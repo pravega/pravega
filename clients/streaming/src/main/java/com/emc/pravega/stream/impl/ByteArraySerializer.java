@@ -15,26 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.stream.impl;
 
-package com.emc.pravega.service.server.host.selftest;
+import com.emc.pravega.stream.Serializer;
 
-import lombok.Getter;
+import java.nio.ByteBuffer;
 
 /**
- * Exception thrown whenever a validation error occurred.
+ * An implementation of {@link Serializer} that converts byte arrays.
  */
-class ValidationException extends Exception {
-    @Getter
-    private final String segmentName;
+public class ByteArraySerializer implements Serializer<byte[]> {
+    @Override
+    public ByteBuffer serialize(byte[] value) {
+        return ByteBuffer.wrap(value);
+    }
 
-    /**
-     * Creates a new instance of the ValidationException class.
-     *
-     * @param segmentName      The name of the Segment that failed validation.
-     * @param validationResult The ValidationResult that triggered this.
-     */
-    ValidationException(String segmentName, ValidationResult validationResult) {
-        super(String.format("Segment = %s, Offset = %s, Reason = %s", segmentName, validationResult.getSegmentOffset(), validationResult.getFailureMessage()));
-        this.segmentName = segmentName;
+    @Override
+    public byte[] deserialize(ByteBuffer serializedValue) {
+        byte[] result = new byte[serializedValue.remaining()];
+        serializedValue.get(result);
+        return result;
     }
 }

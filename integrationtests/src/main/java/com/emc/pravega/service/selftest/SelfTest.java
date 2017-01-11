@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.host.selftest;
+package com.emc.pravega.service.selftest;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -75,11 +75,19 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.executor = Executors.newScheduledThreadPool(
                 testConfig.getThreadPoolSize(),
                 new ThreadFactoryBuilder().setNameFormat("self-test-%d").build());
-        this.store = new StreamSegmentStoreAdapter(testConfig, builderConfig, this.executor);
+        this.store = createStoreAdapter(builderConfig);
         this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
         this.testCompletion = new AtomicReference<>();
         addListener(new ServiceShutdownListener(this::shutdownCallback, this::shutdownCallback), this.executor);
         this.reporter = new Reporter(this.state, this.testConfig, this.store::getStorePoolSnapshot, this.executor);
+    }
+
+    private StoreAdapter createStoreAdapter(ServiceBuilderConfig builderConfig) {
+        if (this.testConfig.isUseClient()) {
+            return new HostStoreAdapter(this.testConfig, builderConfig, this.executor);
+        } else {
+            return new StreamSegmentStoreAdapter(this.testConfig, builderConfig, this.executor);
+        }
     }
 
     //endregion
@@ -187,10 +195,14 @@ class SelfTest extends AbstractService implements AutoCloseable {
         }
 
         // Create Consumers (based on the number of non-transaction Segments).
-        for (val si : this.state.getAllSegments()) {
-            if (!si.isTransaction()) {
-                this.actors.add(new Consumer(si.getName(), this.testConfig, this.dataSource, this.state, this.store, this.executor));
+        if (Consumer.canUseStoreAdapter(this.store)) {
+            for (val si : this.state.getAllSegments()) {
+                if (!si.isTransaction()) {
+                    this.actors.add(new Consumer(si.getName(), this.testConfig, this.dataSource, this.state, this.store, this.executor));
+                }
             }
+        } else {
+            TestLogger.log(LOG_ID, "Not creating any consumers because the StoreAdapter does not support all required features.");
         }
     }
 

@@ -16,23 +16,33 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.host.selftest;
+package com.emc.pravega.service.selftest;
 
 /**
  * Defines various types of Producer Operations.
  */
-final class ConsumerOperationType extends OperationType {
+final class ProducerOperationType extends OperationType {
     /**
-     * A Tail Read processed on the Consumer.
+     * An Append Operation triggered by a Producer.
      */
-    static final ConsumerOperationType END_TO_END = new ConsumerOperationType("End to End");
+    static final ProducerOperationType APPEND = new ProducerOperationType("Append");
 
     /**
-     * A Catch-up Read processed on the Consumer.
+     * A Seal Operation triggered by a Producer.
      */
-    static final ConsumerOperationType CATCHUP_READ = new ConsumerOperationType("Catchup Read");
+    static final ProducerOperationType SEAL = new ProducerOperationType("Seal");
 
-    private ConsumerOperationType(String name) {
+    /**
+     * A Create Transaction Operation triggered by a Producer.
+     */
+    static final ProducerOperationType CREATE_TRANSACTION = new ProducerOperationType("Create Transaction");
+
+    /**
+     * A Merge Transaction Operation triggered by a Producer.
+     */
+    static final ProducerOperationType MERGE_TRANSACTION = new ProducerOperationType("Merge Transaction");
+
+    private ProducerOperationType(String name) {
         super(name);
     }
 }

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.host.selftest;
+package com.emc.pravega.service.selftest;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
@@ -82,16 +82,28 @@ public class SelfTestRunner {
     private static TestConfig getTestConfig() {
         return new TestConfig(TestConfig.convert(TestConfig.COMPONENT_CODE,
                 PropertyBag.create()
-                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 100)
-                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 100)
-                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 5000000)
+                           // Test params.
+                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 50000)
+                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 20)
+                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 50)
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
+                           //.with(TestConfig.PROPERTY_MIN_APPEND_SIZE, WireCommands.APPEND_BLOCK_SIZE)
+                           //.with(TestConfig.PROPERTY_MAX_APPEND_SIZE, WireCommands.APPEND_BLOCK_SIZE)
+
+                           // Transaction setup.
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
                            .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 50)
+
+                           // Test setup.
                            .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 50)
                            .with(TestConfig.PROPERTY_DATA_LOG_APPEND_DELAY, 0)
-                           .with(TestConfig.PROPERTY_TIMEOUT_MILLIS, 3000)));
+                           .with(TestConfig.PROPERTY_TIMEOUT_MILLIS, 3000)
+
+                           // Client-specific settings.
+                           .with(TestConfig.PROPERTY_USE_CLIENT, false)
+                           .with(TestConfig.PROPERTY_CLIENT_AUTO_FLUSH, false)
+                           .with(TestConfig.PROPERTY_CLIENT_PORT, 9876)));
     }
 
     private static void setupLogging() {
