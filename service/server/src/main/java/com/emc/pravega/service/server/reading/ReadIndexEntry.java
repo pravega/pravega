@@ -18,16 +18,17 @@
 
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.common.util.IndexEntry;
 import com.google.common.base.Preconditions;
 
 /**
  * An entry in the Read Index with data at a particular offset.
  */
-class ReadIndexEntry {
+class ReadIndexEntry implements IndexEntry<Long> {
     //region Members
 
     private final long streamSegmentOffset;
-    private final long length;
+    private final long lastOffset; // Redundant, but frequently used, so we use 8 bytes per entry to save repeated calculations.
     private int generation;
 
     //endregion
@@ -46,7 +47,7 @@ class ReadIndexEntry {
         Preconditions.checkArgument(length >= 0, "length", "length must be a non-negative number.");
 
         this.streamSegmentOffset = streamSegmentOffset;
-        this.length = length;
+        this.lastOffset = streamSegmentOffset + length - 1;
     }
 
     //endregion
@@ -82,14 +83,14 @@ class ReadIndexEntry {
      * Gets the length of this entry.
      */
     long getLength() {
-        return this.length;
+        return this.lastOffset - this.streamSegmentOffset + 1;
     }
 
     /**
      * Gets a value indicating the last Offset in the StreamSegment pertaining to this entry.
      */
     long getLastStreamSegmentOffset() {
-        return this.streamSegmentOffset + this.length - 1;
+        return this.lastOffset;
     }
 
     /**
@@ -101,7 +102,12 @@ class ReadIndexEntry {
 
     @Override
     public String toString() {
-        return String.format("Offset = %d, Length = %d, Gen = %d", this.streamSegmentOffset, this.length, this.generation);
+        return String.format("Offset = %d, Length = %d, Gen = %d", this.streamSegmentOffset, getLength(), this.generation);
+    }
+
+    @Override
+    public Long key() {
+        return this.lastOffset;
     }
 
     //endregion
