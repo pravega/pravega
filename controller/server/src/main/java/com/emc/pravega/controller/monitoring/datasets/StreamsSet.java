@@ -76,23 +76,21 @@ public class StreamsSet extends Observable implements StreamChangeListener {
     @Override
     public void updateStream(final StreamData streamData) {
         final ImmutablePair<String, String> key = new ImmutablePair<>(streamData.getName(), streamData.getScope());
-        final StreamData previous = streams.getIfPresent(key);
-        if (previous != null) {
-            if (!previous.getStreamConfiguration().equals(streamData.getStreamConfiguration())) {
-                streams.invalidate(key);
-                setChanged();
-                notifyObservers(new StreamNotification(StreamNotification.NotificationType.Alter, streamData));
-            }
+        final StreamData previous = streams.getUnchecked(key);
+        if (!previous.getStreamConfiguration().equals(streamData.getStreamConfiguration())) {
+            streams.invalidate(key);
+            setChanged();
+            notifyObservers(new StreamNotification(StreamNotification.NotificationType.Alter, streamData));
+        }
 
-            // if previous max segment number is less than Max segment number in new list, then a scale has occured
-            final int previousMax = previous.getActiveSegments().stream().mapToInt(Segment::getNumber).max().getAsInt();
-            final int newMax = streamData.getActiveSegments().stream().mapToInt(Segment::getNumber).max().getAsInt();
+        // if previous max segment number is less than Max segment number in new list, then a scale has occured
+        final int previousMax = previous.getActiveSegments().stream().mapToInt(Segment::getNumber).max().getAsInt();
+        final int newMax = streamData.getActiveSegments().stream().mapToInt(Segment::getNumber).max().getAsInt();
 
-            if (previousMax < newMax) {
-                streams.invalidate(key);
-                setChanged();
-                notifyObservers(new StreamNotification(StreamNotification.NotificationType.Scale, streamData));
-            }
+        if (previousMax < newMax) {
+            streams.invalidate(key);
+            setChanged();
+            notifyObservers(new StreamNotification(StreamNotification.NotificationType.Scale, streamData));
         }
     }
 
