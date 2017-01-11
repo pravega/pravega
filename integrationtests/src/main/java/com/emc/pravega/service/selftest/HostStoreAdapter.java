@@ -27,7 +27,7 @@ import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
-import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.ByteArraySerializer;
 import com.emc.pravega.stream.mock.MockClientFactory;
 
 import java.time.Duration;
@@ -116,8 +116,8 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
             }
 
             this.clientFactory.createStream(streamSegmentName, null);
-            EventStreamWriter<byte[]> producer = this.clientFactory.createEventWriter(streamSegmentName, new JavaSerializer<>(), new EventWriterConfig(null));
-            this.producers.put(streamSegmentName, producer);
+            EventStreamWriter<byte[]> producer = this.clientFactory.createEventWriter(streamSegmentName, new ByteArraySerializer(), new EventWriterConfig(null));
+            this.producers.putIfAbsent(streamSegmentName, producer);
         }, this.testExecutor);
     }
 

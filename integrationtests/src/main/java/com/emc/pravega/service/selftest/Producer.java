@@ -140,7 +140,6 @@ class Producer extends Actor {
         }
 
         TestLogger.log(getLogId(), "Iteration %s FAILED with %s.", this.iterationCount, ex);
-        ex.printStackTrace();
         this.canContinue.set(false);
         op.failed(ex);
         return false;

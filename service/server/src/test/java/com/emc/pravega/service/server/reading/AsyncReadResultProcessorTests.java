@@ -51,7 +51,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 10;
+        return 5;
     }
 
     /**
