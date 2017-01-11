@@ -39,11 +39,13 @@
               ],
 
               "docker": {
-                  "image": "zhaijia/bookkeeper",
+                  "image": "zhaijia/bookie",
                   "network": "HOST",
                    "parameters": [
-                                        { "key": "env",
-                                          "value": "DLOG_EXTRA_OPTS=-Xms512m " }]
+                                 { "key": "env",
+                                   "value": "DLOG_EXTRA_OPTS=-Xms512m " 
+				 }
+		   ]
 
               }
           },
@@ -61,7 +63,17 @@
           "env": {
               "ZK": "master.mesos:2181"
           },
-
+          "healthChecks": [
+            {
+               "protocol": "TCP",
+               "port": 3181,
+               "gracePeriodSeconds": 900,
+               "intervalSeconds": 60,
+               "timeoutSeconds": 20,
+               "maxConsecutiveFailures": 0,
+               "ignoreHttp1xx": false
+            }
+          ],
           "upgradeStrategy": {
               "maximumOverCapacity": 0,
               "minimumHealthCapacity": 0
