@@ -16,10 +16,10 @@
  */
 package com.emc.pravega.common.metrics;
 
+import com.emc.pravega.common.Timer;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -33,17 +33,17 @@ public class YammerProviderTest {
      */
     @Test
     public void testOpStatsData() {
-        long startTime = System.nanoTime();
+        Timer startTime = new Timer();
         OpStatsLogger opStatsLogger = statsLogger.createStats("testOpStatsLogger");
         // register 2 event: 1 success, 1 fail.
-        opStatsLogger.registerSuccessfulEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
-        opStatsLogger.registerFailedEvent(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
-        opStatsLogger.reportSuccess(System.nanoTime() - startTime);
-        opStatsLogger.reportFailure(System.nanoTime() - startTime);
+        opStatsLogger.reportSuccessEvent(startTime.getElapsed());
+        opStatsLogger.reportFailEvent(startTime.getElapsed());
+        opStatsLogger.reportSuccessValue(startTime.getElapsedMillis());
+        opStatsLogger.reportFailValue(startTime.getElapsedMillis());
 
-        opStatsLogger.registerSuccessfulValue(1);
-        opStatsLogger.registerFailedValue(1);
-        opStatsLogger.report(1);
+        opStatsLogger.reportSuccessValue(1);
+        opStatsLogger.reportFailValue(1);
+        opStatsLogger.reportSuccessValue(1);
 
         OpStatsData statsData = opStatsLogger.toOpStatsData();
         // 2 = 2 event + 2 value

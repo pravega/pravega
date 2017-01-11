@@ -16,7 +16,7 @@
  */
 package com.emc.pravega.common.metrics;
 
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 
 /**
  * This interface handles logging of statistics related to each operation (Write, Read etc.).
@@ -24,61 +24,32 @@ import java.util.concurrent.TimeUnit;
 public interface OpStatsLogger {
 
     /**
-     * Increment the failed op counter with the given eventLatency.
+     * Increment the failed op counter with the given eventLatency in NanoSeconds.
      *
-     * @param eventLatency the event latency
-     * @param unit         the unit
+     * @param duration the event latency
      */
-    public void registerFailedEvent(long eventLatency, TimeUnit unit);
+    public void reportSuccessEvent(Duration duration);
 
     /**
-     * Report failure, a wrapper to registerFailedEvent, with TimeUnit.NANOSECONDS.
+     * Increment the succeeded op counter with the given eventLatency in NanoSeconds.
      *
-     * @param eventLatencyNanos the event latency
+     * @param duration the event latency
      */
-    default public void reportFailure(long eventLatencyNanos) {
-        registerFailedEvent(eventLatencyNanos, TimeUnit.NANOSECONDS);
-    }
-
-    /**
-     * Increment the succeeded op counter with the given eventLatency.
-     *
-     * @param eventLatency the event latency
-     * @param unit         the unit
-     */
-    public void registerSuccessfulEvent(long eventLatency, TimeUnit unit);
-
-    /**
-     * Report success, a wrapper to registerSuccessfulEvent, with TimeUnit.NANOSECONDS.
-     *
-     * @param eventLatencyNanos the event latency
-     */
-    default public void reportSuccess(long eventLatencyNanos) {
-        registerSuccessfulEvent(eventLatencyNanos, TimeUnit.NANOSECONDS);
-    }
+    public void reportFailEvent(Duration duration);
 
     /**
      * An operation with the given value succeeded.
      *
      * @param value the value
      */
-    public void registerSuccessfulValue(long value);
-
-    /**
-     * Report, a wrapper to registerSuccessfulValue to make it short.
-     *
-     * @param value the value
-     */
-    default public void report(long value) {
-        registerSuccessfulValue(value);
-    }
+    public void reportSuccessValue(long value);
 
     /**
      * An operation with the given value failed.
      *
      * @param value the value
      */
-    public void registerFailedValue(long value);
+    public void reportFailValue(long value);
 
     /**
      * To op Stats data. Need this function to support JMX exports and inner test.

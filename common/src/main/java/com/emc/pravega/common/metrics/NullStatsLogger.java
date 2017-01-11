@@ -16,8 +16,8 @@
  */
 package com.emc.pravega.common.metrics;
 
+import java.time.Duration;
 import java.util.EnumMap;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 public class NullStatsLogger implements StatsLogger {
@@ -28,22 +28,22 @@ public class NullStatsLogger implements StatsLogger {
         final OpStatsData nullOpStats = new OpStatsData(0, 0, 0, new EnumMap<OpStatsData.Percentile, Long>(OpStatsData.Percentile.class));
 
         @Override
-        public void registerFailedEvent(long eventLatency, TimeUnit unit) {
+        public void reportFailEvent(Duration duration) {
             // nop
         }
 
         @Override
-        public void registerSuccessfulEvent(long eventLatency, TimeUnit unit) {
+        public void reportSuccessEvent(Duration duration) {
             // nop
         }
 
         @Override
-        public void registerSuccessfulValue(long value) {
+        public void reportSuccessValue(long value) {
             // nop
         }
 
         @Override
-        public void registerFailedValue(long value) {
+        public void reportFailValue(long value) {
             // nop
         }
 

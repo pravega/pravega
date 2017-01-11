@@ -19,6 +19,8 @@ package com.emc.pravega.common.metrics;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
+import com.google.common.base.Preconditions;
+
 import static com.codahale.metrics.MetricRegistry.name;
 import java.util.function.Supplier;
 
@@ -27,6 +29,7 @@ public class YammerStatsLogger implements StatsLogger {
     final MetricRegistry metrics;
 
     YammerStatsLogger(MetricRegistry metrics, String basename) {
+        Preconditions.checkNotNull(metrics, "metrics");
         this.metrics = metrics;
         this.basename = basename;
     }
@@ -39,7 +42,7 @@ public class YammerStatsLogger implements StatsLogger {
     }
 
     private static class CounterImpl implements Counter {
-        private com.codahale.metrics.Counter counter;
+        private final com.codahale.metrics.Counter counter;
 
         CounterImpl(com.codahale.metrics.Counter c) {
              counter = c;
