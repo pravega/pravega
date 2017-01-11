@@ -507,8 +507,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Exceptions.checkArgument(canReadAtOffset(startOffset), "startOffset", "StreamSegment is sealed and startOffset is beyond the last offset of the StreamSegment.");
 
         log.debug("{}: Read (Offset = {}, MaxLength = {}).", this.traceObjectId, startOffset, maxLength);
-        //return new StreamSegmentReadResult(startOffset, maxLength, this::getMultiReadResultEntry, this.traceObjectId);
-        return new StreamSegmentReadResult(startOffset, maxLength, this::getSingleMemoryReadResultEntry, this.traceObjectId);
+        return new StreamSegmentReadResult(startOffset, maxLength, this::getMultiReadResultEntry, this.traceObjectId);
     }
 
     private boolean canReadAtOffset(long offset) {
@@ -599,7 +598,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @return A ReadResultEntry representing the data to return.
      */
     private CompletableReadResultEntry getMultiReadResultEntry(long resultStartOffset, int maxLength) {
-        final int thresholdLength = 4 * 1024;
         int readLength = 0;
 
         CompletableReadResultEntry nextEntry = getSingleReadResultEntry(resultStartOffset, maxLength);
@@ -615,7 +613,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             val entryContents = nextEntry.getContent().join();
             contents.add(entryContents.getData());
             readLength += entryContents.getLength();
-            if (readLength >= thresholdLength) {
+            if (readLength >= this.config.getMemoryReadMinLength() || readLength >= maxLength) {
                 break;
             }
 
