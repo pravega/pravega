@@ -67,7 +67,7 @@ public class OpStatsData {
         long ret = percentileLongMap.get(percentile);
         if (ret == 0) {
             // this percentile is not in the map
-            return Long.MAX_VALUE;
+            return -1;
         } else {
             return ret;
         }
