@@ -28,7 +28,6 @@ import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
-import com.emc.pravega.service.server.writer.WriterConfig;
 import lombok.Cleanup;
 import lombok.val;
 import org.slf4j.LoggerFactory;
