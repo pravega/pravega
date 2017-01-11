@@ -55,6 +55,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -72,6 +73,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 123;
     private static final ReadIndexConfig DEFAULT_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
             PropertyBag.create()
+                       .with(ReadIndexConfig.PROPERTY_MEMORY_READ_MIN_LENGTH, 0) // Default: Off (we have a special test for this).
                        .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
                        .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
@@ -100,6 +102,89 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         // Check all the appended data.
         checkReadIndex("PostAppend", segmentContents, context);
+    }
+
+    /**
+     * Tests the ability for the ReadIndex to batch multiple index entries together into a bigger read. This test
+     * writes a lot of very small appends to the index, then issues a full read (from the beginning) while configuring
+     * the read index to return results of no less than a particular size. As an added bonus, it also forces a Storage
+     * Read towards the end to make sure the ReadIndex doesn't coalesce those into the result as well.
+     */
+    @Test
+    public void testBatchedRead() throws Exception {
+        final int totalAppendLength = 500 * 1000;
+        final int maxAppendLength = 100;
+        final int minReadLength = 16 * 1024;
+        final byte[] segmentData = new byte[totalAppendLength];
+        final Random rnd = new Random(0);
+        rnd.nextBytes(segmentData);
+
+        final ReadIndexConfig config = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
+                PropertyBag.create().with(ReadIndexConfig.PROPERTY_MEMORY_READ_MIN_LENGTH, minReadLength));
+
+        @Cleanup
+        TestContext context = new TestContext(config, config.getCachePolicy());
+
+        // Create the segment in Storage and populate it with all the data (one segment is sufficient for this test).
+        final long segmentId = createSegment(0, context);
+        createSegmentsInStorage(context);
+        final UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
+        context.storage.write(segmentMetadata.getName(), 0, new ByteArrayInputStream(segmentData), segmentData.length, TIMEOUT).join();
+        segmentMetadata.setStorageLength(segmentData.length);
+
+        // Add the contents of the segment to the read index using very small appends (same data as in Storage).
+        int writtenLength = 0;
+        int remainingLength = totalAppendLength;
+        int lastCacheOffset = -1;
+        while (remainingLength > 0) {
+            int appendLength = rnd.nextInt(maxAppendLength) + 1;
+            if (appendLength < remainingLength) {
+                // Make another append.
+                byte[] appendData = new byte[appendLength];
+                System.arraycopy(segmentData, writtenLength, appendData, 0, appendLength);
+                appendSingleWrite(segmentId, appendData, context);
+                writtenLength += appendLength;
+                remainingLength -= appendLength;
+            } else {
+                // This would be the last append. Don't add it, so force the read index to load it from Storage.
+                lastCacheOffset = writtenLength;
+                appendLength = remainingLength;
+                writtenLength += appendLength;
+                remainingLength = 0;
+                segmentMetadata.setDurableLogLength(writtenLength);
+            }
+        }
+
+        // Check all the appended data.
+        @Cleanup
+        ReadResult readResult = context.readIndex.read(segmentId, 0, totalAppendLength, TIMEOUT);
+        long expectedCurrentOffset = 0;
+        boolean encounteredStorageRead = false;
+        while (readResult.hasNext()) {
+            ReadResultEntry entry = readResult.next();
+            if (entry.getStreamSegmentOffset() < lastCacheOffset) {
+                Assert.assertEquals("Expecting only a Cache entry before switch offset.", ReadResultEntryType.Cache, entry.getType());
+            } else {
+                Assert.assertEquals("Expecting only a Storage entry on or after switch offset.", ReadResultEntryType.Storage, entry.getType());
+                entry.requestContent(TIMEOUT);
+                entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                encounteredStorageRead = true;
+            }
+
+            // Check the entry contents.
+            byte[] entryData = new byte[entry.getContent().join().getLength()];
+            StreamHelpers.readAll(entry.getContent().join().getData(), entryData, 0, entryData.length);
+            AssertExtensions.assertArrayEquals("Unexpected data read at offset " + expectedCurrentOffset, segmentData, (int) expectedCurrentOffset, entryData, 0, entryData.length);
+            expectedCurrentOffset += entryData.length;
+
+            // Check the entry length. Every result entry should have at least the min length, unless it was prematurely
+            // cut short by the storage entry.
+            if (expectedCurrentOffset < lastCacheOffset) {
+                AssertExtensions.assertGreaterThanOrEqual("Expecting a ReadResultEntry of a minimum length for cache hit.", minReadLength, entryData.length);
+            }
+        }
+
+        Assert.assertEquals("Not encountered any storage reads, even though one was forced.", lastCacheOffset > 0, encounteredStorageRead);
     }
 
     /**
@@ -440,7 +525,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // Append data (in storage).
         appendDataInStorage(context, segmentContents);
 
-        // Append data (in read index).
+        // Append data (in read index - this is at offsets after the data we appended in Storage).
         appendData(segmentIds, segmentContents, context);
 
         // Check all the appended data.
@@ -797,10 +882,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 byte[] data = getAppendData(segmentMetadata.getName(), segmentId, i, writeId);
                 writeId++;
 
-                // Make sure we increase the DurableLogLength prior to appending; the ReadIndex checks for this.
-                long offset = segmentMetadata.getDurableLogLength();
-                segmentMetadata.setDurableLogLength(offset + data.length);
-                context.readIndex.append(segmentId, offset, data);
+                appendSingleWrite(segmentId, data, context);
                 recordAppend(segmentId, data, segmentContents);
                 if (callback != null) {
                     callback.run();
@@ -1065,6 +1147,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
     //endregion
 
+    //region TestCache
+
     private static class TestCache extends InMemoryCache {
         Consumer<CacheKey> removeCallback;
 
@@ -1082,4 +1166,6 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             super.remove(key);
         }
     }
+
+    //endregion
 }
