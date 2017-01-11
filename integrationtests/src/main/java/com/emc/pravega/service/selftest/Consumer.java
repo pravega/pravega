@@ -31,7 +31,6 @@ import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.reading.AsyncReadResultHandler;
 import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
 import com.google.common.base.Preconditions;
-import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
@@ -339,8 +338,7 @@ public class Consumer extends Actor {
                         .thenComposeAsync(readResult -> {
                             // Process the read result by reading all bits of available data as soon as they are available.
                             ReadResultHandler entryHandler = new ReadResultHandler(this.config, this::processTailRead, this::canRun, this::fail);
-                            @Cleanup
-                            AsyncReadResultProcessor rrp = AsyncReadResultProcessor.process(readResult, entryHandler, this.executorService);
+                            AsyncReadResultProcessor.process(readResult, entryHandler, this.executorService);
                             return entryHandler.completed.thenAccept(readOffset::addAndGet);
                         }, this.executorService)
                         .thenCompose(v -> this.store.getStreamSegmentInfo(this.segmentName, this.config.getTimeout()))
