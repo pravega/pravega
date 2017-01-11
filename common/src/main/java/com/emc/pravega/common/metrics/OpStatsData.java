@@ -53,9 +53,9 @@ public class OpStatsData {
 
     public OpStatsData(long numSuccessfulEvents, long numFailedEvents,
                        double avgLatencyMillis, EnumMap<Percentile, Long> percentileLongMap) {
-        Preconditions.checkArgument(numSuccessfulEvents >= 0, "numSuccessfulEvents must be 0 or a positive integer.");
-        Preconditions.checkArgument(numFailedEvents >= 0, "numFailedEvents must be 0 or a positive integer.");
-        Preconditions.checkArgument(avgLatencyMillis >= 0, "avgLatencyMillis must be 0 or a positive integer..");
+        Preconditions.checkArgument(numSuccessfulEvents >= 0, "numSuccessfulEvents must be non-negative number.");
+        Preconditions.checkArgument(numFailedEvents >= 0, "numFailedEvents must be non-negative number.");
+        Preconditions.checkArgument(avgLatencyMillis >= 0, "avgLatencyMillis must be non-negative number.");
 
         this.numSuccessfulEvents = numSuccessfulEvents;
         this.numFailedEvents = numFailedEvents;
