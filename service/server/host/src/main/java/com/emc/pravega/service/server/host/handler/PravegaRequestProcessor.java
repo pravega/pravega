@@ -80,7 +80,6 @@ import static com.emc.pravega.service.server.host.PravegaRequestStats.SEGMENT_RE
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
-
 @Slf4j
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
 
@@ -282,7 +281,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else {
             // TODO: don't know what to do here...
             connection.close();
-            log.error("Unknown excpetion on " + operation + " for segment " + segment, u);
+            log.error("Unknown exception on " + operation + " for segment " + segment, u);
             throw new IllegalStateException("Unknown exception.", u);
         }
     }

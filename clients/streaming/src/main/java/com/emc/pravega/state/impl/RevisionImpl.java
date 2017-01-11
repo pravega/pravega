@@ -17,9 +17,11 @@
  */
 package com.emc.pravega.state.impl;
 
-import java.io.Serializable;
-
 import com.emc.pravega.state.Revision;
+import com.emc.pravega.stream.Segment;
+import com.google.common.base.Preconditions;
+
+import java.io.Serializable;
 
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
@@ -31,14 +33,17 @@ import lombok.RequiredArgsConstructor;
 public class RevisionImpl implements Revision, Serializable {
 
     @Getter(value = AccessLevel.PACKAGE)
+    private final Segment segment;
+    @Getter(value = AccessLevel.PACKAGE)
     private final long offsetInSegment;
     @Getter(value = AccessLevel.PACKAGE)
     private final int eventAtOffset;
 
     @Override
     public int compareTo(Revision o) {
+        Preconditions.checkArgument(segment.equals(o.asImpl().getSegment()));
         int result = Long.compare(offsetInSegment, o.asImpl().offsetInSegment);
-        return result == 0 ? Integer.compare(eventAtOffset, o.asImpl().eventAtOffset) : result;
+        return result != 0 ? result : Integer.compare(eventAtOffset, o.asImpl().eventAtOffset); 
     }
 
     @Override
