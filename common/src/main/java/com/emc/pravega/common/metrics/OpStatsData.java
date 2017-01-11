@@ -64,13 +64,7 @@ public class OpStatsData {
     }
 
     public long getPercentile(Percentile percentile) {
-        long ret = percentileLongMap.get(percentile);
-        if (ret == 0) {
-            // this percentile is not in the map
-            return -1;
-        } else {
-            return ret;
-        }
+        return percentileLongMap.getOrDefault(percentile, -1L);
     }
 
     public long getNumSuccessfulEvents() {
