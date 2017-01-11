@@ -117,7 +117,7 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
 
             this.clientFactory.createStream(streamSegmentName, null);
             EventStreamWriter<byte[]> producer = this.clientFactory.createEventWriter(streamSegmentName, new JavaSerializer<>(), new EventWriterConfig(null));
-            this.producers.put(streamSegmentName, producer);
+            this.producers.putIfAbsent(streamSegmentName, producer);
         }, this.testExecutor);
     }
 

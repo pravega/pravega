@@ -66,6 +66,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     /**
      * Creates a new instance of the StreamSegmentStoreAdapter class.
      *
+     * @param builderConfig The Test Configuration to use.
      * @param builderConfig The ServiceBuilderConfig to use.
      * @param testExecutor  An Executor to use for test-related async operations.
      */
