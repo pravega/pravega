@@ -28,7 +28,11 @@
                   "hostPath": "/mnt/ledgers",
                   "mode": "RW"
               },
-
+              {
+                  "containerPath": "/opt/dl_all/distributedlog-service/logs/",
+                  "hostPath": "/mnt/logs",
+                  "mode": "RW"
+              },
               {
                   "containerPath": "persist",
                   "mode": "RW",
