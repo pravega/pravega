@@ -76,8 +76,6 @@ public class SelfTestRunner {
         ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, Integer.toString(60 * 1000));
         ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.toString(128 * 1024 * 1024));
 
-        ServiceBuilderConfig.set(p, WriterConfig.COMPONENT_CODE, WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, Integer.toString(5 * 1000));
-
         // All component configs should have defaults built-in, so no need to override them here
         return new ServiceBuilderConfig(p);
     }
