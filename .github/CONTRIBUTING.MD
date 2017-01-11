@@ -2,7 +2,7 @@ Guidelines for Issues and Pull Request
 ======================================
 
 Note: This guideline is inspired by
-[Docker](https://github.com/docker/docker/blob/master/project/REVIEWING.md) and
+[Docker](https://github.com/docker/dockercraft/blob/master/CONTRIBUTING.md) and
 its extension projects such as swarm. 
 
 Motivation
