@@ -31,7 +31,6 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
@@ -59,7 +58,6 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -232,8 +230,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
         HashMap<Long, ByteArrayOutputStream> readContents = new HashMap<>();
         HashSet<Long> segmentsToSeal = new HashSet<>();
-        HashMap<Long, AsyncReadResultProcessor> processorsBySegment = new HashMap<>();
-        HashMap<Long, TestEntryHandler> entryHandlers = new HashMap<>();
+        ArrayList<AsyncReadResultProcessor> readProcessors = new ArrayList<>();
+        HashMap<Long, TestReadResultHandler> entryHandlers = new HashMap<>();
 
         // 1. Put all segment names into one list, for easier appends (but still keep the original lists at hand - we'll need them later).
         ArrayList<Long> allSegmentIds = new ArrayList<>(segmentIds);
@@ -266,11 +264,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             }
 
             // The Read callback is only accumulating data in this test; we will then compare it against the real data.
-            TestEntryHandler entryHandler = new TestEntryHandler(readContentsStream);
+            TestReadResultHandler entryHandler = new TestReadResultHandler(readContentsStream, TIMEOUT);
             entryHandlers.put(segmentId, entryHandler);
-            AsyncReadResultProcessor readResultProcessor = new AsyncReadResultProcessor(readResult, entryHandler, executorService());
-            readResultProcessor.startAsync().awaitRunning();
-            processorsBySegment.put(segmentId, readResultProcessor);
+            readProcessors.add(AsyncReadResultProcessor.process(readResult, entryHandler, executorService()));
         }
 
         // 3. Add a bunch of writes.
@@ -303,16 +299,17 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         context.readIndex.triggerFutureReads(segmentIds);
 
         // Now wait for all the reads to complete, and verify their results against the expected output.
-        ServiceShutdownListener.awaitShutdown(processorsBySegment.values(), TIMEOUT, true);
+        FutureHelpers.allOf(entryHandlers.values().stream().map(h -> h.getCompleted()).collect(Collectors.toList())).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        readProcessors.forEach(AsyncReadResultProcessor::close);
 
         // Check to see if any errors got thrown (and caught) during the reading process).
-        for (Map.Entry<Long, TestEntryHandler> e : entryHandlers.entrySet()) {
-            Throwable err = e.getValue().error.get();
+        for (Map.Entry<Long, TestReadResultHandler> e : entryHandlers.entrySet()) {
+            Throwable err = e.getValue().getError().get();
             if (err != null) {
                 // Check to see if the exception we got was a SegmentSealedException. If so, this is only expected if the segment was to be sealed.
                 // The next check (see below) will verify if the segments were properly read).
                 if (!(err instanceof StreamSegmentSealedException && segmentsToSeal.contains(e.getKey()))) {
-                    Assert.fail("Unexpected error happened while processing Segment " + e.getKey() + ": " + e.getValue().error.get());
+                    Assert.fail("Unexpected error happened while processing Segment " + e.getKey() + ": " + e.getValue().getError().get());
                 }
             }
         }
@@ -1099,49 +1096,6 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             this.cache.close();
             this.storage.close();
             this.cacheManager.close();
-        }
-    }
-
-    //endregion
-
-    //region TestEntryHandler
-
-    private static class TestEntryHandler implements AsyncReadResultEntryHandler {
-        final AtomicReference<Throwable> error = new AtomicReference<>();
-        private final ByteArrayOutputStream readContents;
-
-        TestEntryHandler(ByteArrayOutputStream readContents) {
-            this.readContents = readContents;
-        }
-
-        @Override
-        public boolean shouldRequestContents(ReadResultEntryType entryType, long streamSegmentOffset) {
-            return true;
-        }
-
-        @Override
-        public boolean processEntry(ReadResultEntry e) {
-            Assert.assertTrue("Received Entry that is not ready to serve data yet.", FutureHelpers.isSuccessful(e.getContent()));
-            ReadResultEntryContents c = e.getContent().join();
-            byte[] data = new byte[c.getLength()];
-            try {
-                StreamHelpers.readAll(c.getData(), data, 0, data.length);
-                readContents.write(data);
-                return true;
-            } catch (Exception ex) {
-                processError(ex);
-                return false;
-            }
-        }
-
-        @Override
-        public void processError(Throwable cause) {
-            this.error.set(cause);
-        }
-
-        @Override
-        public Duration getRequestContentTimeout() {
-            return TIMEOUT;
         }
     }
 

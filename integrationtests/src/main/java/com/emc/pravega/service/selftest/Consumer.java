@@ -28,10 +28,10 @@ import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ExceptionHelpers;
-import com.emc.pravega.service.server.ServiceShutdownListener;
-import com.emc.pravega.service.server.reading.AsyncReadResultEntryHandler;
+import com.emc.pravega.service.server.reading.AsyncReadResultHandler;
 import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
 import com.google.common.base.Preconditions;
+import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
@@ -329,27 +329,19 @@ public class Consumer extends Actor {
      * of that read as a 'tail read', then re-issuing concise reads from the store for those offsets.
      */
     private CompletableFuture<Void> processStoreReads() {
-        val entryHandler = new ReadResultEntryHandler(this.config, this::processTailRead, this::canRun, this::fail);
+        AtomicLong readOffset = new AtomicLong(0);
         // We run in a loop because it may be possible that we write more than Integer.MAX_VALUE to the segment; if that's
         // the case, we reissue the read for the next offset.
         return FutureHelpers.loop(
                 this::canRun,
                 () -> this.store
-                        .read(this.segmentName, entryHandler.getCurrentOffset(), Integer.MAX_VALUE, READ_TIMEOUT)
+                        .read(this.segmentName, readOffset.get(), Integer.MAX_VALUE, READ_TIMEOUT)
                         .thenComposeAsync(readResult -> {
                             // Process the read result by reading all bits of available data as soon as they are available.
-                            // Create a future that we will immediately return.
-                            CompletableFuture<Void> processComplete = new CompletableFuture<>();
-
-                            // Create an AsyncReadResultProcessor and make sure that when it ends, we complete the future.
-                            AsyncReadResultProcessor rrp = new AsyncReadResultProcessor(readResult, entryHandler, this.executorService);
-                            rrp.addListener(
-                                    new ServiceShutdownListener(() -> processComplete.complete(null), processComplete::completeExceptionally),
-                                    this.executorService);
-
-                            // Start the processor.
-                            rrp.startAsync().awaitRunning();
-                            return processComplete;
+                            ReadResultHandler entryHandler = new ReadResultHandler(this.config, this::processTailRead, this::canRun, this::fail);
+                            @Cleanup
+                            AsyncReadResultProcessor rrp = AsyncReadResultProcessor.process(readResult, entryHandler, this.executorService);
+                            return entryHandler.completed.thenAccept(readOffset::addAndGet);
                         }, this.executorService)
                         .thenCompose(v -> this.store.getStreamSegmentInfo(this.segmentName, this.config.getTimeout()))
                         .handle((r, ex) -> {
@@ -362,7 +354,7 @@ public class Consumer extends Actor {
                                     // Unexpected exception.
                                     throw new CompletionException(ex);
                                 }
-                            } else if (r.isSealed() && entryHandler.getCurrentOffset() >= r.getLength()) {
+                            } else if (r.isSealed() && readOffset.get() >= r.getLength()) {
                                 // Cannot continue anymore (segment has been sealed and we reached its end).
                                 this.canContinue.set(false);
                             }
@@ -542,43 +534,40 @@ public class Consumer extends Actor {
 
     //endregion
 
-    //region ReadResultEntryHandler
+    //region ReadResultHandler
 
     /**
      * Handler for the AsyncReadResultProcessor that processes the Segment read.
      */
-    private static class ReadResultEntryHandler implements AsyncReadResultEntryHandler {
+    private static class ReadResultHandler implements AsyncReadResultHandler {
         //region Members
 
         private final TestConfig config;
         private final TailReadConsumer tailReadConsumer;
-        private final AtomicLong readOffset;
+        private final AtomicLong readLength;
         private final Supplier<Boolean> canRun;
         private final java.util.function.Consumer<Throwable> failureHandler;
-
+        private final CompletableFuture<Long> completed;
         //endregion
 
         //region Constructor
 
-        ReadResultEntryHandler(TestConfig config, TailReadConsumer tailReadConsumer, Supplier<Boolean> canRun, java.util.function.Consumer<Throwable> failureHandler) {
+        ReadResultHandler(TestConfig config, TailReadConsumer tailReadConsumer, Supplier<Boolean> canRun, java.util.function.Consumer<Throwable> failureHandler) {
             this.config = config;
             this.tailReadConsumer = tailReadConsumer;
             this.canRun = canRun;
-            this.readOffset = new AtomicLong();
+            this.readLength = new AtomicLong();
             this.failureHandler = failureHandler;
+            this.completed = new CompletableFuture<>();
         }
 
         //endregion
 
         //region Properties
 
-        long getCurrentOffset() {
-            return this.readOffset.get();
-        }
-
         //endregion
 
-        //region AsyncReadResultEntryHandler Implementation
+        //region AsyncReadResultHandler Implementation
 
         @Override
         public boolean shouldRequestContents(ReadResultEntryType entryType, long streamSegmentOffset) {
@@ -589,7 +578,7 @@ public class Consumer extends Actor {
         public boolean processEntry(ReadResultEntry entry) {
             entry.requestContent(this.config.getTimeout());
             val contents = entry.getContent().join();
-            this.readOffset.addAndGet(contents.getLength());
+            this.readLength.addAndGet(contents.getLength());
             this.tailReadConsumer.accept(contents.getData(), entry.getStreamSegmentOffset(), contents.getLength());
             return this.canRun.get();
         }
@@ -597,9 +586,15 @@ public class Consumer extends Actor {
         @Override
         public void processError(Throwable cause) {
             cause = ExceptionHelpers.getRealException(cause);
+            this.completed.completeExceptionally(cause);
             if (!(cause instanceof StreamSegmentSealedException)) {
                 CallbackHelpers.invokeSafely(this.failureHandler, cause, null);
             }
+        }
+
+        @Override
+        public void processResultComplete() {
+            this.completed.complete(this.readLength.get());
         }
 
         @Override

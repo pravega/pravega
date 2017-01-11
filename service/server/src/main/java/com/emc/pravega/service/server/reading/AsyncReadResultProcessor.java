@@ -24,9 +24,7 @@ import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.server.ExceptionHelpers;
-import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractIdleService;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -43,17 +41,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <li> The ReadResult reaches the end (hasNext() == false)
  * <li> The ReadResult is closed
  * <li> An error was encountered while fetching such an entry.
- * <li> The user-supplied AsyncReadResultEntryHandler returns false from a call to shouldRequestContents.
- * <li> The user-supplied AsyncReadResultEntryHandler returns false from a call to processEntry.
+ * <li> The user-supplied AsyncReadResultHandler returns false from a call to shouldRequestContents.
+ * <li> The user-supplied AsyncReadResultHandler returns false from a call to processEntry.
  * </ul>
  */
-public class AsyncReadResultProcessor extends AbstractIdleService implements AutoCloseable {
+public class AsyncReadResultProcessor implements AutoCloseable {
     //region Members
 
     private final ReadResult readResult;
-    private final AsyncReadResultEntryHandler entryHandler;
-    private final Executor executor;
-    private boolean closed;
+    private final AsyncReadResultHandler entryHandler;
+    private final AtomicBoolean closed;
 
     //endregion
 
@@ -65,16 +62,31 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
      * @param readResult   The ReadResult to attach to. When the ReadResult is closed, the AsyncReadResultProcessor
      *                     is closed as well. When the AsyncReadResultProcessor is closed, the ReadResult is closed too.
      * @param entryHandler A handler for every ReadResultEntry that is extracted out of the ReadResult.
-     * @param executor     An Executor to use for asynchronous callbacks.
      */
-    public AsyncReadResultProcessor(ReadResult readResult, AsyncReadResultEntryHandler entryHandler, Executor executor) {
+    private AsyncReadResultProcessor(ReadResult readResult, AsyncReadResultHandler entryHandler) {
         Preconditions.checkNotNull(readResult, "readResult");
         Preconditions.checkNotNull(entryHandler, "entryHandler");
-        Preconditions.checkNotNull(executor, "executor");
 
         this.readResult = readResult;
         this.entryHandler = entryHandler;
-        this.executor = executor;
+        this.closed = new AtomicBoolean();
+    }
+
+    /**
+     * Processes the given ReadResult using the given AsyncReadResultHandler.
+     *
+     * @param readResult   The ReadResult to process.
+     * @param entryHandler An AsyncReadResultHandler to be used for callbacks.
+     * @param executor     An Executor to run asynchronous tasks on.
+     * @return An instance of the AsyncReadResultProcessor that is processing the result. This can be closed at any time
+     * there is no longer a need to process the result (Note that this will also close the underlying ReadResult). The
+     * returned instance will auto-close when the ReadResult is processed in its entirety or when an exception is encountered.
+     */
+    public static AsyncReadResultProcessor process(ReadResult readResult, AsyncReadResultHandler entryHandler, Executor executor) {
+        Preconditions.checkNotNull(executor, "executor");
+        AsyncReadResultProcessor processor = new AsyncReadResultProcessor(readResult, entryHandler);
+        processor.processResult(executor);
+        return processor;
     }
 
     //endregion
@@ -83,40 +95,32 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
 
     @Override
     public void close() {
-        if (!this.closed) {
-            if (state() == State.RUNNING) {
-                stopAsync();
-                ServiceShutdownListener.awaitShutdown(this, false);
+        // Try to close without setting any exception.
+        close(null);
+    }
+
+    private void close(Throwable failureCause) {
+        if (!this.closed.getAndSet(true)) {
+            this.readResult.close();
+            if (failureCause == null) {
+                // We are closing normally with no processing exception.
+                this.entryHandler.processResultComplete();
+            } else {
+                // An exception was encountered; this must be reported to the entry handler.
+                this.entryHandler.processError(ExceptionHelpers.getRealException(failureCause));
             }
-
-            this.closed = true;
         }
-    }
-
-    //endregion
-
-    //region AbstractIdleService Implementation
-
-    @Override
-    protected void startUp() throws Exception {
-        processResult();
-    }
-
-    @Override
-    protected void shutDown() throws Exception {
-        this.readResult.close();
-        this.closed = true;
     }
 
     //endregion
 
     //region Processing
 
-    private void processResult() {
+    private void processResult(Executor executor) {
         // Process the result, one entry at a time, until one of the stopping conditions occurs.
         AtomicBoolean shouldContinue = new AtomicBoolean(true);
         CompletableFuture<Void> readResultProcessor = FutureHelpers.loop(
-                () -> !this.closed && shouldContinue.get(),
+                () -> !this.closed.get() && shouldContinue.get(),
                 () -> {
                     CompletableFuture<ReadResultEntry> resultEntryFuture = fetchNextEntry();
                     shouldContinue.set(resultEntryFuture != null);
@@ -127,11 +131,10 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
                         shouldContinue.set(this.entryHandler.processEntry(resultEntry));
                     }
                 },
-                this.executor);
+                executor);
 
-        // Make sure we fail on exceptions and always close the result processor when done.
-        FutureHelpers.exceptionListener(readResultProcessor, this::fail);
-        readResultProcessor.thenRun(this::close);
+        // Make sure always close the result processor when done (with our without failures).
+        readResultProcessor.whenComplete((r, ex) -> close(ex));
     }
 
     private CompletableFuture<ReadResultEntry> fetchNextEntry() {
@@ -154,18 +157,6 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
         }
 
         return null;
-    }
-
-    private void fail(Throwable exception) {
-        try {
-            this.entryHandler.processError(ExceptionHelpers.getRealException(exception));
-        } catch (Throwable ex) {
-            if (ExceptionHelpers.mustRethrow(ex)) {
-                throw ex;
-            }
-        }
-
-        close();
     }
 
     //endregion
