@@ -159,11 +159,15 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         // to pick them up and end up failing when attempting to fetch the cache contents.
         context.cache.clear();
 
-        context.writer.startAsync().awaitRunning();
-
         AssertExtensions.assertThrows(
                 "StorageWriter did not fail when a fatal data retrieval error occurred.",
-                () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
+                () -> {
+                    // The Corruption may happen early enough so the "awaitRunning" isn't complete yet. In that case,
+                    // the writer will never reach its 'Running' state. As such, we need to make sure at least one of these
+                    // will throw (either start or, if the failure happened after start, make sure it eventually fails and shuts down).
+                    context.writer.startAsync().awaitRunning();
+                    ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true);
+                },
                 ex -> ex instanceof IllegalStateException);
 
         Assert.assertTrue("Unexpected failure cause for StorageWriter: " + context.writer.failureCause(), ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof DataCorruptionException);
@@ -234,11 +238,15 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         AtomicBoolean corruptionHappened = new AtomicBoolean();
         context.storage.setWriteAsyncErrorInjector(new ErrorInjector<>(c -> !corruptionHappened.getAndSet(true), exceptionSupplier));
 
-        context.writer.startAsync().awaitRunning();
-
         AssertExtensions.assertThrows(
                 "StorageWriter did not fail when a fatal data corruption error occurred.",
-                () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
+                () -> {
+                    // The Corruption may happen early enough so the "awaitRunning" isn't complete yet. In that case,
+                    // the writer will never reach its 'Running' state. As such, we need to make sure at least one of these
+                    // will throw (either start or, if the failure happened after start, make sure it eventually fails and shuts down).
+                    context.writer.startAsync().awaitRunning();
+                    ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true);
+                },
                 ex -> ex instanceof IllegalStateException);
         Assert.assertTrue("Unexpected failure cause for StorageWriter.", ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof ReconciliationFailureException);
     }
