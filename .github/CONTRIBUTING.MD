@@ -109,7 +109,9 @@ underloaded) with more than what they could accomplish in a sprint.
 Although there could be multiple variations in issue transitions, here is a
 possible and the most common workflow. 
 
-![C:\\a21d64e7e1a8dfc46a7adad79585fbf2](media/268405eb0263ec70881ae43aa7c02dab.png)
+![issue Workflow](https://github.com/emccode/pravega/blob/master/doc/img/Github%20Issue%20Workflow.png)
+
+
 
 ### Pull Request Reviews and Labeling
 
@@ -123,20 +125,6 @@ possible and the most common workflow. 
 | status/4-ready-to-merge | Maintainers are expected to merge this pull request as soon as possible. They can ask for a rebase or carry the pull request themselves. Possible transitions from this state:                                        |
 | closed                  | If a pull request is closed it is expected that sufficient justification will be provided.                                                                                                                            |
 
--   Close: design rejected
+**PR Workflow**
 
--   status/2-code-review: general case
-
--   status/3-docs-review: proposals with only documentation changes
-
--   Close
-
--   status/1-design-review: new design concerns are raised
-
--   status/3-docs-review: general case
-
--   status/4-ready-to-merge: change not impacting documentation
-
--   If the pull request does not impact the documentation at all, the docs
-    review step is skipped, and the pull request is ready to merge
- 
+![PR Workflow](https://github.com/emccode/pravega/blob/master/doc/img/Github%20PR%20Workflow.png)
