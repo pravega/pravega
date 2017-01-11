@@ -62,12 +62,6 @@ public class MetricsConfig extends ComponentConfig {
      */
     public MetricsConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
-        enableStatistics = DEFAULT_ENABLE_STATISTICS;
-        yammerStatsOutputFrequencySeconds = DEFAULT_OUTPUT_FREQUENCY;
-        yammerMetricsPrefix = DEFAULT_METRICS_PREFIX;
-        yammerCSVEndpoint = DEFAULT_CSV_ENDPOINT;
-        yammerStatsDHost = DEFAULT_STATSD_HOST;
-        yammerStatsDPort = DEFAULT_STATSD_PORT;
     }
 
     /**

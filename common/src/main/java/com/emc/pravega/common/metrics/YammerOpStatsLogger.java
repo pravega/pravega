@@ -18,16 +18,18 @@ package com.emc.pravega.common.metrics;
 
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.Snapshot;
+import com.google.common.base.Preconditions;
 
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.concurrent.TimeUnit;
 
 class YammerOpStatsLogger implements OpStatsLogger {
-    final Timer success;
-    final Timer fail;
+    private final Timer success;
+    private final Timer fail;
 
     YammerOpStatsLogger(Timer success, Timer fail) {
+        Preconditions.checkNotNull(success, "Passed in Timer success");
+        Preconditions.checkNotNull(fail, "Passed in Timer fail");
         this.success = success;
         this.fail = fail;
     }
@@ -67,9 +69,9 @@ class YammerOpStatsLogger implements OpStatsLogger {
         Snapshot s = success.getSnapshot();
         double avgLatencyMillis = s.getMean();
 
-        EnumMap<OpStatsData.Percentile, Long> percentileLongMap  = new EnumMap<OpStatsData.Percentile, Long>(OpStatsData.Percentile.class);
-        EnumSet<OpStatsData.Percentile> percentileSet = EnumSet.allOf(OpStatsData.Percentile.class);
-        for (OpStatsData.Percentile percent : percentileSet) {
+        EnumMap<OpStatsData.Percentile, Long> percentileLongMap  =
+                new EnumMap<OpStatsData.Percentile, Long>(OpStatsData.Percentile.class);
+        for (OpStatsData.Percentile percent : OpStatsData.PERCENTILESET) {
             percentileLongMap.put(percent, (long) s.getValue(percent.getValue() / 100));
         }
         return new OpStatsData(numSuccess, numFailed, avgLatencyMillis, percentileLongMap);

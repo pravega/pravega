@@ -38,8 +38,8 @@ import javax.annotation.concurrent.GuardedBy;
 @Slf4j
 public class YammerStatsProvider implements StatsProvider {
     @GuardedBy("$lock")
-    MetricRegistry metrics = null;
-    List<ScheduledReporter> reporters = new ArrayList<ScheduledReporter>();
+    private MetricRegistry metrics = null;
+    private final List<ScheduledReporter> reporters = new ArrayList<ScheduledReporter>();
 
     @Synchronized
     void init() {

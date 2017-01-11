@@ -16,12 +16,16 @@
  */
 package com.emc.pravega.common.metrics;
 
+import com.google.common.base.Preconditions;
+
 import java.util.EnumMap;
+import java.util.EnumSet;
 
 /**
  * This class provides a read view of operation specific stats.
  */
 public class OpStatsData {
+    static final EnumSet<Percentile> PERCENTILESET = EnumSet.allOf(Percentile.class);
     private final long numSuccessfulEvents, numFailedEvents;
     // All latency values are in Milliseconds.
     private final double avgLatencyMillis;
@@ -34,7 +38,7 @@ public class OpStatsData {
         P999(99.9),
         P9999(99.99);
 
-        private double numVal;
+        private final double numVal;
 
         Percentile(double numVal) {
             this.numVal = numVal;
@@ -45,13 +49,14 @@ public class OpStatsData {
         }
     }
 
-    private EnumMap<Percentile, Long> percentileLongMap = new EnumMap<Percentile, Long>(Percentile.class);
+    private final EnumMap<Percentile, Long> percentileLongMap;
 
     public OpStatsData(long numSuccessfulEvents, long numFailedEvents,
                        double avgLatencyMillis, EnumMap<Percentile, Long> percentileLongMap) {
-        assert numSuccessfulEvents >= 0;
-        assert numFailedEvents >= 0;
-        assert avgLatencyMillis >= 0;
+        Preconditions.checkArgument(numSuccessfulEvents >= 0, "numSuccessfulEvents must be 0 or a positive integer.");
+        Preconditions.checkArgument(numFailedEvents >= 0, "numFailedEvents must be 0 or a positive integer.");
+        Preconditions.checkArgument(avgLatencyMillis >= 0, "avgLatencyMillis must be 0 or a positive integer..");
+
         this.numSuccessfulEvents = numSuccessfulEvents;
         this.numFailedEvents = numFailedEvents;
         this.avgLatencyMillis = avgLatencyMillis;
@@ -59,7 +64,13 @@ public class OpStatsData {
     }
 
     public long getPercentile(Percentile percentile) {
-        return  percentileLongMap.get(percentile);
+        long ret = percentileLongMap.get(percentile);
+        if (ret == 0) {
+            // this percentile is not in the map
+            return Long.MAX_VALUE;
+        } else {
+            return ret;
+        }
     }
 
     public long getNumSuccessfulEvents() {
