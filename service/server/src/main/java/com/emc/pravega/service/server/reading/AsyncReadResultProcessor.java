@@ -119,22 +119,21 @@ public class AsyncReadResultProcessor implements AutoCloseable {
     private void processResult(Executor executor) {
         // Process the result, one entry at a time, until one of the stopping conditions occurs.
         AtomicBoolean shouldContinue = new AtomicBoolean(true);
-        CompletableFuture<Void> readResultProcessor = FutureHelpers.loop(
-                () -> !this.closed.get() && shouldContinue.get(),
-                () -> {
-                    CompletableFuture<ReadResultEntry> resultEntryFuture = fetchNextEntry();
-                    shouldContinue.set(resultEntryFuture != null);
-                    return resultEntryFuture != null ? resultEntryFuture : CompletableFuture.completedFuture(null);
-                },
-                resultEntry -> {
-                    if (resultEntry != null) {
-                        shouldContinue.set(this.entryHandler.processEntry(resultEntry));
-                    }
-                },
-                executor);
-
-        // Make sure always close the result processor when done (with our without failures).
-        readResultProcessor.whenComplete((r, ex) -> close(ex));
+        FutureHelpers
+                .loop(
+                        () -> !this.closed.get() && shouldContinue.get(),
+                        () -> {
+                            CompletableFuture<ReadResultEntry> resultEntryFuture = fetchNextEntry();
+                            shouldContinue.set(resultEntryFuture != null);
+                            return resultEntryFuture != null ? resultEntryFuture : CompletableFuture.completedFuture(null);
+                        },
+                        resultEntry -> {
+                            if (resultEntry != null) {
+                                shouldContinue.set(this.entryHandler.processEntry(resultEntry));
+                            }
+                        },
+                        executor)
+                .whenComplete((r, ex) -> close(ex)); // Make sure always close the result processor when done (with our without failures).
     }
 
     private CompletableFuture<ReadResultEntry> fetchNextEntry() {
