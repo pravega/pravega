@@ -90,7 +90,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 100; // We are doing a lot of parallel operations in these tests, so we need TP large enough to accommodate that.
+        return 2 * SEGMENT_COUNT;
     }
 
     /**

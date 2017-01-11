@@ -20,6 +20,7 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.EventStreamWriter;
@@ -30,6 +31,7 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -45,7 +47,7 @@ public interface Controller {
      * Api to create stream.
      *
      * @param streamConfig stream configuration
-     * @return
+     * @return status of create stream operation.
      */
     CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig);
 
@@ -53,17 +55,28 @@ public interface Controller {
      * Api to alter stream.
      *
      * @param streamConfig stream configuration to updated
-     * @return
+     * @return status of update stream operation.
      */
     CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig);
 
-    // Controller Apis called by pravega writers for getting stream specific information
+    /**
+     * API to merge or split stream segments.
+     * @param stream stream object.
+     * @param sealedSegments list of segments to be sealed.
+     * @param newKeyRanges key ranges after scaling the stream.
+     * @return status of scale operation.
+     */
+    CompletableFuture<ScaleResponse> scaleStream(final Stream stream,
+                                                 final List<Integer> sealedSegments,
+                                                 final Map<Double, Double> newKeyRanges);
+
+    // Controller Apis called by pravega producers for getting stream specific information
 
     /**
      * Api to get list of current segments for the stream to write to.
      * @param scope scope
      * @param streamName stream name
-     * @return
+     * @return current stream segments.
      */
     CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName);
 
@@ -72,7 +85,7 @@ public interface Controller {
      * The transaction timeout is relative to the creation time.
      * @param stream stream name
      * @param timeout tx timeout
-     * @return
+     * @return transaction identifier.
      */
     CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout);
 
@@ -83,7 +96,7 @@ public interface Controller {
      * 
      * @param stream stream name
      * @param txId transaction id
-     * @return
+     * @return status of commit transaction operation.
      */
     CompletableFuture<TransactionStatus> commitTransaction(final Stream stream, final UUID txId);
 
@@ -91,7 +104,7 @@ public interface Controller {
      * Drops a transaction. No events written to it may be read, and no further events may be written.
      * @param stream stream name
      * @param txId transaction id
-     * @return
+     * @return status of drop transaction operation.
      */
     CompletableFuture<TransactionStatus> dropTransaction(final Stream stream, final UUID txId);
 
@@ -99,7 +112,7 @@ public interface Controller {
      * Returns the status of the specified transaction.
      * @param stream stream name
      * @param txId transaction id
-     * @return
+     * @return transaction status.
      */
     CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
 
@@ -112,7 +125,7 @@ public interface Controller {
      * @param stream name
      * @param timestamp timestamp for getting position objects
      * @param count number of position objects
-     * @return
+     * @return list of position objects.
      */
     CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count);
 
@@ -121,7 +134,7 @@ public interface Controller {
      *
      * @param stream stream name
      * @param positions current position objects
-     * @return
+     * @return list of updated position objects.
      */
     CompletableFuture<List<PositionInternal>> updatePositions(final Stream stream, final List<PositionInternal> positions);
 
@@ -145,7 +158,7 @@ public interface Controller {
      * @param scope scope
      * @param stream stream
      * @param segmentNumber segment number
-     * @return
+     * @return boolean indicating validity of segment.
      */
     CompletableFuture<Boolean> isSegmentValid(final String scope,
                                               final String stream,
