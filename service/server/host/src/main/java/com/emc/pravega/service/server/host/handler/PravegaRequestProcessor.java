@@ -53,6 +53,7 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
 import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -69,8 +70,6 @@ import static com.emc.pravega.service.contracts.ReadResultEntryType.EndOfStreamS
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Future;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
@@ -254,7 +253,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else {
             // TODO: don't know what to do here...
             connection.close();
-            log.error("Unknown excpetion on " + operation + " for segment " + segment, u);
+            log.error("Unknown exception on " + operation + " for segment " + segment, u);
             throw new IllegalStateException("Unknown exception.", u);
         }
     }

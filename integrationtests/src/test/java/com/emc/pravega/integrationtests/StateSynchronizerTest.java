@@ -18,18 +18,27 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.state.InitialUpdate;
+import com.emc.pravega.state.Revision;
+import com.emc.pravega.state.Revisioned;
+import com.emc.pravega.state.StateSynchronizer;
+import com.emc.pravega.state.SynchronizerConfig;
+import com.emc.pravega.state.Update;
 import com.emc.pravega.state.examples.SetSynchronizer;
 import com.emc.pravega.stream.TxnFailedException;
+import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockClientFactory;
-import com.emc.pravega.testcommon.Async;
 import com.emc.pravega.testcommon.TestUtils;
+
+import java.io.Serializable;
+import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import io.netty.util.ResourceLeakDetector;
@@ -37,6 +46,8 @@ import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import lombok.Cleanup;
+import lombok.Data;
+import lombok.val;
 
 public class StateSynchronizerTest {
 
@@ -57,8 +68,31 @@ public class StateSynchronizerTest {
         this.serviceBuilder.close();
         ResourceLeakDetector.setLevel(originalLevel);
     }
+    
+    @Data
+    private static class TestState implements Revisioned {
+        private final String scopedStreamName;
+        private final Revision revision;
+        private final String value;
+        
+    }
 
-    @Test(timeout = 30000)
+    @Data
+    private static class TestUpdate implements Update<TestState>, InitialUpdate<TestState>, Serializable {
+        private final String value;
+
+        @Override
+        public TestState applyTo(TestState oldState, Revision newRevision) {
+            return new TestState(oldState.getScopedStreamName(), newRevision, value);
+        }
+        
+        @Override
+        public TestState create(String scopedStreamName, Revision revision) {
+            return new TestState(scopedStreamName, revision, value);
+        }
+    }
+    
+    @Test(timeout = 20000)
     public void testStateTracker() throws TxnFailedException {
         String endpoint = "localhost";
         String stateName = "abc";
@@ -70,26 +104,47 @@ public class StateSynchronizerTest {
 
         MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
         clientFactory.createStream(stateName, null);
-        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, clientFactory);
-        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, clientFactory);
+        JavaSerializer<TestUpdate> serializer = new JavaSerializer<TestUpdate>();
+        
+        val a = clientFactory.createStateSynchronizer(stateName, serializer, serializer, new SynchronizerConfig(null, null));
+        val b = clientFactory.createStateSynchronizer(stateName, serializer, serializer, new SynchronizerConfig(null, null));
 
-        assertTrue(setA.attemptAdd("1"));
-        assertFalse(setB.attemptAdd("Fail"));
-        assertTrue(setA.attemptAdd("2"));
-        setB.update();
-        assertEquals(2, setB.getCurrentSize());
-        assertTrue(setB.getCurrentValues().contains("1"));
-        assertTrue(setB.getCurrentValues().contains("2"));
-        assertTrue(setB.attemptRemove("1"));
-        assertFalse(setA.attemptClear());
-        setA.update();
-        assertEquals(1, setA.getCurrentSize());
-        assertTrue(setA.getCurrentValues().contains("2"));
-        assertTrue(setA.attemptClear());
-        assertEquals(0, setA.getCurrentValues().size());
+        a.initialize(new TestUpdate("init"));
+        b.fetchUpdates();
+        assertEquals("init", b.getState().value);
+        assertEquals(1, update(a, "already up to date 1"));
+        assertEquals(2, update(b, "fail Initially 2"));
+        assertEquals("already up to date 1", a.getState().value);
+        assertEquals("fail Initially 2", b.getState().value);
+        
+        assertEquals(1, update(b, "already up to date 3"));
+        assertEquals("already up to date 1", a.getState().value);
+        a.fetchUpdates();
+        assertEquals("already up to date 3", a.getState().value);
+        assertEquals(1, update(a, "already up to date 4"));
+        assertEquals("already up to date 4", a.getState().value);
+        assertEquals("already up to date 3", b.getState().value);
+        assertEquals(2, update(b, "fail Initially 5"));
+        
+        assertEquals("already up to date 4", a.getState().value);
+        a.fetchUpdates();
+        assertEquals("fail Initially 5", a.getState().value);
+        a.fetchUpdates();
+        b.fetchUpdates();
+        assertEquals("fail Initially 5", a.getState().value);
+        assertEquals("fail Initially 5", b.getState().value);
+    }
+    
+    private int update(StateSynchronizer<TestState> sync, String string) {
+        AtomicInteger count = new AtomicInteger(0);
+        sync.updateState(state -> {
+            count.incrementAndGet();
+            return Collections.singletonList(new TestUpdate(string));
+        });
+        return count.get();
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 20000)
     public void testReadsAllAvailable() {
         String endpoint = "localhost";
         String stateName = "abc";
@@ -104,19 +159,19 @@ public class StateSynchronizerTest {
         SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, clientFactory);
 
         for (int i = 0; i < 10; i++) {
-            assertTrue(setA.attemptAdd("Append: " + i));
+           setA.add("Append: " + i);
         }
         SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, clientFactory);
         assertEquals(10, setB.getCurrentSize());
         for (int i = 10; i < 20; i++) {
-            assertTrue(setA.attemptAdd("Append: " + i));
+            setA.add("Append: " + i);
         }
         setB.update();
         assertEquals(20, setB.getCurrentSize());
     }
 
-    @Test
-    public void testBlocking() {
+    @Test(timeout = 10000)
+    public void testSetSynchronizer() {
         String endpoint = "localhost";
         String stateName = "abc";
         int port = TestUtils.randomPort();
@@ -130,11 +185,16 @@ public class StateSynchronizerTest {
         SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, clientFactory);
         SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, clientFactory);
 
-        assertTrue(setA.attemptAdd("foo"));
+        setA.add("foo");
+        assertEquals(1, setA.getCurrentSize());
+        assertTrue(setA.getCurrentValues().contains("foo"));
         setB.update();
         assertEquals(1, setB.getCurrentSize());
         assertTrue(setB.getCurrentValues().contains("foo"));
-        Async.testBlocking(() -> setB.update(), () -> setA.attemptAdd("bar"));
+        setA.add("bar");
+        assertEquals(1, setB.getCurrentSize());
+        assertTrue(setB.getCurrentValues().contains("foo"));
+        setB.update();
         assertEquals(2, setB.getCurrentSize());
         assertTrue(setB.getCurrentValues().contains("bar"));
     }
