@@ -6,7 +6,7 @@ Pravega is a distributed storage service offering a new storage abstraction call
 Data is replicated and persisted to disk before being acknowledged.
 
 ### **Exactly once delivery**
-Producers use transaction to ensure data is written exactly once. 
+Writers use transaction to ensure data is written exactly once. 
 
 ### **Infinite**
 Pravega is designed to store streams for infinite period of time. Size of stream is not bounded by the capacity of a node, but by the capacity of a cluster.
