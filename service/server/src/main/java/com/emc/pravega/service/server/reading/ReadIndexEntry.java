@@ -58,7 +58,7 @@ class ReadIndexEntry {
      *
      * @return The entry's generation.
      */
-    int getGeneration() {
+    synchronized int getGeneration() {
         return this.generation;
     }
 
@@ -67,7 +67,7 @@ class ReadIndexEntry {
      *
      * @param generation The current generation.
      */
-    void setGeneration(int generation) {
+    synchronized void setGeneration(int generation) {
         this.generation = generation;
     }
 
