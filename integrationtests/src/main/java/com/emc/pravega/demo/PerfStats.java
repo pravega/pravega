@@ -77,7 +77,7 @@ class PerfStats {
         }
     }
 
-    public void printWindow() {
+    private void printWindow() {
         long elapsed = System.nanoTime() - windowStart;
         double recsPerSec = 1000000.0 * windowCount / (double) elapsed;
         double mbPerSec = 1000000.0 * this.windowBytes / (double) elapsed / (1024.0 * 1024.0);
@@ -89,7 +89,7 @@ class PerfStats {
                 (double) windowMaxLatency);
     }
 
-    public void newWindow(long currentNumber) {
+    private void newWindow(long currentNumber) {
         //  this.windowStart = System.nanoTime();
         this.windowStart = currentNumber;
         this.windowCount = 0;
@@ -98,14 +98,14 @@ class PerfStats {
         this.windowBytes = 0;
     }
 
-    public void printAll() {
+    public synchronized void printAll() {
         for (int i = 0; i < latencies.length; i++) {
             System.out.printf("%d %d\n", i, latencies[i]);
 
         }
     }
 
-    public void printTotal() {
+    public synchronized void printTotal() {
         long elapsed = System.nanoTime() - start;
         double recsPerSec = 1000000.0 * count / (double) elapsed;
         double mbPerSec = 1000000.0 * this.bytes / (double) elapsed / (1024.0 * 1024.0);
