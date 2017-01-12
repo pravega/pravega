@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.PropertyBag;
@@ -28,7 +29,6 @@ import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.CacheKey;
-import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.ServiceShutdownListener;
@@ -40,6 +40,7 @@ import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -55,7 +56,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -65,17 +65,21 @@ import java.util.stream.Collectors;
 /**
  * Unit tests for ContainerReadIndex class.
  */
-public class ContainerReadIndexTests {
+public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     private static final int SEGMENT_COUNT = 100;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
-    private static final int THREAD_POOL_SIZE = 50;
     private static final int CONTAINER_ID = 123;
     private static final ReadIndexConfig DEFAULT_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
             PropertyBag.create()
                        .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
                        .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 5;
+    }
 
     /**
      * Tests the basic append-read functionality of the ContainerReadIndex, with data fully in it (no tail reads).
@@ -179,7 +183,7 @@ public class ContainerReadIndexTests {
             // The Read callback is only accumulating data in this test; we will then compare it against the real data.
             TestEntryHandler entryHandler = new TestEntryHandler(readContentsStream);
             entryHandlers.put(segmentId, entryHandler);
-            AsyncReadResultProcessor readResultProcessor = new AsyncReadResultProcessor(readResult, entryHandler, context.executorService.get());
+            AsyncReadResultProcessor readResultProcessor = new AsyncReadResultProcessor(readResult, entryHandler, executorService());
             readResultProcessor.startAsync().awaitRunning();
             processorsBySegment.put(segmentId, readResultProcessor);
         }
@@ -988,10 +992,9 @@ public class ContainerReadIndexTests {
 
     //region TestContext
 
-    private static class TestContext implements AutoCloseable {
+    private class TestContext implements AutoCloseable {
         final UpdateableContainerMetadata metadata;
         final ContainerReadIndex readIndex;
-        final CloseableExecutorService executorService;
         final TestCacheManager cacheManager;
         final TestCache cache;
         final Storage storage;
@@ -1001,12 +1004,11 @@ public class ContainerReadIndexTests {
         }
 
         TestContext(ReadIndexConfig readIndexConfig, CachePolicy cachePolicy) {
-            this.executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
             this.cache = new TestCache(Integer.toString(CONTAINER_ID));
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             this.storage = new InMemoryStorage();
-            this.cacheManager = new TestCacheManager(cachePolicy, this.executorService.get());
-            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, this.executorService.get());
+            this.cacheManager = new TestCacheManager(cachePolicy, executorService());
+            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, executorService());
         }
 
         @Override
@@ -1015,7 +1017,6 @@ public class ContainerReadIndexTests {
             this.cache.close();
             this.storage.close();
             this.cacheManager.close();
-            this.executorService.close();
         }
     }
 
@@ -1038,6 +1039,7 @@ public class ContainerReadIndexTests {
 
         @Override
         public boolean processEntry(ReadResultEntry e) {
+            Assert.assertTrue("Received Entry that is not ready to serve data yet.", FutureHelpers.isSuccessful(e.getContent()));
             ReadResultEntryContents c = e.getContent().join();
             byte[] data = new byte[c.getLength()];
             try {

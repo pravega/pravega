@@ -20,6 +20,7 @@ package com.emc.pravega.service.server;
 
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
 import lombok.Setter;
@@ -33,7 +34,7 @@ import java.util.concurrent.CompletableFuture;
  * errors, simulating non-availability, etc.
  */
 public class TestStorage implements Storage {
-    private final Storage wrappedStorage;
+    private final InMemoryStorage wrappedStorage;
     @Setter
     private ErrorInjector<Exception> writeSyncErrorInjector;
     @Setter
@@ -65,7 +66,7 @@ public class TestStorage implements Storage {
     @Setter
     private ConcatInterceptor concatInterceptor;
 
-    public TestStorage(Storage wrappedStorage) {
+    public TestStorage(InMemoryStorage wrappedStorage) {
         Preconditions.checkNotNull(wrappedStorage, "wrappedStorage");
         this.wrappedStorage = wrappedStorage;
     }
@@ -90,11 +91,14 @@ public class TestStorage implements Storage {
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.writeSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.writeAsyncErrorInjector)
-                            .thenAccept(v -> {
+                            .thenCompose(v -> {
                                 WriteInterceptor wi = this.writeInterceptor;
+                                CompletableFuture<Void> result = null;
                                 if (wi != null) {
-                                    wi.accept(streamSegmentName, offset, data, length, this.wrappedStorage);
+                                    result = wi.apply(streamSegmentName, offset, data, length, this.wrappedStorage);
                                 }
+
+                                return result != null ? result : CompletableFuture.completedFuture(null);
                             })
                             .thenCompose(v -> this.wrappedStorage.write(streamSegmentName, offset, data, length, timeout));
     }
@@ -103,11 +107,14 @@ public class TestStorage implements Storage {
     public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.sealSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.sealAsyncErrorInjector)
-                            .thenAccept(v -> {
-                                SealInterceptor wi = this.sealInterceptor;
-                                if (wi != null) {
-                                    wi.accept(streamSegmentName, this.wrappedStorage);
+                            .thenCompose(v -> {
+                                SealInterceptor si = this.sealInterceptor;
+                                CompletableFuture<Void> result = null;
+                                if (si != null) {
+                                    result = si.apply(streamSegmentName, this.wrappedStorage);
                                 }
+
+                                return result != null ? result : CompletableFuture.completedFuture(null);
                             }).thenCompose(v -> this.wrappedStorage.seal(streamSegmentName, timeout));
     }
 
@@ -115,11 +122,14 @@ public class TestStorage implements Storage {
     public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.concatSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.concatAsyncErrorInjector)
-                            .thenAccept(v -> {
-                                ConcatInterceptor wi = this.concatInterceptor;
-                                if (wi != null) {
-                                    wi.accept(targetStreamSegmentName, offset, sourceStreamSegmentName, this.wrappedStorage);
+                            .thenCompose(v -> {
+                                ConcatInterceptor ci = this.concatInterceptor;
+                                CompletableFuture<Void> result = null;
+                                if (ci != null) {
+                                    result = ci.apply(targetStreamSegmentName, offset, sourceStreamSegmentName, this.wrappedStorage);
                                 }
+
+                                return result != null ? result : CompletableFuture.completedFuture(null);
                             }).thenCompose(v -> this.wrappedStorage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout));
     }
 
@@ -148,18 +158,22 @@ public class TestStorage implements Storage {
                             .thenCompose(v -> this.wrappedStorage.exists(streamSegmentName, timeout));
     }
 
+    public void append(String streamSegmentName, InputStream data, int length) {
+        this.wrappedStorage.append(streamSegmentName, data, length);
+    }
+
     @FunctionalInterface
     public interface WriteInterceptor {
-        void accept(String streamSegmentName, long offset, InputStream data, int length, Storage wrappedStorage);
+        CompletableFuture<Void> apply(String streamSegmentName, long offset, InputStream data, int length, Storage wrappedStorage);
     }
 
     @FunctionalInterface
     public interface SealInterceptor {
-        void accept(String streamSegmentName, Storage wrappedStorage);
+        CompletableFuture<Void> apply(String streamSegmentName, Storage wrappedStorage);
     }
 
     @FunctionalInterface
     public interface ConcatInterceptor {
-        void accept(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Storage wrappedStorage);
+        CompletableFuture<Void> apply(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Storage wrappedStorage);
     }
 }
