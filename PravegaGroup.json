@@ -122,7 +122,18 @@
           ],
 
           "requirePorts": true,
-
+     
+	  "healthChecks": [
+            {
+               "protocol": "TCP",
+               "port": 12345,
+               "gracePeriodSeconds": 900,
+               "intervalSeconds": 60,
+               "timeoutSeconds": 20,
+               "maxConsecutiveFailures": 0,
+               "ignoreHttp1xx": false
+            }
+          ],
           "upgradeStrategy": {
               "maximumOverCapacity": 0,
               "minimumHealthCapacity": 0
@@ -161,7 +172,17 @@
           ],
 
           "requirePorts": true,
-
+          "healthChecks": [
+            {
+               "protocol": "TCP",
+               "port": 9090,
+               "gracePeriodSeconds": 900,
+               "intervalSeconds": 60,
+               "timeoutSeconds": 20,
+               "maxConsecutiveFailures": 0,
+               "ignoreHttp1xx": false
+            }
+          ],
           "upgradeStrategy": {
               "maximumOverCapacity": 0,
               "minimumHealthCapacity": 0
