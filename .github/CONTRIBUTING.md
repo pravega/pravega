@@ -7,13 +7,10 @@ its extension projects such as swarm. 
 
 Motivation
 ----------
-
 -   To keep Pravega development manageable and organized as the project scales in
     terms of complexity and community.
-
 -   To have clear visualization on various pipelines, whether it is for a bug,
     area, feature, sprint, release or individual contributor.
-
 -   To easily track progress and milestones.
 
 Guideline Proposal
@@ -23,14 +20,10 @@ Guideline Proposal
 
 An issue can have multiple labels of the following types. Typically, a properly
 classified issue should have:
-
 1.  *One label* identifying its kind (kind/\*).
-
 2.  One or multiple *labels* identifying the functional areas of interest
     (area/\*).
-
 3.  Where applicable, *one label* categorizing its difficulty (exp/\*).
-
 4.  Where applicable, associate the issue to a milestone, i.e. sprint.
 
 **Issue kind**
