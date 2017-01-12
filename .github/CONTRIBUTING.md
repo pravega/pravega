@@ -20,11 +20,12 @@ Guideline Proposal
 
 An issue can have multiple labels of the following types. Typically, a properly
 classified issue should have:
+
 1.  *One label* identifying its kind (kind/\*).
-2.  One or multiple *labels* identifying the functional areas of interest
+1.  One or multiple *labels* identifying the functional areas of interest
     (area/\*).
-3.  Where applicable, *one label* categorizing its difficulty (exp/\*).
-4.  Where applicable, associate the issue to a milestone, i.e. sprint.
+1.  Where applicable, *one label* categorizing its difficulty (exp/\*).
+1.  Where applicable, associate the issue to a milestone, i.e. sprint.
 
 **Issue kind**
 
