@@ -34,9 +34,6 @@ import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.ReadOnlyStorage;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
@@ -51,6 +48,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Read Index for a single StreamSegment. Integrates reading data from the following sources:
@@ -773,12 +772,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      */
     private int getReadAlignedLength(long offset, int readLength) {
         // Calculate how many bytes over the last alignment marker the offset is.
-        int lengthSinceLastMultiple = (int) (offset % this.config.getStorageReadMaxLength());
+        int lengthSinceLastMultiple = (int) (offset % this.config.getStorageReadAlignment());
 
         // Even though we were asked to read a number of bytes, in some cases we will return fewer bytes than requested
-        // in order to read-align the reads. Calculate the aligned read length, taking into account the Max and Min
-        // number of bytes we are allowed to read.
-        return Math.min(readLength, Math.max(this.config.getStorageReadMinLength(), this.config.getStorageReadMaxLength() - lengthSinceLastMultiple));
+        // in order to read-align the reads.
+        return Math.min(readLength, this.config.getStorageReadAlignment() - lengthSinceLastMultiple);
     }
 
     /**

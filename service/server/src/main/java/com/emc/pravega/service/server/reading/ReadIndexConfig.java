@@ -20,11 +20,9 @@ package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
-import com.emc.pravega.common.util.InvalidPropertyValueException;
-import lombok.Getter;
-
 import java.time.Duration;
 import java.util.Properties;
+import lombok.Getter;
 
 /**
  * Configuration for Read Index.
@@ -32,33 +30,24 @@ import java.util.Properties;
 public class ReadIndexConfig extends ComponentConfig {
     //region Members
     public final static String COMPONENT_CODE = "readindex";
-    public static final String PROPERTY_STORAGE_READ_MIN_LENGTH = "storageReadMinLength";
-    public static final String PROPERTY_STORAGE_READ_MAX_LENGTH = "storageReadMaxLength";
+    public static final String PROPERTY_STORAGE_READ_ALIGNMENT = "storageReadAlignment";
     public static final String PROPERTY_MEMORY_READ_MIN_LENGTH = "memoryReadMinLength";
     public static final String PROPERTY_CACHE_POLICY_MAX_SIZE = "cacheMaxSize";
     public static final String PROPERTY_CACHE_POLICY_MAX_TIME = "cacheMaxTimeMillis";
     public static final String PROPERTY_CACHE_POLICY_GENERATION_TIME = "cacheGenerationTimeMillis";
 
-    private final static int DEFAULT_STORAGE_READ_MIN_LENGTH = 100 * 1024;
-    private final static int DEFAULT_STORAGE_READ_MAX_LENGTH = 1024 * 1024;
+    private final static int DEFAULT_STORAGE_READ_ALIGNMENT = 1024 * 1024;
     private final static int DEFAULT_MEMORY_READ_MIN_LENGTH = 4 * 1024;
     private final static long DEFAULT_CACHE_POLICY_MAX_SIZE = 4L * 1024 * 1024 * 1024; // 4GB
     private final static int DEFAULT_CACHE_POLICY_MAX_TIME = 30 * 60 * 1000; // 30 mins
     private final static int DEFAULT_CACHE_POLICY_GENERATION_TIME = 5 * 1000; // 5 seconds
 
     /**
-     * The minimum number of bytes that should be read with any given operation from Storage.
+     * A value to align all Storage Reads to. When a Storage Read is issued, the read length is adjusted (if possible)
+     * to end on a multiple of this value.
      */
     @Getter
-    private int storageReadMinLength;
-
-    /**
-     * The maximum number of bytes that should be read with any given operation from Storage.
-     * This also sets the read alignment for Storage Reads. Cache entries that are aligned to some offset multiplier are
-     * easier to manage and have a lower chance of collisions (attempting to insert entries that overlap).
-     */
-    @Getter
-    private int storageReadMaxLength;
+    private int storageReadAlignment;
 
     /**
      * The minimum number of bytes to serve from memory during reads. The ReadIndex will try to coalesce data from multiple
@@ -102,14 +91,8 @@ public class ReadIndexConfig extends ComponentConfig {
 
     @Override
     protected void refresh() throws ConfigurationException {
-        this.storageReadMinLength = getInt32Property(PROPERTY_STORAGE_READ_MIN_LENGTH, DEFAULT_STORAGE_READ_MIN_LENGTH);
-        this.storageReadMaxLength = getInt32Property(PROPERTY_STORAGE_READ_MAX_LENGTH, DEFAULT_STORAGE_READ_MAX_LENGTH);
-        if (this.storageReadMinLength > this.storageReadMaxLength) {
-            throw new InvalidPropertyValueException(String.format("Property '%s' (%d) cannot be larger than Property '%s' (%d).", PROPERTY_STORAGE_READ_MIN_LENGTH, this.storageReadMinLength, PROPERTY_STORAGE_READ_MAX_LENGTH, this.storageReadMaxLength));
-        }
-
+        this.storageReadAlignment = getInt32Property(PROPERTY_STORAGE_READ_ALIGNMENT, DEFAULT_STORAGE_READ_ALIGNMENT);
         this.memoryReadMinLength = getInt32Property(PROPERTY_MEMORY_READ_MIN_LENGTH, DEFAULT_MEMORY_READ_MIN_LENGTH);
-
         long cachePolicyMaxSize = getInt64Property(PROPERTY_CACHE_POLICY_MAX_SIZE, DEFAULT_CACHE_POLICY_MAX_SIZE);
         int cachePolicyMaxTime = getInt32Property(PROPERTY_CACHE_POLICY_MAX_TIME, DEFAULT_CACHE_POLICY_MAX_TIME);
         int cachePolicyGenerationTime = getInt32Property(PROPERTY_CACHE_POLICY_GENERATION_TIME, DEFAULT_CACHE_POLICY_GENERATION_TIME);
