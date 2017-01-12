@@ -18,6 +18,11 @@
 
 package com.emc.pravega.service.server.host.handler;
 
+import com.emc.pravega.common.Timer;
+import com.emc.pravega.common.metrics.Counter;
+import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.OpStatsLogger;
+import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.netty.FailingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
 import com.emc.pravega.common.netty.WireCommands.AbortTransaction;
@@ -53,6 +58,7 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
 import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -67,16 +73,27 @@ import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Cache;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Future;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.ALL_READ_BYTES;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.CREATE_SEGMENT;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.READ_SEGMENT;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.SEGMENT_READ_BYTES;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     static final int MAX_READ_SIZE = 2 * 1024 * 1024;
+
+    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
+
+    public static class Metrics {
+        static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
+        static final OpStatsLogger READ_STREAM_SEGMENT = STATS_LOGGER.createStats(READ_SEGMENT);
+        static final OpStatsLogger READ_BYTES_STATS = STATS_LOGGER.createStats(SEGMENT_READ_BYTES);
+        static final Counter READ_BYTES = STATS_LOGGER.createCounter(ALL_READ_BYTES);
+    }
 
     private final StreamSegmentStore segmentStore;
 
@@ -89,13 +106,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void readSegment(ReadSegment readSegment) {
+        Timer timer = new Timer();
         final String segment = readSegment.getSegment();
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength())); 
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {
+            Metrics.READ_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
             handleReadResult(readSegment, t);
             return null;
         }).exceptionally((Throwable t) -> {
+            Metrics.READ_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
             handleException(segment, "Read segment", t);
             return null;
         });
@@ -160,6 +180,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     private ByteBuffer copyData(List<ReadResultEntryContents> contents) {
         int totalSize = contents.stream().mapToInt(ReadResultEntryContents::getLength).sum();
+
+        Metrics.READ_BYTES_STATS.reportSuccessValue(totalSize);
+        Metrics.READ_BYTES.add(totalSize);
+
         ByteBuffer data = ByteBuffer.allocate(totalSize);
         int bytesCopied = 0;
         for (ReadResultEntryContents content : contents) {
@@ -224,11 +248,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
+        Timer timer = new Timer();
         CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), TIMEOUT);
         future.thenApply((Void v) -> {
+            Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
             connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
             return null;
         }).exceptionally((Throwable e) -> {
+            Metrics.CREATE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
             handleException(createStreamsSegment.getSegment(), "Create segment", e);
             return null;
         });
@@ -254,7 +281,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else {
             // TODO: don't know what to do here...
             connection.close();
-            log.error("Unknown excpetion on " + operation + " for segment " + segment, u);
+            log.error("Unknown exception on " + operation + " for segment " + segment, u);
             throw new IllegalStateException("Unknown exception.", u);
         }
     }

@@ -40,7 +40,17 @@ public class Segment {
         this.streamName = streamName;
         this.segmentNumber = number;
     }
-
+    
+    public String getScopedStreamName() {
+        StringBuffer sb = new StringBuffer();
+        if (scope != null) {
+            sb.append(scope);
+            sb.append('/');
+        }
+        sb.append(streamName);
+        return sb.toString();
+    }
+    
     public String getScopedName() {
         return getScopedName(scope, streamName, segmentNumber);
     }

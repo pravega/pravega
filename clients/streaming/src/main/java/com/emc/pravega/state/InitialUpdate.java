@@ -20,14 +20,19 @@ package com.emc.pravega.state;
 /**
  * A constructor for a StateT object.
  * 
- * @param <StateT> A revisioned object that updates to are coordinated with a {@link Synchronizer}.
+ * @param <StateT> A revisioned object that updates to are coordinated with a {@link StateSynchronizer}.
  */
-public interface InitialUpdate<StateT extends Revisioned> {
+public interface InitialUpdate<StateT extends Revisioned> extends Update<StateT> {
     
     /**
      * Returns an object of type StateT with the provided revision.
+     * @param scopedStreamName The name of the stream that this state is associated with.
      * @param revision the revision to use
      */
-    StateT create(Revision revision);
+    StateT create(String scopedStreamName, Revision revision);
     
+    @Override
+    default StateT applyTo(StateT oldState, Revision newRevision) {
+        return create(oldState.getScopedStreamName(), newRevision);
+    }
 }
