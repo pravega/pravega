@@ -12,14 +12,14 @@ Producers use transaction to ensure data is written exactly once.
 Pravega is designed to store streams for infinite period of time. Size of stream is not bounded by the capacity of a node, but by the capacity of a cluster.
 
 ### **Elastic** 
-Due to the variable nature of volume, variety and velocity of incoming and outgoing data streams, Pravega dynamically and transparently splits and merges segments of streams based on load and throughout. 
+Due to the variable nature of volume, variety and velocity of incoming and outgoing data streams, Pravega dynamically and transparently splits and merges segments of streams based on load and throughput. 
 
 ### **Scalable**
-Pravega is designed to have no acceptable limitation on number of streams, segments, or even on stream length.
+Pravega is designed to have no limitation on number of streams, segments, or even on stream length.
 
 ### **Resilient to Failures**
 Pravega self-detects failures and self-recovers from these cases, ensuring continuous flow of stream required by business continuity.
 
-
 ### **Global**
-Pravega replicates streams globally, enabling allowing producers and consumers access streams across the globe and fail over among sites for high availability in the event of site wide disaster.
+Pravega provides for global streams via Tier 2 storage replication, enabling writers and readers to access streams across the globe and fail over among sites for high availability in the event of site wide disaster.
+
