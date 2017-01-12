@@ -40,7 +40,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -129,7 +128,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     }
 
     @Override
-    public Future<Void> writeEvent(String routingKey, Type event) {
+    public CompletableFuture<Void> writeEvent(String routingKey, Type event) {
         Preconditions.checkState(!closed.get());
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         synchronized (lock) {

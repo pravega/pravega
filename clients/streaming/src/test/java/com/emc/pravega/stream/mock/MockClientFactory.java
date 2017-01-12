@@ -37,9 +37,10 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
+import java.io.Serializable;
 import java.util.Collections;
 
-public class MockClientFactory implements ClientFactory {
+public class MockClientFactory implements ClientFactory, Serializable {
 
     private String scope;
     private final ClientFactory impl;

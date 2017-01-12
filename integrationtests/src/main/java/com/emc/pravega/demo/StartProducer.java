@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.demo;
 
+import com.emc.pravega.ClientFactory;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Transaction;
@@ -25,13 +26,20 @@ import com.emc.pravega.stream.mock.MockClientFactory;
 
 import lombok.Cleanup;
 
+import java.net.URI;
+
 public class StartProducer {
 
     public static void main(String[] args) throws Exception {
-        MockClientFactory clientFactory = new MockClientFactory(StartLocalService.SCOPE,
-                                                                "localhost",
-                                                                StartLocalService.PORT);
-        clientFactory.createStream(StartLocalService.STREAM_NAME, null);
+//        MockClientFactory clientFactory = new MockClientFactory(StartLocalService.SCOPE,
+//                                                                "localhost",
+//                                                                StartLocalService.PORT);
+
+        //clientFactory.createStream(StartLocalService.STREAM_NAME, null);
+
+        ClientFactory clientFactory = ClientFactory.withScope(StartLocalService.SCOPE,
+                                                              URI.create("tcp://localhost:9090"));
+
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME,
                                                                 new JavaSerializer<>(),
