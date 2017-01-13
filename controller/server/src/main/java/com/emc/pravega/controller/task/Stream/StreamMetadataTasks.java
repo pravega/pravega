@@ -194,27 +194,35 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     public CompletableFuture<UpdateStreamStatus> sealStreamBody(String scope, String stream) {
-        return invokeSealActiveSegments(scope, stream)
-                .thenCompose( v -> streamMetadataStore.setSealed(stream))
-                .handle((result, ex) -> {
-                    if (ex != null) {
-                        if (ex instanceof StreamNotFoundException) {
-                            return UpdateStreamStatus.STREAM_NOT_FOUND;
-                        } else {
-                            log.warn("Update stream failed due to ", ex);
-                            return UpdateStreamStatus.FAILURE;
-                        }
+
+        CompletableFuture<List<Segment>> activeSegments = streamMetadataStore.getActiveSegments(stream);
+
+        return activeSegments
+                .thenApply(segments -> segments.isEmpty()) //if active segments are empty then the stream is sealed.
+                .thenCompose(sealed -> {
+                    if (sealed) {
+                        //Do not update the state if the stream is already sealed.
+                        return CompletableFuture.completedFuture(UpdateStreamStatus.SUCCESS);
                     } else {
-                        return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
+                        return activeSegments
+                                .thenApply(segments -> segments.stream().map(Segment::getNumber).collect(Collectors
+                                        .toList()))
+                                .thenCompose(sealedSegments -> notifySealedSegments(scope, stream, sealedSegments))
+                                .thenCompose(v -> streamMetadataStore.setSealed(stream))
+                                .handle((result, ex) -> {
+                                    if (ex != null) {
+                                        if (ex instanceof StreamNotFoundException) {
+                                            return UpdateStreamStatus.STREAM_NOT_FOUND;
+                                        } else {
+                                            log.warn("Update stream failed due to ", ex);
+                                            return UpdateStreamStatus.FAILURE;
+                                        }
+                                    } else {
+                                        return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
+                                    }
+                                });
                     }
                 });
-    }
-
-    private CompletableFuture<Void> invokeSealActiveSegments(String scope, String stream) {
-        //Seal all active segments.
-        return streamMetadataStore.getActiveSegments(stream)
-                .thenApply(segments -> segments.stream().map(Segment::getNumber).collect(Collectors.toList()))
-                .thenCompose(sealedSegments -> notifySealedSegments(scope, stream, sealedSegments));
     }
 
     @VisibleForTesting

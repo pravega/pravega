@@ -125,6 +125,9 @@ public class StreamMetadataTasksTest {
         assertEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
         assertTrue(streamStorePartialMock.isSealed(stream1).get());
 
+        //reseal a sealed stream.
+        assertEquals(UpdateStreamStatus.SUCCESS, streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1).get());
+
         //scale operation on the sealed stream.
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.2);
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.3, 0.4);
