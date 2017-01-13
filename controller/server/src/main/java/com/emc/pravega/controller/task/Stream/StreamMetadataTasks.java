@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
@@ -195,9 +196,9 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                         //Do not update the state if the stream is already sealed.
                         return CompletableFuture.completedFuture(UpdateStreamStatus.SUCCESS);
                     } else {
-                        List<Integer> segmentstoBeSealed = activeSegments.stream().map(Segment::getNumber).
+                        List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
                                 collect(Collectors.toList());
-                        return notifySealedSegments(scope, stream, segmentstoBeSealed)
+                        return notifySealedSegments(scope, stream, segmentsToBeSealed)
                                 .thenCompose(v -> streamMetadataStore.setSealed(stream))
                                 .handle((result, ex) -> {
                                     if (ex != null) {
@@ -320,7 +321,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     private UpdateStreamStatus handleUpdateStreamError(Throwable ex) {
-        if (ex instanceof StreamNotFoundException) {
+        if (ex instanceof StreamNotFoundException ||
+                (ex instanceof CompletionException && ex.getCause() instanceof StreamNotFoundException)) {
             return UpdateStreamStatus.STREAM_NOT_FOUND;
         } else {
             log.warn("Update stream failed due to ", ex);
