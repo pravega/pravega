@@ -380,6 +380,7 @@ project('controller:server') {
         compile group: 'org.apache.curator', name: 'curator-recipes', version: '2.11.0'
         compile group: 'org.apache.curator', name: 'curator-client', version: '2.11.0'
         compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.3.2'
+        compile group: 'com.typesafe.akka', name: 'akka-actor_2.11', version: '2.4.16'
         testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
     }
 

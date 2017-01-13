@@ -22,6 +22,7 @@ import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
+import com.emc.pravega.StreamManager;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
@@ -39,11 +40,26 @@ import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
+import com.emc.pravega.stream.EventStreamReader;
+import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.ReaderGroupConfig;
+import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.StreamManagerImpl;
+import com.emc.pravega.stream.impl.ByteArraySerializer;
+import com.emc.pravega.stream.impl.ClientFactoryImpl;
+import com.emc.pravega.stream.impl.PositionImpl;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import com.emc.pravega.stream.impl.StreamImpl;
+import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -114,5 +130,36 @@ public class Main {
         // controllers and starts sweeping tasks orphaned by those hostIds.
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
+
+        // create TxnCommitStream, if it does not exist
+
+        final String systemScope = "system";
+        final String commitStream = "commitStream";
+        final String commitStreamReaderGroup = "commitStreamReaders";
+        final String readerId = "myId";
+        final int commitReaderGroupCount = 25;
+        final ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+
+        final LocalController localController =
+                new LocalController(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+
+        final StreamManager streamManager = new StreamManagerImpl(systemScope, localController);
+
+        final ClientFactoryImpl clientFactory =
+                new ClientFactoryImpl(systemScope, localController, connectionFactory, streamManager);
+
+        streamManager.createReaderGroup(commitStreamReaderGroup, new ReaderGroupConfig(), Collections.singletonList(commitStream));
+
+        List<EventStreamReader<byte[]>> readers = new ArrayList<>();
+
+        for (int i = 0; i < commitReaderGroupCount; i++) {
+            EventStreamReader<byte[]> reader =
+                    clientFactory.createReader(readerId, commitStreamReaderGroup, new ByteArraySerializer(), new ReaderConfig());
+            readers.add(reader);
+        }
+
+        final String metricsStream = "metricsStream";
+        final String metricsStreamReaderGroup = "metricStreamReaders";
+
     }
 }
