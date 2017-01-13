@@ -24,7 +24,6 @@ import com.emc.pravega.stream.impl.ByteArraySerializer;
 import com.google.common.util.concurrent.AbstractService;
 import lombok.Getter;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,39 +35,44 @@ public final class ActorGroup extends AbstractService {
 
     private final ActorSystem actorSystem;
     @Getter
-    private ActorGroupConfig config;
+    private final Props props;
     @Getter
     private final List<Actor> actors;
     @Getter
     private final ActorGroupRef ref;
 
-    ActorGroup(final ActorSystem actorSystem, final ActorGroupConfig config, Executor executor, Class clazz, Constructor constructor, Object... args) throws IllegalAccessException, InvocationTargetException, InstantiationException {
+    ActorGroup(final ActorSystem actorSystem, final Executor executor, final Props props) throws IllegalAccessException, InvocationTargetException, InstantiationException {
         this.actorSystem = actorSystem;
-        this.config = config;
+        this.props = props;
         this.actors = new ArrayList<>();
-        this.ref = new ActorGroupRef(actorSystem, config.getScope(), config.getStreamName());
+        this.ref = new ActorGroupRef(actorSystem, props.getConfig().getScope(), props.getConfig().getStreamName());
 
-        actorSystem.streamManager.createReaderGroup(config.getReaderGroupName(), new ReaderGroupConfig(), Collections.singletonList(config.getScope()));
-        for (int i = 0; i < config.getActorCount(); i++) {
-            UUID uuid = UUID.randomUUID();
+        actorSystem.streamManager
+                .createReaderGroup(props.getConfig().getReaderGroupName(),
+                        new ReaderGroupConfig(),
+                        Collections.singletonList(props.getConfig().getScope()));
+
+        for (int i = 0; i < props.getConfig().getActorCount(); i++) {
+            String readerId = UUID.randomUUID().toString();
             EventStreamReader<byte[]> reader =
-                    actorSystem.clientFactory.createReader(uuid.toString(), config.getReaderGroupName(), new ByteArraySerializer(), new ReaderConfig());
+                    actorSystem.clientFactory.createReader(readerId,
+                            props.getConfig().getReaderGroupName(),
+                            new ByteArraySerializer(),
+                            new ReaderConfig());
 
             // create a new actor, and add it to the list
-            Actor actor = (Actor) constructor.newInstance(args);
+            Actor actor = (Actor) props.getConstructor().newInstance(props.getArgs());
             actor.setReader(reader);
-            actor.addListener(new ActorFailureListener(), executor);
+            actor.setProps(props);
+            actor.setReaderId(readerId);
+            actor.addListener(new ActorFailureListener(actors, i, executor, props), executor);
             actors.add(actor);
         }
     }
 
-    ActorGroupRef getActorGroupRef() {
-        return this.ref;
-    }
-
     @Override
     final protected void doStart() {
-        // TODO: what happens on error while starting some actor? notifyFailed?
+        // If an exception is thrown while starting some actor, it will be processed by the
         actors.stream().forEach(actor -> actor.startAsync());
         notifyStarted();
     }

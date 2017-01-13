@@ -17,23 +17,13 @@
  */
 package com.emc.pravega.controller.actor;
 
-import org.apache.commons.lang.NotImplementedException;
+import com.emc.pravega.stream.Position;
 
-public class ActorGroupRef {
+import java.util.concurrent.CompletableFuture;
 
-    private final ActorSystem actorSystem;
-    private final String scope;
-    private final String stream;
+public interface PositionPersistence {
 
-    // package local constructor
-    ActorGroupRef(ActorSystem actorSystem, String scope, String stream) {
-        this.actorSystem = actorSystem;
-        this.scope = scope;
-        this.stream = stream;
-    }
-
-    public void sendEvent(byte[] event) {
-        // send an event to the stream
-        throw new NotImplementedException();
-    }
+    public CompletableFuture<Void> persistPosition(final ActorGroupConfig config,
+                                                   final String readerId,
+                                                   final Position position);
 }

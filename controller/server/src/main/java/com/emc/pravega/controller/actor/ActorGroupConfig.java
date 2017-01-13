@@ -23,8 +23,11 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class ActorGroupConfig {
-    private String scope;
-    private String streamName;
-    private String readerGroupName;
-    private int actorCount;
+    private final String scope;
+    private final String streamName;
+    private final String readerGroupName;
+    private final int actorCount;
+
+    // todo: validate persistenceFrequence is > 0
+    private final int persistenceFrequency;
 }

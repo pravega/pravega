@@ -20,38 +20,36 @@ package com.emc.pravega.controller.actor;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.stream.impl.Controller;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Modifier;
+import java.lang.reflect.InvocationTargetException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 public class ActorSystem {
 
     protected final Controller controller;
     protected final ClientFactory clientFactory;
     protected final StreamManager streamManager;
+    private final Executor executor;
 
     public ActorSystem(Controller controller, ClientFactory clientFactory, StreamManager streamManager) {
         this.controller = controller;
         this.clientFactory = clientFactory;
         this.streamManager = streamManager;
+        this.executor = Executors.newFixedThreadPool(5);
     }
 
-    public ActorGroup createActorGroup(ActorGroupConfig config, Class clazz, Object... args) {
-        validate(clazz, args);
-        Constructor constructor = getValidConstructor(clazz, args);
-        return new ActorGroup(this, config, clazz, constructor, args);
-    }
-
-    public ActorGroupRef getActorGroupRef(String scope, String stream) {
+    public ActorGroupRef getActorSelection(String scope, String stream) {
         return new ActorGroupRef(this, scope, stream);
     }
 
-    private boolean validate(Class clazz, Object... args) {
-        return Actor.class.isAssignableFrom(clazz) && Modifier.isAbstract(clazz.getModifiers());
-    }
-
-    private Constructor getValidConstructor(Class clazz, Object... args) {
-        throw new NotImplementedException();
+    public ActorGroupRef actorOf(Props props) {
+        ActorGroup actorGroup;
+        try {
+            actorGroup = new ActorGroup(this, executor, props);
+        } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
+            return null;
+        }
+        return actorGroup.getRef();
     }
 }

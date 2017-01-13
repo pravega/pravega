@@ -20,21 +20,31 @@ package com.emc.pravega.controller.actor;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
+import lombok.Getter;
 
-// TODO: exception handling in receive method
 // TODO: fault tolerance
 
 public abstract class Actor extends AbstractExecutionThreadService {
 
+    @Getter
     private EventStreamReader<byte[]> reader;
+    @Getter
+    private Props props;
+    @Getter
+    private String readerId;
     private static long DEFAULT_TIMEOUT = Long.MAX_VALUE;
+    private int count = 0;
 
     final void setReader(EventStreamReader<byte[]> reader) {
         this.reader = reader;
     }
 
-    final EventStreamReader<byte[]> getReader() {
-        return this.reader;
+    final void setProps(Props props) {
+        this.props = props;
+    }
+
+    final void setReaderId(String id) {
+        this.readerId = id;
     }
 
     @Override
@@ -47,6 +57,12 @@ public abstract class Actor extends AbstractExecutionThreadService {
         while (isRunning()) {
             EventRead<byte[]> event = reader.readNextEvent(DEFAULT_TIMEOUT);
             receive(event.getEvent());
+
+            // persist reader position if persistenceFrequency number of events are processed
+            count++;
+            if (props.getPersister() != null && count % props.getConfig().getPersistenceFrequency() == 0) {
+                props.getPersister().persistPosition(props.getConfig(), readerId, event.getPosition()).join();
+            }
         }
     }
 
