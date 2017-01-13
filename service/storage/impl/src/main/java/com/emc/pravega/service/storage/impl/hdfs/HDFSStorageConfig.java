@@ -65,23 +65,30 @@ public class HDFSStorageConfig extends ComponentConfig {
     protected void refresh() throws ConfigurationException {
         this.hdfsHostURL = getProperty(PROPERTY_HDFS_URL, DEFAULT_HDFS_URL);
         this.hdfsRoot = getProperty(PROPERTY_HDFS_ROOT, DEFAULT_HDFS_ROOT);
-        this.pravegaId = getInt32Property(PROPERTY_PRAVEGA_ID, DEFAULT_PRAVEGA_ID);
+        this.pravegaId = readPravegaID();
+
+        this.replication = (short) getInt32Property(PROPERTY_REPLICATION, DEFAULT_REPLICATION);
+        this.blockSize = getInt32Property(PROPERTY_BLOCK_SIZE, DEFAULT_BLOCK_SIZE);
+    }
+
+    private int readPravegaID() {
+         int id = getInt32Property(PROPERTY_PRAVEGA_ID, DEFAULT_PRAVEGA_ID);
+
         //Generate the pravega id from the IP address. This has to be dynamic and can not be default.
-        if ( this.pravegaId == -1 ) {
+        if ( id == DEFAULT_PRAVEGA_ID ) {
             try {
                 int hashCode = InetAddress.getLocalHost().getHostName().hashCode();
                 if (hashCode == Integer.MIN_VALUE) {
                     hashCode = 0;
                 }
-                this.pravegaId = Math.abs(hashCode);
-                } catch (UnknownHostException e) {
-                this.pravegaId = 0;
+                id = Math.abs(hashCode);
+            } catch (UnknownHostException e) {
+                id = 0;
                 log.warn("Exception {} while getting unique Pravega ID for this host. Using {} as default value",
                         e.getMessage(), this.pravegaId);
             }
         }
-        this.replication = (short) getInt32Property(PROPERTY_REPLICATION, DEFAULT_REPLICATION);
-        this.blockSize = getInt32Property(PROPERTY_BLOCK_SIZE, DEFAULT_BLOCK_SIZE);
+        return id;
     }
 
     /**
