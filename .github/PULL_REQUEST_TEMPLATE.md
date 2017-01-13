@@ -1,10 +1,7 @@
-**What I did**
+**Change log description**
 
+**Purpose of the change**
 
-**How I did it**
-
+**What the code does**
 
 **How to verify it**
-
-
-**Description for the change log**
