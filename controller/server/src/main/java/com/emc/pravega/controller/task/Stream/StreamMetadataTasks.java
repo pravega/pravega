@@ -181,12 +181,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         return streamMetadataStore.updateConfiguration(stream, config)
                 .handle((result, ex) -> {
                     if (ex != null) {
-                        if (ex instanceof StreamNotFoundException) {
-                            return UpdateStreamStatus.STREAM_NOT_FOUND;
-                        } else {
-                            log.warn("Update stream failed due to ", ex);
-                            return UpdateStreamStatus.FAILURE;
-                        }
+                        return handleUpdateStreamError(ex);
                     } else {
                         return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
                     }
@@ -194,35 +189,25 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     public CompletableFuture<UpdateStreamStatus> sealStreamBody(String scope, String stream) {
-
-        CompletableFuture<List<Segment>> activeSegments = streamMetadataStore.getActiveSegments(stream);
-
-        return activeSegments
-                .thenApply(segments -> segments.isEmpty()) //if active segments are empty then the stream is sealed.
-                .thenCompose(sealed -> {
-                    if (sealed) {
+        return streamMetadataStore.getActiveSegments(stream)
+                .thenCompose(activeSegments -> {
+                    if (activeSegments.isEmpty()) { //if active segments are empty then the stream is sealed.
                         //Do not update the state if the stream is already sealed.
                         return CompletableFuture.completedFuture(UpdateStreamStatus.SUCCESS);
                     } else {
-                        return activeSegments
-                                .thenApply(segments -> segments.stream().map(Segment::getNumber).collect(Collectors
-                                        .toList()))
-                                .thenCompose(sealedSegments -> notifySealedSegments(scope, stream, sealedSegments))
+                        List<Integer> segmentstoBeSealed = activeSegments.stream().map(Segment::getNumber).
+                                collect(Collectors.toList());
+                        return notifySealedSegments(scope, stream, segmentstoBeSealed)
                                 .thenCompose(v -> streamMetadataStore.setSealed(stream))
                                 .handle((result, ex) -> {
                                     if (ex != null) {
-                                        if (ex instanceof StreamNotFoundException) {
-                                            return UpdateStreamStatus.STREAM_NOT_FOUND;
-                                        } else {
-                                            log.warn("Update stream failed due to ", ex);
-                                            return UpdateStreamStatus.FAILURE;
-                                        }
+                                        return handleUpdateStreamError(ex);
                                     } else {
                                         return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
                                     }
                                 });
                     }
-                });
+                }).exceptionally(this::handleUpdateStreamError);
     }
 
     @VisibleForTesting
@@ -332,5 +317,14 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                                 this.hostControllerStore,
                                 this.connectionFactory),
                         executor);
+    }
+
+    private UpdateStreamStatus handleUpdateStreamError(Throwable ex) {
+        if (ex instanceof StreamNotFoundException) {
+            return UpdateStreamStatus.STREAM_NOT_FOUND;
+        } else {
+            log.warn("Update stream failed due to ", ex);
+            return UpdateStreamStatus.FAILURE;
+        }
     }
 }
