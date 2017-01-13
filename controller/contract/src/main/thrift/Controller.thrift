@@ -31,7 +31,7 @@ enum TxnState {
     OPEN,
     SEALED,
     COMMITTED,
-    DROPPED
+    ABORTED
 }
 
 enum ScalingPolicyType {
@@ -104,9 +104,9 @@ service ControllerService {
     ScaleResponse scale(1:string scope, 2:string stream, 3:list<i32> sealedSegments, 4:map<double, double> newKeyRanges, 5:i64 scaleTimestamp)
     NodeUri getURI(1: SegmentId segment)
     bool isSegmentValid(1: string scope, 2: string stream, 3: i32 segmentNumber)
-    TxId createTransaction(1:string scope, 2:string stream)
-    TransactionStatus commitTransaction(1:string scope, 2:string stream, 3:TxId txid)
-    TransactionStatus dropTransaction(1:string scope, 2:string stream, 3:TxId txid)
-    TxState checkTransactionStatus(1:string scope, 2:string stream, 3:TxId txid)
+    TxnId createTransaction(1:string scope, 2:string stream)
+    TxnStatus commitTransaction(1:string scope, 2:string stream, 3:TxnId txid)
+    TxnStatus dropTransaction(1:string scope, 2:string stream, 3:TxnId txid)
+    TxnState checkTransactionStatus(1:string scope, 2:string stream, 3:TxnId txid)
 }
 //TODO: Placeholder for Pravega Host to Stream Controller APIs.

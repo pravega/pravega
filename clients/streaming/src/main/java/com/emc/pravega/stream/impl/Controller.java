@@ -21,7 +21,7 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
+import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Segment;
@@ -106,7 +106,7 @@ public interface Controller {
      * @param txId transaction id
      * @return status of commit transaction operation.
      */
-    CompletableFuture<TransactionStatus> commitTransaction(final Stream stream, final UUID txId);
+    CompletableFuture<TxnStatus> commitTransaction(final Stream stream, final UUID txId);
 
     /**
      * Drops a transaction. No events written to it may be read, and no further events may be written.
@@ -114,7 +114,7 @@ public interface Controller {
      * @param txId transaction id
      * @return status of drop transaction operation.
      */
-    CompletableFuture<TransactionStatus> dropTransaction(final Stream stream, final UUID txId);
+    CompletableFuture<TxnStatus> dropTransaction(final Stream stream, final UUID txId);
 
     /**
      * Returns the status of the specified transaction.

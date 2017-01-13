@@ -22,7 +22,7 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
-import com.emc.pravega.controller.stream.api.v1.TxId;
+import com.emc.pravega.controller.stream.api.v1.TxnId;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.ModelHelper;
@@ -131,7 +131,7 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
     @Override
     public void commitTransaction(final String scope,
                                   final String stream,
-                                  final TxId txid,
+                                  final TxnId txid,
                                   final AsyncMethodCallback resultHandler) throws TException {
         log.debug("commitTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
         processResult(controllerService.commitTransaction(scope, stream, txid), resultHandler);
@@ -140,7 +140,7 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
     @Override
     public void dropTransaction(final String scope,
                                 final String stream,
-                                final TxId txid,
+                                final TxnId txid,
                                 final AsyncMethodCallback resultHandler) throws TException {
         log.debug("dropTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
         processResult(controllerService.dropTransaction(scope, stream, txid), resultHandler);
@@ -149,7 +149,7 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
     @Override
     public void checkTransactionStatus(final String scope,
                                        final String stream,
-                                       final TxId txid,
+                                       final TxnId txid,
                                        final AsyncMethodCallback resultHandler) throws TException {
         log.debug("checkTransactionStatus called for stream " + scope + "/" + stream + " txid=" + txid);
         processResult(controllerService.checkTransactionStatus(scope, stream, txid), resultHandler);

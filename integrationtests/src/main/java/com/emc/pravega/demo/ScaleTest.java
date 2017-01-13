@@ -20,7 +20,7 @@ package com.emc.pravega.demo;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
+import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -119,10 +119,10 @@ public class ScaleTest {
             return;
         }
 
-        CompletableFuture<TransactionStatus> statusFuture = controller.dropTransaction(stream, txId);
-        TransactionStatus status = statusFuture.get();
+        CompletableFuture<TxnStatus> statusFuture = controller.dropTransaction(stream, txId);
+        TxnStatus status = statusFuture.get();
 
-        if (status != TransactionStatus.SUCCESS) {
+        if (status != TxnStatus.SUCCESS) {
             System.err.println("Drop transaction failed, exiting");
             return;
         }
