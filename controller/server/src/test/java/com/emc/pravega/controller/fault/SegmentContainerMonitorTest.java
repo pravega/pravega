@@ -100,12 +100,12 @@ public class SegmentContainerMonitorTest {
                 //Notify the test case of the update.
                 sync.release();
             }
-            
+
             @Override
             public int getContainerCount() {
                 return hostStore.getContainerCount();
             }
-            
+
             @Override
             public Host getHostForSegment(String scope, String stream, int segmentNumber) {
                 return null;

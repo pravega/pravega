@@ -36,8 +36,8 @@ public interface StreamMetadataStore {
     /**
      * Creates a new stream with the given name and configuration.
      *
-     * @param name          stream name.
-     * @param configuration stream configuration.
+     * @param name            stream name.
+     * @param configuration   stream configuration.
      * @param createTimestamp stream creation timestamp.
      * @return boolean indicating whether the stream was created
      */
@@ -78,7 +78,8 @@ public interface StreamMetadataStore {
 
     /**
      * Get Segment.
-     *  @param name   stream name.
+     *
+     * @param name   stream name.
      * @param number segment number.
      * @return segment at given number.
      */
@@ -179,6 +180,7 @@ public interface StreamMetadataStore {
 
     /**
      * Returns a boolean indicating whether any transaction is active on the specified stream.
+     *
      * @param scope  scope.
      * @param stream stream.
      * @return boolean indicating whether any transaction is active on the specified stream.

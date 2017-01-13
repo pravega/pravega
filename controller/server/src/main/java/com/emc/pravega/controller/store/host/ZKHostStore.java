@@ -54,8 +54,8 @@ public class ZKHostStore implements HostControllerStore {
     /**
      * Zookeeper based host store implementation.
      *
-     * @param client                    The curator client instance.
-     * @param clusterName               The name of the cluster.
+     * @param client      The curator client instance.
+     * @param clusterName The name of the cluster.
      */
     public ZKHostStore(CuratorFramework client, String clusterName) {
         Preconditions.checkNotNull(client, "client");
@@ -117,12 +117,12 @@ public class ZKHostStore implements HostControllerStore {
             throw new HostStoreException("Could not find host for container id: " + String.valueOf(containerId));
         }
     }
-    
+
     @Override
     public int getContainerCount() {
         return segmentMapper.getTotalContainerCount();
     }
-    
+
     @Override
     public Host getHostForSegment(String scope, String stream, int segmentNumber) {
         String qualifiedName = Segment.getScopedName(scope, stream, segmentNumber);

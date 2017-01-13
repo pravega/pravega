@@ -17,20 +17,18 @@
  */
 package com.emc.pravega.controller.store.host;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
-
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 @Slf4j
 public class InMemoryHostStore implements HostControllerStore {
@@ -41,7 +39,7 @@ public class InMemoryHostStore implements HostControllerStore {
      * Creates an in memory based host store. The data is not persisted across restarts. Useful for dev and single node
      * deployment purposes.
      *
-     * @param hostContainerMap      The initial Host to container ownership information.
+     * @param hostContainerMap The initial Host to container ownership information.
      */
     public InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap) {
         Preconditions.checkNotNull(hostContainerMap, "hostContainerMap");
