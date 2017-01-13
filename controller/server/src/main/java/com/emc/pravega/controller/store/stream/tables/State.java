@@ -15,35 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream;
-
-import java.io.Serializable;
+package com.emc.pravega.controller.store.stream.tables;
 
 /**
- * The configuration of a Stream.
+ * This is used to represent the state of the Stream.
  */
-public interface StreamConfiguration extends Serializable {
-    
-    /**
-     * Api to return scope.
-     * @return The scope of the stream.
-     */
-    String getScope();
-
-    /**
-     * Api to return stream name.
-     * @return The name of the stream.
-     */
-    String getName();
-
-    /**
-     * Api to return scaling policy.
-     * @return The stream's scaling policy.
-     */
-    ScalingPolicy getScalingPolicy();
-
-    /**
-     * Returns the retention policy for this stream.
-     */
-    RetentionPolicy getRetentionPolicy();
+public enum State {
+    ACTIVE,
+    SEALED
 }

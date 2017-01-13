@@ -97,15 +97,16 @@ struct ScaleResponse {
 service ControllerService {
     CreateStreamStatus createStream (1: StreamConfig streamConfig)
     UpdateStreamStatus alterStream (1: StreamConfig streamConfig)
+    UpdateStreamStatus sealStream(1: string scope, 2:string stream)
     list<SegmentRange> getCurrentSegments(1:string scope, 2:string stream)
     list<Position> getPositions(1:string scope, 2:string stream, 3:i64 timestamp, 4:i32 count)
     list<Position> updatePositions(1:string scope, 2:string stream, 3:list<Position> positions)
     ScaleResponse scale(1:string scope, 2:string stream, 3:list<i32> sealedSegments, 4:map<double, double> newKeyRanges, 5:i64 scaleTimestamp)
     NodeUri getURI(1: SegmentId segment)
     bool isSegmentValid(1: string scope, 2: string stream, 3: i32 segmentNumber)
-    TxId createTransaction(1:string scope, 2:string stream)
-    TransactionStatus commitTransaction(1:string scope, 2:string stream, 3:TxId txid)
-    TransactionStatus dropTransaction(1:string scope, 2:string stream, 3:TxId txid)
-    TxState checkTransactionStatus(1:string scope, 2:string stream, 3:TxId txid)
+    TxnId createTransaction(1:string scope, 2:string stream)
+    TxnStatus commitTransaction(1:string scope, 2:string stream, 3:TxnId txid)
+    TxnStatus dropTransaction(1:string scope, 2:string stream, 3:TxnId txid)
+    TxnState checkTransactionStatus(1:string scope, 2:string stream, 3:TxnId txid)
 }
 //TODO: Placeholder for Pravega Host to Stream Controller APIs.

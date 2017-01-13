@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.base.Preconditions;
@@ -37,6 +38,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.emc.pravega.common.concurrent.FutureCollectionHelper.filter;
@@ -89,16 +91,29 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<Boolean> isSealed(final String name) {
+        return getStream(name).getState().thenApply(state -> state.equals(State.SEALED));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> setSealed(final String name) {
+        return getStream(name).updateState(State.SEALED);
+    }
+
+    @Override
     public CompletableFuture<Segment> getSegment(final String name, final int number) {
         return getStream(name).getSegment(number);
     }
 
     @Override
     public CompletableFuture<List<Segment>> getActiveSegments(final String name) {
-        Stream stream = getStream(name);
-        return stream
-                .getActiveSegments()
-                .thenCompose(currentSegments -> sequence(currentSegments.stream().map(stream::getSegment).collect(Collectors.toList())));
+        final Stream stream = getStream(name);
+        return stream.getState()
+                .thenCompose(state ->
+                        State.SEALED.equals(state) ? CompletableFuture.completedFuture(Collections.emptyList()) : stream
+                                .getActiveSegments())
+                .thenCompose(currentSegments -> sequence(currentSegments.stream().map(stream::getSegment)
+                        .collect(Collectors.toList())));
     }
 
     @Override
@@ -261,10 +276,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         ).collect(Collectors.toList());
 
         // 3. all its predecessors completed, and
+        Function<List<Integer>, Boolean> predicate = list -> list.stream().allMatch(completedSegments::contains);
         return filter(
                 newCurrents,
-                (Integer x) -> stream.getPredecessors(x).thenApply(list -> list.stream().allMatch(completedSegments::contains))
-        );
+                (Integer x) -> stream.getPredecessors(x).thenApply(predicate));
     }
 
     private CompletableFuture<Map<Integer, List<Integer>>> getNewFutures(final Stream stream,

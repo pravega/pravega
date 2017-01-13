@@ -32,7 +32,7 @@ import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
-import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
+import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -111,6 +111,11 @@ public class ControllerWrapper implements Controller {
     }
 
     @Override
+    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String streamName) {
+        return controller.sealStream(scope, streamName);
+    }
+
+    @Override
     public CompletableFuture<ScaleResponse> scaleStream(final Stream stream,
                                                         final List<Integer> sealedSegments,
                                                         final Map<Double, Double> newKeyRanges) {
@@ -135,19 +140,19 @@ public class ControllerWrapper implements Controller {
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> commitTransaction(Stream stream, UUID txId) {
-        return controller.commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId));
+    public CompletableFuture<TxnStatus> commitTransaction(Stream stream, UUID txnId) {
+        return controller.commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId));
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> dropTransaction(Stream stream, UUID txId) {
-        return controller.dropTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId));
+    public CompletableFuture<TxnStatus> dropTransaction(Stream stream, UUID txnId) {
+        return controller.dropTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId));
     }
 
     @Override
-    public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txId) {
-        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId))
-                .thenApply(status -> ModelHelper.encode(status, stream + " " + txId));
+    public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txnId) {
+        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
+                .thenApply(status -> ModelHelper.encode(status, stream + " " + txnId));
     }
 
     @Override
