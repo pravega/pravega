@@ -164,7 +164,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             ReadResultEntry entry = readResult.next();
             if (entry.getType() == Cache) {
                 Preconditions.checkState(entry.getStreamSegmentOffset() == expectedOffset,
-                        "Data returned from read was not contigious.");
+                        "Data returned from read was not contiguous.");
                 ReadResultEntryContents content = entry.getContent().getNow(null);
                 expectedOffset += content.getLength();
                 cachedEntries.add(content);
