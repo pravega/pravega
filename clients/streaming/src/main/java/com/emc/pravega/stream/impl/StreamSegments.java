@@ -44,9 +44,11 @@ public class StreamSegments {
     }
 
     private void verifySegments() {
-        Preconditions.checkArgument(segments.firstKey() > 0.0, "Nonsense value for segment.");
-        Preconditions.checkArgument(segments.lastKey() >= 1.0, "Last segment missing.");
-        Preconditions.checkArgument(segments.lastKey() < 1.00001, "Segments should only go up to 1.0");
+        if (!segments.isEmpty()) {
+            Preconditions.checkArgument(segments.firstKey() > 0.0, "Nonsense value for segment.");
+            Preconditions.checkArgument(segments.lastKey() >= 1.0, "Last segment missing.");
+            Preconditions.checkArgument(segments.lastKey() < 1.00001, "Segments should only go up to 1.0");
+        }
     }
 
     public Segment getSegmentForKey(double key) {
