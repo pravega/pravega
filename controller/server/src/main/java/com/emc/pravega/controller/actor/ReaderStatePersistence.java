@@ -19,11 +19,17 @@ package com.emc.pravega.controller.actor;
 
 import com.emc.pravega.stream.Position;
 
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-public interface PositionPersistence {
+public interface ReaderStatePersistence {
 
-    public CompletableFuture<Void> persistPosition(final ActorGroupConfig config,
-                                                   final String readerId,
-                                                   final Position position);
+    CompletableFuture<Void> setPosition(final String readerGroup, final String readerId, final Position position);
+
+    CompletableFuture<Map<String, Position>> getPositions(final String readerGroup, final String hostName);
+
+    CompletableFuture<List<String>> getReaderIds(final String readerGroup, final String hostName);
+
+    CompletableFuture<Void> setReaderIds(final String readerGroup, final String hostName, List<String> readerIds);
 }

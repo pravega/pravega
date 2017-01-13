@@ -19,6 +19,7 @@ package com.emc.pravega.controller.actor;
 
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.impl.ByteArraySerializer;
 import com.google.common.util.concurrent.AbstractService;
@@ -40,17 +41,25 @@ public final class ActorGroup extends AbstractService {
     private final List<Actor> actors;
     @Getter
     private final ActorGroupRef ref;
+    private final ReaderGroup readerGroup;
+    private final Executor executor;
 
-    ActorGroup(final ActorSystem actorSystem, final Executor executor, final Props props) throws IllegalAccessException, InvocationTargetException, InstantiationException {
+    ActorGroup(final ActorSystem actorSystem, final Executor executor, final Props props)
+            throws IllegalAccessException,
+            InvocationTargetException,
+            InstantiationException {
         this.actorSystem = actorSystem;
+        this.executor = executor;
         this.props = props;
         this.actors = new ArrayList<>();
         this.ref = new ActorGroupRef(actorSystem, props.getConfig().getScope(), props.getConfig().getStreamName());
 
-        actorSystem.streamManager
-                .createReaderGroup(props.getConfig().getReaderGroupName(),
-                        new ReaderGroupConfig(),
-                        Collections.singletonList(props.getConfig().getScope()));
+        // Todo: what if reader group already exists, we just want to be part of that group.
+        readerGroup =
+                actorSystem.streamManager
+                        .createReaderGroup(props.getConfig().getReaderGroupName(),
+                                new ReaderGroupConfig(),
+                                Collections.singletonList(props.getConfig().getScope()));
 
         for (int i = 0; i < props.getConfig().getActorCount(); i++) {
             String readerId = UUID.randomUUID().toString();
@@ -68,27 +77,57 @@ public final class ActorGroup extends AbstractService {
             actor.addListener(new ActorFailureListener(actors, i, executor, props), executor);
             actors.add(actor);
         }
+
+        // todo: persist the readerIds against this host in the persister
+
+        // start the group of actors
+        this.doStart();
     }
 
     @Override
     final protected void doStart() {
-        // If an exception is thrown while starting some actor, it will be processed by the
+        // If an exception is thrown while starting an actor, it will be processed by the ActorFailureListener.
+        // Current ActorFailureListener just logs failures encountered while starting.
         actors.stream().forEach(actor -> actor.startAsync());
         notifyStarted();
     }
 
     @Override
     final protected void doStop() {
-        // TODO: what happens on error while stopping some actor? notifyFailed?
+        // If an exception is thrown while stopping an actor, it will be processed by the ActorFailureListener.
+        // Current ActorFailureListener just logs failures encountered while stopping.
         actors.stream().forEach(actor -> actor.stopAsync());
         notifyStopped();
     }
 
-    //    boolean scaleOut(int count) {
-    //        throw new NotImplementedException();
-    //    }
-    //
-    //    boolean scaleIn(int count) {
-    //        throw new NotImplementedException();
-    //    }
+    public void notifyHostFailure(String host) {
+        if (readerGroup.getOnlineReaders().contains(host)) {
+            this.props.getPersister()
+                    .getPositions(props.getConfig().getReaderGroupName(), host)
+                    .thenAccept(readerPositions ->
+                            readerPositions
+                                    .entrySet()
+                                    .stream()
+                                    .forEach(entry -> readerGroup.readerOffline(entry.getKey(), entry.getValue())));
+        }
+    }
+
+    public void increaseReaderCount(int count) throws IllegalAccessException, InvocationTargetException, InstantiationException {
+        for (int i = 0; i < count; i++) {
+            String readerId = UUID.randomUUID().toString();
+            EventStreamReader<byte[]> reader =
+                    actorSystem.clientFactory.createReader(readerId,
+                            props.getConfig().getReaderGroupName(),
+                            new ByteArraySerializer(),
+                            new ReaderConfig());
+
+            // create a new actor, and add it to the list
+            Actor actor = (Actor) props.getConstructor().newInstance(props.getArgs());
+            actor.setReader(reader);
+            actor.setProps(props);
+            actor.setReaderId(readerId);
+            actor.addListener(new ActorFailureListener(actors, i, executor, props), executor);
+            actors.add(actor);
+        }
+    }
 }

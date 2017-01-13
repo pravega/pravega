@@ -61,7 +61,9 @@ public abstract class Actor extends AbstractExecutionThreadService {
             // persist reader position if persistenceFrequency number of events are processed
             count++;
             if (props.getPersister() != null && count % props.getConfig().getPersistenceFrequency() == 0) {
-                props.getPersister().persistPosition(props.getConfig(), readerId, event.getPosition()).join();
+                props.getPersister()
+                        .setPosition(props.getConfig().getReaderGroupName(), readerId, event.getPosition())
+                        .join();
             }
         }
     }

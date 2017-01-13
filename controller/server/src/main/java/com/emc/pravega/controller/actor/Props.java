@@ -27,12 +27,12 @@ import java.util.Optional;
 public class Props {
 
     private final ActorGroupConfig config;
-    private final PositionPersistence persister;
+    private final ReaderStatePersistence persister;
     private final Class clazz;
     private final Object[] args;
     private final Constructor constructor;
 
-    public Props(ActorGroupConfig config, PositionPersistence persister, Class clazz, Object... args) {
+    public Props(ActorGroupConfig config, ReaderStatePersistence persister, Class clazz, Object... args) {
         if (!validate(clazz)) {
             throw new IllegalArgumentException("Non-actor type or non-instantiable type");
         }
