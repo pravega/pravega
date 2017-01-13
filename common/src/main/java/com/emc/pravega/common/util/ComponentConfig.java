@@ -91,10 +91,10 @@ public abstract class ComponentConfig {
     }
 
     /**
-     * Gets the value of a String property. The order priority in ascending order is as follows:
-     *  1. Default value - if the value is not defined in env as well as config file, default value is used.
+     * Gets the value of a String property. The order priority in descending order is as follows:
+     *  1. Env variable  - if a property is defined in the env variable, it is given the highest precedence.
      *  2. Config file   - if the value is defined in a config file, it is given precedence over the default value.
-     *  3. Env variable  - if a property is defined in the env variable, it is given the highest precedence.
+     *  3. Default value - if the value is not defined in env as well as config file, default value is used.
      *
      * This arrangement is to ensure that values are passed easily to docker containers. Docker container deployment
      * engines (e.g. marathon) can define these variables and the Pravega Service docker container will pick it up
@@ -109,12 +109,8 @@ public abstract class ComponentConfig {
 
         String retVal;
         String envVarName = fullKeyName.replace('.', '_');
-        if ( System.getenv().containsKey(envVarName)) {
-            retVal = System.getenv().get(envVarName);
-        } else {
-            retVal = this.properties.getProperty(fullKeyName, defaultValue);
-        }
-        return retVal;
+        retVal = System.getenv(envVarName);
+        return retVal != null ? retVal : this.properties.getProperty(fullKeyName, defaultValue);
     }
 
     /**

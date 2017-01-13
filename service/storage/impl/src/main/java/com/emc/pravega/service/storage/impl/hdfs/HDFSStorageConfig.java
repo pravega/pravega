@@ -19,11 +19,12 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
-import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Properties;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Configuration for the HDFS Storage component.
@@ -68,7 +69,11 @@ public class HDFSStorageConfig extends ComponentConfig {
         //Generate the pravega id from the IP address. This has to be dynamic and can not be default.
         if ( this.pravegaId == -1 ) {
             try {
-                this.pravegaId = Math.abs(InetAddress.getLocalHost().getHostName().hashCode());
+                int hashCode = InetAddress.getLocalHost().getHostName().hashCode();
+                if (hashCode == Integer.MIN_VALUE) {
+                    hashCode = 0;
+                }
+                this.pravegaId = Math.abs(hashCode);
                 } catch (UnknownHostException e) {
                 this.pravegaId = 0;
                 log.warn("Exception {} while getting unique Pravega ID for this host. Using {} as default value",
