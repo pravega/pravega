@@ -58,11 +58,6 @@ import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.util.concurrent.Service;
-import lombok.Cleanup;
-import lombok.val;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -83,6 +78,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import lombok.Cleanup;
+import lombok.val;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for DurableLog class.
@@ -98,8 +97,7 @@ public class DurableLogTests extends OperationLogTestBase {
     private static final int NO_METADATA_CHECKPOINT = 0;
     private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
             PropertyBag.create()
-                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
-                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
+                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024));
 
     //region Adding operations
 

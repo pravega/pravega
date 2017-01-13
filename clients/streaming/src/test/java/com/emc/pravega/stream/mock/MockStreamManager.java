@@ -57,7 +57,8 @@ public class MockStreamManager implements StreamManager {
     @Override
     public Stream createStream(String streamName, StreamConfiguration config) {
         if (config == null) {
-            config = new StreamConfigurationImpl(scope, streamName, new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0, 1));
+            config = new StreamConfigurationImpl(scope, streamName, new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0,
+                    1));
         }
         Stream stream = createStreamHelper(streamName, config);
         return stream;
@@ -75,6 +76,11 @@ public class MockStreamManager implements StreamManager {
         Stream stream = new StreamImpl(scope, streamName, config);
         created.put(streamName, stream);
         return stream;
+    }
+
+    @Override
+    public void sealStream(String streamName) {
+            FutureHelpers.getAndHandleExceptions(controller.sealStream(scope, streamName), RuntimeException::new);
     }
 
     @Override

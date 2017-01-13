@@ -90,7 +90,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 2 * SEGMENT_COUNT;
+        return 5;
     }
 
     /**
@@ -159,11 +159,15 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         // to pick them up and end up failing when attempting to fetch the cache contents.
         context.cache.clear();
 
-        context.writer.startAsync().awaitRunning();
-
         AssertExtensions.assertThrows(
                 "StorageWriter did not fail when a fatal data retrieval error occurred.",
-                () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
+                () -> {
+                    // The Corruption may happen early enough so the "awaitRunning" isn't complete yet. In that case,
+                    // the writer will never reach its 'Running' state. As such, we need to make sure at least one of these
+                    // will throw (either start or, if the failure happened after start, make sure it eventually fails and shuts down).
+                    context.writer.startAsync().awaitRunning();
+                    ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true);
+                },
                 ex -> ex instanceof IllegalStateException);
 
         Assert.assertTrue("Unexpected failure cause for StorageWriter: " + context.writer.failureCause(), ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof DataCorruptionException);
@@ -222,7 +226,9 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             // Corrupt data. We use an internal method (append) to atomically write data at the end of the segment.
             // GetLength+Write would not work well because there may be concurrent writes that modify the data between
             // requesting the length and attempting to write, thus causing the corruption to fail.
-            context.storage.append(corruptedSegmentName, new ByteArrayInputStream(corruptionData), corruptionData.length, TIMEOUT).join();
+            // NOTE: this is a synchronous call, but append() is also a sync method. If append() would become async,
+            // care must be taken not to block a thread while waiting for it.
+            context.storage.append(corruptedSegmentName, new ByteArrayInputStream(corruptionData), corruptionData.length);
 
             // Return some other kind of exception.
             return new TimeoutException("Intentional");
@@ -232,11 +238,15 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         AtomicBoolean corruptionHappened = new AtomicBoolean();
         context.storage.setWriteAsyncErrorInjector(new ErrorInjector<>(c -> !corruptionHappened.getAndSet(true), exceptionSupplier));
 
-        context.writer.startAsync().awaitRunning();
-
         AssertExtensions.assertThrows(
                 "StorageWriter did not fail when a fatal data corruption error occurred.",
-                () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
+                () -> {
+                    // The Corruption may happen early enough so the "awaitRunning" isn't complete yet. In that case,
+                    // the writer will never reach its 'Running' state. As such, we need to make sure at least one of these
+                    // will throw (either start or, if the failure happened after start, make sure it eventually fails and shuts down).
+                    context.writer.startAsync().awaitRunning();
+                    ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true);
+                },
                 ex -> ex instanceof IllegalStateException);
         Assert.assertTrue("Unexpected failure cause for StorageWriter.", ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof ReconciliationFailureException);
     }
@@ -259,10 +269,14 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         AtomicInteger writeFailCount = new AtomicInteger();
         context.storage.setWriteInterceptor((segmentName, offset, data, length, storage) -> {
             if (writeCount.incrementAndGet() % failWriteEvery == 0) {
-                storage.write(segmentName, offset, data, length, TIMEOUT).join();
-                writeFailCount.incrementAndGet();
-                throw new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
+                return storage.write(segmentName, offset, data, length, TIMEOUT)
+                              .thenAccept(v -> {
+                                  writeFailCount.incrementAndGet();
+                                  throw new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
+                              });
             }
+
+            return null;
         });
 
         // Inject Seal errors every now and then.
@@ -270,10 +284,14 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         AtomicInteger sealFailCount = new AtomicInteger();
         context.storage.setSealInterceptor((segmentName, storage) -> {
             if (sealCount.incrementAndGet() % failSealEvery == 0) {
-                storage.seal(segmentName, TIMEOUT).join();
-                sealFailCount.incrementAndGet();
-                throw new IntentionalException(String.format("S=%s", segmentName));
+                return storage.seal(segmentName, TIMEOUT)
+                              .thenAccept(v -> {
+                                  sealFailCount.incrementAndGet();
+                                  throw new IntentionalException(String.format("S=%s", segmentName));
+                              });
             }
+
+            return null;
         });
 
         // Inject Merge/Concat errors every now and then.
@@ -281,10 +299,14 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         AtomicInteger mergeFailCount = new AtomicInteger();
         context.storage.setConcatInterceptor((targetSegment, offset, sourceSegment, storage) -> {
             if (mergeCount.incrementAndGet() % failMergeEvery == 0) {
-                storage.concat(targetSegment, offset, sourceSegment, TIMEOUT).join();
-                mergeFailCount.incrementAndGet();
-                throw new IntentionalException(String.format("T=%s,O=%d,S=%s", targetSegment, offset, sourceSegment));
+                return storage.concat(targetSegment, offset, sourceSegment, TIMEOUT)
+                              .thenAccept(v -> {
+                                  mergeFailCount.incrementAndGet();
+                                  throw new IntentionalException(String.format("T=%s,O=%d,S=%s", targetSegment, offset, sourceSegment));
+                              });
             }
+
+            return null;
         });
 
         testWriter(context);

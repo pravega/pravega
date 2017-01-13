@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.PropertyBag;
@@ -30,7 +31,6 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
@@ -40,10 +40,6 @@ import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
-import lombok.Cleanup;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -54,12 +50,15 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for ContainerReadIndex class.
@@ -71,13 +70,13 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 123;
     private static final ReadIndexConfig DEFAULT_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
             PropertyBag.create()
-                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
-                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
+                       .with(ReadIndexConfig.PROPERTY_MEMORY_READ_MIN_LENGTH, 0) // Default: Off (we have a special test for this).
+                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024));
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
 
     @Override
     protected int getThreadPoolSize() {
-        return 10;
+        return 5;
     }
 
     /**
@@ -99,6 +98,89 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         // Check all the appended data.
         checkReadIndex("PostAppend", segmentContents, context);
+    }
+
+    /**
+     * Tests the ability for the ReadIndex to batch multiple index entries together into a bigger read. This test
+     * writes a lot of very small appends to the index, then issues a full read (from the beginning) while configuring
+     * the read index to return results of no less than a particular size. As an added bonus, it also forces a Storage
+     * Read towards the end to make sure the ReadIndex doesn't coalesce those into the result as well.
+     */
+    @Test
+    public void testBatchedRead() throws Exception {
+        final int totalAppendLength = 500 * 1000;
+        final int maxAppendLength = 100;
+        final int minReadLength = 16 * 1024;
+        final byte[] segmentData = new byte[totalAppendLength];
+        final Random rnd = new Random(0);
+        rnd.nextBytes(segmentData);
+
+        final ReadIndexConfig config = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
+                PropertyBag.create().with(ReadIndexConfig.PROPERTY_MEMORY_READ_MIN_LENGTH, minReadLength));
+
+        @Cleanup
+        TestContext context = new TestContext(config, config.getCachePolicy());
+
+        // Create the segment in Storage and populate it with all the data (one segment is sufficient for this test).
+        final long segmentId = createSegment(0, context);
+        createSegmentsInStorage(context);
+        final UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
+        context.storage.write(segmentMetadata.getName(), 0, new ByteArrayInputStream(segmentData), segmentData.length, TIMEOUT).join();
+        segmentMetadata.setStorageLength(segmentData.length);
+
+        // Add the contents of the segment to the read index using very small appends (same data as in Storage).
+        int writtenLength = 0;
+        int remainingLength = totalAppendLength;
+        int lastCacheOffset = -1;
+        while (remainingLength > 0) {
+            int appendLength = rnd.nextInt(maxAppendLength) + 1;
+            if (appendLength < remainingLength) {
+                // Make another append.
+                byte[] appendData = new byte[appendLength];
+                System.arraycopy(segmentData, writtenLength, appendData, 0, appendLength);
+                appendSingleWrite(segmentId, appendData, context);
+                writtenLength += appendLength;
+                remainingLength -= appendLength;
+            } else {
+                // This would be the last append. Don't add it, so force the read index to load it from Storage.
+                lastCacheOffset = writtenLength;
+                appendLength = remainingLength;
+                writtenLength += appendLength;
+                remainingLength = 0;
+                segmentMetadata.setDurableLogLength(writtenLength);
+            }
+        }
+
+        // Check all the appended data.
+        @Cleanup
+        ReadResult readResult = context.readIndex.read(segmentId, 0, totalAppendLength, TIMEOUT);
+        long expectedCurrentOffset = 0;
+        boolean encounteredStorageRead = false;
+        while (readResult.hasNext()) {
+            ReadResultEntry entry = readResult.next();
+            if (entry.getStreamSegmentOffset() < lastCacheOffset) {
+                Assert.assertEquals("Expecting only a Cache entry before switch offset.", ReadResultEntryType.Cache, entry.getType());
+            } else {
+                Assert.assertEquals("Expecting only a Storage entry on or after switch offset.", ReadResultEntryType.Storage, entry.getType());
+                entry.requestContent(TIMEOUT);
+                entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                encounteredStorageRead = true;
+            }
+
+            // Check the entry contents.
+            byte[] entryData = new byte[entry.getContent().join().getLength()];
+            StreamHelpers.readAll(entry.getContent().join().getData(), entryData, 0, entryData.length);
+            AssertExtensions.assertArrayEquals("Unexpected data read at offset " + expectedCurrentOffset, segmentData, (int) expectedCurrentOffset, entryData, 0, entryData.length);
+            expectedCurrentOffset += entryData.length;
+
+            // Check the entry length. Every result entry should have at least the min length, unless it was prematurely
+            // cut short by the storage entry.
+            if (expectedCurrentOffset < lastCacheOffset) {
+                AssertExtensions.assertGreaterThanOrEqual("Expecting a ReadResultEntry of a minimum length for cache hit.", minReadLength, entryData.length);
+            }
+        }
+
+        Assert.assertEquals("Not encountered any storage reads, even though one was forced.", lastCacheOffset > 0, encounteredStorageRead);
     }
 
     /**
@@ -146,8 +228,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
         HashMap<Long, ByteArrayOutputStream> readContents = new HashMap<>();
         HashSet<Long> segmentsToSeal = new HashSet<>();
-        HashMap<Long, AsyncReadResultProcessor> processorsBySegment = new HashMap<>();
-        HashMap<Long, TestEntryHandler> entryHandlers = new HashMap<>();
+        ArrayList<AsyncReadResultProcessor> readProcessors = new ArrayList<>();
+        HashMap<Long, TestReadResultHandler> entryHandlers = new HashMap<>();
 
         // 1. Put all segment names into one list, for easier appends (but still keep the original lists at hand - we'll need them later).
         ArrayList<Long> allSegmentIds = new ArrayList<>(segmentIds);
@@ -180,11 +262,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             }
 
             // The Read callback is only accumulating data in this test; we will then compare it against the real data.
-            TestEntryHandler entryHandler = new TestEntryHandler(readContentsStream);
+            TestReadResultHandler entryHandler = new TestReadResultHandler(readContentsStream, TIMEOUT);
             entryHandlers.put(segmentId, entryHandler);
-            AsyncReadResultProcessor readResultProcessor = new AsyncReadResultProcessor(readResult, entryHandler, executorService());
-            readResultProcessor.startAsync().awaitRunning();
-            processorsBySegment.put(segmentId, readResultProcessor);
+            readProcessors.add(AsyncReadResultProcessor.process(readResult, entryHandler, executorService()));
         }
 
         // 3. Add a bunch of writes.
@@ -217,16 +297,17 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         context.readIndex.triggerFutureReads(segmentIds);
 
         // Now wait for all the reads to complete, and verify their results against the expected output.
-        ServiceShutdownListener.awaitShutdown(processorsBySegment.values(), TIMEOUT, true);
+        FutureHelpers.allOf(entryHandlers.values().stream().map(h -> h.getCompleted()).collect(Collectors.toList())).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        readProcessors.forEach(AsyncReadResultProcessor::close);
 
         // Check to see if any errors got thrown (and caught) during the reading process).
-        for (Map.Entry<Long, TestEntryHandler> e : entryHandlers.entrySet()) {
-            Throwable err = e.getValue().error.get();
+        for (Map.Entry<Long, TestReadResultHandler> e : entryHandlers.entrySet()) {
+            Throwable err = e.getValue().getError().get();
             if (err != null) {
                 // Check to see if the exception we got was a SegmentSealedException. If so, this is only expected if the segment was to be sealed.
                 // The next check (see below) will verify if the segments were properly read).
                 if (!(err instanceof StreamSegmentSealedException && segmentsToSeal.contains(e.getKey()))) {
-                    Assert.fail("Unexpected error happened while processing Segment " + e.getKey() + ": " + e.getValue().error.get());
+                    Assert.fail("Unexpected error happened while processing Segment " + e.getKey() + ": " + e.getValue().getError().get());
                 }
             }
         }
@@ -439,7 +520,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // Append data (in storage).
         appendDataInStorage(context, segmentContents);
 
-        // Append data (in read index).
+        // Append data (in read index - this is at offsets after the data we appended in Storage).
         appendData(segmentIds, segmentContents, context);
 
         // Check all the appended data.
@@ -485,9 +566,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         final int preStorageEntryCount = entriesPerSegment - postStorageEntryCount; // 75% of the entries are before the StorageOffset.
         CachePolicy cachePolicy = new CachePolicy(cacheMaxSize, Duration.ofMillis(1000 * 2 * entriesPerSegment), Duration.ofMillis(1000));
         ReadIndexConfig config = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
-                PropertyBag.create()
-                           .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, appendSize)
-                           .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, appendSize)); // To properly test this, we want predictable storage reads.
+                PropertyBag.create().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, appendSize)); // To properly test this, we want predictable storage reads.
 
         ArrayList<CacheKey> removedKeys = new ArrayList<>();
         @Cleanup
@@ -796,10 +875,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 byte[] data = getAppendData(segmentMetadata.getName(), segmentId, i, writeId);
                 writeId++;
 
-                // Make sure we increase the DurableLogLength prior to appending; the ReadIndex checks for this.
-                long offset = segmentMetadata.getDurableLogLength();
-                segmentMetadata.setDurableLogLength(offset + data.length);
-                context.readIndex.append(segmentId, offset, data);
+                appendSingleWrite(segmentId, data, context);
                 recordAppend(segmentId, data, segmentContents);
                 if (callback != null) {
                     callback.run();
@@ -1021,47 +1097,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
     //endregion
 
-    //region TestEntryHandler
-
-    private static class TestEntryHandler implements AsyncReadResultEntryHandler {
-        final AtomicReference<Throwable> error = new AtomicReference<>();
-        private final ByteArrayOutputStream readContents;
-
-        TestEntryHandler(ByteArrayOutputStream readContents) {
-            this.readContents = readContents;
-        }
-
-        @Override
-        public boolean shouldRequestContents(ReadResultEntryType entryType, long streamSegmentOffset) {
-            return true;
-        }
-
-        @Override
-        public boolean processEntry(ReadResultEntry e) {
-            ReadResultEntryContents c = e.getContent().join();
-            byte[] data = new byte[c.getLength()];
-            try {
-                StreamHelpers.readAll(c.getData(), data, 0, data.length);
-                readContents.write(data);
-                return true;
-            } catch (Exception ex) {
-                processError(e, ex);
-                return false;
-            }
-        }
-
-        @Override
-        public void processError(ReadResultEntry entry, Throwable cause) {
-            this.error.set(cause);
-        }
-
-        @Override
-        public Duration getRequestContentTimeout() {
-            return TIMEOUT;
-        }
-    }
-
-    //endregion
+    //region TestCache
 
     private static class TestCache extends InMemoryCache {
         Consumer<CacheKey> removeCallback;
@@ -1080,4 +1116,6 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             super.remove(key);
         }
     }
+
+    //endregion
 }
