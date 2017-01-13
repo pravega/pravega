@@ -141,7 +141,9 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
                 connection = null;
             }
             connectionSetupComplete();
-            oldConnection.close();
+            if (oldConnection != null) {
+                oldConnection.close();
+            }
         }
 
         /**
