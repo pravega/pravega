@@ -57,12 +57,17 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+
+import com.emc.pravega.common.metrics.Counter;
+import com.emc.pravega.common.metrics.OpStatsData;
 
 public class PravegaRequestProcessorTest {
 
@@ -113,8 +118,9 @@ public class PravegaRequestProcessorTest {
         }
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void testReadSegment() {
+        // Set up PravegaRequestProcessor instance to execute read segment request against
         String streamSegmentName = "testReadSegment";
         byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
         int readLength = 1000;
@@ -134,6 +140,7 @@ public class PravegaRequestProcessorTest {
         readResult.complete(new TestReadResult(0, readLength, results));
         when(store.read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult);
 
+        // Execute and Verify readSegment calling stack in connection and store is executed as design.
         processor.readSegment(new ReadSegment(streamSegmentName, 0, readLength));
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
         verify(connection).send(new SegmentRead(streamSegmentName, 0, true, false, ByteBuffer.wrap(data)));
@@ -142,10 +149,24 @@ public class PravegaRequestProcessorTest {
         entry2.complete(new ReadResultEntryContents(new ByteArrayInputStream(data), data.length));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
+
+        // Have readSegment once, so here readSegmentStats and readBytesStats both succeeded once.
+        OpStatsData readSegmentStats = PravegaRequestProcessor.Metrics.READ_STREAM_SEGMENT.toOpStatsData();
+        assertEquals(1, readSegmentStats.getNumSuccessfulEvents());
+        assertEquals(0, readSegmentStats.getNumFailedEvents());
+
+        OpStatsData readBytesStats = PravegaRequestProcessor.Metrics.READ_BYTES_STATS.toOpStatsData();
+        assertEquals(1, readBytesStats.getNumSuccessfulEvents());
+        assertEquals(0, readBytesStats.getNumFailedEvents());
+
+        // Have read all the bytes in data[], so readBytes count equals to data.length.
+        Counter readBytes = PravegaRequestProcessor.Metrics.READ_BYTES;
+        assertEquals(data.length, readBytes.get());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void testCreateSegment() throws InterruptedException, ExecutionException {
+        // Set up PravegaRequestProcessor instance to execute requests against
         String streamSegmentName = "testCreateSegment";
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
@@ -154,16 +175,25 @@ public class PravegaRequestProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
+
+        // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
         processor.createSegment(new CreateSegment(streamSegmentName));
         assertTrue(append(streamSegmentName, 1, store));
         processor.getStreamSegmentInfo(new GetStreamSegmentInfo(streamSegmentName));
         assertTrue(append(streamSegmentName, 2, store));
         order.verify(connection).send(new SegmentCreated(streamSegmentName));
         order.verify(connection).send(Mockito.any(StreamSegmentInfo.class));
+
+        // TestCreateSealDelete may executed before this test case,
+        // so createSegmentStats may record 1 or 2 createSegment operation here.
+        OpStatsData createSegmentStats = PravegaRequestProcessor.Metrics.CREATE_STREAM_SEGMENT.toOpStatsData();
+        assertNotEquals(0, createSegmentStats.getNumSuccessfulEvents());
+        assertEquals(0, createSegmentStats.getNumFailedEvents());
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void testCreateSealDelete() throws InterruptedException, ExecutionException {
+        // Set up PravegaRequestProcessor instance to execute requests against.
         String streamSegmentName = "testCreateSealDelete";
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
@@ -172,12 +202,16 @@ public class PravegaRequestProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
+
+        // Execute create/seal/delete Segment command.
         processor.createSegment(new CreateSegment(streamSegmentName));
         assertTrue(append(streamSegmentName, 1, store));
         processor.sealSegment(new SealSegment(streamSegmentName));
         assertFalse(append(streamSegmentName, 2, store));
         processor.deleteSegment(new DeleteSegment(streamSegmentName));
         assertFalse(append(streamSegmentName, 3, store));
+
+        // Verify connection response with same order.
         order.verify(connection).send(new SegmentCreated(streamSegmentName));
         order.verify(connection).send(new SegmentSealed(streamSegmentName));
         order.verify(connection).send(new SegmentDeleted(streamSegmentName));
