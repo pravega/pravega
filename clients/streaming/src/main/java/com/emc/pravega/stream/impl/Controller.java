@@ -28,6 +28,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -126,7 +127,8 @@ public interface Controller {
      * @return A future for a list of segments that can be read by the calling reader either
      *         immediately or upon completion of one or more of their segments.
      */
-    CompletableFuture<List<FutureSegment>> getAvailableFutureSegments(final PositionInternal position, final List<PositionInternal> otherPositions);
+    CompletableFuture<List<FutureSegment>> getAvailableFutureSegments(final PositionInternal position,
+            final Collection<? extends PositionInternal> otherPositions);
 
     //Controller Apis that are called by writers and readers
 

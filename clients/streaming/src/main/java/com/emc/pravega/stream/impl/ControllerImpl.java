@@ -34,6 +34,7 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
@@ -118,7 +119,7 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<List<FutureSegment>> getAvailableFutureSegments(PositionInternal position,
-            List<PositionInternal> otherPositions) {
+            Collection<? extends PositionInternal> otherPositions) {
         log.debug("Invoke ConsumerService.Client.getAvailableFutureSegments() for position: {} ", position);
         final com.emc.pravega.controller.stream.api.v1.Position transformed = ModelHelper.decode(position);
         final List<com.emc.pravega.controller.stream.api.v1.Position> otherTransformed =

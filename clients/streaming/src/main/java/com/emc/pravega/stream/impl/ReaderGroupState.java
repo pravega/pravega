@@ -24,6 +24,7 @@ import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -55,6 +56,11 @@ class ReaderGroupState implements Revisioned {
         this.scopedSynchronizerStream = scopedSynchronizerStream;
         this.revision = revision;
         this.streams = streams;
+    }
+    
+    @Synchronized
+    Collection<PositionImpl> getAllPositions() {
+        return Collections.unmodifiableCollection(positions.values());
     }
 
     @Synchronized

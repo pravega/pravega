@@ -48,6 +48,7 @@ import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.collect.ImmutableList;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.TreeMap;
@@ -215,7 +216,7 @@ public class MockController implements Controller {
     
     @Override
     public CompletableFuture<List<FutureSegment>> getAvailableFutureSegments(PositionInternal position,
-            List<PositionInternal> otherPositions) {
+            Collection<? extends PositionInternal> otherPositions) {
         return CompletableFuture.completedFuture(Collections.emptyList());
     }
 

@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Sequence;
@@ -26,18 +27,23 @@ import com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReleaseSegment;
 import com.emc.pravega.stream.impl.ReaderGroupState.RemoveReader;
 import com.emc.pravega.stream.impl.ReaderGroupState.UpdateDistanceToTail;
+import com.emc.pravega.stream.impl.ReaderGroupState.UpdatePosition;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -79,8 +85,40 @@ public class ReaderGroupStateManager {
         });
     }
     
-    void handleEndOfSegment(PositionImpl position) {
-        //TODO: finish implementing.
+    /**
+     * Handles a segment being completed by calling the controller to gather all the futures that could be assigned to this reader 
+     * adding all of these futures. It then removes the segment that was completed and promotes all future segments that were waiting on it to owned segments.
+     * the resulting position object is returned.
+     */
+    PositionImpl handleEndOfSegment(Segment segmentCompleted) {
+        AtomicReference<PositionImpl> result = new AtomicReference<>();
+        sync.updateState(state -> {
+            PositionImpl position = state.getPosition(consumerId);
+            
+            Set<PositionImpl> otherPositions = new HashSet<>(state.getAllPositions());
+            otherPositions.remove(position);
+            
+            Map<Segment, Long> ownedSegments = new HashMap<>(position.getOwnedSegmentsWithOffsets());
+            ownedSegments.remove(segmentCompleted);
+            
+            Map<FutureSegment, Long> futureSegments = new HashMap<>(position.getFutureOwnedSegmentsWithOffsets());
+            for (FutureSegment segment : getAndHandleExceptions(controller.getAvailableFutureSegments(position,
+                                                                                                      otherPositions),
+                                                                RuntimeException::new)) {
+                futureSegments.put(segment, 0L);
+            }
+            
+            futureSegments.entrySet()
+                          .stream()
+                          .filter(entry -> entry.getKey().getPrecedingNumber() == segmentCompleted.getSegmentNumber())
+                          .forEach(entry -> {
+                              ownedSegments.put(entry.getKey(), entry.getValue());
+                              futureSegments.remove(entry.getKey());
+                          });
+            result.set(new PositionImpl(ownedSegments, futureSegments));
+            return Collections.singletonList(new UpdatePosition(consumerId, result.get()));
+        });
+        return result.get();
     }
 
     Segment shouldReleaseSegment() {

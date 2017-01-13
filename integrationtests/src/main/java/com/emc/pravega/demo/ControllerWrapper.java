@@ -50,6 +50,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Collection;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
@@ -163,7 +164,7 @@ public class ControllerWrapper implements Controller {
 
     @Override
     public CompletableFuture<List<FutureSegment>> getAvailableFutureSegments(PositionInternal position,
-            List<PositionInternal> otherPositions) {
+            Collection<? extends PositionInternal> otherPositions) {
         com.emc.pravega.controller.stream.api.v1.Position pos = ModelHelper.decode(position);
         final List<com.emc.pravega.controller.stream.api.v1.Position> transformed =
                 otherPositions.stream().map(ModelHelper::decode).collect(Collectors.toList());
