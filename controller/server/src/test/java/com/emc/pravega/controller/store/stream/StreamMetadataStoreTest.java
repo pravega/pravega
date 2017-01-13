@@ -146,6 +146,18 @@ public class StreamMetadataStoreTest {
         assertTrue(store.isSealed(stream2).get());
         assertEquals(0, store.getActiveSegments(stream2).get().size());
 
+        //Sealing an already seal stream should return success.
+        Boolean sealOperationStatus1 = store.setSealed(stream2).get();
+        assertTrue(sealOperationStatus1);
+        assertTrue(store.isSealed(stream2).get());
+        assertEquals(0, store.getActiveSegments(stream2).get().size());
+
+        // seal a non-existent stream.
+        try {
+            store.setSealed("streamNonExistent").get();
+        } catch (Exception e) {
+            assertEquals(StreamNotFoundException.class, e.getCause().getCause().getClass());
+        }
         // endregion
     }
 

@@ -88,7 +88,7 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String streamName) {
-        return null;
+        throw new NotImplementedException();
     }
 
     boolean createSegment(String name, PravegaNodeUri uri) {

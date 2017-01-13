@@ -30,6 +30,8 @@ import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
+import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
@@ -54,6 +56,7 @@ import java.util.stream.IntStream;
  * It may cache files read from the store for its lifetime.
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
+@Slf4j
 class ZKStream extends PersistentStreamBase<Integer> {
     private static final String STREAM_PATH = "/streams/%s";
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";
@@ -441,10 +444,22 @@ class ZKStream extends PersistentStreamBase<Integer> {
                             throw new RuntimeException(e);
                         }
                     } else {
-                        throw new RuntimeException(String.format("path %s not Found", path));
+                        //path does not exist indicates Stream is not present
+                        log.error("Failed to write data. path {}", path);
+                        throw new StreamNotFoundException(extractStreamName(path));
                     }
                 }) // load into cache after writing the data
                 .thenApply(x -> null);
+    }
+
+    private static String extractStreamName(final String path) {
+        Preconditions.checkNotNull(path, "path");
+        String[] result = path.split("/");
+            if (result.length > 2) {
+                return result[2];
+            } else {
+                return path;
+            }
     }
 
     private static CompletableFuture<Void> createZNodeIfNotExist(final String path, final byte[] data) {

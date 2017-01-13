@@ -58,14 +58,14 @@ interface Stream {
     CompletableFuture<StreamConfiguration> getConfiguration();
 
     /**
-     * Update the state of the stream to sealed.
-     * @return boolean indicating whether the state of stream is updated to sealed.
+     * Update the state of the stream.
+     * @return boolean indicating whether the state of stream is updated.
      */
     CompletableFuture<Boolean> updateState(final State state);
 
     /**
-     *  Check if the stream is sealed.
-     * @return true if stream is sealed.
+     *  Get the state of the stream.
+     * @return state othe given stream.
      */
     CompletableFuture<State> getState();
 

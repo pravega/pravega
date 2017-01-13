@@ -163,6 +163,19 @@ public class ZkStreamTest {
         assertTrue(sealOperationStatus);
         assertTrue(store.isSealed(streamName).get());
         assertEquals(0, store.getActiveSegments(streamName).get().size());
+
+        //seal an already sealed stream.
+        Boolean sealOperationStatus1 = store.setSealed(streamName).get();
+        assertTrue(sealOperationStatus1);
+        assertTrue(store.isSealed(streamName).get());
+        assertEquals(0, store.getActiveSegments(streamName).get().size());
+
+        //seal a non existing stream.
+        try {
+            Boolean sealOperationStatus2 = store.setSealed("nonExistentStream").get();
+        } catch (Exception e) {
+           assertEquals(StreamNotFoundException.class, e.getCause().getClass());
+        }
     }
 
     @Ignore("run manually")
