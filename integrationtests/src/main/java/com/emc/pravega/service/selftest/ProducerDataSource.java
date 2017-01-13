@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.host.selftest;
+package com.emc.pravega.service.selftest;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -43,6 +43,9 @@ class ProducerDataSource {
     private final StoreAdapter store;
     private final ConcurrentHashMap<String, AppendContentGenerator> appendGenerators;
     private final Random appendSizeGenerator;
+    private final boolean sealSupported;
+    private final boolean transactionsSupported;
+    private final boolean appendSupported;
     private int lastCreatedTransaction;
     private final Object lock = new Object();
 
@@ -60,6 +63,9 @@ class ProducerDataSource {
         this.appendGenerators = new ConcurrentHashMap<>();
         this.appendSizeGenerator = new Random();
         this.lastCreatedTransaction = 0;
+        this.appendSupported = this.store.isFeatureSupported(StoreAdapter.Feature.Append);
+        this.transactionsSupported = this.store.isFeatureSupported(StoreAdapter.Feature.Transaction);
+        this.sealSupported = this.store.isFeatureSupported(StoreAdapter.Feature.Seal);
     }
 
     //endregion
@@ -81,7 +87,7 @@ class ProducerDataSource {
             if (operationIndex > this.config.getOperationCount()) {
                 // We have reached the end of the test. We need to seal all segments before we stop.
                 val si = this.state.getSegment(s -> !s.isClosed());
-                if (si != null) {
+                if (si != null && this.sealSupported) {
                     // Seal the next segment that is on the list.
                     result = new ProducerOperation(ProducerOperationType.SEAL, si.getName());
                     si.setClosed(true);
@@ -89,21 +95,27 @@ class ProducerDataSource {
                     // We have reached the end of the test and no more segments are left for sealing.
                     return null;
                 }
-            } else if (operationIndex - this.lastCreatedTransaction >= this.config.getTransactionFrequency()) {
-                // We have exceeded the number of operations since we last created a transaction.
-                result = new ProducerOperation(ProducerOperationType.CREATE_TRANSACTION, this.state.getNonTransactionSegmentName(operationIndex));
-                this.lastCreatedTransaction = operationIndex;
-            } else {
-                // If any transaction has already exceeded the max number of appends, then merge it.
-                val si = this.state.getSegment(s -> s.isTransaction() && !s.isClosed() && s.getOperationCount() >= this.config.getMaxTransactionAppendCount());
-                if (si != null) {
-                    result = new ProducerOperation(ProducerOperationType.MERGE_TRANSACTION, si.getName());
-                    si.setClosed(true);
+            } else if (this.transactionsSupported) {
+                if (operationIndex - this.lastCreatedTransaction >= this.config.getTransactionFrequency()) {
+                    // We have exceeded the number of operations since we last created a transaction.
+                    result = new ProducerOperation(ProducerOperationType.CREATE_TRANSACTION, this.state.getNonTransactionSegmentName(operationIndex));
+                    this.lastCreatedTransaction = operationIndex;
+                } else {
+                    // If any transaction has already exceeded the max number of appends, then merge it.
+                    val si = this.state.getSegment(s -> s.isTransaction() && !s.isClosed() && s.getOperationCount() >= this.config.getMaxTransactionAppendCount());
+                    if (si != null) {
+                        result = new ProducerOperation(ProducerOperationType.MERGE_TRANSACTION, si.getName());
+                        si.setClosed(true);
+                    }
                 }
             }
 
             // Otherwise append to random segment.
             if (result == null) {
+                if (!this.appendSupported) {
+                    return null;
+                }
+
                 result = new ProducerOperation(ProducerOperationType.APPEND, this.state.getSegmentOrTransactionName(operationIndex));
             }
         }
@@ -196,6 +208,7 @@ class ProducerDataSource {
         ArrayList<CompletableFuture<Void>> segmentFutures = new ArrayList<>();
 
         TestLogger.log(LOG_ID, "Creating segments.");
+        StoreAdapter.Feature.Create.ensureSupported(this.store, "create segments");
         for (int i = 0; i < this.config.getSegmentCount(); i++) {
             final int segmentId = i;
             String name = String.format("Segment_%s", segmentId);
@@ -214,6 +227,11 @@ class ProducerDataSource {
      * Deletes all the segments required for this test.
      */
     CompletableFuture<Void> deleteAllSegments() {
+        if (!this.store.isFeatureSupported(StoreAdapter.Feature.Delete)) {
+            TestLogger.log(LOG_ID, "Not deleting segments because the store adapter does not support it.");
+            return CompletableFuture.completedFuture(null);
+        }
+
         TestLogger.log(LOG_ID, "Deleting segments.");
         return deleteSegments(this.state.getTransactionNames())
                 .thenCompose(v -> deleteSegments(this.state.getAllSegmentNames()));

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.host.selftest;
+package com.emc.pravega.service.selftest;
 
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.Timer;
@@ -159,14 +159,18 @@ class Producer extends Actor {
         TimeoutTimer timer = new TimeoutTimer(this.config.getTimeout());
         if (operation.getType() == ProducerOperationType.CREATE_TRANSACTION) {
             // Create the Transaction, then record it's name in the operation's result.
+            StoreAdapter.Feature.Transaction.ensureSupported(this.store, "create transaction");
             return this.store.createTransaction(operation.getTarget(), timer.getRemaining())
                              .thenAccept(operation::setResult);
         } else if (operation.getType() == ProducerOperationType.MERGE_TRANSACTION) {
             // Seal & Merge the Transaction.
+            StoreAdapter.Feature.Seal.ensureSupported(this.store, "create transaction");
+            StoreAdapter.Feature.Transaction.ensureSupported(this.store, "create transaction");
             return this.store.sealStreamSegment(operation.getTarget(), timer.getRemaining())
                              .thenCompose(v -> this.store.mergeTransaction(operation.getTarget(), timer.getRemaining()));
         } else if (operation.getType() == ProducerOperationType.APPEND) {
             // Generate some random data, then append it.
+            StoreAdapter.Feature.Append.ensureSupported(this.store, "append to segment");
             byte[] appendContent = this.dataSource.generateAppendContent(operation.getTarget());
             operation.setLength(appendContent.length);
             AppendContext context = new AppendContext(this.clientId, this.iterationCount.get());
@@ -174,6 +178,7 @@ class Producer extends Actor {
                              .exceptionally(ex -> attemptReconcile(ex, operation, timer));
         } else if (operation.getType() == ProducerOperationType.SEAL) {
             // Seal the segment.
+            StoreAdapter.Feature.Seal.ensureSupported(this.store, "seal segment");
             return this.store.sealStreamSegment(operation.getTarget(), this.config.getTimeout());
         } else {
             throw new IllegalArgumentException("Unsupported Operation Type: " + operation.getType());
@@ -188,6 +193,7 @@ class Producer extends Actor {
 
             if (!reconciled) {
                 // If we get a Sealed/Merged/NotExists exception, verify that the segment really is in that state.
+                StoreAdapter.Feature.GetInfo.ensureSupported(this.store, "reconcile");
                 try {
                     SegmentProperties sp = this.store.getStreamSegmentInfo(operation.getTarget(), timer.getRemaining())
                                                      .get(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS);

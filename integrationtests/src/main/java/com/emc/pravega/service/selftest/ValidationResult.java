@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.host.selftest;
+package com.emc.pravega.service.selftest;
 
 import com.emc.pravega.common.Exceptions;
 import lombok.Getter;
@@ -24,7 +24,7 @@ import lombok.Setter;
 
 import java.time.Duration;
 
-import static com.emc.pravega.service.server.host.selftest.AppendContentGenerator.HEADER_LENGTH;
+import static com.emc.pravega.service.selftest.AppendContentGenerator.HEADER_LENGTH;
 
 /**
  * Represents the result of a validation process.
