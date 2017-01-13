@@ -22,18 +22,19 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
-import com.emc.pravega.controller.stream.api.v1.TxId;
+import com.emc.pravega.controller.stream.api.v1.TxnId;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.ModelHelper;
 
-import lombok.extern.slf4j.Slf4j;
-import org.apache.thrift.TException;
-import org.apache.thrift.async.AsyncMethodCallback;
-
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+
+import org.apache.thrift.TException;
+import org.apache.thrift.async.AsyncMethodCallback;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Asynchronous controller service implementation.
@@ -78,14 +79,12 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
         log.debug("getPositions called for stream " + scope + "/" + stream);
         processResult(controllerService.getPositions(scope, stream, timestamp, count), resultHandler);
     }
-
+    
     @Override
-    public void updatePositions(final String scope,
-                                final String stream,
-                                final List<Position> positions,
-                                final AsyncMethodCallback resultHandler) throws TException {
-        log.debug("updatePositions called for stream " + scope + "/" + stream);
-        processResult(controllerService.updatePositions(scope, stream, positions), resultHandler);
+    public void getAvailableFutureSegments(Position position, List<Position> otherPositions,
+            AsyncMethodCallback resultHandler) throws TException {
+        log.debug("getAvailableFutureSegments called for position " + position);
+        processResult(controllerService.getAvailableFutureSegments(position, otherPositions), resultHandler);
     }
 
     @Override
@@ -125,7 +124,7 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
     @Override
     public void commitTransaction(final String scope,
                                   final String stream,
-                                  final TxId txid,
+                                  final TxnId txid,
                                   final AsyncMethodCallback resultHandler) throws TException {
         log.debug("commitTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
         processResult(controllerService.commitTransaction(scope, stream, txid), resultHandler);
@@ -134,7 +133,7 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
     @Override
     public void dropTransaction(final String scope,
                                 final String stream,
-                                final TxId txid,
+                                final TxnId txid,
                                 final AsyncMethodCallback resultHandler) throws TException {
         log.debug("dropTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
         processResult(controllerService.dropTransaction(scope, stream, txid), resultHandler);
@@ -143,7 +142,7 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
     @Override
     public void checkTransactionStatus(final String scope,
                                        final String stream,
-                                       final TxId txid,
+                                       final TxnId txid,
                                        final AsyncMethodCallback resultHandler) throws TException {
         log.debug("checkTransactionStatus called for stream " + scope + "/" + stream + " txid=" + txid);
         processResult(controllerService.checkTransactionStatus(scope, stream, txid), resultHandler);

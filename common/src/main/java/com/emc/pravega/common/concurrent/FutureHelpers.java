@@ -396,8 +396,35 @@ public final class FutureHelpers {
      * this future.
      */
     public static <T> CompletableFuture<Void> toVoid(CompletableFuture<T> future) {
-        return future.thenAccept(r -> {
-        });
+        return future.thenAccept(FutureHelpers::doNothing);
+    }
+    
+    private static <T> Void doNothing(T value) {
+        return null;
+    }
+    
+    /**
+     * Returns a CompletableFuture that will end when the given future ends, expecting a certain
+     * result. If the supplied value is not the same as the result an exception from the supplier
+     * will be thrown. If the given future fails, the returned future will fail with the same
+     * exception.
+     * 
+     * @param T The type of value expected
+     * @param future the CompletableFuture to attach to.
+     * @param exceptionConstructor Constructor for an exception in the event there is not a match.
+     * @return A void completable future.
+     */
+    public static <T, E extends Exception> CompletableFuture<Void> toVoidExpecting(CompletableFuture<T> future,
+            T expectedValue, Supplier<E> exceptionConstructor) {
+        return future.thenApply(value -> expect(value, expectedValue, exceptionConstructor));
+    }
+    
+    @SneakyThrows
+    private static <T, E extends Exception> Void expect(T value, T expected, Supplier<E> exceptionConstructor) {
+        if (!expected.equals(value)) {
+            throw exceptionConstructor.get();
+        }
+        return null;
     }
 
     //region Loop Implementation

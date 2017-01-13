@@ -21,25 +21,26 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.FutureSegment;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
-import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
-import com.emc.pravega.controller.stream.api.v1.TxId;
-import com.emc.pravega.controller.stream.api.v1.TxState;
+import com.emc.pravega.controller.stream.api.v1.TxnId;
+import com.emc.pravega.controller.stream.api.v1.TxnState;
+import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.ModelHelper;
 
-import org.apache.commons.lang.NotImplementedException;
-import org.apache.thrift.TException;
-
 import java.util.List;
 import java.util.Map;
+
+import org.apache.commons.lang.NotImplementedException;
+import org.apache.thrift.TException;
 
 /**
  * Synchronous controller service implementation.
@@ -92,8 +93,9 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
     }
 
     @Override
-    public List<Position> updatePositions(final String scope, final String stream, final List<Position> positions) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.updatePositions(scope, stream, positions), RuntimeException::new);
+    public List<FutureSegment> getAvailableFutureSegments(Position position, List<Position> otherPositions)
+            throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.getAvailableFutureSegments(position, otherPositions), RuntimeException::new);
     }
 
     @Override
@@ -102,22 +104,23 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
     }
 
     @Override
-    public TxId createTransaction(final String scope, final String stream) throws TException {
+    public TxnId createTransaction(final String scope, final String stream) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.createTransaction(scope, stream), RuntimeException::new);
     }
 
     @Override
-    public TransactionStatus commitTransaction(final String scope, final String stream, final TxId txid) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.commitTransaction(scope, stream, txid), RuntimeException::new);
+    public TxnStatus commitTransaction(final String scope, final String stream, final TxnId txnid) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.commitTransaction(scope, stream, txnid), RuntimeException::new);
     }
 
     @Override
-    public TransactionStatus dropTransaction(final String scope, final String stream, final TxId txid) throws TException {
+    public TxnStatus dropTransaction(final String scope, final String stream, final TxnId txid) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.dropTransaction(scope, stream, txid), RuntimeException::new);
     }
 
     @Override
-    public TxState checkTransactionStatus(final String scope, final String stream, final TxId txid) throws TException {
+    public TxnState checkTransactionStatus(final String scope, final String stream, final TxnId txid) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.checkTransactionStatus(scope, stream, txid), RuntimeException::new);
     }
+
 }

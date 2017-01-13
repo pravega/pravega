@@ -21,6 +21,7 @@ import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -37,12 +38,43 @@ public class PositionImpl extends PositionInternal {
     private final Map<FutureSegment, Long> futureOwnedSegments;
 
     public PositionImpl(Map<Segment, Long> ownedSegments, Map<FutureSegment, Long> futureOwnedSegments) {
-        this.ownedSegments = ownedSegments;
-        this.futureOwnedSegments = futureOwnedSegments;
+        this.ownedSegments = new HashMap<>(ownedSegments);
+        this.futureOwnedSegments = new HashMap<>(futureOwnedSegments);
         Preconditions.checkArgument(isFutureSegmentsWellFormed(ownedSegments, futureOwnedSegments),
                                     "Owned and future logs must be coherent: " + this.toString());
     }
-
+    
+    public PositionImpl(Map<Segment, Long> ownedSegments, Set<Segment> completedSegments, Map<FutureSegment, Long> futureOwnedSegments) {
+        this.ownedSegments = new HashMap<>(ownedSegments);
+        for (Segment completed : completedSegments) {
+            ownedSegments.put(completed, -1L);
+        }
+        this.futureOwnedSegments = new HashMap<>(futureOwnedSegments);
+        Preconditions.checkArgument(isFutureSegmentsWellFormed(ownedSegments, futureOwnedSegments),
+                                    "Owned and future logs must be coherent: " + this.toString());
+    }
+    
+    static PositionImpl createEmptyPosition() {
+        return new PositionImpl(new HashMap<>(), new HashMap<>());
+    }
+    
+    PositionImpl copyWith(Segment newSegment, long offset) {
+        HashMap<Segment, Long> newSegments = new HashMap<>(ownedSegments);
+        newSegments.put(newSegment, offset);
+        return new PositionImpl(newSegments, futureOwnedSegments);
+    }
+    
+    PositionImpl copyWithout(Segment toRemove) {
+        HashMap<Segment, Long> newSegments = new HashMap<>(ownedSegments);
+        ownedSegments.remove(toRemove);
+        HashMap<FutureSegment, Long> newFutureSegments = new HashMap<>(futureOwnedSegments);
+        for (FutureSegment futureSegment : futureOwnedSegments.keySet()) {
+            if (futureSegment.getPrecedingNumber() == toRemove.getSegmentNumber()) {
+                newFutureSegments.remove(futureSegment);
+            }
+        }
+        return new PositionImpl(newSegments, newFutureSegments);
+    }
 
     private boolean isFutureSegmentsWellFormed(Map<Segment, Long> ownedSegments, Map<FutureSegment, Long> futureOwnedSegments) {
         // every segment in futures should

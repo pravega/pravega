@@ -29,6 +29,7 @@ import com.emc.pravega.stream.impl.ReaderGroupState.UpdateDistanceToTail;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -48,13 +50,14 @@ public class ReaderGroupStateManager {
     private static final long ASSUMED_LAG_MILLIS = 30000;
     private final String consumerId;
     private final StateSynchronizer<ReaderGroupState> sync;
+    private final Controller controller;
     private final AtomicLong nextReleaseTime = new AtomicLong();
     private final AtomicLong nextAquireTime = new AtomicLong();
 
     void initializeReader() {
         sync.updateState(state -> {
             if (state.getSegments(consumerId) == null) {
-                return Collections.singletonList(new AddReader(consumerId));
+                return Collections.singletonList(new AddReader(consumerId, PositionImpl.createEmptyPosition()));
             } else {
                 return null;
             }
@@ -63,23 +66,21 @@ public class ReaderGroupStateManager {
     
     void readerShutdown(PositionImpl lastPosition) {
         sync.updateState(state -> {
-            Map<Segment, Long> offsets = lastPosition.getOwnedSegmentsWithOffsets();
-            List<ReaderGroupStateUpdate> result = new ArrayList<>();
             Set<Segment> segments = state.getSegments(consumerId);
             if (segments == null) {
                 return null;
             }
-            for (Segment segment : segments) {
-                Long offset = offsets.get(segment);
-                if (offset == null) {
-                    throw new IllegalStateException(
-                            "New segment: " + segment + " were aquired after the reader shutdown.");
-                }
-                result.add(new ReleaseSegment(consumerId, segment, offset));
+            if (!lastPosition.getOwnedSegments().containsAll(segments)) {
+                throw new IllegalArgumentException("When shutting down a reader: provided a position "
+                        + " that does not match the segments did not match the ones they were assigned: \n" + segments
+                        + " \n vs \n " + lastPosition.getOwnedSegments());
             }
-            result.add(new RemoveReader(consumerId));
-            return result;
+            return Collections.singletonList(new RemoveReader(consumerId, lastPosition));
         });
+    }
+    
+    void handleEndOfSegment(PositionImpl position) {
+        //TODO: finish implementing.
     }
 
     Segment shouldReleaseSegment() {
@@ -94,8 +95,7 @@ public class ReaderGroupStateManager {
         if (nextReleaseTime.compareAndSet(releaseTime, System.currentTimeMillis() + UPDATE_TIME_MILLIS)) {
             return null; // Race. Another thread already is releasing segment.
         }
-        Set<Segment> segments = state.getSegments(consumerId);
-        return findSegmentToRelease(segments);
+        return findSegmentToRelease(state.getPosition(consumerId));
     }
 
     private boolean shouldReleaseSegment(ReaderGroupState state) {
@@ -114,18 +114,38 @@ public class ReaderGroupStateManager {
         return segments.size() > 1;
     }
 
-    private Segment findSegmentToRelease(Set<Segment> segments) {
-        return segments.stream().max((s1, s2) -> Integer.compare(s1.getSegmentNumber(), s2.getSegmentNumber())).get();
+    private Segment findSegmentToRelease(PositionImpl position) {
+        List<Segment> sorted = position.getOwnedSegments().stream().sorted().collect(Collectors.toList());
+        Map<Integer, List<FutureSegment>> reverseMap = position.getFutureOwnedSegments()
+                                                               .stream()
+                                                               .collect(Collectors.groupingBy((
+                                                                       FutureSegment s) -> s.getPrecedingNumber()));
+       return sorted.stream().max(new Comparator<Segment>() {
+            @Override
+            public int compare(Segment s1, Segment s2) {
+                List<FutureSegment> s1futures = reverseMap.get(s1.getSegmentNumber());
+                List<FutureSegment> s2futures = reverseMap.get(s2.getSegmentNumber());
+                int s1Count = s1futures == null ? 0 : s1futures.size();
+                int s2Count = s2futures == null ? 0 : s2futures.size();
+                if (s1Count == s2Count) {
+                    return Integer.compare(s1.getSegmentNumber(), s2.getSegmentNumber());
+                } else {
+                    return -Integer.compare(s1Count, s2Count);
+                }
+            }
+       }).orElse(null);
+      
     }
 
-    boolean releaseSegment(Sequence pos, Segment segment, long lastOffset) {
+    boolean releaseSegment(PositionImpl currentPos, Segment segment, long lastOffset, Sequence pos) {
         sync.updateState(state -> {
             Set<Segment> segments = state.getSegments(consumerId);
             if (!shouldReleaseSegment(state) || segments == null || !segments.contains(segment)) {
                 return null;
             }
             List<ReaderGroupStateUpdate> result = new ArrayList<>(2);
-            result.add(new ReleaseSegment(consumerId, segment, lastOffset));
+            PositionImpl newPos = currentPos.copyWithout(segment);
+            result.add(new ReleaseSegment(consumerId, newPos, segment, lastOffset));
             long distanceToTail = computeDistanceToTail(pos, segments.size() - 1);
             result.add(new UpdateDistanceToTail(consumerId, distanceToTail));
             return result;
@@ -164,11 +184,13 @@ public class ReaderGroupStateManager {
             int toAquire = Math.max(1, unassignedSegments.size() / state.getNumberOfReaders());
             Map<Segment, Long> aquired = new HashMap<>(toAquire);
             List<ReaderGroupStateUpdate> updates = new ArrayList<>(toAquire);
+            PositionImpl pos = state.getPosition(consumerId);
             val iter = unassignedSegments.entrySet().iterator();
             for (int i = 0; i < toAquire; i++) {
                 Entry<Segment, Long> segment = iter.next();
                 aquired.put(segment.getKey(), segment.getValue());
-                updates.add(new AquireSegment(consumerId, segment.getKey()));
+                pos = pos.copyWith(segment.getKey(), segment.getValue());
+                updates.add(new AquireSegment(consumerId, pos, segment.getKey()));
             }
             long toTail = computeDistanceToTail(lastRead, state.getSegments(consumerId).size() + aquired.size());
             updates.add(new UpdateDistanceToTail(consumerId, toTail));

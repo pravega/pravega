@@ -67,8 +67,7 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
             }
             Map<Segment, Long> positions = readers.stream()
                     .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
-            positions.putAll(completedSegments);
-            Position position = new PositionImpl(positions, futureOwnedSegments);
+            Position position = new PositionImpl(positions, completedSegments.keySet(), futureOwnedSegments);
             Sequence eventSequence = Sequence.create(segmentId.getSegmentNumber(), offset);
             return new EventReadImpl<>(eventSequence, result, position, segmentId, offset, result == null);
         }

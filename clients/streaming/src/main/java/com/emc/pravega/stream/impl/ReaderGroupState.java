@@ -26,9 +26,9 @@ import com.google.common.base.Preconditions;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -47,7 +47,7 @@ class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     private final Map<String, Long> distanceToTail = new HashMap<>();
     @GuardedBy("$lock")
-    private final Map<String, Set<Segment>> assignedSegments = new HashMap<>();
+    private final Map<String, PositionImpl> positions = new HashMap<>();
     @GuardedBy("$lock")
     private final Map<Segment, Long> unassignedSegments = new HashMap<>();
 
@@ -57,6 +57,11 @@ class ReaderGroupState implements Revisioned {
         this.streams = streams;
     }
 
+    @Synchronized
+    PositionImpl getPosition(String reader) {
+        return positions.get(reader);
+    }
+    
     /**
      * @return A map from Reader to a relative measure of how much data they have to process. The
      *         scale is calibrated to where 1.0 is equal to the largest segment.
@@ -73,7 +78,7 @@ class ReaderGroupState implements Revisioned {
     
     @Synchronized
     int getNumberOfReaders() {
-        return assignedSegments.size();
+        return positions.size();
     }
     
     /**
@@ -105,7 +110,7 @@ class ReaderGroupState implements Revisioned {
      */
     @Synchronized
     Set<Segment> getSegments(String reader) {
-        Set<Segment> segments = assignedSegments.get(reader);
+        Set<Segment> segments = positions.get(reader).getOwnedSegments();
         if (segments == null) {
             return null;
         }
@@ -143,12 +148,13 @@ class ReaderGroupState implements Revisioned {
     @RequiredArgsConstructor
     static class AddReader extends ReaderGroupStateUpdate {
         private final String consumerId;
+        private final PositionImpl position;
 
         @Override
         void update(ReaderGroupState state) {
-            Set<Segment> segments = state.assignedSegments.get(consumerId);
-            if (segments != null) {
-                state.assignedSegments.put(consumerId, new HashSet<>());
+            PositionImpl oldPos = state.positions.putIfAbsent(consumerId, position);
+            if (oldPos != null) {
+                throw new IllegalStateException("Attempted to add a reader that is already online. " + consumerId);
             }
             state.distanceToTail.putIfAbsent(consumerId, Long.MAX_VALUE);
         }
@@ -157,55 +163,59 @@ class ReaderGroupState implements Revisioned {
     @RequiredArgsConstructor
     static class RemoveReader extends ReaderGroupStateUpdate {
         private final String consumerId;
+        private final PositionImpl lastPosition;
 
         @Override
         void update(ReaderGroupState state) {
-            Set<Segment> segments = state.assignedSegments.get(consumerId);
-            if (segments != null) {
-                if (!segments.isEmpty()) {
-                    throw new IllegalStateException(
-                            "Attempted to remove a reader without first releasing its segments. " + consumerId);
+            if (state.positions.remove(consumerId) != null) {
+                for (Entry<Segment, Long> segment : lastPosition.getOwnedSegmentsWithOffsets().entrySet()) {
+                    state.unassignedSegments.put(segment.getKey(), segment.getValue());
                 }
-                state.assignedSegments.remove(consumerId);
             }
             state.distanceToTail.remove(consumerId);
         }
     }
 
+    /**
+     * Release a currently owned segment.
+     */
     @RequiredArgsConstructor
     static class ReleaseSegment extends ReaderGroupStateUpdate {
         private final String consumerId;
+        private final PositionImpl newPosition;
         private final Segment segment;
         private final long offset;
 
         @Override
         void update(ReaderGroupState state) {
-            Set<Segment> segments = state.assignedSegments.get(consumerId);
-            Preconditions.checkState(segments != null);
-            if (segments.remove(segment)) {
-                throw new IllegalStateException(
-                        "Segment: " + segment + " is not owned by " + consumerId + ". " + state);
-            }
+            PositionImpl oldPos = state.positions.put(consumerId, newPosition);
+            Preconditions.checkState(oldPos != null);
             state.unassignedSegments.put(segment, offset);
         }
     }
 
+    /**
+     * Acquire a currently unassigned segment.
+     */
     @RequiredArgsConstructor
     static class AquireSegment extends ReaderGroupStateUpdate {
         private final String consumerId;
+        private final PositionImpl newPosition;
         private final Segment segment;
 
         @Override
         void update(ReaderGroupState state) {
-            Set<Segment> segments = state.assignedSegments.get(consumerId);
-            Preconditions.checkState(segments != null);
+            PositionImpl oldPos = state.positions.put(consumerId, newPosition);
+            Preconditions.checkState(oldPos != null);
             if (state.unassignedSegments.remove(segment) != null) {
                 throw new IllegalStateException("Segment: " + segment + " is not unassigned. " + state);
             } 
-            segments.add(segment);
         }
     }
     
+    /**
+     * Update the size of this consumers backlog for load balancing purposes. 
+     */
     @RequiredArgsConstructor
     static class UpdateDistanceToTail extends ReaderGroupStateUpdate {
         private final String consumerId;
@@ -213,6 +223,21 @@ class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             state.distanceToTail.put(consumerId, distanceToTail);
+        }
+    }
+    
+    /**
+     * Updates a position object without aquiring or releasing a segment.
+     */
+    @RequiredArgsConstructor
+    static class UpdatePosition extends ReaderGroupStateUpdate {
+        private final String consumerId;
+        private final PositionImpl newPosition;
+        
+        @Override
+        void update(ReaderGroupState state) {
+            PositionImpl oldPos = state.positions.put(consumerId, newPosition);
+            Preconditions.checkState(oldPos != null);
         }
     }
     

@@ -25,7 +25,6 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Sets;
 
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,6 +37,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import javax.annotation.ParametersAreNonnullByDefault;
 
 import static com.emc.pravega.common.concurrent.FutureCollectionHelper.filter;
 import static com.emc.pravega.common.concurrent.FutureCollectionHelper.sequence;

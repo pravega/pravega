@@ -27,9 +27,9 @@ import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
-import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
-import com.emc.pravega.controller.stream.api.v1.TxId;
-import com.emc.pravega.controller.stream.api.v1.TxState;
+import com.emc.pravega.controller.stream.api.v1.TxnId;
+import com.emc.pravega.controller.stream.api.v1.TxnState;
+import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -44,10 +44,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.thrift.TException;
 
 /**
@@ -93,25 +93,10 @@ public class ControllerService {
         // divide current segments in segmentFutures into at most count positions
         return streamStore.getActiveSegments(stream, timestamp)
                 .thenApply(segmentFutures -> shard(scope, stream, segmentFutures, count));
-    }
+    }    
 
-    public CompletableFuture<List<Position>> updatePositions(final String scope, final String stream, final List<Position> positions) {
-        // TODO: handle npe with null exception return case
-        List<PositionInternal> internalPositions = positions.stream().map(ModelHelper::encode).collect(Collectors.toList());
-        // initialize completed segments set from those found in the list of input position objects
-        Set<Integer> completedSegments = ModelHelper.getSegmentsFromPositions(internalPositions);
-
-        Map<Integer, Long> segmentOffsets = new HashMap<>();
-
-        // convert positions to segmentFutures, while updating completedSegments set and
-        // storing segment offsets in segmentOffsets map
-        List<SegmentFutures> segmentFutures = convertPositionsToSegmentFutures(internalPositions, segmentOffsets);
-
-        // fetch updated SegmentFutures from stream metadata
-        // and finally convert SegmentFutures back to position objects
-        return streamStore.getNextSegments(stream, completedSegments, segmentFutures)
-                .thenApply(updatedSegmentFutures ->
-                        convertSegmentFuturesToPositions(scope, stream, updatedSegmentFutures, segmentOffsets));
+    public CompletableFuture<List<FutureSegment>> getAvailableFutureSegments(Position position, List<Position> otherPositions) {
+        throw new NotImplementedException(); //TODO: Implement this.
     }
 
     public CompletableFuture<ScaleResponse> scale(final String scope,
@@ -248,37 +233,38 @@ public class ControllerService {
         return resultPositions;
     }
 
-    public CompletableFuture<TxId> createTransaction(final String scope, final String stream) {
+    public CompletableFuture<TxnId> createTransaction(final String scope, final String stream) {
         return streamTransactionMetadataTasks.createTx(scope, stream).thenApply(ModelHelper::decode);
     }
 
-    public CompletableFuture<TransactionStatus> commitTransaction(final String scope, final String stream, final TxId txid) {
-        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txid))
+    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId txnid) {
+        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txnid))
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
-                        return TransactionStatus.FAILURE;
+                        return TxnStatus.FAILURE;
                     } else {
-                        return TransactionStatus.SUCCESS;
+                        return TxnStatus.SUCCESS;
                     }
                 });
     }
 
-    public CompletableFuture<TransactionStatus> dropTransaction(final String scope, final String stream, final TxId txid) {
-        return streamTransactionMetadataTasks.dropTx(scope, stream, ModelHelper.encode(txid))
+    public CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final TxnId txnid) {
+        return streamTransactionMetadataTasks.dropTx(scope, stream, ModelHelper.encode(txnid))
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
-                        return TransactionStatus.FAILURE;
+                        return TxnStatus.FAILURE;
                     } else {
-                        return TransactionStatus.SUCCESS;
+                        return TxnStatus.SUCCESS;
                     }
                 });
     }
 
 
-    public CompletableFuture<TxState> checkTransactionStatus(final String scope, final String stream, final TxId txid) {
-        return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txid))
+    public CompletableFuture<TxnState> checkTransactionStatus(final String scope, final String stream, final TxnId txnid) {
+        return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnid))
                 .thenApply(ModelHelper::decode);
     }
+
 }

@@ -24,8 +24,8 @@ import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
-import com.emc.pravega.controller.stream.api.v1.TxId;
-import com.emc.pravega.controller.stream.api.v1.TxState;
+import com.emc.pravega.controller.stream.api.v1.TxnId;
+import com.emc.pravega.controller.stream.api.v1.TxnState;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -38,7 +38,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -47,12 +46,12 @@ import java.util.stream.Collectors;
  */
 public final class ModelHelper {
 
-    public static final UUID encode(TxId txId) {
+    public static final UUID encode(TxnId txId) {
         Preconditions.checkNotNull(txId, "txId");
         return new UUID(txId.getHighBits(), txId.getLowBits());
     }
 
-    public static final TxnStatus encode(TxState txStatus) {
+    public static final TxnStatus encode(TxnState txStatus) {
         Preconditions.checkNotNull(txStatus, "txStatus");
         return TxnStatus.valueOf(txStatus.name());
     }
@@ -67,6 +66,13 @@ public final class ModelHelper {
         return new com.emc.pravega.stream.impl.FutureSegment(segment.getScope(), segment.getStreamName(), segment.getNumber(), previous);
     }
 
+    public static final com.emc.pravega.stream.impl.FutureSegment encode(FutureSegment futureSegment) {
+        return new com.emc.pravega.stream.impl.FutureSegment(futureSegment.getFutureSegment().getScope(),
+                futureSegment.getFutureSegment().getStreamName(),
+                futureSegment.getFutureSegment().getNumber(),
+                futureSegment.getPrecedingSegment().getNumber());
+    }
+    
     public static final ScalingPolicy encode(final com.emc.pravega.controller.stream.api.v1.ScalingPolicy policy) {
         Preconditions.checkNotNull(policy, "ScalingPolicy");
         return new ScalingPolicy(ScalingPolicy.Type.valueOf(policy.getType().name()), policy.getTargetRate(), policy.getScaleFactor(),
@@ -97,11 +103,11 @@ public final class ModelHelper {
                 .collect(Collectors.toList());
     }
 
-    public static Transaction.Status encode(TxState status, String logString) {
+    public static Transaction.Status encode(TxnState status, String logString) {
         switch (status) {
             case COMMITTED:
                 return Transaction.Status.COMMITTED;
-            case DROPPED:
+            case ABORTED:
                 return Transaction.Status.ABORTED;
             case OPEN:
                 return Transaction.Status.OPEN;
@@ -114,14 +120,14 @@ public final class ModelHelper {
         }
     }
 
-    public static final TxId decode(UUID txId) {
+    public static final TxnId decode(UUID txId) {
         Preconditions.checkNotNull(txId, "txId");
-        return new TxId(txId.getMostSignificantBits(), txId.getLeastSignificantBits());
+        return new TxnId(txId.getMostSignificantBits(), txId.getLeastSignificantBits());
     }
 
-    public static final TxState decode(TxnStatus txstatus) {
+    public static final TxnState decode(TxnStatus txstatus) {
         Preconditions.checkNotNull(txstatus, "txstatus");
-        return TxState.valueOf(txstatus.name());
+        return TxnState.valueOf(txstatus.name());
     }
 
     public static final SegmentId decode(final Segment segment) {
@@ -153,12 +159,6 @@ public final class ModelHelper {
 
     public static NodeUri decode(PravegaNodeUri uri) {
         return new NodeUri(uri.getEndpoint(), uri.getPort());
-    }
-    
-    public static final Set<Integer> getSegmentsFromPositions(List<PositionInternal> positions) {
-        return positions.stream()
-            .flatMap(position -> position.getCompletedSegments().stream().map(Segment::getSegmentNumber))
-            .collect(Collectors.toSet());
     }
     
     public static final Map<Integer, Long> toSegmentOffsetMap(PositionInternal position) {

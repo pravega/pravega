@@ -17,6 +17,22 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.controller.stream.api.v1.ControllerService;
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.SegmentId;
+import com.emc.pravega.controller.stream.api.v1.SegmentRange;
+import com.emc.pravega.controller.stream.api.v1.TxnStatus;
+import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.util.ThriftAsyncCallback;
+import com.emc.pravega.controller.util.ThriftHelper;
+import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.TxnFailedException;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.NavigableMap;
@@ -30,20 +46,6 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.transport.TNonblockingSocket;
 import org.apache.thrift.transport.TNonblockingTransport;
-
-import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.controller.stream.api.v1.ControllerService;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.SegmentId;
-import com.emc.pravega.controller.stream.api.v1.SegmentRange;
-import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
-import com.emc.pravega.controller.util.ThriftAsyncCallback;
-import com.emc.pravega.controller.util.ThriftHelper;
-import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.Transaction;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -115,15 +117,15 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<PositionInternal>> updatePositions(final Stream stream, List<PositionInternal> positions) {
-        log.debug("Invoke ConsumerService.Client.updatePositions() for positions: {} ", positions);
-
-        final List<com.emc.pravega.controller.stream.api.v1.Position> transformed =
-                positions.stream().map(ModelHelper::decode).collect(Collectors.toList());
-
-        final ThriftAsyncCallback<ControllerService.AsyncClient.updatePositions_call> callback = new ThriftAsyncCallback<>();
+    public CompletableFuture<List<FutureSegment>> getAvailableFutureSegments(PositionInternal position,
+            List<PositionInternal> otherPositions) {
+        log.debug("Invoke ConsumerService.Client.getAvailableFutureSegments() for position: {} ", position);
+        final com.emc.pravega.controller.stream.api.v1.Position transformed = ModelHelper.decode(position);
+        final List<com.emc.pravega.controller.stream.api.v1.Position> otherTransformed =
+                otherPositions.stream().map(ModelHelper::decode).collect(Collectors.toList());
+        final ThriftAsyncCallback<ControllerService.AsyncClient.getAvailableFutureSegments_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.updatePositions(stream.getScope(), stream.getStreamName(), transformed, callback);
+            client.getAvailableFutureSegments(transformed, otherTransformed, callback);
             return null;
         });
         return callback
@@ -197,7 +199,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> commitTransaction(final Stream stream, final UUID txId) {
+    public CompletableFuture<Void> commitTransaction(final Stream stream, final UUID txId) {
         log.debug("Invoke AdminService.Client.commitTransaction() with stream: {}, txUd: {}", stream, txId);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.commitTransaction_call> callback = new ThriftAsyncCallback<>();
@@ -205,12 +207,14 @@ public class ControllerImpl implements Controller {
             client.commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), callback);
             return null;
         });
-        return callback.getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+        return FutureHelpers.toVoidExpecting(callback.getResult()
+                                             .thenApply(result -> ThriftHelper.thriftCall(result::getResult)),
+                                     TxnStatus.SUCCESS,
+                                     TxnFailedException::new);
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> dropTransaction(final Stream stream, final UUID txId) {
+    public CompletableFuture<Void> dropTransaction(final Stream stream, final UUID txId) {
         log.debug("Invoke AdminService.Client.dropTransaction() with stream: {}, txUd: {}", stream, txId);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.dropTransaction_call> callback = new ThriftAsyncCallback<>();
@@ -218,8 +222,10 @@ public class ControllerImpl implements Controller {
             client.dropTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), callback);
             return null;
         });
-        return callback.getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+        return FutureHelpers.toVoidExpecting(callback.getResult()
+                                                     .thenApply(result -> ThriftHelper.thriftCall(result::getResult)),
+                                             TxnStatus.SUCCESS,
+                                             TxnFailedException::new);
     }
 
     @Override
@@ -238,4 +244,5 @@ public class ControllerImpl implements Controller {
             .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
             .thenApply(status -> ModelHelper.encode(status, stream + " " + txId));
     }
+
 }

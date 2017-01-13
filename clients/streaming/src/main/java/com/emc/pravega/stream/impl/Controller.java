@@ -20,7 +20,6 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Segment;
@@ -85,15 +84,18 @@ public interface Controller {
      * @param txId transaction id
      * @return
      */
-    CompletableFuture<TransactionStatus> commitTransaction(final Stream stream, final UUID txId);
+    CompletableFuture<Void> commitTransaction(final Stream stream, final UUID txId);
 
     /**
-     * Drops a transaction. No events written to it may be read, and no further events may be written.
+     * Drops a transaction. No events written to it may be read, and no further events may be written. 
+     * Will fail with {@link TxnFailedException}
+     * if the transaction has already been committed or aborted.
+     * 
      * @param stream stream name
      * @param txId transaction id
      * @return
      */
-    CompletableFuture<TransactionStatus> dropTransaction(final Stream stream, final UUID txId);
+    CompletableFuture<Void> dropTransaction(final Stream stream, final UUID txId);
 
     /**
      * Returns the status of the specified transaction.
@@ -117,13 +119,14 @@ public interface Controller {
     CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count);
 
     /**
-     * Called by readers upon reaching end of segment on some segment in its position obejct.
+     * Called by readers to see if there are any futureSegments available to them.
      *
-     * @param stream stream name
-     * @param positions current position objects
-     * @return
+     * @param position The reader's position
+     * @param otherPositions The position of other readers in the same readerGroup
+     * @return A future for a list of segments that can be read by the calling reader either
+     *         immediately or upon completion of one or more of their segments.
      */
-    CompletableFuture<List<PositionInternal>> updatePositions(final Stream stream, final List<PositionInternal> positions);
+    CompletableFuture<List<FutureSegment>> getAvailableFutureSegments(final PositionInternal position, final List<PositionInternal> otherPositions);
 
     //Controller Apis that are called by writers and readers
 
