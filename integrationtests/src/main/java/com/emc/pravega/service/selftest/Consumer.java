@@ -31,10 +31,6 @@ import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.reading.AsyncReadResultHandler;
 import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
 import com.google.common.base.Preconditions;
-import lombok.RequiredArgsConstructor;
-import lombok.val;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -50,6 +46,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.RequiredArgsConstructor;
+import lombok.val;
 
 /**
  * Represents an operation consumer. Attaches to a StoreAdapter, listens to tail-reads (on segments), and validates
@@ -574,7 +573,11 @@ public class Consumer extends Actor {
 
         @Override
         public boolean processEntry(ReadResultEntry entry) {
-            entry.requestContent(this.config.getTimeout());
+            if (!entry.getContent().isDone()) {
+                // Make sure we only request content if it's not already available.
+                entry.requestContent(this.config.getTimeout());
+            }
+
             val contents = entry.getContent().join();
             this.readLength.addAndGet(contents.getLength());
             this.tailReadConsumer.accept(contents.getData(), entry.getStreamSegmentOffset(), contents.getLength());
