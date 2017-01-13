@@ -28,12 +28,11 @@ import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
+import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.val;
 import org.slf4j.LoggerFactory;
-
-import java.util.Properties;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Main entry point for Self Tester.
@@ -74,6 +73,7 @@ public class SelfTestRunner {
 
         ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, Integer.toString(60 * 1000));
         ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.toString(128 * 1024 * 1024));
+        ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_MEMORY_READ_MIN_LENGTH, Integer.toString(128 * 1024));
 
         // All component configs should have defaults built-in, so no need to override them here
         return new ServiceBuilderConfig(p);
@@ -83,22 +83,23 @@ public class SelfTestRunner {
         return new TestConfig(TestConfig.convert(TestConfig.COMPONENT_CODE,
                 PropertyBag.create()
                            // Test params.
-                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 50000)
-                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 20)
-                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 50)
+                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 2000000)
+                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 1)
+                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 100)
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
-                           .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
+                           .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 100)
                            //.with(TestConfig.PROPERTY_MIN_APPEND_SIZE, WireCommands.APPEND_BLOCK_SIZE)
                            //.with(TestConfig.PROPERTY_MAX_APPEND_SIZE, WireCommands.APPEND_BLOCK_SIZE)
 
                            // Transaction setup.
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
-                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 50)
+                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
 
                            // Test setup.
                            .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 50)
                            .with(TestConfig.PROPERTY_DATA_LOG_APPEND_DELAY, 0)
                            .with(TestConfig.PROPERTY_TIMEOUT_MILLIS, 3000)
+                           .with(TestConfig.PROPERTY_VERBOSE_LOGGING, false)
 
                            // Client-specific settings.
                            .with(TestConfig.PROPERTY_USE_CLIENT, false)
