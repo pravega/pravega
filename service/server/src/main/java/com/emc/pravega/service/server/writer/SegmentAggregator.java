@@ -1195,7 +1195,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     //region OperationQueue
 
     /**
-     * Thin wrapper for a LinkedList[StorageOperation] that provides thread synchronization.
+     * Thin wrapper for a simple Queue[StorageOperation] that provides thread synchronization.
      */
     private static class OperationQueue implements Iterable<StorageOperation> {
         @GuardedBy("this")
