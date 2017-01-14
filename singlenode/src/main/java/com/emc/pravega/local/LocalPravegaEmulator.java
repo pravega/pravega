@@ -43,6 +43,7 @@ import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.twitter.distributedlog.LocalDLMEmulator;
+import com.twitter.distributedlog.admin.DistributedLogAdmin;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.commons.io.FileUtils;
@@ -63,6 +64,7 @@ public class LocalPravegaEmulator {
 
 
     private static LocalHDFSEmulator localHdfs;
+    private static int zkPort;
     AtomicReference<ServiceStarter> nodeServiceStarter = new AtomicReference<>();
 
     private final int controllerPort;
@@ -81,7 +83,7 @@ public class LocalPravegaEmulator {
                 System.exit(-1);
             }
 
-            final int zkPort = Integer.parseInt(args[0]);
+            zkPort = Integer.parseInt(args[0]);
             final int controllerPort = Integer.parseInt(args[1]);
             final int hostPort = Integer.parseInt(args[2]);
 
@@ -117,6 +119,7 @@ public class LocalPravegaEmulator {
 
             localHdfs.start();
             localDlm.start();
+            configureDLBinding();
             localPravega.start();
 
             System.out.println(String.format(
@@ -125,6 +128,21 @@ public class LocalPravegaEmulator {
                     controllerPort));
         } catch (Exception ex) {
             System.out.println("Exception occurred running emulator " + ex);
+            System.exit(1);
+        }
+    }
+
+    private static void configureDLBinding() {
+        DistributedLogAdmin admin = new DistributedLogAdmin();
+        String[] params = {"bind", "-dlzr", "localhost:"+zkPort,
+                "-dlzw", "localhost:"+7000, "-s", "localhost:"+zkPort, "-bkzr",
+                "localhost:"+7000, "-l", "/messaging/bookkeeper/ledgers",
+                "-i", "false", "-r", "true", "-c",
+                "distributedlog://localhost:"+zkPort+"/messaging/distributedlog/mynamespace"};
+        try {
+            admin.run(params);
+        } catch (Exception e) {
+            e.printStackTrace();
             System.exit(1);
         }
     }
@@ -166,6 +184,10 @@ public class LocalPravegaEmulator {
             ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, Integer.toString(60 * 1000));
             ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.toString(128 * 1024 * 1024));
 
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_HOSTNAME,
+                    "localhost");
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_PORT,
+                    new Integer(zkPort).toString());
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT,
                     new Integer(hostPort).toString());
 
@@ -206,6 +228,7 @@ public class LocalPravegaEmulator {
         }
 
         //1. LOAD configuration.
+        Config.overRideZKURL("localhost:"+zkPort);
         //Initialize the executor service.
         controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
                 new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());

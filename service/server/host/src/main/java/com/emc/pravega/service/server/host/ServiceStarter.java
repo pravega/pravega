@@ -68,10 +68,10 @@ public final class ServiceStarter {
         this.builderConfig = config;
         this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::new);
         Options opt = new Options();
-        opt.distributedLog = false;
-        opt.hdfs = false;
+        opt.distributedLog = true;
+        opt.hdfs = true;
         opt.rocksDb = true;
-        opt.zkSegmentManager = false;
+        opt.zkSegmentManager = true;
         this.serviceBuilder = createServiceBuilder(opt);
     }
 
