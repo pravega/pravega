@@ -279,7 +279,7 @@ public class TurbineHeatSensor {
                                     return (CompletableFuture<Void>) fn.apply(Integer.toString(producerId),
                                             payload);
                                 },
-                                () -> now,
+                                now,
                                 payload.length());
                         //If it is a blocking call, wait for the ack
                         if ( blocking ) {
@@ -362,14 +362,10 @@ public class TurbineHeatSensor {
                     new JavaSerializer<>(), new ReaderConfig(), null);
 
             do {
-                final EventRead<String>[] result = new EventRead[1];
-                result[0].getEvent();
+                final EventRead<String> result = reader.readNextEvent(0);
                 produceStats.runAndRecordTime(() -> {
-                    result[0] = reader.readNextEvent(0);
                     return CompletableFuture.completedFuture(null);
-                }, () -> {
-                    return Long.parseLong(result[0].getEvent());
-                }, 100);
+                }, Long.parseLong(result.getEvent()), 100);
             } while ( totalEvents-- > 0 );
         }
     }

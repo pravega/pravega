@@ -135,11 +135,11 @@ class PerfStats {
     }
 
     public CompletableFuture<Void> runAndRecordTime(Supplier<CompletableFuture<Void>> fn,
-                                                    Supplier<Long> startTimeProvider,
+                                                    long startTime,
                                                     int length) {
         int iter = this.iteration++;
         return fn.get().thenAccept( (lmn) -> {
-            record(iter, (int) (System.nanoTime() - startTimeProvider.get()), length,
+            record(iter, (int) (System.nanoTime() - startTime), length,
                     System.nanoTime());
         });
 
