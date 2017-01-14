@@ -44,8 +44,8 @@ import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -1199,7 +1199,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      */
     private static class OperationQueue implements Iterable<StorageOperation> {
         @GuardedBy("this")
-        private final Queue<StorageOperation> queue = new LinkedList<>();
+        private final Queue<StorageOperation> queue = new ArrayDeque<>();
 
         synchronized boolean add(StorageOperation operation) {
             return this.queue.add(operation);

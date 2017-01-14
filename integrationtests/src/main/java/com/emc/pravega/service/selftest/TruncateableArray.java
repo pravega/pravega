@@ -27,8 +27,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.LinkedList;
 
 /**
  * Represents an ArrayView that can append at one end and truncate at the other one.
@@ -40,7 +40,7 @@ class TruncateableArray implements ArrayView {
      * We copy the data in fixed sized blocks (of 4MB); this makes lookups a lot faster.
      */
     private static final int BLOCK_SIZE = 4 * 1024 * 1024;
-    private final LinkedList<byte[]> arrays;
+    private final ArrayDeque<byte[]> arrays;
     private int firstArrayOffset;
     private int length;
 
@@ -52,7 +52,7 @@ class TruncateableArray implements ArrayView {
      * Creates a new instance of the TruncateableArray class.
      */
     TruncateableArray() {
-        this.arrays = new LinkedList<>();
+        this.arrays = new ArrayDeque<>();
         this.firstArrayOffset = 0;
         this.length = 0;
     }
