@@ -1,4 +1,4 @@
-package com.emc.pravega.controller.actor;
+package com.emc.pravega.controller.actor.impl;
 
 import com.google.common.util.concurrent.Service;
 import lombok.extern.log4j.Log4j;
@@ -14,7 +14,7 @@ public class ActorFailureListener extends Service.Listener {
     private final int actorIndex;
     private final Executor executor;
 
-    public ActorFailureListener(List<Actor> actors, int actorIndex, Executor executor, Props props) {
+    public ActorFailureListener(List<Actor> actors, int actorIndex, Executor executor) {
         this.actors = actors;
         this.actorIndex = actorIndex;
         this.executor = executor;

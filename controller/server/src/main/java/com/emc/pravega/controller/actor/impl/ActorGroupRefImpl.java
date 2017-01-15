@@ -15,19 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.actor;
+package com.emc.pravega.controller.actor.impl;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
+import com.emc.pravega.controller.actor.ActorGroupRef;
+import com.emc.pravega.controller.actor.ActorSystem;
+import org.apache.commons.lang.NotImplementedException;
 
-@Data
-@AllArgsConstructor
-public class ActorGroupConfig {
-    private final String scope;
-    private final String streamName;
-    private final String readerGroupName;
-    private final int actorCount;
+public class ActorGroupRefImpl implements ActorGroupRef {
 
-    // todo: validate persistenceFrequence is > 0
-    private final int persistenceFrequency;
+    private final ActorSystem actorSystem;
+    private final String stream;
+
+    // package local constructor
+    ActorGroupRefImpl(ActorSystem actorSystem, String stream) {
+        this.actorSystem = actorSystem;
+        this.stream = stream;
+    }
+
+    public void sendEvent(byte[] event) {
+        // send an event to the stream
+        throw new NotImplementedException();
+    }
 }

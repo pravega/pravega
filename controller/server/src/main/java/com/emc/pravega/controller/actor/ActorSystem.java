@@ -17,74 +17,50 @@
  */
 package com.emc.pravega.controller.actor;
 
-import com.emc.pravega.ClientFactory;
-import com.emc.pravega.StreamManager;
-import com.emc.pravega.stream.StreamManagerImpl;
-import com.emc.pravega.stream.impl.ClientFactoryImpl;
-import com.emc.pravega.stream.impl.Controller;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
+import com.emc.pravega.controller.actor.impl.Props;
 
-import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
+/**
+ * It acts as the manager and wrapper around Actors and ActorGroups
+ * processing events from Pravega Streams belonging to a specific scope
+ * and hosted at specific location. It provides the only mechanism
+ * to create ActorGroups.
+ */
+public interface ActorSystem {
 
-@Slf4j
-public class ActorSystem {
+    /**
+     * Returns the name of the ActorSystem.
+     * @return name.
+     */
+    String getName();
 
-    private final String name;
-    private final String hostName;
-    private final List<ActorGroup> actorGroups;
+    /**
+     * Returns Pravega Scope.
+     * @return scope.
+     */
+    String getScope();
 
-    private final String scope;
-    protected final Controller controller;
-    protected final ClientFactory clientFactory;
-    protected final StreamManager streamManager;
+    /**
+     * Returns a reference to the ActorGroup processing events
+     * from the specified Pravega Stream.
+     * @param stream Stream name.
+     * @return ActorGroup reference.
+     */
+    ActorGroupRef getActorSelection(String stream);
 
-    private final Executor executor;
+    /**
+     * Creates an ActorGroup and returns a reference to it.
+     * @param props Properties of the AbstractActor to be instantiated
+     *              in the ActorGroup.
+     * @return ActorGroup reference.
+     */
+    ActorGroupRef actorOf(Props props);
 
-    public ActorSystem(String name, String hostName, String scope, Controller controller) {
-        this.name = name;
-        this.hostName = hostName;
-        this.actorGroups = new ArrayList<>();
-
-        this.scope = scope;
-        this.controller = controller;
-        this.streamManager = new StreamManagerImpl(scope, controller);
-        this.clientFactory = new ClientFactoryImpl(scope, controller, new ConnectionFactoryImpl(false), streamManager);
-
-        this.executor = Executors.newScheduledThreadPool(5);
-    }
-
-    public ActorGroupRef getActorSelection(String scope, String stream) {
-        return new ActorGroupRef(this, scope, stream);
-    }
-
-    public ActorGroupRef actorOf(Props props) {
-        ActorGroup actorGroup;
-        try {
-
-            // Create the actor group and start it.
-            actorGroup = new ActorGroup(this, executor, props);
-            actorGroup.startAsync();
-
-        } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
-            log.error("Error creating actor group.", e);
-            return null;
-        }
-        return actorGroup.getRef();
-    }
-
-    public void notifyHostFailure(String host) {
-        Preconditions.checkNotNull(host);
-        if (host.equals(this.hostName)) {
-            // shutdown all actor groups
-        } else {
-            // Notify all registered actor groups of host failure
-            this.actorGroups.forEach(group -> group.notifyHostFailure(host));
-        }
-    }
+    /**
+     * Notify a host failure to ActorGroups managed by the ActorSystem.
+     * The ActorGroup may send a notification to the Pravega ReaderGroup
+     * so that the orphaned Stream Segments can be redistributed among
+     * existing hosts.
+     * @param host Failed host's identifier.
+     */
+    void notifyHostFailure(String host);
 }

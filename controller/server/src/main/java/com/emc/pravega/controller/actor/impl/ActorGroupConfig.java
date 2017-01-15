@@ -15,28 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.actor;
+package com.emc.pravega.controller.actor.impl;
 
-/**
- * ActorGroup Interface. It provides mechanism to manage Actors
- * processing events from a Pravega Stream by participating in
- * the same Pravega ReaderGroup.
- */
-interface ActorGroup {
+import lombok.AllArgsConstructor;
+import lombok.Data;
 
-    /**
-     * Notifies Pravega ReaderGroup about failure of a host
-     * participating in the Reader Group.
-     * @param host
-     */
-    void notifyHostFailure(String host);
+@Data
+@AllArgsConstructor
+public class ActorGroupConfig {
 
-    /**
-     * Increase the number of Actors reading from the Pravega Stream
-     * and participating in a ReaderGroup. This method may be invoked
-     * if the number of active segments in the Pravega Stream increases
-     * on account of a Scale event due to increased event throughput.
-     * @param count
-     */
-    void increaseReaderCount(int count);
+    private final String streamName;
+
+    private final String readerGroupName;
+
+    private final int actorCount;
+
+    // todo: validate persistenceFrequence is > 0
+    private final int persistenceFrequency;
 }

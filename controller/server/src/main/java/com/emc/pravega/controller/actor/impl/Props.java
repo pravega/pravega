@@ -15,8 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.actor;
+package com.emc.pravega.controller.actor.impl;
 
+import com.emc.pravega.controller.actor.ReaderStatePersistence;
 import lombok.Data;
 
 import java.lang.reflect.Constructor;

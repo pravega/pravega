@@ -15,45 +15,51 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.actor;
+package com.emc.pravega.controller.actor.impl;
 
+import com.emc.pravega.controller.actor.impl.Props;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
+import lombok.AccessLevel;
 import lombok.Getter;
 
 // TODO: fault tolerance
 
 public abstract class Actor extends AbstractExecutionThreadService {
 
-    @Getter
+    @Getter(AccessLevel.PACKAGE)
     private EventStreamReader<byte[]> reader;
-    @Getter
+
+    @Getter(AccessLevel.PACKAGE)
     private Props props;
-    @Getter
+
+    @Getter(AccessLevel.PACKAGE)
     private String readerId;
+
     private static long DEFAULT_TIMEOUT = Long.MAX_VALUE;
+
     private int count = 0;
 
-    final void setReader(EventStreamReader<byte[]> reader) {
+    protected final void setReader(EventStreamReader<byte[]> reader) {
         this.reader = reader;
     }
 
-    final void setProps(Props props) {
+    protected final void setProps(Props props) {
         this.props = props;
     }
 
-    final void setReaderId(String id) {
+    protected final void setReaderId(String id) {
         this.readerId = id;
     }
 
     @Override
-    public final void startUp() throws Exception {
+    protected final void startUp() throws Exception {
         preStart();
     }
 
     @Override
-    public final void run() throws Exception {
+    protected final void run() throws Exception {
         while (isRunning()) {
             EventRead<byte[]> event = reader.readNextEvent(DEFAULT_TIMEOUT);
             receive(event.getEvent());
@@ -69,18 +75,31 @@ public abstract class Actor extends AbstractExecutionThreadService {
     }
 
     @Override
-    public final void shutDown() throws Exception {
+    protected final void shutDown() throws Exception {
         postStop();
     }
 
     @Override
-    public final void triggerShutdown() {
+    protected final void triggerShutdown() {
         this.stopAsync();
     }
 
-    public abstract void preStart() throws Exception;
+    /**
+     * AbstractActor initialization hook that is called before actor starts receiving events.
+     * @throws Exception
+     */
+    protected void preStart() throws Exception { }
 
-    public abstract void receive(byte[] event) throws Exception;
+    /**
+     * User defined event processing logic.
+     * @param event Event received from Pravega Stream.
+     * @throws Exception
+     */
+    protected abstract void receive(byte[] event) throws Exception;
 
-    public abstract void postStop() throws Exception;
+    /**
+     * AbstractActor shutdown hook that is called on shut down.
+     * @throws Exception
+     */
+    protected void postStop() throws Exception { }
 }

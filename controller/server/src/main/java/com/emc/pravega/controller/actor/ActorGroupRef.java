@@ -17,23 +17,17 @@
  */
 package com.emc.pravega.controller.actor;
 
-import org.apache.commons.lang.NotImplementedException;
+/**
+ * Provides a reference to an ActorGroup which can be used
+ * to send an event/message to the ActorGroup by pushing it
+ * to the Pravega Stream associated with that ActorGroup.
+ */
+public interface ActorGroupRef {
 
-public class ActorGroupRef {
-
-    private final ActorSystem actorSystem;
-    private final String scope;
-    private final String stream;
-
-    // package local constructor
-    ActorGroupRef(ActorSystem actorSystem, String scope, String stream) {
-        this.actorSystem = actorSystem;
-        this.scope = scope;
-        this.stream = stream;
-    }
-
-    public void sendEvent(byte[] event) {
-        // send an event to the stream
-        throw new NotImplementedException();
-    }
+    /**
+     * Sends an event to the ActorGroup by pushing it to
+     * the Pravega Stream associated with the ActorGroup.
+     * @param event Event to be sent to the ActorGroup.
+     */
+    void sendEvent(byte[] event);
 }

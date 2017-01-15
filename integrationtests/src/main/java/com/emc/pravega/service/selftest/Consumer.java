@@ -136,7 +136,7 @@ public class Consumer extends Actor {
 
     //endregion
 
-    //region Actor Implementation
+    //region AbstractActor Implementation
 
     @Override
     protected CompletableFuture<Void> run() {
