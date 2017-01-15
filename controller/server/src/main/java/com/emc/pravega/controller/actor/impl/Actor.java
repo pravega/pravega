@@ -43,6 +43,12 @@ public abstract class Actor extends AbstractExecutionThreadService {
     @Getter(AccessLevel.PACKAGE)
     private String readerId;
 
+    @Getter(AccessLevel.PACKAGE)
+    private ActorSystemImpl actorSystem;
+
+    @Getter(AccessLevel.PACKAGE)
+    private Executor executor;
+
     private List<ActorGroupImpl> actorGroups;
 
     private ActorContext context;
@@ -50,6 +56,8 @@ public abstract class Actor extends AbstractExecutionThreadService {
     private int count = 0;
 
     protected final void setup(ActorSystemImpl actorSystem, Executor executor, Props props) {
+        this.actorSystem = actorSystem;
+        this.executor = executor;
         this.props = props;
         this.actorGroups = new ArrayList<>();
         this.context = new ActorContext(actorSystem, executor, actorGroups);
@@ -97,25 +105,25 @@ public abstract class Actor extends AbstractExecutionThreadService {
 
     /**
      * AbstractActor initialization hook that is called before actor starts receiving events.
-     * @throws Exception
+     * @throws Exception Exception thrown from user defined preStart method.
      */
     protected void preStart() throws Exception { }
 
     /**
      * User defined event processing logic.
      * @param event Event received from Pravega Stream.
-     * @throws Exception
+     * @throws Exception Exception thrown from user defined preStart method.
      */
     protected abstract void receive(byte[] event) throws Exception;
 
     /**
      * AbstractActor shutdown hook that is called on shut down.
-     * @throws Exception
+     * @throws Exception Exception thrown from user defined preStart method.
      */
     protected void postStop() throws Exception { }
 
     /**
-     * Returns the current context for creating new ActorGroups.
+     * Get the current context for creating new ActorGroup as child of this Actor.
      * @return ActorContext.
      */
     protected final ActorContext getContext() {

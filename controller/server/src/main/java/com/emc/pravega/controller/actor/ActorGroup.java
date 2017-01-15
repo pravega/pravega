@@ -27,7 +27,7 @@ public interface ActorGroup {
     /**
      * Notifies Pravega ReaderGroup about failure of a host
      * participating in the Reader Group.
-     * @param host
+     * @param host Failed host.
      */
     void notifyHostFailure(String host);
 

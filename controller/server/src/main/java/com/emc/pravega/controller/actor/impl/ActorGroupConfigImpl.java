@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.controller.actor.impl;
 
-import com.emc.pravega.controller.actor.ActorGroupConfig;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 

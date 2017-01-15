@@ -19,6 +19,8 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.controller.server.LocalController;
+import com.emc.pravega.controller.server.actor.ControllerActors;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
@@ -66,6 +68,8 @@ public class ControllerWrapper implements Controller {
 
     private final ControllerService controller;
 
+    private final ControllerActors controllerActors;
+
     public ControllerWrapper(String connectionString) {
         String hostId;
         try {
@@ -95,7 +99,18 @@ public class ControllerWrapper implements Controller {
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId);
+                hostStore, taskMetadataStore, executor, null, hostId);
+
+        //region Setup Actors
+        LocalController localController =
+                new LocalController(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+
+        // todo: find a better way to avoid circular dependency
+        // between streamTransactionMetadataTasks and ControllerActors
+        controllerActors = new ControllerActors(hostId, localController, streamStore, hostStore);
+
+        controllerActors.initialize();
+        //endregion
 
         controller = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }

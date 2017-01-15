@@ -29,7 +29,7 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+import org.apache.commons.lang.NotImplementedException;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;

@@ -37,15 +37,15 @@ import java.util.concurrent.Executors;
 @Slf4j
 public class ActorSystemImpl implements ActorSystem {
 
+    protected final Controller controller;
+    protected final ClientFactory clientFactory;
+    protected final StreamManager streamManager;
+
     private final String name;
     private final String hostName;
     private final List<ActorGroupImpl> actorGroups;
 
     private final String scope;
-    protected final Controller controller;
-    protected final ClientFactory clientFactory;
-    protected final StreamManager streamManager;
-
     private final Executor executor;
 
     public ActorSystemImpl(String name, String hostName, String scope, Controller controller) {

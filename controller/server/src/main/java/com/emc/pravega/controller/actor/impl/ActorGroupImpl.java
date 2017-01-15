@@ -23,7 +23,6 @@ import com.emc.pravega.controller.actor.Props;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroup;
-import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.impl.ByteArraySerializer;
 import com.google.common.util.concurrent.AbstractService;
 import lombok.AccessLevel;
@@ -62,10 +61,11 @@ public final class ActorGroupImpl extends AbstractService implements ActorGroup 
         this.ref = new ActorGroupRefImpl(actorSystem, props.getConfig().getStreamName());
 
         // todo: what if reader group already exists, we just want to be part of that group.
+        // todo: properly instantiate ReaderGroupConfig passed as null in the following statement.
         readerGroup =
                 actorSystem.streamManager
                         .createReaderGroup(props.getConfig().getReaderGroupName(),
-                                new ReaderGroupConfig(),
+                                null,
                                 Collections.singletonList(actorSystem.getScope()));
 
         try {

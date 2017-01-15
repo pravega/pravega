@@ -18,6 +18,8 @@
 
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.controller.server.LocalController;
+import com.emc.pravega.controller.server.actor.ControllerActors;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -68,9 +70,11 @@ public class ControllerServiceTest {
 
     private final ControllerService consumer;
 
+    private final ControllerActors controllerActors;
     private final TestingServer zkServer;
 
     public ControllerServiceTest() throws Exception {
+        String hostId = "host";
         zkServer = new TestingServer();
         zkServer.start();
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
@@ -82,8 +86,20 @@ public class ControllerServiceTest {
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, "host");
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, "host");
+                hostStore, taskMetadataStore, executor, null, hostId);
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+
+        //region Setup Actors
+        LocalController localController =
+                new LocalController(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+
+        // todo: find a better way to avoid circular dependency
+        // between streamTransactionMetadataTasks and ControllerActors
+        controllerActors = new ControllerActors(hostId, localController, streamStore, hostStore);
+
+        // todo: uncomment following line
+        // controllerActors.initialize();
+        //endregion
     }
 
     @Before

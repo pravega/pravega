@@ -18,7 +18,6 @@
 package com.emc.pravega.controller.actor;
 
 import com.emc.pravega.controller.actor.impl.Actor;
-import com.emc.pravega.controller.actor.impl.ActorGroupConfigImpl;
 import lombok.Data;
 
 import java.lang.reflect.Constructor;
@@ -27,6 +26,9 @@ import java.util.Optional;
 
 // todo: create a builder for this class
 
+/**
+ * Configuration object for creating Actors via actorOf method of ActorSystem or ActorContext.
+ */
 @Data
 public class Props {
 
@@ -45,16 +47,16 @@ public class Props {
         this.clazz = clazz;
         this.args = args;
 
-        Optional<Constructor> c = getValidConstructor(clazz, args);
-        if (c.isPresent()) {
-            this.constructor = c.get();
+        Optional<Constructor> optional = getValidConstructor(clazz, args);
+        if (optional.isPresent()) {
+            this.constructor = optional.get();
         } else {
             throw new IllegalArgumentException("invalid argument set");
         }
     }
 
     private boolean validate(Class clazz) {
-        return Actor.class.isAssignableFrom(clazz) && Modifier.isAbstract(clazz.getModifiers());
+        return Actor.class.isAssignableFrom(clazz) && !Modifier.isAbstract(clazz.getModifiers());
     }
 
     private Optional<Constructor> getValidConstructor(Class clazz, Object... args) {

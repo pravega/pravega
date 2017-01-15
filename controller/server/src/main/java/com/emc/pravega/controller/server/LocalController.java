@@ -47,7 +47,7 @@ public class LocalController implements Controller {
 
     private ControllerService controller;
 
-    LocalController(final StreamMetadataStore streamStore,
+    public LocalController(final StreamMetadataStore streamStore,
                     final HostControllerStore hostStore,
                     final StreamMetadataTasks streamMetadataTasks,
                     final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
