@@ -16,29 +16,24 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.controller.server.rest.contract;
+package com.emc.pravega.controller.server.rest.contract.request;
 
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.StreamConfiguration;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.Setter;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 
 @Getter
-@Setter
 @AllArgsConstructor
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
-public class StreamConfig implements StreamConfiguration {
+public class CreateStreamRequest {
 
-    private String scope;
     private String name;
     private ScalingPolicy scalingPolicy;
     private RetentionPolicy retentionPolicy;
-
 }
