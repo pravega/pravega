@@ -92,9 +92,8 @@ public final class ActorGroupImpl extends AbstractService implements ActorGroup 
 
             // create a new actor, and add it to the list
             Actor actor = (Actor) props.getConstructor().newInstance(props.getArgs());
-            actor.setReader(reader);
-            actor.setProps(props);
-            actor.setReaderId(readerId);
+            actor.setReader(reader, readerId);
+            actor.setup(this.actorSystem, this.executor, props);
             actor.addListener(new ActorFailureListener(actors, i, executor), executor);
             actors.add(actor);
             // todo: persist the readerIds against this host in the persister

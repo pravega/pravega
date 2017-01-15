@@ -78,8 +78,9 @@ public class ActorSystemImpl implements ActorSystem {
     public ActorGroupRef actorOf(Props props) {
         ActorGroupImpl actorGroup;
 
-        // Create the actor group and start it.
+        // Create the actor group, add it to the list of actor groups, and start it.
         actorGroup = new ActorGroupImpl(this, executor, props);
+        actorGroups.add(actorGroup);
         actorGroup.startAsync();
 
         return actorGroup.getRef();

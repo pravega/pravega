@@ -17,12 +17,18 @@
  */
 package com.emc.pravega.controller.actor.impl;
 
+import com.emc.pravega.controller.actor.ActorGroupRef;
 import com.emc.pravega.controller.actor.Props;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Executor;
 
 // TODO: fault tolerance
 
@@ -37,20 +43,21 @@ public abstract class Actor extends AbstractExecutionThreadService {
     @Getter(AccessLevel.PACKAGE)
     private String readerId;
 
-    private static long DEFAULT_TIMEOUT = Long.MAX_VALUE;
+    private List<ActorGroupImpl> actorGroups;
+
+    private ActorContext context;
 
     private int count = 0;
 
-    protected final void setReader(EventStreamReader<byte[]> reader) {
-        this.reader = reader;
-    }
-
-    protected final void setProps(Props props) {
+    protected final void setup(ActorSystemImpl actorSystem, Executor executor, Props props) {
         this.props = props;
+        this.actorGroups = new ArrayList<>();
+        this.context = new ActorContext(actorSystem, executor, actorGroups);
     }
 
-    protected final void setReaderId(String id) {
-        this.readerId = id;
+    protected final void setReader(EventStreamReader<byte[]> reader, String readerId) {
+        this.reader = reader;
+        this.readerId = readerId;
     }
 
     @Override
@@ -60,8 +67,10 @@ public abstract class Actor extends AbstractExecutionThreadService {
 
     @Override
     protected final void run() throws Exception {
+        final long defaultTimeout = Long.MAX_VALUE;
+
         while (isRunning()) {
-            EventRead<byte[]> event = reader.readNextEvent(DEFAULT_TIMEOUT);
+            EventRead<byte[]> event = reader.readNextEvent(defaultTimeout);
             receive(event.getEvent());
 
             // persist reader position if persistenceFrequency number of events are processed
@@ -76,11 +85,13 @@ public abstract class Actor extends AbstractExecutionThreadService {
 
     @Override
     protected final void shutDown() throws Exception {
+        this.actorGroups.forEach(ActorGroupImpl::doStop);
         postStop();
     }
 
     @Override
     protected final void triggerShutdown() {
+        this.actorGroups.forEach(ActorGroupImpl::doStop);
         this.stopAsync();
     }
 
@@ -102,4 +113,31 @@ public abstract class Actor extends AbstractExecutionThreadService {
      * @throws Exception
      */
     protected void postStop() throws Exception { }
+
+    /**
+     * Returns the current context for creating new ActorGroups.
+     * @return ActorContext.
+     */
+    protected final ActorContext getContext() {
+        return this.context;
+    }
+
+    @AllArgsConstructor
+    public static class ActorContext {
+
+        private final ActorSystemImpl actorSystem;
+        private final Executor executor;
+        private final List<ActorGroupImpl> actorGroups;
+
+        public ActorGroupRef actorOf(Props props) {
+            ActorGroupImpl actorGroup;
+
+            // Create the actor group and start it.
+            actorGroup = new ActorGroupImpl(actorSystem, executor, props);
+            actorGroups.add(actorGroup);
+            actorGroup.startAsync();
+
+            return actorGroup.getRef();
+        }
+    }
 }

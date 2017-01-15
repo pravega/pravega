@@ -22,16 +22,9 @@ import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
-import com.emc.pravega.controller.actor.ActorGroupConfig;
-import com.emc.pravega.controller.actor.ActorGroupRef;
-import com.emc.pravega.controller.actor.ActorSystem;
-import com.emc.pravega.controller.actor.Props;
-import com.emc.pravega.controller.actor.impl.ActorGroupConfigImpl;
-import com.emc.pravega.controller.actor.impl.ActorSystemImpl;
-import com.emc.pravega.controller.actor.impl.CommitActor;
-import com.emc.pravega.controller.actor.impl.MetricsActor;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
+import com.emc.pravega.controller.server.actor.ControllerActors;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.store.StoreClient;
@@ -47,7 +40,6 @@ import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
-import com.emc.pravega.stream.impl.Controller;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
 
@@ -62,6 +54,8 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 @Slf4j
 public class Main {
+
+    public static ControllerActors controllerActors;
 
     public static void main(String[] args) {
         String hostId;
@@ -107,14 +101,16 @@ public class Main {
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId);
+                hostStore, taskMetadataStore, executor, () -> Main.controllerActors, hostId);
 
         //2. set up Actors
         //region Setup Actors
         LocalController localController =
                 new LocalController(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
 
-        ControllerActors controllerActors = new ControllerActors(localController);
+        // todo: find a better way to avoid circular dependency
+        // between streamTransactionMetadataTasks and ControllerActors
+        controllerActors = new ControllerActors(hostId, localController, streamStore, hostStore);
 
         controllerActors.initialize();
         //endregion
