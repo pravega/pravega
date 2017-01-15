@@ -22,7 +22,7 @@ package com.emc.pravega.controller.actor;
  * processing events from a Pravega Stream by participating in
  * the same Pravega ReaderGroup.
  */
-interface ActorGroup {
+public interface ActorGroup {
 
     /**
      * Notifies Pravega ReaderGroup about failure of a host
@@ -32,11 +32,13 @@ interface ActorGroup {
     void notifyHostFailure(String host);
 
     /**
-     * Increase the number of Actors reading from the Pravega Stream
-     * and participating in a ReaderGroup. This method may be invoked
-     * if the number of active segments in the Pravega Stream increases
-     * on account of a Scale event due to increased event throughput.
-     * @param count
+     * Increase/decrease the number of Actors reading from the Pravega
+     * Stream and participating in the ReaderGroup. This method may be
+     * invoked if the number of active segments in the Pravega Stream
+     * increases/decreased on account of a Scale event due to increased/
+     * decreased event throughput.
+     * @param count Number of Actors to add. Negative number indicates
+     *              decreasing the Actor count.
      */
-    void increaseReaderCount(int count);
+    void changeActorCount(int count);
 }

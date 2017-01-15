@@ -15,15 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server;
+package com.emc.pravega.controller.actor.impl;
 
-import com.emc.pravega.controller.actor.impl.Actor;
-
-public class TxnCommitActor extends Actor {
+/**
+ * Metrics processing logic.
+ */
+public class MetricsActor extends Actor {
 
     @Override
     protected void receive(byte[] event) throws Exception {
-
+        // todo: this is where metrics event processing logic goes
     }
 
 }

@@ -17,19 +17,17 @@
  */
 package com.emc.pravega.controller.actor.impl;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
+/**
+ * This actor processes commit txn events.
+ * It does the following 2 operations in order.
+ * 1. Send commit txn message to active segments of the stream.
+ * 2. Change txn state from committing to committed.
+ */
+public class CommitActor extends Actor {
 
-@Data
-@AllArgsConstructor
-public class ActorGroupConfig {
+    @Override
+    protected void receive(byte[] event) throws Exception {
 
-    private final String streamName;
+    }
 
-    private final String readerGroupName;
-
-    private final int actorCount;
-
-    // todo: validate persistenceFrequence is > 0
-    private final int persistenceFrequency;
 }

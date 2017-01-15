@@ -1,5 +1,6 @@
 package com.emc.pravega.controller.actor.impl;
 
+import com.emc.pravega.controller.actor.Props;
 import com.google.common.util.concurrent.Service;
 import lombok.extern.log4j.Log4j;
 

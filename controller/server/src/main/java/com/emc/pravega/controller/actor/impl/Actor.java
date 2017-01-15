@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.actor.impl;
 
-import com.emc.pravega.controller.actor.impl.Props;
+import com.emc.pravega.controller.actor.Props;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;

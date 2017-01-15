@@ -17,7 +17,9 @@
  */
 package com.emc.pravega.controller.actor.impl;
 
+import com.emc.pravega.controller.actor.ActorGroup;
 import com.emc.pravega.controller.actor.ActorGroupRef;
+import com.emc.pravega.controller.actor.Props;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroup;
@@ -26,6 +28,7 @@ import com.emc.pravega.stream.impl.ByteArraySerializer;
 import com.google.common.util.concurrent.AbstractService;
 import lombok.AccessLevel;
 import lombok.Getter;
+import org.apache.commons.lang.NotImplementedException;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
@@ -34,7 +37,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 
-public final class ActorGroupImpl extends AbstractService {
+public final class ActorGroupImpl extends AbstractService implements ActorGroup {
 
     private final ActorSystemImpl actorSystem;
 
@@ -51,24 +54,35 @@ public final class ActorGroupImpl extends AbstractService {
 
     private final Executor executor;
 
-    ActorGroupImpl(final ActorSystemImpl actorSystem, final Executor executor, final Props props)
-            throws IllegalAccessException,
-            InvocationTargetException,
-            InstantiationException {
+    ActorGroupImpl(final ActorSystemImpl actorSystem, final Executor executor, final Props props) {
         this.actorSystem = actorSystem;
         this.executor = executor;
         this.props = props;
         this.actors = new ArrayList<>();
         this.ref = new ActorGroupRefImpl(actorSystem, props.getConfig().getStreamName());
 
-        // Todo: what if reader group already exists, we just want to be part of that group.
+        // todo: what if reader group already exists, we just want to be part of that group.
         readerGroup =
                 actorSystem.streamManager
                         .createReaderGroup(props.getConfig().getReaderGroupName(),
                                 new ReaderGroupConfig(),
                                 Collections.singletonList(actorSystem.getScope()));
 
-        for (int i = 0; i < props.getConfig().getActorCount(); i++) {
+        try {
+            createActors(0, props.getConfig().getActorCount());
+        } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
+            throw new RuntimeException("Error instantiating Actors");
+        }
+
+        // start the group of actors
+        this.doStart();
+    }
+
+
+    private void createActors(final int startIndex, final int count) throws IllegalAccessException,
+            InvocationTargetException,
+            InstantiationException {
+        for (int i = startIndex; i < startIndex+count; i++) {
             String readerId = UUID.randomUUID().toString();
             EventStreamReader<byte[]> reader =
                     actorSystem.clientFactory.createReader(readerId,
@@ -83,19 +97,15 @@ public final class ActorGroupImpl extends AbstractService {
             actor.setReaderId(readerId);
             actor.addListener(new ActorFailureListener(actors, i, executor), executor);
             actors.add(actor);
+            // todo: persist the readerIds against this host in the persister
         }
-
-        // todo: persist the readerIds against this host in the persister
-
-        // start the group of actors
-        this.doStart();
     }
 
     @Override
     final protected void doStart() {
         // If an exception is thrown while starting an actor, it will be processed by the ActorFailureListener.
         // Current ActorFailureListener just logs failures encountered while starting.
-        actors.stream().forEach(actor -> actor.startAsync());
+        actors.stream().forEach(Actor::startAsync);
         notifyStarted();
     }
 
@@ -103,10 +113,11 @@ public final class ActorGroupImpl extends AbstractService {
     final protected void doStop() {
         // If an exception is thrown while stopping an actor, it will be processed by the ActorFailureListener.
         // Current ActorFailureListener just logs failures encountered while stopping.
-        actors.stream().forEach(actor -> actor.stopAsync());
+        actors.stream().forEach(Actor::stopAsync);
         notifyStopped();
     }
 
+    @Override
     public void notifyHostFailure(String host) {
         if (readerGroup.getOnlineReaders().contains(host)) {
             this.props.getPersister()
@@ -119,22 +130,16 @@ public final class ActorGroupImpl extends AbstractService {
         }
     }
 
-    public void increaseReaderCount(int count) throws IllegalAccessException, InvocationTargetException, InstantiationException {
-        for (int i = 0; i < count; i++) {
-            String readerId = UUID.randomUUID().toString();
-            EventStreamReader<byte[]> reader =
-                    actorSystem.clientFactory.createReader(readerId,
-                            props.getConfig().getReaderGroupName(),
-                            new ByteArraySerializer(),
-                            new ReaderConfig());
-
-            // create a new actor, and add it to the list
-            Actor actor = (Actor) props.getConstructor().newInstance(props.getArgs());
-            actor.setReader(reader);
-            actor.setProps(props);
-            actor.setReaderId(readerId);
-            actor.addListener(new ActorFailureListener(actors, i, executor), executor);
-            actors.add(actor);
+    @Override
+    public void changeActorCount(int count) {
+        if (count <= 0) {
+            throw new NotImplementedException();
+        } else {
+            try {
+                createActors(this.actors.size(), count);
+            }  catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
+                throw new RuntimeException("Error instantiating Actors");
+            }
         }
     }
 }

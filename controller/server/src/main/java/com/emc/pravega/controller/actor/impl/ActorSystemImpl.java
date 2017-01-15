@@ -21,6 +21,7 @@ import com.emc.pravega.ClientFactory;
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.controller.actor.ActorGroupRef;
 import com.emc.pravega.controller.actor.ActorSystem;
+import com.emc.pravega.controller.actor.Props;
 import com.emc.pravega.stream.StreamManagerImpl;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
@@ -28,7 +29,6 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -77,16 +77,11 @@ public class ActorSystemImpl implements ActorSystem {
 
     public ActorGroupRef actorOf(Props props) {
         ActorGroupImpl actorGroup;
-        try {
 
-            // Create the actor group and start it.
-            actorGroup = new ActorGroupImpl(this, executor, props);
-            actorGroup.startAsync();
+        // Create the actor group and start it.
+        actorGroup = new ActorGroupImpl(this, executor, props);
+        actorGroup.startAsync();
 
-        } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
-            log.error("Error creating actor group.", e);
-            return null;
-        }
         return actorGroup.getRef();
     }
 

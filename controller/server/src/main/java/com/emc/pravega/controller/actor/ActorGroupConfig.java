@@ -15,14 +15,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server;
+package com.emc.pravega.controller.actor;
 
-import com.emc.pravega.controller.actor.impl.Actor;
+/**
+ * Configuration for creating ActorGroup.
+ */
+public interface ActorGroupConfig {
 
-public class MetricsActor extends Actor {
+    /**
+     * Gets name of stream which supplies events for Actors in the ActorGroup.
+     * @return Stream name.
+     */
+    String getStreamName();
 
-    @Override
-    protected void receive(byte[] event) throws Exception {
-    }
+    /**
+     * Gets name of ReaderGroup to which Actors in the ActorGroup belong.
+     * @return ReaderGroup name.
+     */
+    String getReaderGroupName();
 
+    /**
+     * Gets the initial number of Actors in the ActorGroup.
+     * @return Initial number of Actors.
+     */
+    int getActorCount();
+
+    /**
+     * Gets the frequency of persistence of Position objects by Actors in the ActorGroup.
+     * @return Frequency of persistence of Position objects.
+     */
+    int getPersistenceFrequency();
 }

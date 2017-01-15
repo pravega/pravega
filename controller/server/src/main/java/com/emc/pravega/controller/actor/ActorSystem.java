@@ -17,8 +17,6 @@
  */
 package com.emc.pravega.controller.actor;
 
-import com.emc.pravega.controller.actor.impl.Props;
-
 /**
  * It acts as the manager and wrapper around Actors and ActorGroups
  * processing events from Pravega Streams belonging to a specific scope
