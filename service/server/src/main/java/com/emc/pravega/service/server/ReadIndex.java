@@ -19,7 +19,7 @@
 package com.emc.pravega.service.server;
 
 import com.emc.pravega.service.contracts.ReadResult;
-
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.Collection;
 
@@ -67,6 +67,32 @@ public interface ReadIndex extends AutoCloseable {
      * @throws IllegalArgumentException If the 'beginMerge' method was not called for the pair before.
      */
     void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId);
+
+    /**
+     * Reads a contiguous sequence of bytes of the given length starting at the given offset from the given Segment.
+     * Every byte in the range must meet the following conditions:
+     * <ul>
+     * <li> It must exist in this segment. This excludes bytes from merged transactions and future reads.
+     * <li> It must be part of data that is not yet committed to Storage (tail part) - as such, it must be fully in the cache.
+     * </ul>
+     * <p>
+     * Notes:
+     * <ul>
+     * <li> This method allows reading from partially merged transactions (on which beginMerge was called but not completeMerge).
+     * This is acceptable because this method is only meant to be used internally and it prebuilds the result into the
+     * returned InputStream.
+     * <li> This method will not cause cache statistics to be updated. As such, Cache entry generations will not be
+     * updated for those entries that are touched.
+     * </ul>
+     *
+     * @param streamSegmentId The Id of the StreamSegment to read from.
+     * @param startOffset     The offset in the StreamSegment where to start reading.
+     * @param length          The number of bytes to read.
+     * @return An InputStream containing the requested data, or null if all of the conditions of this read cannot be met.
+     * @throws IllegalStateException    If the read index is in recovery mode.
+     * @throws IllegalArgumentException If the parameters are invalid (offset, length or offset+length are not in the Segment's range).
+     */
+    InputStream readDirect(long streamSegmentId, long startOffset, int length);
 
     /**
      * Reads a number of bytes from the StreamSegment ReadIndex.
