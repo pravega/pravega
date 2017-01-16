@@ -22,22 +22,26 @@ import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.ArrayView;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.LinkedList;
 
 /**
  * Represents an ArrayView that can append at one end and truncate at the other one.
  */
 class TruncateableArray implements ArrayView {
     //region Members
-    private final LinkedList<byte[]> arrays;
-    private int offset;
+
+    /**
+     * We copy the data in fixed sized blocks (of 4MB); this makes lookups a lot faster.
+     */
+    private static final int BLOCK_SIZE = 4 * 1024 * 1024;
+    private final ArrayDeque<byte[]> arrays;
+    private int firstArrayOffset;
     private int length;
 
     //endregion
@@ -48,8 +52,8 @@ class TruncateableArray implements ArrayView {
      * Creates a new instance of the TruncateableArray class.
      */
     TruncateableArray() {
-        this.arrays = new LinkedList<>();
-        this.offset = 0;
+        this.arrays = new ArrayDeque<>();
+        this.firstArrayOffset = 0;
         this.length = 0;
     }
 
@@ -59,10 +63,10 @@ class TruncateableArray implements ArrayView {
 
     @Override
     public byte get(int index) {
-        Preconditions.checkPositionIndex(index, this.length, "index must be non-negative and less than the length of the array.");
+        Preconditions.checkArgument(index >= 0 && index < this.length, "index must be non-negative and less than the length of the array.");
 
         // Adjust the index based on the first entry offset.
-        index += this.offset;
+        index += this.firstArrayOffset;
 
         // Find the array which contains the sought index.
         for (byte[] array : this.arrays) {
@@ -99,10 +103,13 @@ class TruncateableArray implements ArrayView {
 
     @Override
     public InputStream getReader(int offset, int length) {
+        Preconditions.checkArgument(offset >= 0, "offset must be a non-negative number.");
+        Preconditions.checkArgument(length >= 0, "length must be a non-negative number.");
+        Preconditions.checkArgument(offset + length <= this.length, "offset+length must be non-negative and less than or equal to the length of the array.");
         ArrayList<ByteArrayInputStream> streams = new ArrayList<>();
 
         // Adjust the index based on the first entry offset.
-        offset += this.offset;
+        offset += this.firstArrayOffset;
 
         // Find the array which contains the starting offset.
         for (byte[] array : this.arrays) {
@@ -139,26 +146,32 @@ class TruncateableArray implements ArrayView {
      * @param length     The length of the InputStream to append.
      */
     void append(InputStream dataStream, int length) {
-        byte[] data = new byte[length];
-        try {
-            int bytesCopied = StreamHelpers.readAll(dataStream, data, 0, length);
-            assert bytesCopied == length : "unable to read the requested number of bytes";
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
+        if (length == 0) {
+            return;
         }
 
-        append(data);
-    }
+        int insertOffset = (this.firstArrayOffset + this.length) % BLOCK_SIZE;
+        while (length > 0) {
+            byte[] insertArray;
+            if (insertOffset == 0) {
+                // Last Array full
+                insertArray = new byte[BLOCK_SIZE];
+                this.arrays.add(insertArray);
+            } else {
+                insertArray = this.arrays.getLast();
+            }
 
-    /**
-     * Appends the given byte array at the end of the array.
-     *
-     * @param data The array to append.
-     */
-    void append(byte[] data) {
-        if (data.length > 0) {
-            this.arrays.add(data);
-            this.length += data.length;
+            int toCopy = Math.min(length, BLOCK_SIZE - insertOffset);
+            try {
+                int bytesCopied = StreamHelpers.readAll(dataStream, insertArray, insertOffset, toCopy);
+                assert bytesCopied == toCopy : "unable to read the requested number of bytes";
+            } catch (IOException ex) {
+                throw new UncheckedIOException(ex);
+            }
+
+            length -= toCopy;
+            this.length += toCopy;
+            insertOffset = 0;
         }
     }
 
@@ -173,21 +186,21 @@ class TruncateableArray implements ArrayView {
 
         while (this.arrays.size() > 0 && truncationLength > 0) {
             byte[] first = this.arrays.getFirst();
-            if (truncationLength >= first.length - this.offset) {
+            if (truncationLength >= first.length - this.firstArrayOffset) {
                 // We need to truncate more than what is available in the first array; chop it all off.
                 this.arrays.removeFirst();
-                truncationLength -= first.length - this.offset;
-                this.offset = 0;
+                truncationLength -= first.length - this.firstArrayOffset;
+                this.firstArrayOffset = 0;
             } else {
                 // We need to truncate less than what is available in the first array; adjust offset.
-                this.offset += truncationLength;
+                this.firstArrayOffset += truncationLength;
                 truncationLength = 0;
             }
         }
 
         assert truncationLength == 0 : "not all requested bytes were truncated";
         if (this.arrays.size() == 0) {
-            assert this.offset == 0 : "first entry offset not reset when no entries exist";
+            assert this.firstArrayOffset == 0 : "first entry offset not reset when no entries exist";
             assert this.length == 0 : "non-zero length when no entries exist";
         }
     }
