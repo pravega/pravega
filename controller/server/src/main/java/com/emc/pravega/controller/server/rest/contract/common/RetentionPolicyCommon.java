@@ -15,10 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server.rest.contract.response;
+package com.emc.pravega.controller.server.rest.contract.common;
 
-import com.emc.pravega.controller.server.rest.contract.common.RetentionPolicyCommon;
-import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommon;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -30,10 +28,6 @@ import javax.ws.rs.core.MediaType;
 @AllArgsConstructor
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
-
-public class StreamResponse {
-    private String scope;
-    private String name;
-    private ScalingPolicyCommon scalingPolicy;
-    private RetentionPolicyCommon retentionPolicy;
+public class RetentionPolicyCommon {
+    private long retentionTimeMillis;
 }

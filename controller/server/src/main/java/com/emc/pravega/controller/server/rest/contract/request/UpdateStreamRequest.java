@@ -17,8 +17,8 @@
  */
 package com.emc.pravega.controller.server.rest.contract.request;
 
-import com.emc.pravega.stream.RetentionPolicy;
-import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.controller.server.rest.contract.common.RetentionPolicyCommon;
+import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommon;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -32,7 +32,6 @@ import javax.ws.rs.core.MediaType;
 @Consumes(MediaType.APPLICATION_JSON)
 
 public class UpdateStreamRequest {
-
-    private ScalingPolicy scalingPolicy;
-    private RetentionPolicy retentionPolicy;
+    private ScalingPolicyCommon scalingPolicy;
+    private RetentionPolicyCommon retentionPolicy;
 }
