@@ -21,7 +21,6 @@ package com.emc.pravega.service.server.writer;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
-import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
@@ -32,15 +31,15 @@ import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
-import lombok.Setter;
-
-import javax.annotation.concurrent.GuardedBy;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.Setter;
 
 /**
  * Test version of a WriterDataSource that can accumulate operations in memory (just like the real DurableLog) and only
@@ -218,9 +217,9 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
-    public byte[] getAppendData(CacheKey key) {
+    public InputStream getData(long streamSegmentId, long startOffset, int length) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.getAppendDataErrorInjector);
-        return this.cache.get(key);
+        return null; // TODO: fix.
     }
 
     @Override

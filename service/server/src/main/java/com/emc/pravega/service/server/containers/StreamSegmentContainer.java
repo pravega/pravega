@@ -114,9 +114,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.readIndex = readIndexFactory.createReadIndex(this.metadata, this.cache);
         this.executor = executor;
         this.durableLog = durableLogFactory.createDurableLog(this.metadata, new CacheUpdater(this.cache, this.readIndex));
-        this.durableLog.addListener(new ServiceShutdownListener(this.createComponentStoppedHandler("DurableLog"), this.createComponentFailedHandler("DurableLog")), this.executor);
-        this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex, this.cache);
-        this.writer.addListener(new ServiceShutdownListener(this.createComponentStoppedHandler("Writer"), this.createComponentFailedHandler("Writer")), this.executor);
+        this.durableLog.addListener(new ServiceShutdownListener(createComponentStoppedHandler("DurableLog"), createComponentFailedHandler("DurableLog")), this.executor);
+        this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex);
+        this.writer.addListener(new ServiceShutdownListener(createComponentStoppedHandler("Writer"), createComponentFailedHandler("Writer")), this.executor);
         this.pendingAppendsCollection = new PendingAppendsCollection();
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage, this.executor);
     }

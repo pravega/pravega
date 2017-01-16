@@ -28,12 +28,12 @@ import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
+import com.emc.pravega.service.server.logs.SerializationException;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
@@ -42,10 +42,12 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperati
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -55,6 +57,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Aggregates contents for a specific StreamSegment.
@@ -308,12 +313,23 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         boolean processOp = lastOffset > this.metadata.getStorageLength()
                 || (!this.metadata.isSealedInStorage() && (operation instanceof StreamSegmentSealOperation));
         if (processOp) {
-            this.operations.add(operation);
             if (operation instanceof MergeTransactionOperation) {
+                this.operations.add(operation);
                 this.mergeTransactionCount.incrementAndGet();
             } else if (operation instanceof StreamSegmentSealOperation) {
+                this.operations.add(operation);
                 this.hasSealPending.set(true);
-            } else if (operation instanceof StreamSegmentAppendOperation || operation instanceof CachedStreamSegmentAppendOperation) {
+            } else if (operation instanceof CachedStreamSegmentAppendOperation) {
+                AggregatedAppendOperation aggregatedAppend;
+                if (this.operations.size() > 0 || isAppendOperation(this.operations.peek())) {
+                    // Try to add to the last aggregated append.
+                    aggregatedAppend = (AggregatedAppendOperation) this.operations.peek();
+                } else {
+                    //
+                    aggregatedAppend = new AggregatedAppendOperation(this.metadata);
+                }
+
+                // TODO: perform coalescing here.
                 // Update current outstanding length - but we only keep track of this for appends (MergeTransactions do not count for flush thresholds).
                 this.outstandingAppendLength.addAndGet(operation.getLength());
             }
@@ -494,7 +510,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flushPendingAppends");
 
-        if (flushArgs.getTotalLength() == 0) {
+        if (flushArgs.getLength() == 0) {
             // Nothing to flush.
             FlushResult result = new FlushResult();
             LoggerHelpers.traceLeave(log, this.traceObjectId, "flushPendingAppends", traceId, result);
@@ -502,9 +518,9 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         // Flush them.
-        InputStream inputStream = flushArgs.getInputStream();
+        InputStream inputStream = flushArgs.getStream();
         return this.storage
-                .write(this.metadata.getName(), this.metadata.getStorageLength(), inputStream, flushArgs.getTotalLength(), timeout)
+                .write(this.metadata.getName(), this.metadata.getStorageLength(), inputStream, flushArgs.getLength(), timeout)
                 .thenApply(v -> {
                     FlushResult result = updateStatePostFlush(flushArgs);
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "flushPendingAppends", traceId, result);
@@ -524,51 +540,32 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     }
 
     /**
-     * Aggregates all outstanding Append Operations into a single object that can be used for flushing. This continues
-     * to aggregate operations until a non-Append operation is encountered or until we have accumulated enough data (exceeding config.getMaxFlushSizeBytes).
+     * Returns a FlushArgs which contains the data needing to be flushed to Storage.
      *
      * @return The aggregated object that can be used for flushing.
-     * @throws DataCorruptionException If a CachedStreamSegmentAppendOperation does not have any data in the cache.
+     * @throws DataCorruptionException If a unable to retrieve required data from the Data Source.
      */
     private FlushArgs getFlushArgs() throws DataCorruptionException {
-        FlushArgs result = new FlushArgs();
-        int remainingCapacity = this.config.getMaxFlushSizeBytes();
-        for (StorageOperation op : this.operations) {
-            byte[] data;
-            if (op instanceof StreamSegmentAppendOperation) {
-                data = ((StreamSegmentAppendOperation) op).getData();
-            } else if (op instanceof CachedStreamSegmentAppendOperation) {
-                CacheKey key = new CacheKey(op.getStreamSegmentId(), op.getStreamSegmentOffset());
-                data = this.dataSource.getAppendData(key);
-                if (data == null) {
-                    throw new DataCorruptionException(String.format("Unable to retrieve CacheContents for operation '%s', with key '%s'.", op, key));
-                }
-            } else {
-                // We found one operation that is not an append; this is as much as we can flush.
-                break;
-            }
-
-            // Calculate the exact offset within the buffer that we need to start adding at. This is necessary because
-            // we can commit partial operations (for optimization purposes).
-            long bufferOffset = Math.max(0, this.metadata.getStorageLength() - op.getStreamSegmentOffset());
-            if (bufferOffset > op.getLength()) {
-                throw new DataCorruptionException(String.format("Cannot flush operation '%s'. Its end offset is before the Segment's StorageLength (%d).", op, this.metadata.getStorageLength()));
-            }
-
-            // Calculate the maximum amount of data from this buffer that we can commit, without exceeding the Max Flush Size (remainingCapacity).
-            int bufferLength = Math.min(remainingCapacity, data.length - (int) bufferOffset);
-
-            // Add whatever we can to the result.
-            result.add(data, (int) bufferOffset, bufferLength);
-            remainingCapacity -= bufferLength;
-
-            if (remainingCapacity <= 0) {
-                // We have exceeded the maximum flush size. Stop here and return the result.
-                break;
-            }
+        StorageOperation first = this.operations.peek();
+        if (!(first instanceof AggregatedAppendOperation)) {
+            // Nothing to flush - first operation is not an AggregatedAppend.
+            return new FlushArgs(null, 0);
         }
 
-        return result;
+        AggregatedAppendOperation appendOp = (AggregatedAppendOperation) first;
+        int length = (int) appendOp.getLength();
+        InputStream data;
+        try {
+            data = this.dataSource.getData(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset(), length);
+        } catch (Exception ex) {
+            throw new DataCorruptionException(String.format("Unable to retrieve CacheContents for '%s'.", appendOp), ex);
+        }
+
+        if (data == null) {
+            throw new DataCorruptionException(String.format("Unable to retrieve CacheContents for '%s'.", appendOp));
+        }
+
+        return new FlushArgs(data, length);
     }
 
     /**
@@ -848,17 +845,13 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in Storage.
      */
     private CompletableFuture<FlushResult> reconcileAppendOperation(StorageOperation op, SegmentProperties storageInfo, TimeoutTimer timer, Executor executor) {
-        // Read data from Storage, and compare byte-by-byte.
-        AtomicReference<byte[]> appendData = new AtomicReference<>();
-        if (op instanceof StreamSegmentAppendOperation) {
-            appendData.set(((StreamSegmentAppendOperation) op).getData());
-        } else if (op instanceof CachedStreamSegmentAppendOperation) {
-            CacheKey key = new CacheKey(op.getStreamSegmentId(), op.getStreamSegmentOffset());
-            appendData.set(this.dataSource.getAppendData(key));
-        }
+        Preconditions.checkArgument(op instanceof AggregatedAppendOperation, "Not given an append operation.");
 
-        if (appendData.get() == null) {
-            return FutureHelpers.failedFuture(new ReconciliationFailureException(String.format("Unable to reconcile operation '%s' because no append data is associated with it.", op), this.metadata, storageInfo));
+        // Read data from Storage, and compare byte-by-byte.
+        InputStream appendStream = this.dataSource.getData(op.getStreamSegmentId(), op.getStreamSegmentOffset(), (int) op.getLength());
+        if (appendStream == null) {
+            return FutureHelpers.failedFuture(new ReconciliationFailureException(
+                    String.format("Unable to reconcile operation '%s' because no append data is associated with it.", op), this.metadata, storageInfo));
         }
 
         // Only read as much data as we need.
@@ -879,14 +872,18 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                         executor)
                 .thenApply(v -> {
                     // Compare, byte-by-byte, the contents of the append.
-                    byte[] data = appendData.get();
-                    for (int i = 0; i < storageData.length; i++) {
-                        if (data[i] != storageData[i]) {
-                            throw new CompletionException(new ReconciliationFailureException(String.format("Unable to reconcile operation '%s' because of data differences at SegmentOffset %d.", op, op.getStreamSegmentOffset() + i), this.metadata, storageInfo));
+                    try {
+                        for (int i = 0; i < storageData.length; i++) {
+                            if ((byte) appendStream.read() != storageData[i]) {
+                                throw new ReconciliationFailureException(
+                                        String.format("Unable to reconcile operation '%s' because of data differences at SegmentOffset %d.", op, op.getStreamSegmentOffset() + i), this.metadata, storageInfo);
+                            }
                         }
+                    } catch (IOException | ReconciliationFailureException ex) {
+                        throw new CompletionException(ex);
                     }
 
-                    if (readLength >= data.length && op.getLastStreamSegmentOffset() <= storageInfo.getLength()) {
+                    if (readLength >= op.getLength() && op.getLastStreamSegmentOffset() <= storageInfo.getLength()) {
                         // Operation has been completely validated; pop it off the list.
                         StorageOperation removedOp = this.operations.poll();
                         assert op == removedOp : "Reconciled operation is not the same as removed operation";
@@ -1006,6 +1003,9 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             throw new DataCorruptionException(String.format("No operation is allowed for a sealed segment; received '%s' .", operation));
         }
 
+        // StreamSegmentAppendOperations need to be pre-processed into CachedStreamSegmentAppendOperations.
+        Preconditions.checkArgument(!(operation instanceof StreamSegmentAppendOperation), "SegmentAggregator cannot process StreamSegmentAppendOperations.");
+
         // Verify operation offset against the lastAddedOffset (whether the last Op in the list or StorageLength).
         long offset = operation.getStreamSegmentOffset();
         long length = operation.getLength();
@@ -1053,7 +1053,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      */
     private FlushResult updateStatePostFlush(FlushArgs flushArgs) {
         // Update the metadata Storage Length.
-        long newLength = this.metadata.getStorageLength() + flushArgs.getTotalLength();
+        long newLength = this.metadata.getStorageLength() + flushArgs.getLength();
         this.metadata.setStorageLength(newLength);
 
         // Remove operations from the outstanding list as long as every single byte it contains has been committed.
@@ -1071,12 +1071,12 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         // Update the outstanding length.
-        long newOutstandingLength = this.outstandingAppendLength.addAndGet(-flushArgs.getTotalLength());
+        long newOutstandingLength = this.outstandingAppendLength.addAndGet(-flushArgs.getLength());
         assert newOutstandingLength >= 0 : "negative outstandingAppendLength";
 
         // Update the last flush checkpoint.
         this.lastFlush.set(this.stopwatch.elapsed());
-        return new FlushResult().withFlushedBytes(flushArgs.getTotalLength());
+        return new FlushResult().withFlushedBytes(flushArgs.getLength());
     }
 
     /**
@@ -1143,7 +1143,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @return True if an Append Operation (Cached or non-cached), false otherwise.
      */
     private boolean isAppendOperation(StorageOperation op) {
-        return op != null && (op instanceof StreamSegmentAppendOperation) || (op instanceof CachedStreamSegmentAppendOperation);
+        return op != null && op instanceof AggregatedAppendOperation;
     }
 
     private void ensureInitializedAndNotClosed() {
@@ -1162,6 +1162,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
     //endregion
 
+    @Getter
     private static class ReconciliationState {
         private final SegmentProperties storageInfo;
         private final long initialStorageLength;
@@ -1172,17 +1173,73 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             this.initialStorageLength = segmentMetadata.getStorageLength();
         }
 
-        long getInitialStorageLength() {
-            return this.initialStorageLength;
-        }
-
-        SegmentProperties getStorageInfo() {
-            return this.storageInfo;
-        }
-
         @Override
         public String toString() {
             return String.format("Metadata.StorageLength = %d, Storage.Length = %d", this.initialStorageLength, this.storageInfo.getLength());
         }
+    }
+
+    /**
+     * Represents a set of arguments for a Storage Flush Operation.
+     */
+    @Getter
+    @RequiredArgsConstructor
+    private static class FlushArgs {
+        private final InputStream stream;
+        private final int length;
+
+        @Override
+        public String toString() {
+            return String.format("TotalSize = %d", this.length);
+        }
+    }
+
+    private static class AggregatedAppendOperation extends StorageOperation {
+        private final AtomicLong streamSegmentOffset;
+        private final AtomicInteger length;
+
+        AggregatedAppendOperation(SegmentMetadata segmentMetadata) {
+            super(segmentMetadata.getId());
+            this.streamSegmentOffset = new AtomicLong(segmentMetadata.getStorageLength());
+            this.length = new AtomicInteger();
+        }
+
+        int include(CachedStreamSegmentAppendOperation op) {
+
+        }
+
+        // region StorageOperation Implementation
+
+        @Override
+        public long getStreamSegmentOffset() {
+            return this.streamSegmentOffset.get();
+        }
+
+        @Override
+        public long getLength() {
+            return this.length.get();
+        }
+
+        @Override
+        protected byte getOperationType() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void serializeContent(DataOutputStream target) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String toString() {
+            return String.format("AggregatedAppend: SegmentId = %s, Offsets = [%s-%s]", getStreamSegmentId(), getStreamSegmentOffset(), getStreamSegmentOffset() + getLength() - 1);
+        }
+
+        //endregion
     }
 }

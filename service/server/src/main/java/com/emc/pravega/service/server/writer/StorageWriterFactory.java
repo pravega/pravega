@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -26,16 +25,15 @@ import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.Writer;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.operations.Operation;
-import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Factory for StorageWriters.
@@ -63,10 +61,10 @@ public class StorageWriterFactory implements WriterFactory {
     }
 
     @Override
-    public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Cache cache) {
+    public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex) {
         Preconditions.checkArgument(containerMetadata.getContainerId() == operationLog.getId(), "Given containerMetadata and operationLog have different Container Ids.");
         Storage storage = this.storageFactory.getStorageAdapter();
-        WriterDataSource dataSource = new StorageWriterDataSource(containerMetadata, operationLog, readIndex, cache);
+        WriterDataSource dataSource = new StorageWriterDataSource(containerMetadata, operationLog, readIndex);
         return new StorageWriter(this.config, dataSource, storage, this.executor);
     }
 
@@ -76,20 +74,17 @@ public class StorageWriterFactory implements WriterFactory {
     private static class StorageWriterDataSource implements WriterDataSource {
         private final UpdateableContainerMetadata containerMetadata;
         private final OperationLog operationLog;
-        private final Cache cache;
         private final ReadIndex readIndex;
         private final String traceObjectId;
 
-        StorageWriterDataSource(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Cache cache) {
+        StorageWriterDataSource(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex) {
             Preconditions.checkNotNull(containerMetadata, "containerMetadata");
             Preconditions.checkNotNull(operationLog, "operationLog");
             Preconditions.checkNotNull(readIndex, "readIndex");
-            Preconditions.checkNotNull(cache, "cache");
 
             this.containerMetadata = containerMetadata;
             this.operationLog = operationLog;
             this.readIndex = readIndex;
-            this.cache = cache;
             this.traceObjectId = String.format("WriterDataSource[%d]", containerMetadata.getContainerId());
         }
 
@@ -140,8 +135,8 @@ public class StorageWriterFactory implements WriterFactory {
         }
 
         @Override
-        public byte[] getAppendData(CacheKey key) {
-            return this.cache.get(key);
+        public InputStream getData(long streamSegmentId, long startOffset, int length) {
+            return this.readIndex.readDirect(streamSegmentId, startOffset, length);
         }
 
         //endregion
