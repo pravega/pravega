@@ -37,9 +37,9 @@ class TruncateableArray implements ArrayView {
     //region Members
 
     /**
-     * We copy the data in fixed sized blocks (of 4MB); this makes lookups a lot faster.
+     * We copy the data in fixed sized blocks (of 1MB); this makes lookups a lot faster.
      */
-    private static final int BLOCK_SIZE = 4 * 1024 * 1024;
+    private static final int BLOCK_SIZE = 1024 * 1024;
     private final ArrayDeque<byte[]> arrays;
     private int firstArrayOffset;
     private int length;
