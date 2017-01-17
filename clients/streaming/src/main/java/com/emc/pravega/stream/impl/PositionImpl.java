@@ -18,7 +18,6 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.stream.Segment;
-import com.google.common.base.Preconditions;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,57 +34,32 @@ public class PositionImpl extends PositionInternal {
 
     private static final long serialVersionUID = 1L;
     private final Map<Segment, Long> ownedSegments;
-    private final Map<FutureSegment, Long> futureOwnedSegments;
 
-    public PositionImpl(Map<Segment, Long> ownedSegments, Map<FutureSegment, Long> futureOwnedSegments) {
+    public PositionImpl(Map<Segment, Long> ownedSegments) {
         this.ownedSegments = new HashMap<>(ownedSegments);
-        this.futureOwnedSegments = new HashMap<>(futureOwnedSegments);
-        Preconditions.checkArgument(isFutureSegmentsWellFormed(ownedSegments, futureOwnedSegments),
-                                    "Owned and future logs must be coherent: " + this.toString());
     }
     
-    public PositionImpl(Map<Segment, Long> ownedSegments, Set<Segment> completedSegments, Map<FutureSegment, Long> futureOwnedSegments) {
+    public PositionImpl(Map<Segment, Long> ownedSegments, Set<Segment> completedSegments) {
         this.ownedSegments = new HashMap<>(ownedSegments);
         for (Segment completed : completedSegments) {
             ownedSegments.put(completed, -1L);
         }
-        this.futureOwnedSegments = new HashMap<>(futureOwnedSegments);
-        Preconditions.checkArgument(isFutureSegmentsWellFormed(ownedSegments, futureOwnedSegments),
-                                    "Owned and future logs must be coherent: " + this.toString());
     }
     
     static PositionImpl createEmptyPosition() {
-        return new PositionImpl(new HashMap<>(), new HashMap<>());
+        return new PositionImpl(new HashMap<>());
     }
     
     PositionImpl copyWith(Segment newSegment, long offset) {
         HashMap<Segment, Long> newSegments = new HashMap<>(ownedSegments);
         newSegments.put(newSegment, offset);
-        return new PositionImpl(newSegments, futureOwnedSegments);
+        return new PositionImpl(newSegments);
     }
     
     PositionImpl copyWithout(Segment toRemove) {
         HashMap<Segment, Long> newSegments = new HashMap<>(ownedSegments);
         ownedSegments.remove(toRemove);
-        HashMap<FutureSegment, Long> newFutureSegments = new HashMap<>(futureOwnedSegments);
-        for (FutureSegment futureSegment : futureOwnedSegments.keySet()) {
-            if (futureSegment.getPrecedingNumber() == toRemove.getSegmentNumber()) {
-                newFutureSegments.remove(futureSegment);
-            }
-        }
-        return new PositionImpl(newSegments, newFutureSegments);
-    }
-
-    private boolean isFutureSegmentsWellFormed(Map<Segment, Long> ownedSegments, Map<FutureSegment, Long> futureOwnedSegments) {
-        // every segment in futures should
-        // 1. not be in ownedLogs, and
-        // 2. have a predecessor in ownedLogs
-        Set<Integer> current = ownedSegments.entrySet()
-            .stream()
-            .map(x -> x.getKey().getSegmentNumber())
-            .collect(Collectors.toSet());
-        return futureOwnedSegments.entrySet().stream().allMatch(x -> current.contains(x.getKey().getPrecedingNumber())
-                && !current.contains(x.getKey().getSegmentNumber()));
+        return new PositionImpl(newSegments);
     }
 
     @Override
@@ -110,16 +84,6 @@ public class PositionImpl extends PositionInternal {
     @Override
     public Long getOffsetForOwnedSegment(Segment segmentId) {
         return ownedSegments.get(segmentId);
-    }
-
-    @Override
-    public Set<FutureSegment> getFutureOwnedSegments() {
-        return Collections.unmodifiableSet(futureOwnedSegments.keySet());
-    }
-
-    @Override
-    public Map<FutureSegment, Long> getFutureOwnedSegmentsWithOffsets() {
-        return Collections.unmodifiableMap(futureOwnedSegments);
     }
 
     @Override

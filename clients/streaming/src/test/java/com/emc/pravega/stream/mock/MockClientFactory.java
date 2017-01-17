@@ -102,7 +102,7 @@ public class MockClientFactory implements ClientFactory {
     }
 
     public Position getInitialPosition(String stream) {
-        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
+        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L));
     }
 
 }

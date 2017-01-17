@@ -27,6 +27,8 @@ import com.google.common.base.Preconditions;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -47,6 +49,8 @@ class ReaderGroupState implements Revisioned {
     private Revision revision;
     @GuardedBy("$lock")
     private final Map<String, Long> distanceToTail = new HashMap<>();
+    @GuardedBy("$lock")
+    private final Map<Segment, Set<Integer>> futureSegments = new HashMap<>();
     @GuardedBy("$lock")
     private final Map<String, PositionImpl> positions = new HashMap<>();
     @GuardedBy("$lock")
@@ -233,18 +237,37 @@ class ReaderGroupState implements Revisioned {
     }
     
     /**
-     * Updates a position object without aquiring or releasing a segment.
+     * Updates a position object when the reader has completed a segment.
      */
     @RequiredArgsConstructor
-    static class UpdatePosition extends ReaderGroupStateUpdate {
+    static class SegmentCompleted extends ReaderGroupStateUpdate {
         private final String consumerId;
         private final PositionImpl newPosition;
+        private final Segment segmentCompleted;
+        private final Map<Segment, List<Integer>> successorsMappedToTheirPredecessors;
         
         @Override
         void update(ReaderGroupState state) {
             PositionImpl oldPos = state.positions.put(consumerId, newPosition);
             Preconditions.checkState(oldPos != null);
+            for (Entry<Segment, List<Integer>> entry : successorsMappedToTheirPredecessors.entrySet()) {
+                Set<Integer> requiredToComplete = state.futureSegments.getOrDefault(entry.getKey(), new HashSet<>());
+                requiredToComplete.addAll(entry.getValue());
+            }
+            for (Set<Integer> requiredToComplete : state.futureSegments.values()) {
+                requiredToComplete.remove(segmentCompleted);
+            }
+            for (Iterator<Entry<Segment, Set<Integer>>> iter = state.futureSegments.entrySet()
+                                                                                   .iterator(); iter.hasNext();) {
+                Entry<Segment, Set<Integer>> entry = iter.next();
+                if (entry.getValue().isEmpty()) {
+                    state.unassignedSegments.put(entry.getKey(), 0L);
+                    iter.remove();
+                }
+            }
         }
     }
+    
+    
     
 }

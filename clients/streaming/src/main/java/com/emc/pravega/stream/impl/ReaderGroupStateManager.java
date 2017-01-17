@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Sequence;
@@ -26,22 +25,18 @@ import com.emc.pravega.stream.impl.ReaderGroupState.AquireSegment;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReleaseSegment;
 import com.emc.pravega.stream.impl.ReaderGroupState.RemoveReader;
+import com.emc.pravega.stream.impl.ReaderGroupState.SegmentCompleted;
 import com.emc.pravega.stream.impl.ReaderGroupState.UpdateDistanceToTail;
-import com.emc.pravega.stream.impl.ReaderGroupState.UpdatePosition;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -90,35 +85,16 @@ public class ReaderGroupStateManager {
      * adding all of these futures. It then removes the segment that was completed and promotes all future segments that were waiting on it to owned segments.
      * the resulting position object is returned.
      */
-    PositionImpl handleEndOfSegment(Segment segmentCompleted) {
-        AtomicReference<PositionImpl> result = new AtomicReference<>();
+    void handleEndOfSegment(Segment segmentCompleted) {
+        val successors = getAndHandleExceptions(controller.getSegmentsImmediatlyFollowing(segmentCompleted),
+                                                RuntimeException::new);
         sync.updateState(state -> {
-            PositionImpl position = state.getPosition(consumerId);
-            
-            Set<PositionImpl> otherPositions = new HashSet<>(state.getAllPositions());
-            otherPositions.remove(position);
-            
-            Map<Segment, Long> ownedSegments = new HashMap<>(position.getOwnedSegmentsWithOffsets());
-            ownedSegments.remove(segmentCompleted);
-            
-            Map<FutureSegment, Long> futureSegments = new HashMap<>(position.getFutureOwnedSegmentsWithOffsets());
-            for (FutureSegment segment : getAndHandleExceptions(controller.getAvailableFutureSegments(position,
-                                                                                                      otherPositions),
-                                                                RuntimeException::new)) {
-                futureSegments.put(segment, 0L);
-            }
-            
-            futureSegments.entrySet()
-                          .stream()
-                          .filter(entry -> entry.getKey().getPrecedingNumber() == segmentCompleted.getSegmentNumber())
-                          .forEach(entry -> {
-                              ownedSegments.put(entry.getKey(), entry.getValue());
-                              futureSegments.remove(entry.getKey());
-                          });
-            result.set(new PositionImpl(ownedSegments, futureSegments));
-            return Collections.singletonList(new UpdatePosition(consumerId, result.get()));
-        });
-        return result.get();
+            PositionImpl newPosition = state.getPosition(consumerId).copyWithout(segmentCompleted);
+            return Collections.singletonList(new SegmentCompleted(consumerId,
+                                                                  newPosition,
+                                                                  segmentCompleted,
+                                                                  successors));
+        }); 
     }
 
     Segment shouldReleaseSegment() {
@@ -153,26 +129,9 @@ public class ReaderGroupStateManager {
     }
 
     private Segment findSegmentToRelease(PositionImpl position) {
-        List<Segment> sorted = position.getOwnedSegments().stream().sorted().collect(Collectors.toList());
-        Map<Integer, List<FutureSegment>> reverseMap = position.getFutureOwnedSegments()
-                                                               .stream()
-                                                               .collect(Collectors.groupingBy((
-                                                                       FutureSegment s) -> s.getPrecedingNumber()));
-       return sorted.stream().max(new Comparator<Segment>() {
-            @Override
-            public int compare(Segment s1, Segment s2) {
-                List<FutureSegment> s1futures = reverseMap.get(s1.getSegmentNumber());
-                List<FutureSegment> s2futures = reverseMap.get(s2.getSegmentNumber());
-                int s1Count = s1futures == null ? 0 : s1futures.size();
-                int s2Count = s2futures == null ? 0 : s2futures.size();
-                if (s1Count == s2Count) {
-                    return Integer.compare(s1.getSegmentNumber(), s2.getSegmentNumber());
-                } else {
-                    return -Integer.compare(s1Count, s2Count);
-                }
-            }
-       }).orElse(null);
-      
+        return position.getOwnedSegments()
+                       .stream()
+                       .max((s1, s2) -> Integer.compare(s1.getSegmentNumber(), s2.getSegmentNumber())).get();
     }
 
     boolean releaseSegment(PositionImpl currentPos, Segment segment, long lastOffset, Sequence pos) {

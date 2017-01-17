@@ -41,7 +41,6 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
     private final ReaderConfig config;
     private final List<SegmentReader<Type>> readers = new ArrayList<>();
     private final Map<Segment, Long> completedSegments = new HashMap<>();
-    private final Map<FutureSegment, Long> futureOwnedSegments = new HashMap<>();
 
     EventReaderImpl(SegmentInputStreamFactory inputStreamFactory, Serializer<Type> deserializer, PositionInternal position,
             Orderer<Type> orderer, ReaderConfig config) {
@@ -67,7 +66,7 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
             }
             Map<Segment, Long> positions = readers.stream()
                     .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
-            Position position = new PositionImpl(positions, completedSegments.keySet(), futureOwnedSegments);
+            Position position = new PositionImpl(positions, completedSegments.keySet());
             Sequence eventSequence = Sequence.create(segmentId.getSegmentNumber(), offset);
             return new EventReadImpl<>(eventSequence, result, position, segmentId, offset, result == null);
         }
@@ -100,8 +99,6 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
         PositionInternal position = state.asImpl();
         synchronized (readers) {
             completedSegments.clear();
-            futureOwnedSegments.clear();
-            futureOwnedSegments.putAll(position.getFutureOwnedSegmentsWithOffsets());
             for (Segment s : position.getOwnedSegments()) {
                 SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(s, config.getSegmentConfig());
                 in.setOffset(position.getOffsetForOwnedSegment(s));

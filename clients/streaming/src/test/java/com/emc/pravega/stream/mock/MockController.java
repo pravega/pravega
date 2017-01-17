@@ -229,7 +229,7 @@ public class MockController implements Controller {
     }
 
     private PositionImpl getInitialPosition(String scope, String stream) {
-        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
+        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L));
     }
     
     private void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor) {

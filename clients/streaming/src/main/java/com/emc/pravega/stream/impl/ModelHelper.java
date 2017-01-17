@@ -32,7 +32,6 @@ import com.emc.pravega.stream.Transaction;
 import com.google.common.base.Preconditions;
 
 import java.util.AbstractMap;
-import java.util.Collections;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.HashMap;
 import java.util.List;
@@ -61,11 +60,6 @@ public final class ModelHelper {
         return new Segment(segment.getScope(), segment.getStreamName(), segment.getNumber());
     }
 
-    public static final com.emc.pravega.stream.impl.FutureSegment encode(final SegmentId segment, int previous) {
-        Preconditions.checkNotNull(segment, "Segment");
-        return new com.emc.pravega.stream.impl.FutureSegment(segment.getScope(), segment.getStreamName(), segment.getNumber(), previous);
-    }
-
     public static final ScalingPolicy encode(final com.emc.pravega.controller.stream.api.v1.ScalingPolicy policy) {
         Preconditions.checkNotNull(policy, "ScalingPolicy");
         return new ScalingPolicy(ScalingPolicy.Type.valueOf(policy.getType().name()), policy.getTargetRate(), policy.getScaleFactor(),
@@ -81,7 +75,7 @@ public final class ModelHelper {
 
     public static final PositionImpl encode(final Position position) {
         Preconditions.checkNotNull(position, "Position");
-        return new PositionImpl(encodeSegmentMap(position.getOwnedSegments()), Collections.emptyMap());
+        return new PositionImpl(encodeSegmentMap(position.getOwnedSegments()));
     }
 
     public static com.emc.pravega.common.netty.PravegaNodeUri encode(NodeUri uri) {
