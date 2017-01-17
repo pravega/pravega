@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.controller.server.rest.contract.common;
 
-import com.emc.pravega.stream.ScalingPolicy;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -30,7 +29,23 @@ import javax.ws.rs.core.MediaType;
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class ScalingPolicyCommon {
-    private ScalingPolicy.Type type;
+
+    public enum Type {
+        /**
+         * No scaling, there will only ever be {@link ScalingPolicyCommon#minNumSegments} at any given time.
+         */
+        FIXED_NUM_SEGMENTS,
+        /**
+         * Scale based on the rate in bytes specified in {@link ScalingPolicyCommon#targetRate}.
+         */
+        BY_RATE_IN_BYTES,
+        /**
+         * Scale based on the rate in events specified in {@link ScalingPolicyCommon#targetRate}.
+         */
+        BY_RATE_IN_EVENTS,
+    }
+
+    private ScalingPolicyCommon.Type type;
     private long targetRate;
     private int scaleFactor;
     private int minNumSegments;
