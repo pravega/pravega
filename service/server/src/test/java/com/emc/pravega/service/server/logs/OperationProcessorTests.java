@@ -51,10 +51,6 @@ import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.util.concurrent.Service;
-import lombok.Cleanup;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -66,6 +62,9 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Predicate;
+import lombok.Cleanup;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for OperationProcessor class.
@@ -492,9 +491,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.storage = new InMemoryStorage(executorService());
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             ReadIndexConfig readIndexConfig = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
-                    PropertyBag.create()
-                               .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
-                               .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
+                    PropertyBag.create().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024));
 
             this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), executorService());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, executorService());

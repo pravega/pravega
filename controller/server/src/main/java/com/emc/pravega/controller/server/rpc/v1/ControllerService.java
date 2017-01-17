@@ -27,9 +27,9 @@ import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
-import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
-import com.emc.pravega.controller.stream.api.v1.TxId;
-import com.emc.pravega.controller.stream.api.v1.TxState;
+import com.emc.pravega.controller.stream.api.v1.TxnId;
+import com.emc.pravega.controller.stream.api.v1.TxnState;
+import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -76,6 +76,10 @@ public class ControllerService {
 
     public CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig) {
         return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getName(), streamConfig);
+    }
+
+    public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String stream) {
+        return streamMetadataTasks.sealStream(scope, stream);
     }
 
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(final String scope, final String stream) {
@@ -248,37 +252,39 @@ public class ControllerService {
         return resultPositions;
     }
 
-    public CompletableFuture<TxId> createTransaction(final String scope, final String stream) {
+    public CompletableFuture<TxnId> createTransaction(final String scope, final String stream) {
         return streamTransactionMetadataTasks.createTx(scope, stream).thenApply(ModelHelper::decode);
     }
 
-    public CompletableFuture<TransactionStatus> commitTransaction(final String scope, final String stream, final TxId txid) {
-        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txid))
+    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId
+            txnId) {
+        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txnId))
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
-                        return TransactionStatus.FAILURE;
+                        return TxnStatus.FAILURE;
                     } else {
-                        return TransactionStatus.SUCCESS;
+                        return TxnStatus.SUCCESS;
                     }
                 });
     }
 
-    public CompletableFuture<TransactionStatus> dropTransaction(final String scope, final String stream, final TxId txid) {
-        return streamTransactionMetadataTasks.dropTx(scope, stream, ModelHelper.encode(txid))
+    public CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final TxnId txnId) {
+        return streamTransactionMetadataTasks.dropTx(scope, stream, ModelHelper.encode(txnId))
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
-                        return TransactionStatus.FAILURE;
+                        return TxnStatus.FAILURE;
                     } else {
-                        return TransactionStatus.SUCCESS;
+                        return TxnStatus.SUCCESS;
                     }
                 });
     }
 
 
-    public CompletableFuture<TxState> checkTransactionStatus(final String scope, final String stream, final TxId txid) {
-        return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txid))
+    public CompletableFuture<TxnState> checkTransactionStatus(final String scope, final String stream, final TxnId
+            txnId) {
+        return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId))
                 .thenApply(ModelHelper::decode);
     }
 }

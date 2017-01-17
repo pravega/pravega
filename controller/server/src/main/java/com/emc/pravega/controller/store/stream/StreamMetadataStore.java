@@ -63,6 +63,20 @@ public interface StreamMetadataStore {
     CompletableFuture<StreamConfiguration> getConfiguration(final String name);
 
     /**
+     * Set the stream state to sealed.
+     * @param name stream name.
+     * @return boolean indicating whether the stream was updated.
+     */
+    CompletableFuture<Boolean> setSealed(final String name);
+
+    /**
+     * Get the stream sealed status.
+     * @param name stream name.
+     * @return boolean indicating whether the stream is sealed.
+     */
+    CompletableFuture<Boolean> isSealed(final String name);
+
+    /**
      * Get Segment.
      *  @param name   stream name.
      * @param number segment number.

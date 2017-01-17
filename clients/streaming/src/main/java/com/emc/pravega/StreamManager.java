@@ -110,6 +110,13 @@ public interface StreamManager extends AutoCloseable {
     void alterStream(String streamName, StreamConfiguration config);
 
     /**
+     * Seal an existing stream.
+     *
+     * @param streamName The name of the stream which has to be sealed.
+     */
+    void sealStream(String streamName);
+
+    /**
      * Returns the requested stream.
      *
      * @param streamName The name of the stream to get.
