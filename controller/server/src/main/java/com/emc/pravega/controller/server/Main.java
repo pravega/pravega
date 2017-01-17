@@ -25,6 +25,7 @@ import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.server.actor.ControllerActors;
+import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.store.StoreClient;
@@ -41,6 +42,7 @@ import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetAddress;
@@ -130,5 +132,9 @@ public class Main {
         // controllers and starts sweeping tasks orphaned by those hostIds.
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
+
+        // 4. start REST server
+        log.info("Starting Pravega REST Service");
+        RESTServer.start();
     }
 }
