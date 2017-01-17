@@ -32,8 +32,11 @@ import java.util.Set;
  */
 @Slf4j
 public final class Config {
-    private final static com.typesafe.config.Config CONFIG = ConfigFactory.defaultApplication().withFallback(
-            ConfigFactory.defaultOverrides().resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true))).withFallback(ConfigFactory.defaultReference()).resolve();
+    private final static com.typesafe.config.Config CONFIG = ConfigFactory.defaultApplication()
+            .withFallback(ConfigFactory.defaultOverrides().resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true)))
+            .withFallback(ConfigFactory.systemEnvironment())
+            .withFallback(ConfigFactory.defaultReference())
+            .resolve();
 
     //RPC Server configuration
     public static final int SERVER_PORT = CONFIG.getInt("config.controller.server.port");
