@@ -48,7 +48,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayDeque;
-import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -56,7 +55,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -1265,7 +1263,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     /**
      * Thin wrapper for a simple Queue[StorageOperation] that provides thread synchronization.
      */
-    private static class OperationQueue implements Iterable<StorageOperation> {
+    private static class OperationQueue {
         @GuardedBy("this")
         private final ArrayDeque<StorageOperation> queue = new ArrayDeque<>();
 
@@ -1287,14 +1285,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
         synchronized int size() {
             return this.queue.size();
-        }
-
-        public synchronized Iterator<StorageOperation> iterator() {
-            return this.queue.iterator();
-        }
-
-        synchronized Stream<StorageOperation> stream() {
-            return this.queue.stream();
         }
     }
 
