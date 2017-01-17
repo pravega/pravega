@@ -91,7 +91,7 @@ public class LocalPravegaEmulator {
             final File zkDir = IOUtils.createTempDir("distrlog", "zookeeper");
             final LocalDLMEmulator localDlm = LocalDLMEmulator.newBuilder()
                     .zkPort(zkPort)
-                    .numBookies(1)
+                    .numBookies(5)
                     .build();
 
              localHdfs = LocalHDFSEmulator.newBuilder()
@@ -259,15 +259,12 @@ public class LocalPravegaEmulator {
         HostControllerStore hostStore = HostStoreFactory.createStore(
                 HostStoreFactory.StoreType.Zookeeper);
 
-        //Host monitor is not required for a single node local setup.
-        if (Config.HOST_MONITOR_ENABLED) {
-            //Start the Segment Container Monitor.
-            log.info("Starting the segment container monitor");
-            SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore,
+        //Start the Segment Container Monitor.
+        log.info("Starting the segment container monitor");
+        SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore,
                     ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient(), Config.CLUSTER_NAME,
                     new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL);
             monitor.startAsync();
-        }
 
         //2. Start the RPC server.
         log.info("Starting RPC server");
