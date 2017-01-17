@@ -21,7 +21,6 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.FutureSegment;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
@@ -93,9 +92,8 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
     }
 
     @Override
-    public List<FutureSegment> getAvailableFutureSegments(Position position, List<Position> otherPositions)
-            throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.getAvailableFutureSegments(position, otherPositions), RuntimeException::new);
+    public Map<SegmentId, List<Integer>> getSegmentsImmediatlyFollowing(SegmentId segment) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.getSegmentsImmediatlyFollowing(segment), RuntimeException::new);
     }
 
     @Override

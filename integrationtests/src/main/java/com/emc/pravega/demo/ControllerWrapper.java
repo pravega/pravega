@@ -42,7 +42,6 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.Controller;
-import com.emc.pravega.stream.impl.FutureSegment;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.PositionInternal;
 import com.emc.pravega.stream.impl.StreamSegments;
@@ -50,11 +49,13 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -163,13 +164,14 @@ public class ControllerWrapper implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<FutureSegment>> getAvailableFutureSegments(PositionInternal position,
-            Collection<? extends PositionInternal> otherPositions) {
-        com.emc.pravega.controller.stream.api.v1.Position pos = ModelHelper.decode(position);
-        final List<com.emc.pravega.controller.stream.api.v1.Position> transformed =
-                otherPositions.stream().map(ModelHelper::decode).collect(Collectors.toList());
-        return controller.getAvailableFutureSegments(pos, transformed)
-                         .thenApply(list -> list.stream().map(ModelHelper::encode).collect(Collectors.toList()));
+    public CompletableFuture<Map<Segment, List<Integer>>> getSegmentsImmediatlyFollowing(final Segment segment) {
+        return controller.getSegmentsImmediatlyFollowing(ModelHelper.decode(segment)).thenApply(successors -> {
+            Map<Segment, List<Integer>> result = new HashMap<>();
+            for (Entry<SegmentId, List<Integer>> successor : successors.entrySet()) {
+                result.put(ModelHelper.encode(successor.getKey()), successor.getValue());
+            }
+            return result;
+        });
     }
 
     @Override

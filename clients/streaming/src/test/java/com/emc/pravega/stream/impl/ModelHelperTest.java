@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.controller.stream.api.v1.FutureSegment;
 import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
@@ -188,12 +187,10 @@ public class ModelHelperTest {
     public void decodePosition() {
         com.emc.pravega.controller.stream.api.v1.Position position = ModelHelper.decode(createPosition());
         assertEquals(1, position.getOwnedSegments().size());
-        assertEquals(1, position.getFutureOwnedSegments().size());
         SegmentId id = ModelHelper.decode(createSegmentId("stream", 1));
         assertEquals(1L, position.getOwnedSegments().get(id).longValue());
-        SegmentId future = ModelHelper.decode(createSegmentId("stream", 2));
-        Long val = position.getFutureOwnedSegments().get(new FutureSegment(future, id));
-        assertEquals(2L, val.longValue());
+        SegmentId id2 = ModelHelper.decode(createSegmentId("stream", 2));
+        assertEquals(2L, id2.getNumber());
     }
 
     @Test(expected = NullPointerException.class)

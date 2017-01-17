@@ -21,7 +21,6 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.FutureSegment;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
@@ -35,10 +34,6 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
-import com.emc.pravega.stream.impl.PositionInternal;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ListMultimap;
-import com.google.common.collect.Multimaps;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,7 +42,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.thrift.TException;
 
 /**
@@ -95,8 +89,12 @@ public class ControllerService {
                 .thenApply(segmentFutures -> shard(scope, stream, segmentFutures, count));
     }    
 
-    public CompletableFuture<List<FutureSegment>> getAvailableFutureSegments(Position position, List<Position> otherPositions) {
-        throw new NotImplementedException(); //TODO: Implement this.
+    public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatlyFollowing(SegmentId segment) {
+        return streamStore.getSuccessors(segment.getStreamName(), segment.getNumber()).thenApply(successors -> {
+            return successors.entrySet().stream().collect(
+                   Collectors.toMap(entry -> new SegmentId(segment.getScope(), segment.getStreamName(), entry.getKey()), 
+                                    entry -> entry.getValue()));
+        });
     }
 
     public CompletableFuture<ScaleResponse> scale(final String scope,
@@ -148,10 +146,6 @@ public class ControllerService {
         int size = (quotient < 1) ? remainder : n;
         List<Position> positions = new ArrayList<>(size);
 
-        ListMultimap<Integer, Integer> inverse = Multimaps.invertFrom(
-                Multimaps.forMap(segmentFutures.getFutures()),
-                ArrayListMultimap.create());
-
         int counter = 0;
         // create a position object in each iteration of the for loop
         for (int i = 0; i < size; i++) {
@@ -165,72 +159,18 @@ public class ControllerService {
 
             // Compute the current and future segments set for position i
             Map<SegmentId, Long> currentSegments = new HashMap<>();
-            Map<FutureSegment, Long> futureSegments = new HashMap<>();
             current.stream().forEach(
                     x -> {
                         // TODO fetch correct offset within the segment at specified timestamp by contacting pravega host
                         // put it in the currentSegments
                         currentSegments.put(x, 0L);
-
-                        // update futures with all segments in segmentFutures.getFutures having x.number as the predecessor
-                        // these segments can be found from the inverted segmentFutures.getFutures
-                        int previous = x.getNumber();
-                        if (inverse.containsKey(previous)) {
-                            inverse.get(previous).stream().forEach(
-                                    y -> {
-                                        SegmentId newSegment = new SegmentId(scope, stream, y);
-                                        SegmentId oldSegment = new SegmentId(scope, stream, previous);
-                                        futureSegments.put(new FutureSegment(newSegment, oldSegment), 0L);
-                                    }
-                            );
-                        }
                     }
             );
-            // create a new position object with current and futures segments thus computed
-            Position position = new Position(currentSegments, futureSegments);
+            // create a new position object with current segments computed
+            Position position = new Position(currentSegments);
             positions.add(position);
         }
         return positions;
-    }
-
-    /**
-     * This method converts list of positions into list of segmentFutures.
-     * While doing so it updates the completedSegments set and stores segment offsets in a map.
-     *
-     * @param positions      input list of positions
-     * @param segmentOffsets map of segment number of its offset that shall be populated in this method
-     * @return the list of segmentFutures objects
-     */
-    private List<SegmentFutures> convertPositionsToSegmentFutures(final List<PositionInternal> positions,
-                                                                  final Map<Integer, Long> segmentOffsets) {
-        List<SegmentFutures> segmentFutures = new ArrayList<>(positions.size());
-
-        // construct SegmentFutures for each position object.
-        for (PositionInternal position : positions) {
-            Map<Integer, Long> segmentOffsetMap = ModelHelper.toSegmentOffsetMap(position);
-            segmentOffsets.putAll(segmentOffsetMap);
-            Map<Integer, Integer> futures = ModelHelper.getFutureSegmentMap(position);
-            segmentFutures.add(new SegmentFutures(new ArrayList<>(segmentOffsetMap.keySet()), futures));
-        }
-        return segmentFutures;
-    }
-
-    private List<Position> convertSegmentFuturesToPositions(String scope, String stream, List<SegmentFutures> segmentFutures, Map<Integer, Long> segmentOffsets) {
-        List<Position> resultPositions = new ArrayList<>(segmentFutures.size());
-        segmentFutures.stream().forEach(
-                future -> {
-                    Map<SegmentId, Long> currentSegments = new HashMap<>();
-                    Map<FutureSegment, Long> futureSegments = new HashMap<>();
-                    future.getCurrent().stream().forEach(
-                            current -> currentSegments.put(new SegmentId(scope, stream, current), segmentOffsets.get(current))
-                    );
-                    future.getFutures().entrySet().stream().forEach(
-                            y -> futureSegments.put(new FutureSegment(new SegmentId(scope, stream, y.getKey()), new SegmentId(scope, stream, y.getValue())), 0L)
-                    );
-                    resultPositions.add(new Position(currentSegments, futureSegments));
-                }
-        );
-        return resultPositions;
     }
 
     public CompletableFuture<TxnId> createTransaction(final String scope, final String stream) {

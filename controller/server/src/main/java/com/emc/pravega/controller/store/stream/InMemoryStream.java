@@ -20,15 +20,18 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.base.Preconditions;
-import org.apache.commons.lang.NotImplementedException;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
+
+import org.apache.commons.lang.NotImplementedException;
 
 /**
  * Stream properties
@@ -96,6 +99,15 @@ class InMemoryStream implements Stream {
         return CompletableFuture.completedFuture(segments.get(number).getSuccessors());
     }
 
+    @Override
+    public CompletableFuture<Map<Integer, List<Integer>>> getSuccessorsWithPredecessors(final int number) {
+        Map<Integer, List<Integer>> result = new HashMap<>();
+        for (Integer successor : segments.get(number).getSuccessors()) {
+            result.put(successor, segments.get(successor).getPredecessors());
+        }
+        return CompletableFuture.completedFuture(result);
+    }
+    
     @Override
     public CompletableFuture<List<Integer>> getPredecessors(int number) {
         return CompletableFuture.completedFuture(segments.get(number).getPredecessors());

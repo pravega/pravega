@@ -19,7 +19,6 @@ package com.emc.pravega.controller.server.rpc.v1;
 
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxnId;
@@ -81,10 +80,9 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
     }
     
     @Override
-    public void getAvailableFutureSegments(Position position, List<Position> otherPositions,
-            AsyncMethodCallback resultHandler) throws TException {
-        log.debug("getAvailableFutureSegments called for position " + position);
-        processResult(controllerService.getAvailableFutureSegments(position, otherPositions), resultHandler);
+    public void getSegmentsImmediatlyFollowing(SegmentId segment, AsyncMethodCallback resultHandler) throws TException {
+        log.debug("getSegmentsImmediatlyFollowing called for segment " + segment);
+        processResult(controllerService.getSegmentsImmediatlyFollowing(segment), resultHandler);
     }
 
     @Override
@@ -160,4 +158,5 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
                     }
                 });
     }
+
 }

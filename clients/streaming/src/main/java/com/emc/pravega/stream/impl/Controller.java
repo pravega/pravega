@@ -28,8 +28,8 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
 
-import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -120,15 +120,21 @@ public interface Controller {
     CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count);
 
     /**
-     * Called by readers to see if there are any futureSegments available to them.
-     *
-     * @param position The reader's position
-     * @param otherPositions The position of other readers in the same readerGroup
-     * @return A future for a list of segments that can be read by the calling reader either
-     *         immediately or upon completion of one or more of their segments.
+     * Returns a Map containing each of the segments that are successors to the segment requested
+     * mapped to each of their predecessors.
+     * 
+     * In the event of a scale up the segments each contain a subset of the keyspace of segment
+     * provided and map to the provided segment.
+     * 
+     * In the event of a scale down there would be one entry that contained a superset of the
+     * keyspace of the segment provided and map to multiple segments.
+     * 
+     * If a segment has not been sealed, it may not have successors now even though it might in the
+     * future. The successors to a sealed segment are always known and returned.
+     * 
+     * @param The segment whose successors should be looked up.
      */
-    CompletableFuture<List<FutureSegment>> getAvailableFutureSegments(final PositionInternal position,
-            final Collection<? extends PositionInternal> otherPositions);
+    CompletableFuture<Map<Segment, List<Integer>>> getSegmentsImmediatlyFollowing(final Segment segment);
 
     //Controller Apis that are called by writers and readers
 

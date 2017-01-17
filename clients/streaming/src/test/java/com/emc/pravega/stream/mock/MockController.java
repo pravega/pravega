@@ -40,7 +40,6 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.Controller;
-import com.emc.pravega.stream.impl.FutureSegment;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.PositionInternal;
 import com.emc.pravega.stream.impl.StreamSegments;
@@ -48,9 +47,9 @@ import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.google.common.collect.ImmutableList;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -215,9 +214,8 @@ public class MockController implements Controller {
     }
     
     @Override
-    public CompletableFuture<List<FutureSegment>> getAvailableFutureSegments(PositionInternal position,
-            Collection<? extends PositionInternal> otherPositions) {
-        return CompletableFuture.completedFuture(Collections.emptyList());
+    public CompletableFuture<Map<Segment, List<Integer>>> getSegmentsImmediatlyFollowing(Segment segment) {
+        return CompletableFuture.completedFuture(Collections.emptyMap());
     }
 
     @Override

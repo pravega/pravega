@@ -34,8 +34,10 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
 
 import java.io.IOException;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.UUID;
@@ -118,24 +120,24 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<FutureSegment>> getAvailableFutureSegments(PositionInternal position,
-            Collection<? extends PositionInternal> otherPositions) {
-        log.debug("Invoke ConsumerService.Client.getAvailableFutureSegments() for position: {} ", position);
-        final com.emc.pravega.controller.stream.api.v1.Position transformed = ModelHelper.decode(position);
-        final List<com.emc.pravega.controller.stream.api.v1.Position> otherTransformed =
-                otherPositions.stream().map(ModelHelper::decode).collect(Collectors.toList());
-        final ThriftAsyncCallback<ControllerService.AsyncClient.getAvailableFutureSegments_call> callback = new ThriftAsyncCallback<>();
+    public CompletableFuture<Map<Segment, List<Integer>>> getSegmentsImmediatlyFollowing(Segment segment) {
+        log.debug("Invoke ConsumerService.Client.getSegmentsImmediatlyFollowing() for segment: {} ", segment);
+        final SegmentId transformed = ModelHelper.decode(segment);
+        final ThriftAsyncCallback<ControllerService.AsyncClient.getSegmentsImmediatlyFollowing_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.getAvailableFutureSegments(transformed, otherTransformed, callback);
+            client.getSegmentsImmediatlyFollowing(transformed, callback);
             return null;
         });
-        return callback
-                .getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
-                .thenApply(result -> {
-                    log.debug("Received the following data from the controller {}", result);
-                    return result.stream().map(ModelHelper::encode).collect(Collectors.toList());
-                });
+        return callback.getResult()
+                       .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
+                       .thenApply(successors -> {
+                           log.debug("Received the following data from the controller {}", successors);
+                           Map<Segment, List<Integer>> result = new HashMap<>();
+                           for (Entry<SegmentId, List<Integer>> successor : successors.entrySet()) {
+                               result.put(ModelHelper.encode(successor.getKey()), successor.getValue());
+                           }
+                           return result;
+                       });
     }
 
     @Override

@@ -124,60 +124,42 @@ public class ControllerServiceTest {
         positions = consumer.getPositions(SCOPE, stream1, 10, 3).get();
         assertEquals(2, positions.size());
         assertEquals(1, positions.get(0).getOwnedSegments().size());
-        assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(1).getOwnedSegments().size());
-        assertEquals(2, positions.get(1).getFutureOwnedSegments().size());
 
         positions = consumer.getPositions(SCOPE, stream1, 10, 1).get();
         assertEquals(1, positions.size());
         assertEquals(2, positions.get(0).getOwnedSegments().size());
-        assertEquals(2, positions.get(0).getFutureOwnedSegments().size());
 
         positions = consumer.getPositions(SCOPE, stream2, 10, 3).get();
         assertEquals(3, positions.size());
         assertEquals(1, positions.get(0).getOwnedSegments().size());
-        assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(1).getOwnedSegments().size());
-        assertEquals(0, positions.get(1).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(2).getOwnedSegments().size());
-        assertEquals(1, positions.get(2).getFutureOwnedSegments().size());
 
         positions = consumer.getPositions(SCOPE, stream2, 10, 2).get();
         assertEquals(2, positions.size());
         assertEquals(2, positions.get(0).getOwnedSegments().size());
-        assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(1).getOwnedSegments().size());
-        assertEquals(1, positions.get(1).getFutureOwnedSegments().size());
 
         positions = consumer.getPositions(SCOPE, stream1, 25, 3).get();
         assertEquals(3, positions.size());
         assertEquals(1, positions.get(0).getOwnedSegments().size());
-        assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(1).getOwnedSegments().size());
-        assertEquals(0, positions.get(1).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(2).getOwnedSegments().size());
-        assertEquals(0, positions.get(2).getFutureOwnedSegments().size());
 
         positions = consumer.getPositions(SCOPE, stream1, 25, 1).get();
         assertEquals(1, positions.size());
         assertEquals(3, positions.get(0).getOwnedSegments().size());
-        assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
 
         positions = consumer.getPositions(SCOPE, stream2, 25, 3).get();
         assertEquals(3, positions.size());
         assertEquals(1, positions.get(0).getOwnedSegments().size());
-        assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(1).getOwnedSegments().size());
-        assertEquals(0, positions.get(1).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(2).getOwnedSegments().size());
-        assertEquals(0, positions.get(2).getFutureOwnedSegments().size());
 
         positions = consumer.getPositions(SCOPE, stream2, 25, 2).get();
         assertEquals(2, positions.size());
         assertEquals(2, positions.get(0).getOwnedSegments().size());
-        assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(1).getOwnedSegments().size());
-        assertEquals(0, positions.get(1).getFutureOwnedSegments().size());
-
     }
 }

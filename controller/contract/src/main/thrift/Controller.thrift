@@ -47,7 +47,6 @@ struct ScalingPolicy {
   4: required i32 minNumSegments
 }
 
-
 struct StreamConfig {
   1: required string scope,
   2: required string name,
@@ -58,11 +57,6 @@ struct SegmentId {
   1: required string scope,
   2: required string streamName,
   3: required i32 number
-}
-
-struct FutureSegment {
-  1: required SegmentId futureSegment,
-  2: required SegmentId precedingSegment
 }
 
 struct SegmentRange {
@@ -78,7 +72,6 @@ struct NodeUri {
 
 struct Position {
   1: required map<SegmentId, i64> ownedSegments,
-  2: required map<FutureSegment, i64> futureOwnedSegments
 }
 
 struct TxnId {
@@ -99,7 +92,7 @@ service ControllerService {
     UpdateStreamStatus alterStream (1: StreamConfig streamConfig)
     list<SegmentRange> getCurrentSegments(1:string scope, 2:string stream)
     list<Position> getPositions(1:string scope, 2:string stream, 3:i64 timestamp, 4:i32 count)
-    list<FutureSegment> getAvailableFutureSegments(1:Position position, 2:list<Position> otherPositions)
+    map<SegmentId,list<i32>> getSegmentsImmediatlyFollowing(1:SegmentId segment)
     ScaleResponse scale(1:string scope, 2:string stream, 3:list<i32> sealedSegments, 4:map<double, double> newKeyRanges, 5:i64 scaleTimestamp)
     NodeUri getURI(1: SegmentId segment)
     bool isSegmentValid(1: string scope, 2: string stream, 3: i32 segmentNumber)

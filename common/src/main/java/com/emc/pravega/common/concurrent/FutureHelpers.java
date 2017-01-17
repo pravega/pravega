@@ -21,8 +21,6 @@ package com.emc.pravega.common.concurrent;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.google.common.base.Preconditions;
-import lombok.Data;
-import lombok.SneakyThrows;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -42,6 +40,9 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import lombok.Data;
+import lombok.SneakyThrows;
 
 /**
  * Extensions to Future and CompletableFuture.
@@ -175,7 +176,7 @@ public final class FutureHelpers {
             }
         });
     }
-
+    
     /**
      * Similar implementation to CompletableFuture.allOf(vararg) but that works on a Collection and that returns another
      * Collection which has the results of the given CompletableFutures.
