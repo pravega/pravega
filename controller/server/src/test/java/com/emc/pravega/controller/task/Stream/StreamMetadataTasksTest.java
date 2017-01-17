@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.server.LocalController;
 import com.emc.pravega.controller.server.actor.ControllerActors;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
@@ -108,7 +109,8 @@ public class StreamMetadataTasksTest {
 
         // todo: find a better way to avoid circular dependency
         // between streamTransactionMetadataTasks and ControllerActors
-        controllerActors = new ControllerActors(hostId, localController, streamStore, hostStore);
+        controllerActors = new ControllerActors(new Host(hostId, 9090), "testCluster", zkClient, localController,
+                streamStore, hostStore);
 
         // todo: uncomment following line
         // controllerActors.initialize();

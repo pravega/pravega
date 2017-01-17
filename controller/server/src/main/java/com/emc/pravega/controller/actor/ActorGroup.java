@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.controller.actor;
 
+import com.emc.pravega.common.cluster.Host;
+
 /**
  * ActorGroup Interface. It provides mechanism to manage Actors
  * processing events from a Pravega Stream by participating in
@@ -29,7 +31,7 @@ public interface ActorGroup {
      * participating in the Reader Group.
      * @param host Failed host.
      */
-    void notifyHostFailure(String host);
+    void notifyHostFailure(Host host);
 
     /**
      * Increase/decrease the number of Actors reading from the Pravega

@@ -18,6 +18,7 @@
 
 package com.emc.pravega.demo;
 
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.server.LocalController;
 import com.emc.pravega.controller.server.actor.ControllerActors;
@@ -107,7 +108,12 @@ public class ControllerWrapper implements Controller {
 
         // todo: find a better way to avoid circular dependency
         // between streamTransactionMetadataTasks and ControllerActors
-        controllerActors = new ControllerActors(hostId, localController, streamStore, hostStore);
+        controllerActors = new ControllerActors(new Host(hostId, 9090),
+                "testCluster",
+                client,
+                localController,
+                streamStore,
+                hostStore);
 
         controllerActors.initialize();
         //endregion

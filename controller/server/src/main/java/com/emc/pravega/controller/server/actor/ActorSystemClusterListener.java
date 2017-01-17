@@ -15,22 +15,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.actor;
+package com.emc.pravega.controller.server.actor;
 
+import com.emc.pravega.common.cluster.ClusterListener;
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.stream.Position;
+import com.emc.pravega.controller.actor.ActorSystem;
+import lombok.extern.slf4j.Slf4j;
 
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
+@Slf4j
+public class ActorSystemClusterListener implements ClusterListener {
 
-public interface ReaderStatePersistence {
+    private final ActorSystem actorSystem;
 
-    CompletableFuture<Void> setPosition(final String readerGroup, final String readerId, final Position position);
+    ActorSystemClusterListener(ActorSystem actorSystem) {
+        this.actorSystem = actorSystem;
+    }
 
-    CompletableFuture<Map<String, Position>> getPositions(final String readerGroup, final Host host);
-
-    CompletableFuture<List<String>> getReaderIds(final String readerGroup, final Host host);
-
-    CompletableFuture<Void> setReaderIds(final String readerGroup, final Host host, List<String> readerIds);
+    @Override
+    public void onEvent(EventType type, Host host) {
+        log.debug(String.format("Cluster event %s received for host %s", type, host));
+        if (type == EventType.HOST_REMOVED) {
+            actorSystem.notifyHostFailure(host);
+        }
+    }
 }

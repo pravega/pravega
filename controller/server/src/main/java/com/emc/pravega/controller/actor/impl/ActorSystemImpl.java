@@ -19,6 +19,7 @@ package com.emc.pravega.controller.actor.impl;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.StreamManager;
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.actor.ActorGroupRef;
 import com.emc.pravega.controller.actor.ActorSystem;
 import com.emc.pravega.controller.actor.Props;
@@ -33,7 +34,6 @@ import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 
 @Slf4j
 public class ActorSystemImpl implements ActorSystem {
@@ -43,16 +43,17 @@ public class ActorSystemImpl implements ActorSystem {
     protected final StreamManager streamManager;
 
     private final String name;
-    private final String hostName;
+    private final Host host;
     @GuardedBy("actorGroups")
     private final List<ActorGroupImpl> actorGroups;
 
     private final String scope;
+    // This executor is used to process callbacks from Actor's ServiceEventListener
     private final Executor executor;
 
-    public ActorSystemImpl(String name, String hostName, String scope, Controller controller) {
+    public ActorSystemImpl(String name, Host host, String scope, Controller controller, Executor executor) {
         this.name = name;
-        this.hostName = hostName;
+        this.host = host;
         this.actorGroups = new ArrayList<>();
 
         this.scope = scope;
@@ -60,7 +61,7 @@ public class ActorSystemImpl implements ActorSystem {
         this.streamManager = new StreamManagerImpl(scope, controller);
         this.clientFactory = new ClientFactoryImpl(scope, controller, new ConnectionFactoryImpl(false), streamManager);
 
-        this.executor = Executors.newScheduledThreadPool(5);
+        this.executor = executor;
     }
 
     @Override
@@ -92,9 +93,10 @@ public class ActorSystemImpl implements ActorSystem {
         }
     }
 
-    public void notifyHostFailure(String host) {
+    @Override
+    public void notifyHostFailure(Host host) {
         Preconditions.checkNotNull(host);
-        if (host.equals(this.hostName)) {
+        if (host.equals(this.host)) {
             this.actorGroups.forEach(ActorGroupImpl::stopAsync);
         } else {
             // Notify all registered actor groups of host failure

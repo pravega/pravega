@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.actor.impl;
 
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.actor.ActorGroup;
 import com.emc.pravega.controller.actor.ActorGroupRef;
 import com.emc.pravega.controller.actor.Props;
@@ -113,7 +114,8 @@ public final class ActorGroupImpl extends AbstractService implements ActorGroup 
     }
 
     @Override
-    public void notifyHostFailure(String host) {
+    public void notifyHostFailure(Host host) {
+        // todo: validate the logic to identify if this is an interesting host
         if (readerGroup.getOnlineReaders().contains(host)) {
             this.props.getPersister()
                     .getPositions(props.getConfig().getReaderGroupName(), host)

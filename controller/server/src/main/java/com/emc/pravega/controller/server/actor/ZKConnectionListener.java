@@ -15,22 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.actor;
+package com.emc.pravega.controller.server.actor;
 
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.stream.Position;
+import com.emc.pravega.controller.actor.ActorSystem;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.state.ConnectionState;
+import org.apache.curator.framework.state.ConnectionStateListener;
 
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
+public class ZKConnectionListener implements ConnectionStateListener {
 
-public interface ReaderStatePersistence {
+    private final Host host;
+    private final ActorSystem actorSystem;
 
-    CompletableFuture<Void> setPosition(final String readerGroup, final String readerId, final Position position);
+    ZKConnectionListener(Host host, ActorSystem actorSystem) {
+        this.host = host;
+        this.actorSystem = actorSystem;
+    }
 
-    CompletableFuture<Map<String, Position>> getPositions(final String readerGroup, final Host host);
-
-    CompletableFuture<List<String>> getReaderIds(final String readerGroup, final Host host);
-
-    CompletableFuture<Void> setReaderIds(final String readerGroup, final Host host, List<String> readerIds);
+    @Override
+    public void stateChanged(CuratorFramework client, ConnectionState newState) {
+        if (newState == ConnectionState.LOST) {
+            actorSystem.notifyHostFailure(host);
+        }
+    }
 }

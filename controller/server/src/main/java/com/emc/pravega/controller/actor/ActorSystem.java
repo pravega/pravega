@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.controller.actor;
 
+import com.emc.pravega.common.cluster.Host;
+
 /**
  * It acts as the manager and wrapper around Actors and ActorGroups
  * processing events from Pravega Streams belonging to a specific scope
@@ -60,5 +62,5 @@ public interface ActorSystem {
      * existing hosts.
      * @param host Failed host's identifier.
      */
-    void notifyHostFailure(String host);
+    void notifyHostFailure(Host host);
 }

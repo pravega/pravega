@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.controller.server.actor;
 
+import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.controller.actor.ActorGroupConfig;
 import com.emc.pravega.controller.actor.ActorGroupRef;
 import com.emc.pravega.controller.actor.ActorSystem;
@@ -26,29 +28,61 @@ import com.emc.pravega.controller.actor.impl.ActorSystemImpl;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.stream.impl.Controller;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
+
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 // todo: use config values for constants defined in this file
 
+@Slf4j
 public class ControllerActors {
 
     private final ActorSystem system;
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
+    private final Host host;
+    private final CuratorFramework client;
+    private final ClusterZKImpl clusterZK;
     private ActorGroupRef metricsActors;
     private ActorGroupRef commitActors;
 
-    public ControllerActors(final String hostName,
+    // This executor is used to process callbacks from
+    // ClusterZKImpl, ZK connection listener, and Actor's ServiceEventListener
+    private final Executor executor;
+
+    public ControllerActors(final Host host,
+                            final String clusterName,
+                            final CuratorFramework client,
                             final Controller controller,
                             final StreamMetadataStore streamMetadataStore,
                             final HostControllerStore hostControllerStore) {
 
+        this.executor = Executors.newScheduledThreadPool(5);
         final String controllerScope = "system";
-        system = new ActorSystemImpl("Controller", hostName, controllerScope, controller);
+        system = new ActorSystemImpl("Controller", host, controllerScope, controller, executor);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
+        this.host = host;
+        this.client = client;
+        this.clusterZK = new ClusterZKImpl(client, clusterName);
     }
 
     public void initialize() {
+
+        //region cluster management
+        clusterZK.registerHost(host);
+        try {
+            clusterZK.addListener(new ActorSystemClusterListener(system), executor);
+        } catch (Exception e) {
+            log.error("Error adding listener to cluster events", e);
+            throw new RuntimeException(e);
+        }
+
+        ZKConnectionListener connectionListener = new ZKConnectionListener(host, system);
+        client.getConnectionStateListenable().addListener(connectionListener, executor);
+        //endregion
 
         // todo: create metricsStream, if it does not exist
         final String metricsStream = "metricsStream";

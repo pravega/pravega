@@ -22,6 +22,7 @@ import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.server.actor.ControllerActors;
@@ -110,9 +111,17 @@ public class Main {
         LocalController localController =
                 new LocalController(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
 
+        Host host = new Host(hostId, Config.SERVER_PORT);
+        String controllerClusterName = "pravega-controller-cluster";
+
         // todo: find a better way to avoid circular dependency
         // between streamTransactionMetadataTasks and ControllerActors
-        controllerActors = new ControllerActors(hostId, localController, streamStore, hostStore);
+        controllerActors = new ControllerActors(host,
+                controllerClusterName,
+                ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient(),
+                localController,
+                streamStore,
+                hostStore);
 
         controllerActors.initialize();
         //endregion
