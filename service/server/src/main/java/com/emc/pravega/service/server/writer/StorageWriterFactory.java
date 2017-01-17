@@ -135,7 +135,7 @@ public class StorageWriterFactory implements WriterFactory {
         }
 
         @Override
-        public InputStream getData(long streamSegmentId, long startOffset, int length) {
+        public InputStream getAppendData(long streamSegmentId, long startOffset, int length) {
             return this.readIndex.readDirect(streamSegmentId, startOffset, length);
         }
 

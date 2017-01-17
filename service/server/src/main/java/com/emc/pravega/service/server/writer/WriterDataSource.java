@@ -71,7 +71,7 @@ interface WriterDataSource {
      * @param length          The number of bytes to fetch.
      * @return An InputStream with the requested data, of the requested length, or null if not available.
      */
-    InputStream getData(long streamSegmentId, long startOffset, int length);
+    InputStream getAppendData(long streamSegmentId, long startOffset, int length);
 
     /**
      * Gets a value indicating whether the given Operation Sequence Number is a valid Truncation Point, as set by
