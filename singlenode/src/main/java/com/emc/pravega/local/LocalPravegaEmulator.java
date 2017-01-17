@@ -40,6 +40,7 @@ import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
+import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.twitter.distributedlog.LocalDLMEmulator;
@@ -136,7 +137,7 @@ public class LocalPravegaEmulator {
         DistributedLogAdmin admin = new DistributedLogAdmin();
         String[] params = {"bind", "-dlzr", "localhost:"+zkPort,
                 "-dlzw", "localhost:"+7000, "-s", "localhost:"+zkPort, "-bkzr",
-                "localhost:"+7000, "-l", "/messaging/bookkeeper/ledgers",
+                "localhost:"+7000, "-l", "/ledgers",
                 "-i", "false", "-r", "true", "-c",
                 "distributedlog://localhost:"+zkPort+"/messaging/distributedlog/mynamespace"};
         try {
@@ -161,6 +162,11 @@ public class LocalPravegaEmulator {
      * */
     private void start() {
         startController();
+        try {
+            Thread.sleep(10000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         startPravegaHost();
     }
 
@@ -190,6 +196,11 @@ public class LocalPravegaEmulator {
                     new Integer(zkPort).toString());
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT,
                     new Integer(hostPort).toString());
+
+            ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_HOSTNAME,
+                    "localhost");
+            ServiceBuilderConfig.set(p,  DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_PORT,
+                    new Integer(zkPort).toString());
 
             props = new ServiceBuilderConfig(p);
 
