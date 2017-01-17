@@ -95,7 +95,7 @@ public class ActorSystemImpl implements ActorSystem {
     public void notifyHostFailure(String host) {
         Preconditions.checkNotNull(host);
         if (host.equals(this.hostName)) {
-            // todo: shutdown all actor groups
+            this.actorGroups.forEach(ActorGroupImpl::stopAsync);
         } else {
             // Notify all registered actor groups of host failure
             this.actorGroups.forEach(group -> group.notifyHostFailure(host));

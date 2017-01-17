@@ -26,14 +26,14 @@ import com.google.common.util.concurrent.Service;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 
-// TODO: fault tolerance
-
+@Slf4j
 public abstract class Actor {
 
     @Getter(AccessLevel.PACKAGE)
@@ -62,8 +62,9 @@ public abstract class Actor {
      * Actor encapsulates a delegate which extends AbstractExecutionThreadService. This delegate provides a single
      * thread of execution for the actor. This prevents sub-classes of Actor from controlling Actor's lifecycle.
      */
-    private final Service delegate = new AbstractExecutionThreadService() {
+    private Service delegate = new Delegate();
 
+    private class Delegate extends AbstractExecutionThreadService {
         @Override
         protected final void startUp() throws Exception {
             preStart();
@@ -98,7 +99,7 @@ public abstract class Actor {
             actorGroups.forEach(ActorGroupImpl::doStop);
             this.stopAsync();
         }
-    };
+    }
 
     final void startAsync() {
         delegate.startAsync();
@@ -106,6 +107,24 @@ public abstract class Actor {
 
     final void stopAsync() {
         delegate.stopAsync();
+        this.actorGroups.stream().forEach(ActorGroupImpl::stopAsync);
+    }
+
+    final void restartAsync() {
+        Service.State delegateState = delegate.state();
+        if (delegateState == Service.State.FAILED) {
+
+            try {
+                preRestart();
+            } catch (Throwable restartFailureCause) {
+                log.error("Failed executing preRestart for Actor " + this, restartFailureCause);
+                return;
+            }
+
+            // Recreate the delegate and start it.
+            delegate = new Delegate();
+            delegate.startAsync();
+        }
     }
 
     final void addListener(Service.Listener listener, Executor executor) {
@@ -143,6 +162,14 @@ public abstract class Actor {
      * @throws Exception Exception thrown from user defined preStart method.
      */
     protected void postStop() throws Exception { }
+
+    /**
+     * AbstractActor preRestart hook that is called before actor restarts
+     * after recovering from a failure. After this method call, preStart is
+     * called before the Actor starts again.
+     * @throws Exception Exception thrown from user defined preStart method.
+     */
+    protected void preRestart() throws Exception { }
 
     /**
      * Get the current context for creating new ActorGroup as child of this Actor.

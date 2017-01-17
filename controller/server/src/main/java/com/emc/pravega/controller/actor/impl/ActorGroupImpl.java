@@ -73,9 +73,6 @@ public final class ActorGroupImpl extends AbstractService implements ActorGroup 
         } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
             throw new RuntimeException("Error instantiating Actors");
         }
-
-        // start the group of actors
-        this.doStart();
     }
 
 
@@ -94,7 +91,7 @@ public final class ActorGroupImpl extends AbstractService implements ActorGroup 
             Actor actor = props.getConstructor().newInstance(props.getArgs());
             actor.setReader(reader, readerId);
             actor.setup(this.actorSystem, this.executor, props);
-            actor.addListener(new ActorFailureListener(actors, i, executor), executor);
+            actor.addListener(new ActorFailureListener(actors, i), executor);
             actors.add(actor);
             // todo: persist the readerIds against this host in the persister
         }
@@ -102,10 +99,10 @@ public final class ActorGroupImpl extends AbstractService implements ActorGroup 
 
     @Override
     final protected void doStart() {
-        // If an exception is thrown while starting an actor, it will be processed by the ActorFailureListener.
-        // Current ActorFailureListener just logs failures encountered while starting.
+        // If an exception is thrown while starting an actor, it will be
+        // processed by the ActorFailureListener. Current ActorFailureListener
+        // just logs failures encountered while starting.
         actors.stream().forEach(Actor::startAsync);
-        notifyStarted();
     }
 
     @Override
@@ -113,7 +110,6 @@ public final class ActorGroupImpl extends AbstractService implements ActorGroup 
         // If an exception is thrown while stopping an actor, it will be processed by the ActorFailureListener.
         // Current ActorFailureListener just logs failures encountered while stopping.
         actors.stream().forEach(Actor::stopAsync);
-        notifyStopped();
     }
 
     @Override
