@@ -17,11 +17,10 @@
  */
 package com.emc.pravega.controller.actor.impl;
 
-import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 
 @Data
-@AllArgsConstructor
 public class ActorGroupConfigImpl implements com.emc.pravega.controller.actor.ActorGroupConfig {
 
     private final String streamName;
@@ -30,7 +29,19 @@ public class ActorGroupConfigImpl implements com.emc.pravega.controller.actor.Ac
 
     private final int actorCount;
 
-    // todo: validate persistenceFrequence is > 0
-    // todo: create Builder for this class, may be using lombok
-    private final int persistenceFrequency;
+    private final int checkpointFrequency;
+
+    @Builder
+    public ActorGroupConfigImpl(final String streamName,
+                                final String readerGroupName,
+                                final int actorCount,
+                                final int checkpointFrequency) {
+        if (checkpointFrequency <= 0) {
+            throw new IllegalArgumentException("checkpointFrequency");
+        }
+        this.streamName = streamName;
+        this.readerGroupName = readerGroupName;
+        this.actorCount = actorCount;
+        this.checkpointFrequency = checkpointFrequency;
+    }
 }

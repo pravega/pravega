@@ -70,7 +70,7 @@ class Producer extends Actor {
 
     //endregion
 
-    //region AbstractActor Implementation
+    //region Actor Implementation
 
     @Override
     protected CompletableFuture<Void> run() {

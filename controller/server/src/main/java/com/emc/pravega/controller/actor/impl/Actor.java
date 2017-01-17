@@ -22,17 +22,19 @@ import com.emc.pravega.controller.actor.Props;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
+import com.google.common.util.concurrent.Service;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 
 // TODO: fault tolerance
 
-public abstract class Actor extends AbstractExecutionThreadService {
+public abstract class Actor {
 
     @Getter(AccessLevel.PACKAGE)
     private EventStreamReader<byte[]> reader;
@@ -49,13 +51,68 @@ public abstract class Actor extends AbstractExecutionThreadService {
     @Getter(AccessLevel.PACKAGE)
     private Executor executor;
 
+    @GuardedBy("actorGroups")
     private List<ActorGroupImpl> actorGroups;
 
     private ActorContext context;
 
     private int count = 0;
 
-    protected final void setup(ActorSystemImpl actorSystem, Executor executor, Props props) {
+    /**
+     * Actor encapsulates a delegate which extends AbstractExecutionThreadService. This delegate provides a single
+     * thread of execution for the actor. This prevents sub-classes of Actor from controlling Actor's lifecycle.
+     */
+    private final Service delegate = new AbstractExecutionThreadService() {
+
+        @Override
+        protected final void startUp() throws Exception {
+            preStart();
+        }
+
+        @Override
+        protected final void run() throws Exception {
+            final long defaultTimeout = Long.MAX_VALUE;
+
+            while (isRunning()) {
+                EventRead<byte[]> event = reader.readNextEvent(defaultTimeout);
+                receive(event.getEvent());
+
+                // persist reader position if persistenceFrequency number of events are processed
+                count++;
+                if (props.getPersister() != null && count % props.getConfig().getCheckpointFrequency() == 0) {
+                    props.getPersister()
+                            .setPosition(props.getConfig().getReaderGroupName(), readerId, event.getPosition())
+                            .join();
+                }
+            }
+        }
+
+        @Override
+        protected final void shutDown() throws Exception {
+            actorGroups.forEach(ActorGroupImpl::doStop);
+            postStop();
+        }
+
+        @Override
+        protected final void triggerShutdown() {
+            actorGroups.forEach(ActorGroupImpl::doStop);
+            this.stopAsync();
+        }
+    };
+
+    final void startAsync() {
+        delegate.startAsync();
+    }
+
+    final void stopAsync() {
+        delegate.stopAsync();
+    }
+
+    final void addListener(Service.Listener listener, Executor executor) {
+        delegate.addListener(listener, executor);
+    }
+
+    final void setup(ActorSystemImpl actorSystem, Executor executor, Props props) {
         this.actorSystem = actorSystem;
         this.executor = executor;
         this.props = props;
@@ -63,44 +120,9 @@ public abstract class Actor extends AbstractExecutionThreadService {
         this.context = new ActorContext(actorSystem, executor, actorGroups);
     }
 
-    protected final void setReader(EventStreamReader<byte[]> reader, String readerId) {
+    final void setReader(EventStreamReader<byte[]> reader, String readerId) {
         this.reader = reader;
         this.readerId = readerId;
-    }
-
-    @Override
-    protected final void startUp() throws Exception {
-        preStart();
-    }
-
-    @Override
-    protected final void run() throws Exception {
-        final long defaultTimeout = Long.MAX_VALUE;
-
-        while (isRunning()) {
-            EventRead<byte[]> event = reader.readNextEvent(defaultTimeout);
-            receive(event.getEvent());
-
-            // persist reader position if persistenceFrequency number of events are processed
-            count++;
-            if (props.getPersister() != null && count % props.getConfig().getPersistenceFrequency() == 0) {
-                props.getPersister()
-                        .setPosition(props.getConfig().getReaderGroupName(), readerId, event.getPosition())
-                        .join();
-            }
-        }
-    }
-
-    @Override
-    protected final void shutDown() throws Exception {
-        this.actorGroups.forEach(ActorGroupImpl::doStop);
-        postStop();
-    }
-
-    @Override
-    protected final void triggerShutdown() {
-        this.actorGroups.forEach(ActorGroupImpl::doStop);
-        this.stopAsync();
     }
 
     /**
@@ -138,14 +160,18 @@ public abstract class Actor extends AbstractExecutionThreadService {
         private final List<ActorGroupImpl> actorGroups;
 
         public ActorGroupRef actorOf(Props props) {
-            ActorGroupImpl actorGroup;
+            synchronized (actorGroups) {
+                ActorGroupImpl actorGroup;
 
-            // Create the actor group and start it.
-            actorGroup = new ActorGroupImpl(actorSystem, executor, props);
-            actorGroups.add(actorGroup);
-            actorGroup.startAsync();
+                // Create the actor group, add it to the list of actor groups and start it.
+                actorGroup = new ActorGroupImpl(actorSystem, executor, props);
 
-            return actorGroup.getRef();
+                actorGroups.add(actorGroup);
+
+                actorGroup.startAsync();
+
+                return actorGroup.getRef();
+            }
         }
     }
 }

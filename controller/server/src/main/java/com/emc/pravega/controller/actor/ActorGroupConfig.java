@@ -44,5 +44,5 @@ public interface ActorGroupConfig {
      * Gets the frequency of persistence of Position objects by Actors in the ActorGroup.
      * @return Frequency of persistence of Position objects.
      */
-    int getPersistenceFrequency();
+    int getCheckpointFrequency();
 }

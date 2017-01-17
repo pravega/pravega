@@ -18,13 +18,13 @@
 package com.emc.pravega.controller.actor;
 
 import com.emc.pravega.controller.actor.impl.Actor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.Singular;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
 import java.util.Optional;
-
-// todo: create a builder for this class
 
 /**
  * Configuration object for creating Actors via actorOf method of ActorSystem or ActorContext.
@@ -34,11 +34,13 @@ public class Props {
 
     private final ActorGroupConfig config;
     private final ReaderStatePersistence persister;
-    private final Class clazz;
+    private final Class<? extends Actor> clazz;
+    @Singular
     private final Object[] args;
-    private final Constructor constructor;
+    private final Constructor<? extends Actor> constructor;
 
-    public Props(ActorGroupConfig config, ReaderStatePersistence persister, Class clazz, Object... args) {
+    @Builder
+    public Props(ActorGroupConfig config, ReaderStatePersistence persister, Class<? extends Actor> clazz, Object... args) {
         if (!validate(clazz)) {
             throw new IllegalArgumentException("Non-actor type or non-instantiable type");
         }
@@ -47,30 +49,28 @@ public class Props {
         this.clazz = clazz;
         this.args = args;
 
-        Optional<Constructor> optional = getValidConstructor(clazz, args);
+        Optional<Constructor<? extends Actor>> optional = getValidConstructor(clazz, args);
         if (optional.isPresent()) {
             this.constructor = optional.get();
         } else {
-            throw new IllegalArgumentException("invalid argument set");
+            throw new IllegalArgumentException("Invalid constructor arguments");
         }
     }
 
-    private boolean validate(Class clazz) {
-        return Actor.class.isAssignableFrom(clazz) && !Modifier.isAbstract(clazz.getModifiers());
+    private boolean validate(Class<? extends Actor> clazz) {
+        return !Modifier.isAbstract(clazz.getModifiers());
     }
 
-    private Optional<Constructor> getValidConstructor(Class clazz, Object... args) {
+    private Optional<Constructor<? extends Actor>> getValidConstructor(Class<? extends Actor> clazz, Object... args) {
         int n = args.length;
         Class[] argumentTypes = new Class[n];
         for (int i = 0; i < n; i++) {
             argumentTypes[i] = args[i].getClass();
         }
         try {
-            return Optional.of(clazz.getDeclaredConstructor(argumentTypes));
+            return Optional.of(clazz.getConstructor(argumentTypes));
         } catch (NoSuchMethodException e) {
             return Optional.empty();
         }
     }
-
-
 }

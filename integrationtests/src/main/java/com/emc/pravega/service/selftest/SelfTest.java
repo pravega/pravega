@@ -127,7 +127,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
 
         TestLogger.log(LOG_ID, "Starting.");
 
-        // Create all segments, then start the AbstractActor Manager.
+        // Create all segments, then start the Actor Manager.
         CompletableFuture<Void> startFuture = this.store
                 .initialize(this.testConfig.getTimeout())
                 .thenCompose(v -> this.dataSource.createSegments())
@@ -135,7 +135,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
                             // Create and initialize the Test Actors (Producers & Consumers).
                             createTestActors();
 
-                            // Initialize AbstractActor Manager and attach callbacks.
+                            // Initialize Actor Manager and attach callbacks.
                             this.actorManager = new ServiceManager(this.actors);
                             this.actorManager.addListener(new ServiceManager.Listener() {
                                 @Override
@@ -153,7 +153,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
 
                                 @Override
                                 public void failure(Service service) {
-                                    // We are considered 'failed' if at least one AbstractActor failed.
+                                    // We are considered 'failed' if at least one Actor failed.
                                     notifyFailed(service.failureCause());
                                 }
                             }, this.executor);

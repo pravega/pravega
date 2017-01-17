@@ -29,6 +29,7 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -43,6 +44,7 @@ public class ActorSystemImpl implements ActorSystem {
 
     private final String name;
     private final String hostName;
+    @GuardedBy("actorGroups")
     private final List<ActorGroupImpl> actorGroups;
 
     private final String scope;
@@ -76,14 +78,18 @@ public class ActorSystemImpl implements ActorSystem {
     }
 
     public ActorGroupRef actorOf(Props props) {
-        ActorGroupImpl actorGroup;
+        synchronized (actorGroups) {
+            ActorGroupImpl actorGroup;
 
-        // Create the actor group, add it to the list of actor groups, and start it.
-        actorGroup = new ActorGroupImpl(this, executor, props);
-        actorGroups.add(actorGroup);
-        actorGroup.startAsync();
+            // Create the actor group, add it to the list of actor groups, and start it.
+            actorGroup = new ActorGroupImpl(this, executor, props);
 
-        return actorGroup.getRef();
+            actorGroups.add(actorGroup);
+
+            actorGroup.startAsync();
+
+            return actorGroup.getRef();
+        }
     }
 
     public void notifyHostFailure(String host) {

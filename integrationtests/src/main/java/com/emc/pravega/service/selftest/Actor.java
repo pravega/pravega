@@ -52,7 +52,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
     //region Constructor
 
     /**
-     * Creates a new instance of the AbstractActor class.
+     * Creates a new instance of the Actor class.
      *
      * @param config          Test Configuration.
      * @param dataSource      Data Source.
@@ -134,17 +134,17 @@ abstract class Actor extends AbstractService implements AutoCloseable {
     //endregion
 
     /**
-     * Executes the role of this AbstractActor.
+     * Executes the role of this Actor.
      */
     protected abstract CompletableFuture<Void> run();
 
     /**
-     * Gets a value indicating the Id to use in logging for this AbstractActor.
+     * Gets a value indicating the Id to use in logging for this Actor.
      */
     protected abstract String getLogId();
 
     /**
-     * Immediately stops the AbstractActor and fails it with the given exception.
+     * Immediately stops the Actor and fails it with the given exception.
      */
     protected void fail(Throwable cause) {
         this.stopException.set(cause);

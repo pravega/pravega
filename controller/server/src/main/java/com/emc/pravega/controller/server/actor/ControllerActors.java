@@ -57,12 +57,18 @@ public class ControllerActors {
         final int metricsPositionPersistenceFrequency = 100;
 
         ActorGroupConfig metricsReadersConfig =
-                new ActorGroupConfigImpl(metricsStream,
-                        metricsStreamReaderGroup,
-                        metricsReaderGroupSize,
-                        metricsPositionPersistenceFrequency);
+                ActorGroupConfigImpl.builder()
+                        .streamName(metricsStream)
+                        .readerGroupName(metricsStreamReaderGroup)
+                        .actorCount(metricsReaderGroupSize)
+                        .checkpointFrequency(metricsPositionPersistenceFrequency)
+                        .build();
         Props metricsProps =
-                new Props(metricsReadersConfig, null, MetricsActor.class);
+                Props.builder()
+                        .config(metricsReadersConfig)
+                        .clazz(MetricsActor.class)
+                        .build();
+
         metricsActors = system.actorOf(metricsProps);
 
         // todo: create commitStream, if it does not exist
@@ -72,12 +78,20 @@ public class ControllerActors {
         final int commitPositionPersistenceFrequency = 10;
 
         ActorGroupConfig commitReadersConfig =
-                new ActorGroupConfigImpl(commitStream,
-                        commitStreamReaderGroup,
-                        commitReaderGroupSize,
-                        commitPositionPersistenceFrequency);
+                ActorGroupConfigImpl.builder()
+                        .streamName(commitStream)
+                        .readerGroupName(commitStreamReaderGroup)
+                        .actorCount(commitReaderGroupSize)
+                        .checkpointFrequency(commitPositionPersistenceFrequency)
+                        .build();
+
         Props commitProps =
-                new Props(commitReadersConfig, null, CommitActor.class, streamMetadataStore, hostControllerStore);
+                Props.builder()
+                        .config(commitReadersConfig)
+                        .clazz(CommitActor.class)
+                        .args(new Object[] {streamMetadataStore, hostControllerStore})
+                        .build();
+
         commitActors = system.actorOf(commitProps);
     }
 
