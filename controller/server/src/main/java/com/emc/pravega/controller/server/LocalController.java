@@ -23,7 +23,7 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
+import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -65,6 +65,11 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String streamName) {
+        return this.controller.sealStream(scope, streamName);
+    }
+
+    @Override
     public CompletableFuture<ScaleResponse> scaleStream(final Stream stream,
                                                         final List<Integer> sealedSegments,
                                                         final Map<Double, Double> newKeyRanges) {
@@ -98,12 +103,12 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> commitTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<TxnStatus> commitTransaction(Stream stream, UUID txId) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> dropTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<TxnStatus> dropTransaction(Stream stream, UUID txId) {
         throw new NotImplementedException();
     }
 

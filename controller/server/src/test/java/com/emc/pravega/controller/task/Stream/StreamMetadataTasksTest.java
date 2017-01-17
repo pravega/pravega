@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
+import com.emc.pravega.controller.server.LocalController;
+import com.emc.pravega.controller.server.actor.ControllerActors;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -64,6 +66,7 @@ public class StreamMetadataTasksTest {
 
     private ControllerService consumer;
 
+    private ControllerActors controllerActors;
     private TestingServer zkServer;
 
     private StreamMetadataStore streamStorePartialMock;
@@ -71,6 +74,7 @@ public class StreamMetadataTasksTest {
 
     @Before
     public void initialize() throws Exception {
+        final String hostId = "host";
         zkServer = new TestingServer();
         zkServer.start();
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
@@ -94,9 +98,21 @@ public class StreamMetadataTasksTest {
                 anyString(), anyString(), anyInt()); //mock only the actual calls to Pravega.
 
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStorePartialMock, hostStore, taskMetadataStore, executor, "host");
+                streamStorePartialMock, hostStore, taskMetadataStore, executor, null, hostId);
         consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasksPartialMock,
                 streamTransactionMetadataTasks);
+
+        //region Setup Actors
+        LocalController localController =
+                new LocalController(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+
+        // todo: find a better way to avoid circular dependency
+        // between streamTransactionMetadataTasks and ControllerActors
+        controllerActors = new ControllerActors(hostId, localController, streamStore, hostStore);
+
+        // todo: uncomment following line
+        // controllerActors.initialize();
+        //endregion
 
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
