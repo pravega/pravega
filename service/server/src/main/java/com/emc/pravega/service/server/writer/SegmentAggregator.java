@@ -1217,10 +1217,16 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             return this.queue.size();
         }
 
+        /**
+         * Returns an iterator. While this method is synchronized, the iterator itself is not.
+         */
         public synchronized Iterator<StorageOperation> iterator() {
             return this.queue.iterator();
         }
 
+        /**
+         * Returns a Stream. While this method is synchronized, the Stream itself is not.
+         */
         synchronized Stream<StorageOperation> stream() {
             return this.queue.stream();
         }

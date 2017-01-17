@@ -29,10 +29,12 @@ import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import javax.annotation.concurrent.NotThreadSafe;
 
 /**
  * Represents an ArrayView that can append at one end and truncate at the other one.
  */
+@NotThreadSafe
 class TruncateableArray implements ArrayView {
     //region Members
 
