@@ -58,7 +58,7 @@ public class ReaderGroupStateManager {
     void initializeReader() {
         sync.updateState(state -> {
             if (state.getSegments(consumerId) == null) {
-                return Collections.singletonList(new AddReader(consumerId, PositionImpl.createEmptyPosition()));
+                return Collections.singletonList(new AddReader(consumerId));
             } else {
                 return null;
             }
@@ -81,35 +81,31 @@ public class ReaderGroupStateManager {
     }
     
     /**
-     * Handles a segment being completed by calling the controller to gather all the futures that could be assigned to this reader 
-     * adding all of these futures. It then removes the segment that was completed and promotes all future segments that were waiting on it to owned segments.
-     * the resulting position object is returned.
+     * Handles a segment being completed by calling the controller to gather all successors to the completed segment.
      */
     void handleEndOfSegment(Segment segmentCompleted) {
         val successors = getAndHandleExceptions(controller.getSegmentsImmediatlyFollowing(segmentCompleted),
                                                 RuntimeException::new);
         sync.updateState(state -> {
-            PositionImpl newPosition = state.getPosition(consumerId).copyWithout(segmentCompleted);
-            return Collections.singletonList(new SegmentCompleted(consumerId,
-                                                                  newPosition,
-                                                                  segmentCompleted,
-                                                                  successors));
-        }); 
+            return Collections.singletonList(new SegmentCompleted(consumerId, segmentCompleted, successors));
+        });
+        nextAquireTime.set(0);
     }
 
     Segment shouldReleaseSegment() {
-        long releaseTime = nextReleaseTime.get();
-        if (System.currentTimeMillis() < releaseTime) {
-            return null;
-        }
-        ReaderGroupState state = sync.getState();
-        if (!shouldReleaseSegment(state)) {
-            return null;
-        }
-        if (nextReleaseTime.compareAndSet(releaseTime, System.currentTimeMillis() + UPDATE_TIME_MILLIS)) {
-            return null; // Race. Another thread already is releasing segment.
-        }
-        return findSegmentToRelease(state.getPosition(consumerId));
+        long releaseTime;
+        ReaderGroupState state;
+        do { // Loop handles race with another thread releasing a segment.
+            releaseTime = nextReleaseTime.get();
+            if (System.currentTimeMillis() < releaseTime) {
+                return null;
+            }
+            state = sync.getState();
+            if (!shouldReleaseSegment(state)) {
+                return null;
+            }
+        } while (!nextReleaseTime.compareAndSet(releaseTime, System.currentTimeMillis() + UPDATE_TIME_MILLIS));
+        return findSegmentToRelease(state.getSegments(consumerId));
     }
 
     private boolean shouldReleaseSegment(ReaderGroupState state) {
@@ -128,21 +124,21 @@ public class ReaderGroupStateManager {
         return segments.size() > 1;
     }
 
-    private Segment findSegmentToRelease(PositionImpl position) {
-        return position.getOwnedSegments()
-                       .stream()
-                       .max((s1, s2) -> Integer.compare(s1.getSegmentNumber(), s2.getSegmentNumber())).get();
+    /**
+     * Given a set of segments returns one to release. The one returned is arbitrary.
+     */
+    private Segment findSegmentToRelease(Set<Segment> segments) {
+        return segments.stream().max((s1, s2) -> Integer.compare(s1.getSegmentNumber(), s2.getSegmentNumber())).get();
     }
 
-    boolean releaseSegment(PositionImpl currentPos, Segment segment, long lastOffset, Sequence pos) {
+    boolean releaseSegment(Segment segment, long lastOffset, Sequence pos) {
         sync.updateState(state -> {
             Set<Segment> segments = state.getSegments(consumerId);
             if (!shouldReleaseSegment(state) || segments == null || !segments.contains(segment)) {
                 return null;
             }
             List<ReaderGroupStateUpdate> result = new ArrayList<>(2);
-            PositionImpl newPos = currentPos.copyWithout(segment);
-            result.add(new ReleaseSegment(consumerId, newPos, segment, lastOffset));
+            result.add(new ReleaseSegment(consumerId, segment, lastOffset));
             long distanceToTail = computeDistanceToTail(pos, segments.size() - 1);
             result.add(new UpdateDistanceToTail(consumerId, distanceToTail));
             return result;
@@ -157,17 +153,18 @@ public class ReaderGroupStateManager {
     }
 
     Map<Segment, Long> aquireNewSegmentsIfNeeded(Sequence lastRead) {
-        long aquireTime = nextAquireTime.get();
-        if (System.currentTimeMillis() < aquireTime) {
-            return null;
-        }
-        ReaderGroupState state = sync.getState();
-        if (state.getUnassignedSegments().isEmpty()) {
-            return null;
-        }
-        if (nextAquireTime.compareAndSet(aquireTime, System.currentTimeMillis() + UPDATE_TIME_MILLIS)) {
-            return null; // Race. Another thread already is acquiring a segment.
-        }
+        long aquireTime;
+        do { // Loop handles race with another thread acquiring a segment.
+            aquireTime = nextAquireTime.get();
+            if (System.currentTimeMillis() < aquireTime) {
+                return null;
+            }
+            ReaderGroupState state = sync.getState();
+            if (state.getUnassignedSegments().isEmpty()) {
+                return null;
+            }
+        } while (!nextAquireTime.compareAndSet(aquireTime, System.currentTimeMillis() + UPDATE_TIME_MILLIS));
+
         return aquireSegment(lastRead);
     }
 
@@ -181,13 +178,11 @@ public class ReaderGroupStateManager {
             int toAquire = Math.max(1, unassignedSegments.size() / state.getNumberOfReaders());
             Map<Segment, Long> aquired = new HashMap<>(toAquire);
             List<ReaderGroupStateUpdate> updates = new ArrayList<>(toAquire);
-            PositionImpl pos = state.getPosition(consumerId);
             val iter = unassignedSegments.entrySet().iterator();
             for (int i = 0; i < toAquire; i++) {
                 Entry<Segment, Long> segment = iter.next();
                 aquired.put(segment.getKey(), segment.getValue());
-                pos = pos.copyWith(segment.getKey(), segment.getValue());
-                updates.add(new AquireSegment(consumerId, pos, segment.getKey()));
+                updates.add(new AquireSegment(consumerId, segment.getKey()));
             }
             long toTail = computeDistanceToTail(lastRead, state.getSegments(consumerId).size() + aquired.size());
             updates.add(new UpdateDistanceToTail(consumerId, toTail));

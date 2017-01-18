@@ -39,27 +39,8 @@ public class PositionImpl extends PositionInternal {
         this.ownedSegments = new HashMap<>(ownedSegments);
     }
     
-    public PositionImpl(Map<Segment, Long> ownedSegments, Set<Segment> completedSegments) {
-        this.ownedSegments = new HashMap<>(ownedSegments);
-        for (Segment completed : completedSegments) {
-            ownedSegments.put(completed, -1L);
-        }
-    }
-    
     static PositionImpl createEmptyPosition() {
         return new PositionImpl(new HashMap<>());
-    }
-    
-    PositionImpl copyWith(Segment newSegment, long offset) {
-        HashMap<Segment, Long> newSegments = new HashMap<>(ownedSegments);
-        newSegments.put(newSegment, offset);
-        return new PositionImpl(newSegments);
-    }
-    
-    PositionImpl copyWithout(Segment toRemove) {
-        HashMap<Segment, Long> newSegments = new HashMap<>(ownedSegments);
-        ownedSegments.remove(toRemove);
-        return new PositionImpl(newSegments);
     }
 
     @Override
