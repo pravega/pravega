@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -34,10 +35,6 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperati
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.testcommon.AssertExtensions;
-import lombok.Cleanup;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -49,6 +46,9 @@ import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import lombok.Cleanup;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for MemoryStateUpdater class.
@@ -63,7 +63,7 @@ public class MemoryStateUpdaterTests {
         int operationCountPerType = 5;
 
         // Add to MTL + Add to ReadIndex (append; beginMerge).
-        MemoryOperationLog opLog = new MemoryOperationLog();
+        SequencedItemList<Operation> opLog = new SequencedItemList<>();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
         @Cleanup
@@ -72,10 +72,9 @@ public class MemoryStateUpdaterTests {
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         // Verify they were properly processed.
-        Assert.assertEquals("Unexpected size for MemoryOperationLog.", operations.size(), opLog.size());
         Assert.assertEquals("Unexpected number of items added to ReadIndex.", operations.size() - segmentCount * operationCountPerType, methodInvocations.size());
 
-        Iterator<Operation> logIterator = opLog.read(op -> true, opLog.size());
+        Iterator<Operation> logIterator = opLog.read(-1, operations.size());
         int currentIndex = -1;
         int currentReadIndex = -1;
         while (logIterator.hasNext()) {
@@ -115,7 +114,7 @@ public class MemoryStateUpdaterTests {
     @Test
     public void testRecoveryMode() throws Exception {
         // Check it's properly delegated to Read index.
-        MemoryOperationLog opLog = new MemoryOperationLog();
+        SequencedItemList<Operation> opLog = new SequencedItemList<>();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
         MemoryStateUpdater updater = new MemoryStateUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex));
@@ -143,7 +142,7 @@ public class MemoryStateUpdaterTests {
         int operationCountPerType = 5;
 
         // Add to MTL + Add to ReadIndex (append; beginMerge).
-        MemoryOperationLog opLog = new MemoryOperationLog();
+        SequencedItemList<Operation> opLog = new SequencedItemList<>();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
         AtomicInteger flushCallbackCallCount = new AtomicInteger();

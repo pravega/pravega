@@ -19,22 +19,23 @@
 package com.emc.pravega.common.util;
 
 import com.google.common.base.Preconditions;
-
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.function.Predicate;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Represents a List that can append only on one end and can truncate from the other, which provides random reads.
  *
  * @param <T> The type of the list items.
  */
-public class TruncateableList<T> {
+public class SequencedItemList<T extends SequencedItemList.Element> {
     //region Members
 
+    @GuardedBy("lock")
     private ListNode<T> head;
+    @GuardedBy("lock")
     private ListNode<T> tail;
-    private int size;
     private final Object lock = new Object();
 
     //endregion
@@ -44,7 +45,7 @@ public class TruncateableList<T> {
     /**
      * Creates a new instance of the TruncateableList class.
      */
-    public TruncateableList() {
+    public SequencedItemList() {
         this.head = null;
         this.tail = null;
     }
@@ -54,41 +55,21 @@ public class TruncateableList<T> {
     //region Operations
 
     /**
-     * Adds a new item at the end of the list.
+     * Adds a new item at the end of the list, but only if the given item has a Sequence Number higher than the last
+     * element in the list.
      *
      * @param item The item to append.
+     * @return True if the item was added (meets sequencing criteria or list was empty), false otherwise.
      */
-    public void add(T item) {
-        ListNode<T> node = new ListNode<>(item);
-        synchronized (this.lock) {
-            if (this.tail == null) {
-                this.head = node;
-            } else {
-                this.tail.next = node;
-            }
-
-            this.tail = node;
-            this.size++;
-        }
-    }
-
-    /**
-     * Adds a new item at the end of the list, but only if the last item in the list meets the specified criteria.
-     *
-     * @param item            The item to append.
-     * @param lastItemChecker A predicate to test the tail item in the list. If this predicate returns true, the item
-     *                        is added at the end of the list, otherwise it is not.
-     * @return True if the item was added (lastItemChecker returned true or list was empty), false otherwise.
-     */
-    public boolean addIf(T item, Predicate<T> lastItemChecker) {
+    public boolean add(T item) {
         ListNode<T> node = new ListNode<>(item);
         synchronized (this.lock) {
             if (this.tail == null) {
                 // List is currently empty.
                 this.head = node;
             } else {
-                if (!lastItemChecker.test(this.tail.item)) {
-                    // Test failed
+                if (item.getSequenceNumber() <= this.tail.item.getSequenceNumber()) {
+                    // Item to be added is not in order - reject it.
                     return false;
                 }
 
@@ -96,35 +77,30 @@ public class TruncateableList<T> {
             }
 
             this.tail = node;
-            this.size++;
         }
 
         return true;
     }
 
     /**
-     * Truncates items from the beginning of the list, as long as the given predicate returns true for the items.
+     * Truncates items from the beginning of the list up to, and including, the element with the given Sequence Number.
      *
-     * @param tester The predicate to use for testing.
+     * @param upToSequenceNumber The Sequence Number to truncate up to.
      */
-    public int truncate(Predicate<T> tester) {
+    public int truncate(long upToSequenceNumber) {
         int count = 0;
         synchronized (this.lock) {
             // We truncate by finding the new head and simply pointing our head reference to it, as well as disconnecting
-            // its predecessor node from it.
-            // We also need to mark every truncated node as such - this will instruct ongoing reads to stop serving truncated data.
-            ListNode<T> current = this.head;
-            while (current != null && tester.test(current.item)) {
-                current = trim(current);
+            // its predecessor node from it. We also need to mark every truncated node as such - this will instruct ongoing
+            // reads to stop serving truncated data.
+            while (this.head != null && this.head.item.getSequenceNumber() <= upToSequenceNumber) {
+                this.head = trim(this.head);
                 count++;
             }
 
-            this.head = current;
             if (this.head == null) {
                 this.tail = null;
             }
-
-            this.size -= count;
         }
 
         return count;
@@ -136,26 +112,11 @@ public class TruncateableList<T> {
     public void clear() {
         synchronized (this.lock) {
             // Mark every node as truncated.
-            ListNode<T> current = this.head;
-            while (current != null) {
-                current = trim(current);
+            while (this.head != null) {
+                this.head = trim(this.head);
             }
 
-            // Clear the list.
-            this.head = null;
             this.tail = null;
-            this.size = 0;
-        }
-    }
-
-    /**
-     * Gets the first element in the list, if any.
-     *
-     * @return The first element, or null if the list is empty.
-     */
-    public T getFirst() {
-        synchronized (this.lock) {
-            return getNodeValue(this.head);
         }
     }
 
@@ -166,50 +127,32 @@ public class TruncateableList<T> {
      */
     public T getLast() {
         synchronized (this.lock) {
-            return getNodeValue(this.tail);
+            return this.tail == null ? null : this.tail.item;
         }
     }
 
     /**
-     * Gets a value indicating the current size of the list.
-     */
-    public int size() {
-        return this.size;
-    }
-
-    /**
-     * Reads a number of items starting with the first one that matches the given predicate.
+     * Reads a number of items starting with the first one that has a Sequence Number higher than the given one.
      *
-     * @param firstItemTester A predicate that is used toe find the first item.
-     * @param count           The maximum number of items to read.
+     * @param afterSequenceNumber The sequence to search from.
+     * @param count               The maximum number of items to read.
      * @return An Iterator with the resulting items. If no results are available for the given parameters, an empty iterator is returned.
      */
-    public Iterator<T> read(Predicate<T> firstItemTester, int count) {
-        ListNode<T> firstNode = getFirstWithCondition(firstItemTester);
-        return new NodeIterator<>(firstNode, count, this.lock);
-    }
-
-    /**
-     * Gets the first node for which the given predicate returns true.
-     */
-    private ListNode<T> getFirstWithCondition(Predicate<T> firstItemTester) {
+    public Iterator<T> read(long afterSequenceNumber, int count) {
         ListNode<T> firstNode;
         synchronized (this.lock) {
             firstNode = this.head;
-            while (firstNode != null && !firstItemTester.test(firstNode.item)) {
+        }
+
+        // Find the first node that has a Sequence Number after the given one, but make sure we release and reacquire
+        // the lock with every iteration. This will prevent long-list scans from blocking adds.
+        while (firstNode != null && firstNode.item.getSequenceNumber() <= afterSequenceNumber) {
+            synchronized (this.lock) {
                 firstNode = firstNode.next;
             }
         }
 
-        return firstNode;
-    }
-
-    private T getNodeValue(ListNode<T> node) {
-        if (node == null) {
-            return null;
-        } else {
-            return node.item;
-        }
+        return new NodeIterator<>(firstNode, count, this.lock);
     }
 
     private ListNode<T> trim(ListNode<T> node) {
@@ -223,14 +166,11 @@ public class TruncateableList<T> {
 
     //region ListNode
 
+    @RequiredArgsConstructor
     private static class ListNode<T> {
         final T item;
         ListNode<T> next;
         boolean truncated;
-
-        ListNode(T item) {
-            this.item = item;
-        }
 
         @Override
         public String toString() {
@@ -271,7 +211,7 @@ public class TruncateableList<T> {
         @Override
         public T next() {
             if (!hasNext()) {
-                // There is a scenarios where calling hasNext() returns true for the caller, but we end up in here.
+                // There is a scenario where calling hasNext() returns true for the caller, but we end up in here.
                 // If the current element has been truncated out after the user's call to hasNext() but before the call
                 // to next(), we are forced to throw this exception because we cannot return a truncated element.
                 throw new NoSuchElementException("No more elements left to iterate on.");
@@ -286,7 +226,6 @@ public class TruncateableList<T> {
             synchronized (this.lock) {
                 if (hasNext()) {
                     // We haven't exceeded our max count and we still have nodes to advance to.
-                    // Store the current node in "resultNode" and advance the current node to the next one.
                     this.currentNode = this.currentNode.next;
                     this.countSoFar++;
                 } else {
@@ -300,4 +239,15 @@ public class TruncateableList<T> {
     }
 
     //endregion
+
+    /**
+     * Defines an Element that can be added to a SequencedItemList.
+     */
+    public interface Element {
+        /**
+         * Gets a value indicating the Sequence Number for this item.
+         * The Sequence Number is a unique, strictly monotonically increasing number that assigns order to items.
+         */
+        long getSequenceNumber();
+    }
 }

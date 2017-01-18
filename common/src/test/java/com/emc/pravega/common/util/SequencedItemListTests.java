@@ -18,46 +18,45 @@
 
 package com.emc.pravega.common.util;
 
+import com.emc.pravega.testcommon.AssertExtensions;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-
+import lombok.Data;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.emc.pravega.testcommon.AssertExtensions;
-
-
 /**
- * Unit tests for TruncateableList class.
+ * Unit tests for SequencedItemList class.
  */
-public class TruncateableListTests {
+public class SequencedItemListTests {
     private static final int ITEM_COUNT = 100;
+    private static final long START = Long.MIN_VALUE;
+    private static final long END = Integer.MAX_VALUE;
 
     /**
      * Tests the combination of the basic append() method and read().
      */
     @Test
     public void testAddRead() {
-        TruncateableList<Integer> list = new TruncateableList<>();
+        SequencedItemList<Item> list = new SequencedItemList<>();
         for (int i = 0; i < ITEM_COUNT; i++) {
-            list.add(i);
-            Assert.assertEquals("Unexpected value from size.", i + 1, list.size());
+            list.add(new Item(i));
         }
 
         //Read 1/2 items
-        Iterator<Integer> readResult = list.read(i -> true, ITEM_COUNT / 2);
+        Iterator<Item> readResult = list.read(START, ITEM_COUNT / 2);
         checkRange("Read first 50%", 0, ITEM_COUNT / 2 - 1, readResult);
 
         // Read all items
-        readResult = list.read(i -> true, ITEM_COUNT);
+        readResult = list.read(START, ITEM_COUNT);
         checkRange("Read all items", 0, ITEM_COUNT - 1, readResult);
 
         // Try to read more items.
-        readResult = list.read(i -> true, ITEM_COUNT * 2);
+        readResult = list.read(START, ITEM_COUNT * 2);
         checkRange("Read more items than list has", 0, ITEM_COUNT - 1, readResult);
 
         // Read 25% of items, starting at the middle point.
-        readResult = list.read(i -> i >= ITEM_COUNT / 2, ITEM_COUNT / 4);
+        readResult = list.read(ITEM_COUNT / 2 - 1, ITEM_COUNT / 4);
         checkRange("Read 25% starting at 50%", ITEM_COUNT / 2, ITEM_COUNT / 2 + ITEM_COUNT / 4 - 1, readResult);
     }
 
@@ -66,22 +65,20 @@ public class TruncateableListTests {
      */
     @Test
     public void testAddIf() {
-        TruncateableList<Integer> list = new TruncateableList<>();
+        SequencedItemList<Item> list = new SequencedItemList<>();
         for (int i = 0; i < ITEM_COUNT; i++) {
-            final int currentValue = i;
+            final Item currentValue = new Item(i);
 
             // Happy case.
-            boolean resultValue = list.addIf(currentValue, prev -> prev < currentValue);
+            boolean resultValue = list.add(currentValue);
             Assert.assertTrue("Unexpected return value from addIf for successful append.", resultValue);
-            Assert.assertEquals("Unexpected value from size after successful append.", i + 1, list.size());
 
             // Unhappy case
-            resultValue = list.addIf(currentValue, prev -> prev > currentValue);
+            resultValue = list.add(currentValue);
             Assert.assertFalse("Unexpected return value from addIf for unsuccessful append.", resultValue);
-            Assert.assertEquals("Unexpected value from size after unsuccessful append.", i + 1, list.size());
         }
 
-        Iterator<Integer> readResult = list.read(i -> true, ITEM_COUNT * 2);
+        Iterator<Item> readResult = list.read(START, ITEM_COUNT * 2);
         checkRange("AddIf", 0, ITEM_COUNT - 1, readResult);
     }
 
@@ -90,25 +87,22 @@ public class TruncateableListTests {
      */
     @Test
     public void testTruncate() {
-        TruncateableList<Integer> list = new TruncateableList<>();
+        SequencedItemList<Item> list = new SequencedItemList<>();
         for (int i = 0; i < ITEM_COUNT; i++) {
-            list.add(i);
+            list.add(new Item(i));
         }
 
         // Truncate 25% of items.
-        list.truncate(i -> i < ITEM_COUNT / 4);
-        Assert.assertEquals("Unexpected value for size after truncating 25% items.", ITEM_COUNT - ITEM_COUNT / 4, list.size());
-        checkRange("Truncate 25%", ITEM_COUNT / 4, ITEM_COUNT - 1, list.read(i -> true, ITEM_COUNT));
+        list.truncate(ITEM_COUNT / 4 - 1);
+        checkRange("Truncate 25%", ITEM_COUNT / 4, ITEM_COUNT - 1, list.read(START, ITEM_COUNT));
 
         // Truncate the same 25% of items - verify no change.
-        list.truncate(i -> i < ITEM_COUNT / 4);
-        Assert.assertEquals("Unexpected value for size after re-truncating first 25% items.", ITEM_COUNT - ITEM_COUNT / 4, list.size());
-        checkRange("Re-truncate 25%", ITEM_COUNT / 4, ITEM_COUNT - 1, list.read(i -> true, ITEM_COUNT));
+        list.truncate(ITEM_COUNT / 4 - 1);
+        checkRange("Re-truncate 25%", ITEM_COUNT / 4, ITEM_COUNT - 1, list.read(START, ITEM_COUNT));
 
         // Truncate all items.
-        list.truncate(i -> true);
-        Assert.assertEquals("Unexpected value for size after truncating all items.", 0, list.size());
-        Iterator<Integer> readResult = list.read(i -> true, ITEM_COUNT * 2);
+        list.truncate(END);
+        Iterator<Item> readResult = list.read(START, ITEM_COUNT * 2);
         Assert.assertFalse("List should be empty.", readResult.hasNext());
     }
 
@@ -117,22 +111,22 @@ public class TruncateableListTests {
      */
     @Test
     public void testConcurrentIterator() {
-        TruncateableList<Integer> list = new TruncateableList<>();
+        SequencedItemList<Item> list = new SequencedItemList<>();
         for (int i = 0; i < ITEM_COUNT; i++) {
-            list.add(i);
+            list.add(new Item(i));
         }
 
         // Test with additions.
-        Iterator<Integer> addIterator = list.read(i -> true, ITEM_COUNT * 2);
-        int firstValue = addIterator.next();
-        Assert.assertEquals("Unexpected first value, pre-modification.", 0, firstValue);
-        list.add(ITEM_COUNT);
+        Iterator<Item> addIterator = list.read(START, ITEM_COUNT * 2);
+        Item firstValue = addIterator.next();
+        Assert.assertEquals("Unexpected first value, pre-modification.", 0, firstValue.getSequenceNumber());
+        list.add(new Item(ITEM_COUNT));
         checkRange("Post-addition.", 1, ITEM_COUNT, addIterator);
 
         // Test with truncation.
-        Iterator<Integer> truncateIterator = list.read(i -> true, ITEM_COUNT * 2);
+        Iterator<Item> truncateIterator = list.read(START, ITEM_COUNT * 2);
         truncateIterator.next(); // Read 1 value
-        list.truncate(i -> i < 10);
+        list.truncate(10);
         Assert.assertFalse("Unexpected value from hasNext when list has been truncated.", truncateIterator.hasNext());
         AssertExtensions.assertThrows(
                 "Unexpected behavior from next() when current element has been truncated.",
@@ -143,9 +137,9 @@ public class TruncateableListTests {
         // This is always a possibility. If the list gets truncated between calls to hasNext() and next(), we cannot
         // return a truncated element. This means we expect a NoSuchElementException to be thrown from next(), even though
         // the previous call to hasNext() returned true (now it should return false).
-        Iterator<Integer> midTruncateIterator = list.read(i -> true, ITEM_COUNT * 2);
+        Iterator<Item> midTruncateIterator = list.read(START, ITEM_COUNT * 2);
         Assert.assertTrue("Unexpected value from hasNext when not been truncated.", midTruncateIterator.hasNext());
-        list.truncate(i -> i < 20);
+        list.truncate(20);
         AssertExtensions.assertThrows(
                 "Unexpected behavior from next() when current element has been truncated (after hasNext() and before next()).",
                 midTruncateIterator::next,
@@ -157,24 +151,29 @@ public class TruncateableListTests {
      */
     @Test
     public void testClear() {
-        TruncateableList<Integer> list = new TruncateableList<>();
+        SequencedItemList<Item> list = new SequencedItemList<>();
         for (int i = 0; i < ITEM_COUNT; i++) {
-            list.add(i);
+            list.add(new Item(i));
         }
 
         list.clear();
-        Iterator<Integer> readResult = list.read(i -> true, ITEM_COUNT * 2);
+        Iterator<Item> readResult = list.read(START, ITEM_COUNT * 2);
         Assert.assertFalse("List should be empty.", readResult.hasNext());
     }
 
-    private void checkRange(String testDescription, int startElement, int endElement, Iterator<Integer> readResult) {
+    private void checkRange(String testDescription, int startElement, int endElement, Iterator<Item> readResult) {
         for (int i = startElement; i <= endElement; i++) {
             Assert.assertTrue(testDescription + ": Unexpected value from hasNext when more elements are expected.", readResult.hasNext());
-            int nextItem = readResult.next();
-            Assert.assertEquals(testDescription + ": Unexpected next value from next.", i, nextItem);
+            Item nextItem = readResult.next();
+            Assert.assertEquals(testDescription + ": Unexpected next value from next.", i, nextItem.getSequenceNumber());
         }
 
         Assert.assertFalse(testDescription + ": Unexpected value from hasNext when no more elements are expected.", readResult.hasNext());
+    }
+
+    @Data
+    private static class Item implements SequencedItemList.Element {
+        final long sequenceNumber;
     }
 }
 

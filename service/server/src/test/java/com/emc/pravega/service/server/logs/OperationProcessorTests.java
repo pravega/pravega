@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.util.PropertyBag;
+import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
@@ -415,12 +416,12 @@ public class OperationProcessorTests extends OperationLogTestBase {
         return completionFutures;
     }
 
-    private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, MemoryOperationLog memoryLog, DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers, Cache cache) throws Exception {
+    private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, SequencedItemList<Operation> memoryLog, DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers, Cache cache) throws Exception {
         // Log Operation based checks
         @Cleanup
         DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationFactory(), CONTAINER_ID);
         long lastSeqNo = -1;
-        Iterator<Operation> memoryLogIterator = memoryLog.read(o -> true, operations.size() + 1);
+        Iterator<Operation> memoryLogIterator = memoryLog.read(-1, operations.size() + 1);
         OperationComparer memoryLogComparer = new OperationComparer(true, cache);
         for (LogTestHelpers.OperationWithCompletion oc : operations) {
             if (oc.completion.isCompletedExceptionally()) {
@@ -480,7 +481,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
     private class TestContext implements AutoCloseable {
         final CacheManager cacheManager;
         final Storage storage;
-        final MemoryOperationLog memoryLog;
+        final SequencedItemList<Operation> memoryLog;
         final Cache cache;
         final UpdateableContainerMetadata metadata;
         final ReadIndex readIndex;
@@ -495,7 +496,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
             this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), executorService());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, executorService());
-            this.memoryLog = new MemoryOperationLog();
+            this.memoryLog = new SequencedItemList<>();
             this.stateUpdater = new MemoryStateUpdater(this.memoryLog, new CacheUpdater(this.cache, this.readIndex));
         }
 

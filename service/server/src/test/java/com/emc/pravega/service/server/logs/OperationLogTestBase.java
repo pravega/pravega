@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.server.ContainerMetadata;
@@ -27,9 +28,6 @@ import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
-import lombok.Cleanup;
-import org.junit.Assert;
-
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,7 +36,8 @@ import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Predicate;
+import lombok.Cleanup;
+import org.junit.Assert;
 
 /**
  * Base class for all Operation Log-based classes (i.e., DurableLog and OperationProcessor).
@@ -115,7 +114,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         }
     }
 
-    static class CorruptedMemoryOperationLog extends MemoryOperationLog {
+    static class CorruptedMemoryOperationLog extends SequencedItemList<Operation> {
         private final long corruptAtIndex;
         private final AtomicLong addCount;
 
@@ -125,13 +124,13 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         }
 
         @Override
-        public boolean addIf(Operation item, Predicate<Operation> lastItemChecker) {
+        public boolean add(Operation item) {
             if (this.addCount.incrementAndGet() == this.corruptAtIndex) {
                 // Still add the item, but report that we haven't added it.
                 return false;
             }
 
-            return super.addIf(item, lastItemChecker);
+            return super.add(item);
         }
     }
 }
