@@ -104,7 +104,6 @@ public interface Controller {
      * 
      * @param stream stream name
      * @param txId transaction id
-     * @return status of commit transaction operation.
      */
     CompletableFuture<Void> commitTransaction(final Stream stream, final UUID txId);
 
@@ -115,7 +114,6 @@ public interface Controller {
      * 
      * @param stream stream name
      * @param txId transaction id
-     * @return status of drop transaction operation.
      */
     CompletableFuture<Void> dropTransaction(final Stream stream, final UUID txId);
 
@@ -155,6 +153,7 @@ public interface Controller {
      * future. The successors to a sealed segment are always known and returned.
      * 
      * @param The segment whose successors should be looked up.
+     * @return A mapping from Successor to the list of all of the Successor's predecessors
      */
     CompletableFuture<Map<Segment, List<Integer>>> getSegmentsImmediatlyFollowing(final Segment segment);
 
@@ -171,15 +170,4 @@ public interface Controller {
      */
     CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName);
 
-    // Controller Apis that are called by Pravega host
-
-    /**
-     * Given a segment number, check if the segment is created and not sealed.
-     *
-     * @param scope scope
-     * @param stream stream
-     * @param segmentNumber segment number
-     * @return boolean indicating validity of segment.
-     */
-    CompletableFuture<Boolean> isSegmentValid(final String scope, final String stream, final int segmentNumber);
 }

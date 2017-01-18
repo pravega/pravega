@@ -100,11 +100,7 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public <T> EventStreamReader<T> createReader(String stream, Serializer<T> s, ReaderConfig config,
             Position startingPosition) {
-        return new EventReaderImpl<T>(new SegmentInputStreamFactoryImpl(controller, connectionFactory),
-                s,
-                startingPosition.asImpl(),
-                new SingleStreamOrderer<T>(),
-                config);
+        throw new NotImplementedException();
     }
 
     @Override

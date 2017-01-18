@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;
@@ -56,6 +57,9 @@ class ReaderGroupState implements Revisioned {
     private final Map<Segment, Long> unassignedSegments = new HashMap<>();
 
     ReaderGroupState (String scopedSynchronizerStream, Revision revision, List<String> streams) {
+        Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
+        Preconditions.checkNotNull(revision);
+        Exceptions.checkNotNullOrEmpty(streams, "streams");
         this.scopedSynchronizerStream = scopedSynchronizerStream;
         this.revision = revision;
         this.streams = streams;
@@ -66,7 +70,7 @@ class ReaderGroupState implements Revisioned {
      *         scale is calibrated to where 1.0 is equal to the largest segment.
      */
     @Synchronized
-    Map<String, Double> getRelitiveSizes() {
+    Map<String, Double> getRelativeSizes() {
         Long maxTime = distanceToTail.values().stream().max(Long::compareTo).orElse(null);
         Map<String, Double> result = new HashMap<>();
         distanceToTail.forEach((host, size) -> {
@@ -81,10 +85,14 @@ class ReaderGroupState implements Revisioned {
     }
     
     /**
-     * @return The 0 indexed ranking of the requested reader in the reader group in terms of amount of keyspace assigned to it.
+     * @return The 0 indexed ranking of the requested reader in the reader group in terms of amount
+     *         of keyspace assigned to it, or -1 if the reader is not part of the group.
      */
     @Synchronized
     int getRanking(String reader) {
+        if (!distanceToTail.containsKey(reader)) {
+            return -1;
+        }
         List<String> sorted = distanceToTail.entrySet()
                                    .stream()
                                    .sorted((o1, o2) -> Long.compare(o1.getValue(), o2.getValue()))
@@ -141,31 +149,43 @@ class ReaderGroupState implements Revisioned {
             return oldState;
         }
 
+        /**
+         * Changes the state to reflect the update.
+         * Note that a lock while this method is called so only one update will be applied at a time.
+         * Implementations of this should not call any methods outside of this class.
+         * @param state The state to be updated.
+         */
         abstract void update(ReaderGroupState state);
     }
     
     @RequiredArgsConstructor
     static class AddReader extends ReaderGroupStateUpdate {
-        private final String consumerId;
+        private final String readerId;
 
+        /**
+         * @see com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate#update(com.emc.pravega.stream.impl.ReaderGroupState)
+         */
         @Override
         void update(ReaderGroupState state) {
-            Set<Segment> oldPos = state.assignedSegments.putIfAbsent(consumerId, new HashSet<>());
+            Set<Segment> oldPos = state.assignedSegments.putIfAbsent(readerId, new HashSet<>());
             if (oldPos != null) {
-                throw new IllegalStateException("Attempted to add a reader that is already online. " + consumerId);
+                throw new IllegalStateException("Attempted to add a reader that is already online: " + readerId);
             }
-            state.distanceToTail.putIfAbsent(consumerId, Long.MAX_VALUE);
+            state.distanceToTail.putIfAbsent(readerId, Long.MAX_VALUE);
         }
     }
     
     @RequiredArgsConstructor
     static class RemoveReader extends ReaderGroupStateUpdate {
-        private final String consumerId;
+        private final String readerId;
         private final PositionImpl lastPosition;
-
+        
+        /**
+         * @see com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate#update(com.emc.pravega.stream.impl.ReaderGroupState)
+         */
         @Override
         void update(ReaderGroupState state) {
-            Set<Segment> assignedSegments = state.assignedSegments.remove(consumerId);
+            Set<Segment> assignedSegments = state.assignedSegments.remove(readerId);
             if (assignedSegments != null) {
                 val iter = assignedSegments.iterator();
                 while (iter.hasNext()) {
@@ -177,7 +197,7 @@ class ReaderGroupState implements Revisioned {
                     iter.remove();
                 }
             }
-            state.distanceToTail.remove(consumerId);
+            state.distanceToTail.remove(readerId);
         }
     }
 
@@ -186,16 +206,20 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class ReleaseSegment extends ReaderGroupStateUpdate {
-        private final String consumerId;
+        private final String readerId;
         private final Segment segment;
         private final long offset;
 
+        /**
+         * @see com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate#update(com.emc.pravega.stream.impl.ReaderGroupState)
+         */
         @Override
         void update(ReaderGroupState state) {
-            Set<Segment> assigned = state.assignedSegments.get(consumerId);
+            Set<Segment> assigned = state.assignedSegments.get(readerId);
+            Preconditions.checkState(assigned != null, "{} is not part of the readerGroup", readerId);
             if (!assigned.remove(segment)) {
                 throw new IllegalStateException(
-                        consumerId + " asked to release a segment that was not assigned to it " + segment);
+                        readerId + " asked to release a segment that was not assigned to it " + segment);
             }
             state.unassignedSegments.put(segment, offset);
         }
@@ -206,14 +230,17 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class AquireSegment extends ReaderGroupStateUpdate {
-        private final String consumerId;
+        private final String readerId;
         private final Segment segment;
 
+        /**
+         * @see com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate#update(com.emc.pravega.stream.impl.ReaderGroupState)
+         */
         @Override
         void update(ReaderGroupState state) {
-            Set<Segment> assigned = state.assignedSegments.get(consumerId);
-            Preconditions.checkState(assigned != null);
-            if (state.unassignedSegments.remove(segment) != null) {
+            Set<Segment> assigned = state.assignedSegments.get(readerId);
+            Preconditions.checkState(assigned != null, "{} is not part of the readerGroup", readerId);
+            if (state.unassignedSegments.remove(segment) == null) {
                 throw new IllegalStateException("Segment: " + segment + " is not unassigned. " + state);
             }
             assigned.add(segment);
@@ -225,11 +252,15 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class UpdateDistanceToTail extends ReaderGroupStateUpdate {
-        private final String consumerId;
+        private final String readerId;
         private final long distanceToTail;
+        
+        /**
+         * @see com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate#update(com.emc.pravega.stream.impl.ReaderGroupState)
+         */
         @Override
         void update(ReaderGroupState state) {
-            state.distanceToTail.put(consumerId, distanceToTail);
+            state.distanceToTail.put(readerId, distanceToTail);
         }
     }
     
@@ -238,21 +269,25 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class SegmentCompleted extends ReaderGroupStateUpdate {
-        private final String consumerId;
+        private final String readerId;
         private final Segment segmentCompleted;
-        private final Map<Segment, List<Integer>> successorsMappedToTheirPredecessors;
+        private final Map<Segment, List<Integer>> successorsMappedToTheirPredecessors; //Immutable
         
+        /**
+         * @see com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate#update(com.emc.pravega.stream.impl.ReaderGroupState)
+         */
         @Override
         void update(ReaderGroupState state) {
-            Set<Segment> assigned = state.assignedSegments.get(consumerId);
-            Preconditions.checkState(assigned != null);
+            Set<Segment> assigned = state.assignedSegments.get(readerId);
+            Preconditions.checkState(assigned != null, "{} is not part of the readerGroup", readerId);
             if (!assigned.remove(segmentCompleted)) {
                 throw new IllegalStateException(
-                        consumerId + " asked to complete a segment that was not assigned to it " + segmentCompleted);
+                        readerId + " asked to complete a segment that was not assigned to it " + segmentCompleted);
             }
             for (Entry<Segment, List<Integer>> entry : successorsMappedToTheirPredecessors.entrySet()) {
                 Set<Integer> requiredToComplete = state.futureSegments.getOrDefault(entry.getKey(), new HashSet<>());
                 requiredToComplete.addAll(entry.getValue());
+                state.futureSegments.put(entry.getKey(), requiredToComplete);
             }
             for (Set<Integer> requiredToComplete : state.futureSegments.values()) {
                 requiredToComplete.remove(segmentCompleted);

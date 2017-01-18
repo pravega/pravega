@@ -202,14 +202,5 @@ public class ControllerWrapper implements Controller {
         }
     }
 
-    @Override
-    public CompletableFuture<Boolean> isSegmentValid(String scope, String stream, int segmentNumber) {
-        try {
-            return controller.isSegmentValid(scope, stream, segmentNumber);
-        } catch (TException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
 }
 

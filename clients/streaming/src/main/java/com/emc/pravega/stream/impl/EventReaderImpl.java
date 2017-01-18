@@ -62,7 +62,7 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
             long offset;
             Type result;
             boolean rebalance = false;
-            do {
+            do { // Loop handles retry on end of segment
                 rebalance |= releaseSegmentsIfNeeded();
                 rebalance |= aquireSegmentsIfNeeded();
                 SegmentReader<Type> segment = orderer.nextSegment(readers);
@@ -85,12 +85,14 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     private boolean releaseSegmentsIfNeeded() {
-        Segment segment = groupState.shouldReleaseSegment();
+        Segment segment = groupState.findSegmentToReleaseIfRequired();
         if (segment != null) {
             SegmentReader<Type> reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
-            groupState.releaseSegment(segment, reader.getOffset(), lastRead);
-            readers.remove(reader);
-            return true;
+            if (reader != null) {
+                groupState.releaseSegment(segment, reader.getOffset(), lastRead);
+                readers.remove(reader);
+                return true;
+            }
         }
         return false;
     }
