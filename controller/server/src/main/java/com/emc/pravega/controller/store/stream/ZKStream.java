@@ -25,10 +25,13 @@ import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
 import com.emc.pravega.controller.store.stream.tables.Data;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
+import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
@@ -37,6 +40,7 @@ import org.apache.zookeeper.data.Stat;
 
 import java.util.AbstractMap;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -52,10 +56,12 @@ import java.util.stream.IntStream;
  * It may cache files read from the store for its lifetime.
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
+@Slf4j
 class ZKStream extends PersistentStreamBase<Integer> {
     private static final String STREAM_PATH = "/streams/%s";
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";
     private static final String CONFIGURATION_PATH = STREAM_PATH + "/configuration";
+    private static final String STATE_PATH = STREAM_PATH + "/state";
     private static final String SEGMENT_PATH = STREAM_PATH + "/segment";
     private static final String HISTORY_PATH = STREAM_PATH + "/history";
     private static final String INDEX_PATH = STREAM_PATH + "/index";
@@ -70,6 +76,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     private final String creationPath;
     private final String configurationPath;
+    private final String statePath;
     private final String segmentPath;
     private final String segmentChunkPathTemplate;
     private final String historyPath;
@@ -83,6 +90,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
         creationPath = String.format(CREATION_TIME_PATH, name);
         configurationPath = String.format(CONFIGURATION_PATH, name);
+        statePath = String.format(STATE_PATH, name);
         segmentPath = String.format(SEGMENT_PATH, name);
         segmentChunkPathTemplate = segmentPath + "/%s";
         historyPath = String.format(HISTORY_PATH, name);
@@ -91,6 +99,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
         completedTxPath = String.format(COMPLETED_TX_PATH, name);
 
         cache = new Cache<>(ZKStream::getData);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> isTransactionOngoing() {
+        return getChildren(activeTxPath).thenApply(list -> list != null && !list.isEmpty());
     }
 
     @Override
@@ -127,6 +140,12 @@ class ZKStream extends PersistentStreamBase<Integer> {
     public CompletableFuture<Void> createConfiguration(final Create create) {
         return createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(create.getConfiguration()))
                 .thenApply(x -> cache.invalidateCache(configurationPath));
+    }
+
+    @Override
+    public CompletableFuture<Void> createState(final State state) {
+        return createZNodeIfNotExist(statePath, SerializationUtils.serialize(state))
+                .thenApply(x -> cache.invalidateCache(statePath));
     }
 
     @Override
@@ -256,6 +275,18 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
+    CompletableFuture<Void> setStateData(final State state) {
+        return setData(statePath, new Data<>(SerializationUtils.serialize(state), null))
+                .thenApply(x -> cache.invalidateCache(statePath));
+    }
+
+    @Override
+    CompletableFuture<State> getStateData() {
+        return cache.getCachedData(statePath)
+                .thenApply(x -> (State) SerializationUtils.deserialize(x.getData()));
+    }
+
+    @Override
     public CompletableFuture<Segment> getSegmentRow(final int number) {
         // compute the file name based on segment number
         final int chunkNumber = number / SegmentRecord.SEGMENT_CHUNK_SIZE;
@@ -377,6 +408,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return client.getChildren().forPath(path);
+            } catch (KeeperException.NoNodeException nne) {
+                return Collections.emptyList();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -411,10 +444,22 @@ class ZKStream extends PersistentStreamBase<Integer> {
                             throw new RuntimeException(e);
                         }
                     } else {
-                        throw new RuntimeException(String.format("path %s not Found", path));
+                        //path does not exist indicates Stream is not present
+                        log.error("Failed to write data. path {}", path);
+                        throw new StreamNotFoundException(extractStreamName(path));
                     }
                 }) // load into cache after writing the data
                 .thenApply(x -> null);
+    }
+
+    private static String extractStreamName(final String path) {
+        Preconditions.checkNotNull(path, "path");
+        String[] result = path.split("/");
+            if (result.length > 2) {
+                return result[2];
+            } else {
+                return path;
+            }
     }
 
     private static CompletableFuture<Void> createZNodeIfNotExist(final String path, final byte[] data) {

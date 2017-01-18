@@ -42,19 +42,21 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperati
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.ArrayDeque;
+import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Aggregates contents for a specific StreamSegment.
@@ -65,7 +67,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
     private final UpdateableSegmentMetadata metadata;
     private final WriterConfig config;
-    private final Queue<StorageOperation> operations;
+    private final OperationQueue operations;
     private final AutoStopwatch stopwatch;
     private final String traceObjectId;
     private final Storage storage;
@@ -111,7 +113,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         this.lastAddedOffset = new AtomicLong(-1); // Will be set properly in initialize().
         this.mergeTransactionCount = new AtomicInteger();
         this.hasSealPending = new AtomicBoolean();
-        this.operations = new ConcurrentLinkedQueue<>();
+        this.operations = new OperationQueue();
         this.state = new AtomicReference<>(AggregatorState.NotInitialized);
         this.reconciliationState = new AtomicReference<>();
     }
@@ -1162,6 +1164,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
     //endregion
 
+    //region ReconciliationState
+
     private static class ReconciliationState {
         private final SegmentProperties storageInfo;
         private final long initialStorageLength;
@@ -1185,4 +1189,48 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             return String.format("Metadata.StorageLength = %d, Storage.Length = %d", this.initialStorageLength, this.storageInfo.getLength());
         }
     }
+
+    //endregion
+
+    //region OperationQueue
+
+    /**
+     * Thin wrapper for a simple Queue[StorageOperation] that provides thread synchronization.
+     */
+    private static class OperationQueue implements Iterable<StorageOperation> {
+        @GuardedBy("this")
+        private final Queue<StorageOperation> queue = new ArrayDeque<>();
+
+        synchronized boolean add(StorageOperation operation) {
+            return this.queue.add(operation);
+        }
+
+        synchronized StorageOperation peek() {
+            return this.queue.peek();
+        }
+
+        synchronized StorageOperation poll() {
+            return this.queue.poll();
+        }
+
+        synchronized int size() {
+            return this.queue.size();
+        }
+
+        /**
+         * Returns an iterator. While this method is synchronized, the iterator itself is not.
+         */
+        public synchronized Iterator<StorageOperation> iterator() {
+            return this.queue.iterator();
+        }
+
+        /**
+         * Returns a Stream. While this method is synchronized, the Stream itself is not.
+         */
+        synchronized Stream<StorageOperation> stream() {
+            return this.queue.stream();
+        }
+    }
+
+    //endregion
 }

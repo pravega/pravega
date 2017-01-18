@@ -30,6 +30,7 @@ import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.TxnStatus;
@@ -115,6 +116,22 @@ public class ControllerWrapper implements Controller {
     }
 
     @Override
+    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String streamName) {
+        return controller.sealStream(scope, streamName);
+    }
+
+    @Override
+    public CompletableFuture<ScaleResponse> scaleStream(final Stream stream,
+                                                        final List<Integer> sealedSegments,
+                                                        final Map<Double, Double> newKeyRanges) {
+        return controller.scale(stream.getScope(),
+                stream.getStreamName(),
+                sealedSegments,
+                newKeyRanges,
+                System.currentTimeMillis());
+    }
+
+    @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
         return controller.getCurrentSegments(scope, stream)
                 .thenApply((List<SegmentRange> ranges) -> {
@@ -146,9 +163,9 @@ public class ControllerWrapper implements Controller {
     }
 
     @Override
-    public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txId) {
-        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId))
-                .thenApply(status -> ModelHelper.encode(status, stream + " " + txId));
+    public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txnId) {
+        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
+                .thenApply(status -> ModelHelper.encode(status, stream + " " + txnId));
     }
 
     @Override

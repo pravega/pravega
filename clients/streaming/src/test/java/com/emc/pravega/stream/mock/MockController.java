@@ -32,6 +32,7 @@ import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
@@ -77,6 +78,16 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<UpdateStreamStatus> alterStream(StreamConfiguration streamConfig) {
         return null;
+    }
+
+    @Override
+    public CompletableFuture<ScaleResponse> scaleStream(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String streamName) {
+        throw new NotImplementedException();
     }
 
     boolean createSegment(String name, PravegaNodeUri uri) {

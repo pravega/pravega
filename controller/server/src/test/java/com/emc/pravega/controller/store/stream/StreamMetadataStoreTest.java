@@ -33,6 +33,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
+
 
 /**
  * Stream metadata test.
@@ -106,6 +110,29 @@ public class StreamMetadataStoreTest {
         assertEquals(3, segmentFutures.getCurrent().size());
         assertEquals(1, segmentFutures.getFutures().size());
 
+        // endregion
+
+        // region seal stream
+
+        assertFalse(store.isSealed(stream2).get());
+        assertNotEquals(0, store.getActiveSegments(stream2).get().size());
+        Boolean sealOperationStatus = store.setSealed(stream2).get();
+        assertTrue(sealOperationStatus);
+        assertTrue(store.isSealed(stream2).get());
+        assertEquals(0, store.getActiveSegments(stream2).get().size());
+
+        //Sealing an already seal stream should return success.
+        Boolean sealOperationStatus1 = store.setSealed(stream2).get();
+        assertTrue(sealOperationStatus1);
+        assertTrue(store.isSealed(stream2).get());
+        assertEquals(0, store.getActiveSegments(stream2).get().size());
+
+        // seal a non-existent stream.
+        try {
+            store.setSealed("streamNonExistent").get();
+        } catch (Exception e) {
+            assertEquals(StreamNotFoundException.class, e.getCause().getCause().getClass());
+        }
         // endregion
     }
 

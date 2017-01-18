@@ -21,6 +21,7 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.ControllerService;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.TxnStatus;
@@ -95,6 +96,39 @@ public class ControllerImpl implements Controller {
         final ThriftAsyncCallback<ControllerService.AsyncClient.alterStream_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
             client.alterStream(ModelHelper.decode(streamConfig), callback);
+            return null;
+        });
+        return callback.getResult()
+                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+    }
+
+    @Override
+    public CompletableFuture<ScaleResponse> scaleStream(final Stream stream,
+                                                        final List<Integer> sealedSegments,
+                                                        final Map<Double, Double> newKeyRanges) {
+        log.debug("Invoke AdminService.Client.scaleStream() for stream: {}", stream);
+
+        final ThriftAsyncCallback<ControllerService.AsyncClient.scale_call> callback = new ThriftAsyncCallback<>();
+        ThriftHelper.thriftCall(() -> {
+            client.scale(stream.getScope(),
+                    stream.getStreamName(),
+                    sealedSegments,
+                    newKeyRanges,
+                    System.currentTimeMillis(),
+                    callback);
+            return null;
+        });
+        return callback.getResult()
+                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+    }
+
+    @Override
+    public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String streamName) {
+        log.debug("Invoke AdminService.Client.sealStream() for stream: {}", streamName);
+
+        final ThriftAsyncCallback<ControllerService.AsyncClient.alterStream_call> callback = new ThriftAsyncCallback<>();
+        ThriftHelper.thriftCall(() -> {
+            client.sealStream(scope, streamName, callback);
             return null;
         });
         return callback.getResult()

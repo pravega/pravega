@@ -1,6 +1,13 @@
 <code_scheme name="Intellij_Checkstyle">
   <option name="CLASS_COUNT_TO_USE_IMPORT_ON_DEMAND" value="100" />
   <option name="NAMES_COUNT_TO_USE_IMPORT_ON_DEMAND" value="100" />
+  <option name="IMPORT_LAYOUT_TABLE">
+    <value>
+      <package name="" withSubpackages="true" static="false" />
+      <emptyLine />
+      <package name="" withSubpackages="true" static="true" />
+    </value>
+  </option>
   <XML>
     <option name="XML_LEGACY_SETTINGS_IMPORTED" value="true" />
   </XML>

@@ -45,14 +45,14 @@ import java.util.stream.Collectors;
  */
 public final class ModelHelper {
 
-    public static final UUID encode(TxnId txId) {
-        Preconditions.checkNotNull(txId, "txId");
-        return new UUID(txId.getHighBits(), txId.getLowBits());
+    public static final UUID encode(TxnId txnId) {
+        Preconditions.checkNotNull(txnId, "txnId");
+        return new UUID(txnId.getHighBits(), txnId.getLowBits());
     }
 
-    public static final TxnStatus encode(TxnState txStatus) {
-        Preconditions.checkNotNull(txStatus, "txStatus");
-        return TxnStatus.valueOf(txStatus.name());
+    public static final TxnStatus encode(TxnState txnState) {
+        Preconditions.checkNotNull(txnState, "txnState");
+        return TxnStatus.valueOf(txnState.name());
     }
 
     public static final Segment encode(final SegmentId segment) {
@@ -107,14 +107,14 @@ public final class ModelHelper {
         }
     }
 
-    public static final TxnId decode(UUID txId) {
-        Preconditions.checkNotNull(txId, "txId");
-        return new TxnId(txId.getMostSignificantBits(), txId.getLeastSignificantBits());
+    public static final TxnId decode(UUID txnId) {
+        Preconditions.checkNotNull(txnId, "txnId");
+        return new TxnId(txnId.getMostSignificantBits(), txnId.getLeastSignificantBits());
     }
 
-    public static final TxnState decode(TxnStatus txstatus) {
-        Preconditions.checkNotNull(txstatus, "txstatus");
-        return TxnState.valueOf(txstatus.name());
+    public static final TxnState decode(TxnStatus txnStatus) {
+        Preconditions.checkNotNull(txnStatus, "txnStatus");
+        return TxnState.valueOf(txnStatus.name());
     }
 
     public static final SegmentId decode(final Segment segment) {

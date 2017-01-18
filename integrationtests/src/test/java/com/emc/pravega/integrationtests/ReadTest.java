@@ -31,9 +31,9 @@ import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.EventStreamReader;
-import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
@@ -50,29 +50,25 @@ import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.testcommon.TestUtils;
-
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.util.ResourceLeakDetector;
+import io.netty.util.ResourceLeakDetector.Level;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-
+import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-
-import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.util.ResourceLeakDetector;
-import io.netty.util.ResourceLeakDetector.Level;
-import io.netty.util.internal.logging.InternalLoggerFactory;
-import io.netty.util.internal.logging.Slf4JLoggerFactory;
-import lombok.Cleanup;
 
 public class ReadTest {
 
@@ -97,8 +93,8 @@ public class ReadTest {
     @Test
     public void testReadDirectlyFromStore() throws InterruptedException, ExecutionException, IOException {
         String segmentName = "testReadFromStore";
-        int entries = 10;
-        byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        final int entries = 10;
+        final byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         UUID clientId = UUID.randomUUID();
 
         StreamSegmentStore segmentStore = serviceBuilder.createStreamSegmentService();
@@ -106,19 +102,22 @@ public class ReadTest {
         fillStoreForSegment(segmentName, clientId, data, entries, segmentStore);
 
         ReadResult result = segmentStore.read(segmentName, 0, entries * data.length, Duration.ZERO).get();
-        int count = 0;
+        int index = 0;
         while (result.hasNext()) {
             ReadResultEntry entry = result.next();
             ReadResultEntryType type = entry.getType();
             assertEquals(ReadResultEntryType.Cache, type);
+
+            // Each ReadResultEntryContents may be of an arbitrary length - we should make no assumptions.
             ReadResultEntryContents contents = entry.getContent().get();
-            assertEquals(data.length, contents.getLength());
-            byte[] entryData = new byte[data.length];
-            contents.getData().read(entryData);
-            assertArrayEquals(data, entryData);
-            count++;
+            byte next;
+            while ((next = (byte) contents.getData().read()) != -1) {
+                byte expected = data[index % data.length];
+                assertEquals(expected, next);
+                index++;
+            }
         }
-        assertEquals(entries, count);
+        assertEquals(entries * data.length, index);
     }
 
     @Test
@@ -196,17 +195,17 @@ public class ReadTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-        
+
         clientFactory.createStream(streamName, null);
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, new EventWriterConfig(null));
-        
+
         producer.writeEvent("RoutingKey", testString);
         producer.flush();
 
         @Cleanup
         EventStreamReader<String> consumer = clientFactory
-            .createReader(streamName, serializer, new ReaderConfig(), clientFactory.getInitialPosition(streamName));
+                .createReader(streamName, serializer, new ReaderConfig(), clientFactory.getInitialPosition(streamName));
         String read = consumer.readNextEvent(5000).getEvent();
         assertEquals(testString, read);
     }

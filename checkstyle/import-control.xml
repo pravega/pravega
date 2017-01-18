@@ -43,5 +43,9 @@
     <allow pkg="org.apache"/>
     <allow pkg="com.typesafe.config"/>
     <allow pkg="org.rocksdb"/>
-
+    <allow pkg="com.codahale"/>
+    <allow pkg="com.readytalk"/>
+    <allow pkg="org.glassfish.jersey"/>
+    <allow pkg="javax.ws.rs"/>
+  
 </import-control>

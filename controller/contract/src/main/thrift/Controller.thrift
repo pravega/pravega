@@ -90,6 +90,7 @@ struct ScaleResponse {
 service ControllerService {
     CreateStreamStatus createStream (1: StreamConfig streamConfig)
     UpdateStreamStatus alterStream (1: StreamConfig streamConfig)
+    UpdateStreamStatus sealStream(1: string scope, 2:string stream)
     list<SegmentRange> getCurrentSegments(1:string scope, 2:string stream)
     list<Position> getPositions(1:string scope, 2:string stream, 3:i64 timestamp, 4:i32 count)
     map<SegmentId,list<i32>> getSegmentsImmediatlyFollowing(1:SegmentId segment)

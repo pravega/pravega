@@ -18,6 +18,12 @@
 
 package com.emc.pravega.service.server.host.handler;
 
+import com.emc.pravega.common.Timer;
+import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.metrics.Counter;
+import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.OpStatsLogger;
+import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.netty.FailingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
 import com.emc.pravega.common.netty.WireCommands.AbortTransaction;
@@ -53,7 +59,6 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
 import com.google.common.base.Preconditions;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -62,21 +67,33 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Cache;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Future;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.ALL_READ_BYTES;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.CREATE_SEGMENT;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.READ_SEGMENT;
+import static com.emc.pravega.service.server.host.PravegaRequestStats.SEGMENT_READ_BYTES;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     static final int MAX_READ_SIZE = 2 * 1024 * 1024;
+
+    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
+
+    public static class Metrics {
+        static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
+        static final OpStatsLogger READ_STREAM_SEGMENT = STATS_LOGGER.createStats(READ_SEGMENT);
+        static final OpStatsLogger READ_BYTES_STATS = STATS_LOGGER.createStats(SEGMENT_READ_BYTES);
+        static final Counter READ_BYTES = STATS_LOGGER.createCounter(ALL_READ_BYTES);
+    }
 
     private final StreamSegmentStore segmentStore;
 
@@ -89,34 +106,37 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void readSegment(ReadSegment readSegment) {
+        Timer timer = new Timer();
         final String segment = readSegment.getSegment();
-        final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength())); 
+        final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {
+            Metrics.READ_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
             handleReadResult(readSegment, t);
             return null;
         }).exceptionally((Throwable t) -> {
+            Metrics.READ_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
             handleException(segment, "Read segment", t);
             return null;
         });
     }
 
     /**
-     * Handles a readResult. 
+     * Handles a readResult.
      * If there are cached entries that can be returned without blocking only these are returned.
-     * Otherwise the call will request the data and setup a callback to return the data when it is available. 
+     * Otherwise the call will request the data and setup a callback to return the data when it is available.
      */
     private void handleReadResult(ReadSegment request, ReadResult result) {
         String segment = request.getSegment();
         ArrayList<ReadResultEntryContents> cachedEntries = new ArrayList<>();
         ReadResultEntry nonCachedEntry = collectCachedEntries(request.getOffset(), result, cachedEntries);
-        
+
         boolean endOfSegment = nonCachedEntry != null && nonCachedEntry.getType() == EndOfStreamSegment;
         boolean atTail = nonCachedEntry != null && nonCachedEntry.getType() == Future;
 
         if (!cachedEntries.isEmpty()) {
             ByteBuffer data = copyData(cachedEntries);
-            SegmentRead reply =  new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
+            SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
             connection.send(reply);
         } else {
             Preconditions.checkState(nonCachedEntry != null, "No ReadResultEntries returned from read!?");
@@ -138,13 +158,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * Upon encountering a non-cached entry, it stops iterating and returns it.
      */
     private ReadResultEntry collectCachedEntries(long initialOffset, ReadResult readResult,
-            ArrayList<ReadResultEntryContents> cachedEntries) {
+                                                 ArrayList<ReadResultEntryContents> cachedEntries) {
         long expectedOffset = initialOffset;
         while (readResult.hasNext()) {
             ReadResultEntry entry = readResult.next();
             if (entry.getType() == Cache) {
                 Preconditions.checkState(entry.getStreamSegmentOffset() == expectedOffset,
-                                         "Data returned from read was not contigious.");
+                        "Data returned from read was not contiguous.");
                 ReadResultEntryContents content = entry.getContent().getNow(null);
                 expectedOffset += content.getLength();
                 cachedEntries.add(content);
@@ -160,12 +180,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     private ByteBuffer copyData(List<ReadResultEntryContents> contents) {
         int totalSize = contents.stream().mapToInt(ReadResultEntryContents::getLength).sum();
+
+        Metrics.READ_BYTES_STATS.reportSuccessValue(totalSize);
+        Metrics.READ_BYTES.add(totalSize);
+
         ByteBuffer data = ByteBuffer.allocate(totalSize);
         int bytesCopied = 0;
         for (ReadResultEntryContents content : contents) {
             try {
-                int copied = content.getData().read(data.array(), bytesCopied, totalSize - bytesCopied);
-                Preconditions.checkState(copied == content.getLength());
+                int copied = StreamHelpers.readAll(content.getData(), data.array(), bytesCopied, totalSize - bytesCopied);
+                Preconditions.checkState(copied == content.getLength(), "Read fewer bytes than available.");
                 bytesCopied += copied;
             } catch (IOException e) {
                 //Not possible
@@ -197,7 +221,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return null;
         });
     }
-    
+
     @Override
     public void getTransactionInfo(GetTransactionInfo request) {
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(request.getSegment(), request.getTxid());
@@ -224,11 +248,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
+        Timer timer = new Timer();
         CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), TIMEOUT);
         future.thenApply((Void v) -> {
+            Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
             connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
             return null;
         }).exceptionally((Throwable e) -> {
+            Metrics.CREATE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
             handleException(createStreamsSegment.getSegment(), "Create segment", e);
             return null;
         });
@@ -254,7 +281,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else {
             // TODO: don't know what to do here...
             connection.close();
-            log.error("Unknown excpetion on " + operation + " for segment " + segment, u);
+            log.error("Unknown exception on " + operation + " for segment " + segment, u);
             throw new IllegalStateException("Unknown exception.", u);
         }
     }
@@ -270,21 +297,21 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return null;
         });
     }
-    
+
     @Override
     public void commitTransaction(CommitTransaction commitTx) {
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
         segmentStore.sealStreamSegment(transactionName, TIMEOUT).thenApply((Long length) -> {
-             segmentStore.mergeTransaction(transactionName, TIMEOUT).thenApply((Long offset) -> {
-                 connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));
-                 return null;
-             }).exceptionally((Throwable e) -> {
-                 handleException(transactionName, "Commit transaction", e);
-                 return null;
-             });
-             return null;
+            segmentStore.mergeTransaction(transactionName, TIMEOUT).thenApply((Long offset) -> {
+                connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));
+                return null;
+            }).exceptionally((Throwable e) -> {
+                handleException(transactionName, "Commit transaction", e);
+                return null;
+            });
+            return null;
         }).exceptionally((Throwable e) -> {
-          handleException(transactionName, "Commit transaction", e);
+            handleException(transactionName, "Commit transaction", e);
             return null;
         });
     }

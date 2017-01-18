@@ -23,7 +23,6 @@ import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.CacheKey;
-import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
@@ -46,6 +45,7 @@ import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.emc.pravega.testcommon.IntentionalException;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -60,7 +60,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -71,14 +70,13 @@ import java.util.function.Supplier;
 /**
  * Unit tests for the StorageWriter class.
  */
-public class StorageWriterTests {
+public class StorageWriterTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 1;
     private static final int SEGMENT_COUNT = 10;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 1000;
     private static final int APPENDS_PER_SEGMENT_RECOVERY = 500; // We use depth-first, which has slower performance.
     private static final int METADATA_CHECKPOINT_FREQUENCY = 50;
-    private static final int THREAD_POOL_SIZE = 100;
     private static final WriterConfig DEFAULT_CONFIG = ConfigHelpers.createWriterConfig(
             PropertyBag.create()
                        .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1000)
@@ -89,6 +87,11 @@ public class StorageWriterTests {
                        .with(WriterConfig.PROPERTY_ERROR_SLEEP_MILLIS, 0));
 
     private static final Duration TIMEOUT = Duration.ofSeconds(20);
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 5;
+    }
 
     /**
      * Tests a normal, happy case, when the Writer needs to process operations in the "correct" order, from a DataSource
@@ -156,11 +159,15 @@ public class StorageWriterTests {
         // to pick them up and end up failing when attempting to fetch the cache contents.
         context.cache.clear();
 
-        context.writer.startAsync().awaitRunning();
-
         AssertExtensions.assertThrows(
                 "StorageWriter did not fail when a fatal data retrieval error occurred.",
-                () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
+                () -> {
+                    // The Corruption may happen early enough so the "awaitRunning" isn't complete yet. In that case,
+                    // the writer will never reach its 'Running' state. As such, we need to make sure at least one of these
+                    // will throw (either start or, if the failure happened after start, make sure it eventually fails and shuts down).
+                    context.writer.startAsync().awaitRunning();
+                    ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true);
+                },
                 ex -> ex instanceof IllegalStateException);
 
         Assert.assertTrue("Unexpected failure cause for StorageWriter: " + context.writer.failureCause(), ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof DataCorruptionException);
@@ -219,7 +226,9 @@ public class StorageWriterTests {
             // Corrupt data. We use an internal method (append) to atomically write data at the end of the segment.
             // GetLength+Write would not work well because there may be concurrent writes that modify the data between
             // requesting the length and attempting to write, thus causing the corruption to fail.
-            context.storage.append(corruptedSegmentName, new ByteArrayInputStream(corruptionData), corruptionData.length, TIMEOUT).join();
+            // NOTE: this is a synchronous call, but append() is also a sync method. If append() would become async,
+            // care must be taken not to block a thread while waiting for it.
+            context.storage.append(corruptedSegmentName, new ByteArrayInputStream(corruptionData), corruptionData.length);
 
             // Return some other kind of exception.
             return new TimeoutException("Intentional");
@@ -229,11 +238,15 @@ public class StorageWriterTests {
         AtomicBoolean corruptionHappened = new AtomicBoolean();
         context.storage.setWriteAsyncErrorInjector(new ErrorInjector<>(c -> !corruptionHappened.getAndSet(true), exceptionSupplier));
 
-        context.writer.startAsync().awaitRunning();
-
         AssertExtensions.assertThrows(
                 "StorageWriter did not fail when a fatal data corruption error occurred.",
-                () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
+                () -> {
+                    // The Corruption may happen early enough so the "awaitRunning" isn't complete yet. In that case,
+                    // the writer will never reach its 'Running' state. As such, we need to make sure at least one of these
+                    // will throw (either start or, if the failure happened after start, make sure it eventually fails and shuts down).
+                    context.writer.startAsync().awaitRunning();
+                    ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true);
+                },
                 ex -> ex instanceof IllegalStateException);
         Assert.assertTrue("Unexpected failure cause for StorageWriter.", ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof ReconciliationFailureException);
     }
@@ -256,10 +269,14 @@ public class StorageWriterTests {
         AtomicInteger writeFailCount = new AtomicInteger();
         context.storage.setWriteInterceptor((segmentName, offset, data, length, storage) -> {
             if (writeCount.incrementAndGet() % failWriteEvery == 0) {
-                storage.write(segmentName, offset, data, length, TIMEOUT).join();
-                writeFailCount.incrementAndGet();
-                throw new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
+                return storage.write(segmentName, offset, data, length, TIMEOUT)
+                              .thenAccept(v -> {
+                                  writeFailCount.incrementAndGet();
+                                  throw new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
+                              });
             }
+
+            return null;
         });
 
         // Inject Seal errors every now and then.
@@ -267,10 +284,14 @@ public class StorageWriterTests {
         AtomicInteger sealFailCount = new AtomicInteger();
         context.storage.setSealInterceptor((segmentName, storage) -> {
             if (sealCount.incrementAndGet() % failSealEvery == 0) {
-                storage.seal(segmentName, TIMEOUT).join();
-                sealFailCount.incrementAndGet();
-                throw new IntentionalException(String.format("S=%s", segmentName));
+                return storage.seal(segmentName, TIMEOUT)
+                              .thenAccept(v -> {
+                                  sealFailCount.incrementAndGet();
+                                  throw new IntentionalException(String.format("S=%s", segmentName));
+                              });
             }
+
+            return null;
         });
 
         // Inject Merge/Concat errors every now and then.
@@ -278,10 +299,14 @@ public class StorageWriterTests {
         AtomicInteger mergeFailCount = new AtomicInteger();
         context.storage.setConcatInterceptor((targetSegment, offset, sourceSegment, storage) -> {
             if (mergeCount.incrementAndGet() % failMergeEvery == 0) {
-                storage.concat(targetSegment, offset, sourceSegment, TIMEOUT).join();
-                mergeFailCount.incrementAndGet();
-                throw new IntentionalException(String.format("T=%s,O=%d,S=%s", targetSegment, offset, sourceSegment));
+                return storage.concat(targetSegment, offset, sourceSegment, TIMEOUT)
+                              .thenAccept(v -> {
+                                  mergeFailCount.incrementAndGet();
+                                  throw new IntentionalException(String.format("T=%s,O=%d,S=%s", targetSegment, offset, sourceSegment));
+                              });
             }
+
+            return null;
         });
 
         testWriter(context);
@@ -616,8 +641,7 @@ public class StorageWriterTests {
 
     // region TestContext
 
-    private static class TestContext implements AutoCloseable {
-        final CloseableExecutorService executor;
+    private class TestContext implements AutoCloseable {
         final UpdateableContainerMetadata metadata;
         final TestWriterDataSource dataSource;
         final InMemoryStorage baseStorage;
@@ -627,23 +651,22 @@ public class StorageWriterTests {
         StorageWriter writer;
 
         TestContext(WriterConfig config) {
-            this.executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-            this.baseStorage = new InMemoryStorage(this.executor.get());
+            this.baseStorage = new InMemoryStorage(executorService());
             this.storage = new TestStorage(this.baseStorage);
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
             this.config = config;
 
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();
             dataSourceConfig.autoInsertCheckpointFrequency = METADATA_CHECKPOINT_FREQUENCY;
-            this.dataSource = new TestWriterDataSource(this.metadata, this.cache, this.executor.get(), dataSourceConfig);
-            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this.executor.get());
+            this.dataSource = new TestWriterDataSource(this.metadata, this.cache, executorService(), dataSourceConfig);
+            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, executorService());
         }
 
         void resetWriter() {
             this.writer.close();
             this.baseStorage.changeOwner();
-            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this.executor.get());
+            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, executorService());
         }
 
         @Override
@@ -652,7 +675,6 @@ public class StorageWriterTests {
             this.dataSource.close();
             this.cache.close();
             this.storage.close(); // This also closes the baseStorage.
-            this.executor.close();
         }
     }
 

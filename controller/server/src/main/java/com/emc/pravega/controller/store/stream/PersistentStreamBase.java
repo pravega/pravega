@@ -26,6 +26,7 @@ import com.emc.pravega.controller.store.stream.tables.HistoryRecord;
 import com.emc.pravega.controller.store.stream.tables.IndexRecord;
 import com.emc.pravega.controller.store.stream.tables.Scale;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -79,6 +80,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return checkStreamExists(create)
                 .thenCompose(x -> storeCreationTime(create))
                 .thenCompose(x -> createConfiguration(create))
+                .thenCompose(x -> createState(State.ACTIVE))
                 .thenCompose(x -> createSegmentTable(create))
                 .thenCompose(x -> createSegmentFile(create))
                 .thenCompose(x -> createHistoryTable(create))
@@ -106,6 +108,17 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<StreamConfiguration> getConfiguration() {
         return getConfigurationData();
+    }
+
+
+    @Override
+    public CompletableFuture<Boolean> updateState(final State state) {
+        return setStateData(state).thenApply(x -> true);
+    }
+
+    @Override
+    public CompletableFuture<State> getState() {
+        return getStateData();
     }
 
     /**
@@ -544,6 +557,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Void> setConfigurationData(final StreamConfiguration configuration);
 
     abstract CompletableFuture<StreamConfiguration> getConfigurationData();
+
+    abstract CompletableFuture<Void> createState(final State state);
+
+    abstract CompletableFuture<Void> setStateData(final State state);
+
+    abstract CompletableFuture<State> getStateData();
 
     abstract CompletableFuture<Void> createSegmentTable(final Create create);
 

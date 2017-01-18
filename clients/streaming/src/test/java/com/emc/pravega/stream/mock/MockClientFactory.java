@@ -40,22 +40,23 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
 import java.util.Collections;
 
-public class MockClientFactory implements ClientFactory {
+public class MockClientFactory implements ClientFactory, AutoCloseable {
 
     private String scope;
     private final ClientFactory impl;
+    private final ConnectionFactoryImpl connectionFactory;
     private MockStreamManager streamManager;
 
     public MockClientFactory(String scope, String endpoint, int port) {
         this.scope = scope;
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        connectionFactory = new ConnectionFactoryImpl(false);
         MockController controller = new MockController(endpoint, port, connectionFactory);
         streamManager = new MockStreamManager(scope, controller);
         impl = new ClientFactoryImpl(scope, controller, connectionFactory, streamManager);
     }
-    
+
     public MockClientFactory(String scope, Controller controller) {
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        connectionFactory = new ConnectionFactoryImpl(false);
         impl = new ClientFactoryImpl(scope, controller, connectionFactory, new MockStreamManager(scope, controller));
     }
 
@@ -63,7 +64,7 @@ public class MockClientFactory implements ClientFactory {
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         return impl.createEventWriter(streamName, s, config);
     }
-    
+
     @Override
     public <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
             EventWriterConfig config) {
@@ -96,7 +97,7 @@ public class MockClientFactory implements ClientFactory {
             SynchronizerConfig config) {
         return impl.createStateSynchronizer(streamName, updateSerializer, initialSerializer, config);
     }
-    
+
     public void createStream(String streamName, StreamConfiguration config) {
         streamManager.createStream(streamName, config);
     }
@@ -105,4 +106,9 @@ public class MockClientFactory implements ClientFactory {
         return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L));
     }
 
+    @Override
+    public void close() {
+        this.streamManager.close();
+        this.connectionFactory.close();
+    }
 }

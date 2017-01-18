@@ -32,23 +32,21 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
-import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
 import com.emc.pravega.service.server.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.server.mocks.InMemoryMetadataRepository;
-import com.emc.pravega.service.server.reading.AsyncReadResultEntryHandler;
 import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
+import com.emc.pravega.service.server.reading.TestReadResultHandler;
 import com.emc.pravega.service.server.writer.StorageWriterFactory;
 import com.emc.pravega.service.server.writer.WriterConfig;
 import com.emc.pravega.service.storage.CacheFactory;
@@ -58,10 +56,7 @@ import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.emc.pravega.testcommon.AssertExtensions;
-import lombok.Cleanup;
-import org.junit.Assert;
-import org.junit.Test;
-
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -71,9 +66,11 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import lombok.Cleanup;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Tests for StreamSegmentContainer class.
@@ -81,13 +78,12 @@ import java.util.concurrent.atomic.AtomicReference;
  * using a real DurableLog, real ReadIndex and real StorageWriter - but all against in-memory mocks of Storage and
  * DurableDataLog.
  */
-public class StreamSegmentContainerTests {
+public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int SEGMENT_COUNT = 100;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int CLIENT_COUNT = 10;
     private static final int CONTAINER_ID = 1234567;
-    private static final int THREAD_POOL_SIZE = 50;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
     private static final Duration TIMEOUT = Duration.ofSeconds(100);
 
@@ -99,9 +95,7 @@ public class StreamSegmentContainerTests {
                        .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024));
 
     private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
-            PropertyBag.create()
-                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
-                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
+            PropertyBag.create().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024));
 
     private static final WriterConfig DEFAULT_WRITER_CONFIG = ConfigHelpers.createWriterConfig(
             PropertyBag.create()
@@ -109,6 +103,11 @@ public class StreamSegmentContainerTests {
                        .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 25)
                        .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
                        .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250));
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 5;
+    }
 
     /**
      * Tests the createSegment, append, read, getSegmentInfo, getLastAppendContext.
@@ -165,7 +164,7 @@ public class StreamSegmentContainerTests {
         checkReadIndex(segmentContents, lengths, context);
 
         // 5. Writer moving data to Storage.
-        waitForSegmentsInStorage(segmentNames, context).join();
+        waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, context);
 
         context.container.stopAsync().awaitTerminated();
@@ -203,7 +202,7 @@ public class StreamSegmentContainerTests {
             }
         }
 
-        FutureHelpers.allOf(appendFutures).join();
+        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 2.1 Verify that if we pass wrong offsets, the append is failed.
         for (String segmentName : segmentNames) {
@@ -222,7 +221,7 @@ public class StreamSegmentContainerTests {
         checkReadIndex(segmentContents, lengths, context);
 
         // 4. Writer moving data to Storage.
-        waitForSegmentsInStorage(segmentNames, context).join();
+        waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, context);
 
         context.container.stopAsync().awaitTerminated();
@@ -258,7 +257,7 @@ public class StreamSegmentContainerTests {
             }
         }
 
-        FutureHelpers.allOf(appendFutures).join();
+        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 3. Seal first half of segments.
         ArrayList<CompletableFuture<Long>> sealFutures = new ArrayList<>();
@@ -266,7 +265,7 @@ public class StreamSegmentContainerTests {
             sealFutures.add(context.container.sealStreamSegment(segmentNames.get(i), TIMEOUT));
         }
 
-        FutureHelpers.allOf(sealFutures).join();
+        FutureHelpers.allOf(sealFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Check that the segments were properly sealed.
         for (int i = 0; i < segmentNames.size(); i++) {
@@ -309,7 +308,7 @@ public class StreamSegmentContainerTests {
                     Assert.assertEquals("Unexpected value for isEndOfStreamSegment when reaching the end of sealed segment " + segmentName, ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
                     AssertExtensions.assertThrows(
                             "ReadResultEntry.getContent() returned a result when reached the end of sealed segment " + segmentName,
-                            () -> readEntry.getContent().join(),
+                            readEntry::getContent,
                             ex -> ex instanceof IllegalStateException);
                 } else {
                     Assert.assertNotEquals("Unexpected value for isEndOfStreamSegment before reaching end of sealed segment " + segmentName, ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
@@ -325,7 +324,7 @@ public class StreamSegmentContainerTests {
         }
 
         // 5. Writer moving data to Storage.
-        waitForSegmentsInStorage(segmentNames, context).join();
+        waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, context);
 
         context.container.stopAsync().awaitTerminated();
@@ -493,13 +492,13 @@ public class StreamSegmentContainerTests {
             }
         }
 
-        FutureHelpers.allOf(appendFutures).join();
+        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 5. Verify their contents.
         checkReadIndex(segmentContents, lengths, context);
 
         // 6. Writer moving data to Storage.
-        waitForSegmentsInStorage(segmentNames, context).join();
+        waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, context);
 
         context.container.stopAsync().awaitTerminated();
@@ -523,10 +522,10 @@ public class StreamSegmentContainerTests {
         ArrayList<String> segmentNames = createSegments(context);
         HashMap<String, ArrayList<String>> transactionsBySegment = createTransactions(segmentNames, context);
         HashMap<String, ReadResult> readsBySegment = new HashMap<>();
-        HashMap<String, AsyncReadResultProcessor> processorsBySegment = new HashMap<>();
+        ArrayList<AsyncReadResultProcessor> readProcessors = new ArrayList<>();
         HashSet<String> segmentsToSeal = new HashSet<>();
         HashMap<String, ByteArrayOutputStream> readContents = new HashMap<>();
-        HashMap<String, TestEntryHandler> entryHandlers = new HashMap<>();
+        HashMap<String, TestReadResultHandler> entryHandlers = new HashMap<>();
 
         // 2. Setup tail reads.
         // First 1/2 of segments will try to read Int32.Max bytes, while the other half will try to read 100 bytes.
@@ -548,12 +547,10 @@ public class StreamSegmentContainerTests {
             }
 
             // The Read callback is only accumulating data in this test; we will then compare it against the real data.
-            TestEntryHandler entryHandler = new TestEntryHandler(readContentsStream);
+            TestReadResultHandler entryHandler = new TestReadResultHandler(readContentsStream, TIMEOUT);
             entryHandlers.put(segmentName, entryHandler);
-            AsyncReadResultProcessor readResultProcessor = new AsyncReadResultProcessor(readResult, entryHandler, context.executorService.get());
-            readResultProcessor.startAsync().awaitRunning();
             readsBySegment.put(segmentName, readResult);
-            processorsBySegment.put(segmentName, readResultProcessor);
+            readProcessors.add(AsyncReadResultProcessor.process(readResult, entryHandler, executorService()));
         }
 
         // 3. Add some appends.
@@ -577,19 +574,20 @@ public class StreamSegmentContainerTests {
 
         segmentsToSeal.forEach(segmentName -> operationFutures
                 .add(FutureHelpers.toVoid(context.container.sealStreamSegment(segmentName, TIMEOUT))));
-        FutureHelpers.allOf(operationFutures).join();
+        FutureHelpers.allOf(operationFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Now wait for all the reads to complete, and verify their results against the expected output.
-        ServiceShutdownListener.awaitShutdown(processorsBySegment.values(), TIMEOUT, true);
+        FutureHelpers.allOf(entryHandlers.values().stream().map(h -> h.getCompleted()).collect(Collectors.toList())).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        readProcessors.forEach(AsyncReadResultProcessor::close);
 
         // Check to see if any errors got thrown (and caught) during the reading process).
-        for (Map.Entry<String, TestEntryHandler> e : entryHandlers.entrySet()) {
-            Throwable err = e.getValue().error.get();
+        for (Map.Entry<String, TestReadResultHandler> e : entryHandlers.entrySet()) {
+            Throwable err = e.getValue().getError().get();
             if (err != null) {
                 // Check to see if the exception we got was a SegmentSealedException. If so, this is only expected if the segment was to be sealed.
                 // The next check (see below) will verify if the segments were properly read).
                 if (!(err instanceof StreamSegmentSealedException && segmentsToSeal.contains(e.getKey()))) {
-                    Assert.fail("Unexpected error happened while processing Segment " + e.getKey() + ": " + e.getValue().error.get());
+                    Assert.fail("Unexpected error happened while processing Segment " + e.getKey() + ": " + e.getValue().getError().get());
                 }
             }
         }
@@ -612,7 +610,7 @@ public class StreamSegmentContainerTests {
         }
 
         // 6. Writer moving data to Storage.
-        waitForSegmentsInStorage(segmentNames, context).join();
+        waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, context);
     }
 
@@ -703,7 +701,7 @@ public class StreamSegmentContainerTests {
             }
         }
 
-        FutureHelpers.allOf(appendFutures).join();
+        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private void mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
@@ -724,7 +722,7 @@ public class StreamSegmentContainerTests {
             }
         }
 
-        FutureHelpers.allOf(mergeFutures).join();
+        FutureHelpers.allOf(mergeFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private byte[] getAppendData(String segmentName, int appendId) {
@@ -818,10 +816,9 @@ public class StreamSegmentContainerTests {
 
     //region TestContext
 
-    private static class TestContext implements AutoCloseable {
+    private class TestContext implements AutoCloseable {
         final SegmentContainer container;
         private final MetadataRepository metadataRepository;
-        private final CloseableExecutorService executorService;
         private final StorageFactory storageFactory;
         private final DurableDataLogFactory dataLogFactory;
         private final OperationLogFactory operationLogFactory;
@@ -832,14 +829,13 @@ public class StreamSegmentContainerTests {
 
         TestContext() {
             this.metadataRepository = new InMemoryMetadataRepository();
-            this.executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
-            this.storageFactory = new InMemoryStorageFactory(this.executorService.get());
-            this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE);
-            this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService.get());
+            this.storageFactory = new InMemoryStorageFactory(executorService());
+            this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
+            this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
             this.cacheFactory = new InMemoryCacheFactory();
-            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.storageFactory, this.executorService.get());
-            this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, this.storageFactory, this.executorService.get());
-            StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, this.executorService.get());
+            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.storageFactory, executorService());
+            this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, this.storageFactory, executorService());
+            StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, executorService());
             this.container = factory.createStreamSegmentContainer(CONTAINER_ID);
             this.storage = (InMemoryStorage) this.storageFactory.getStorageAdapter();
         }
@@ -849,49 +845,6 @@ public class StreamSegmentContainerTests {
             this.container.close();
             this.dataLogFactory.close();
             this.storageFactory.close();
-            this.executorService.close();
-        }
-    }
-
-    //endregion
-
-    //region TestEntryHandler
-
-    private static class TestEntryHandler implements AsyncReadResultEntryHandler {
-        final AtomicReference<Throwable> error = new AtomicReference<>();
-        private final ByteArrayOutputStream readContents;
-
-        TestEntryHandler(ByteArrayOutputStream readContents) {
-            this.readContents = readContents;
-        }
-
-        @Override
-        public boolean shouldRequestContents(ReadResultEntryType entryType, long streamSegmentOffset) {
-            return true;
-        }
-
-        @Override
-        public boolean processEntry(ReadResultEntry e) {
-            ReadResultEntryContents c = e.getContent().join();
-            byte[] data = new byte[c.getLength()];
-            try {
-                StreamHelpers.readAll(c.getData(), data, 0, data.length);
-                readContents.write(data);
-                return true;
-            } catch (Exception ex) {
-                processError(e, ex);
-                return false;
-            }
-        }
-
-        @Override
-        public void processError(ReadResultEntry entry, Throwable cause) {
-            this.error.set(cause);
-        }
-
-        @Override
-        public Duration getRequestContentTimeout() {
-            return TIMEOUT;
         }
     }
 

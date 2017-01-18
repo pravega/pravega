@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.cache.CacheBuilder;
@@ -24,6 +25,7 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 
 import java.util.AbstractMap;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -84,16 +86,32 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<Boolean> isSealed(final String name) {
+        return getStream(name).getState().thenApply(state -> state.equals(State.SEALED));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> setSealed(final String name) {
+        return getStream(name).updateState(State.SEALED);
+    }
+
+    @Override
     public CompletableFuture<Segment> getSegment(final String name, final int number) {
         return getStream(name).getSegment(number);
     }
 
     @Override
     public CompletableFuture<List<Segment>> getActiveSegments(final String name) {
-        Stream stream = getStream(name);
-        return stream
-                .getActiveSegments()
-                .thenCompose(currentSegments -> sequence(currentSegments.stream().map(stream::getSegment).collect(Collectors.toList())));
+        final Stream stream = getStream(name);
+        return stream.getState().thenCompose(state -> {
+            if (State.SEALED.equals(state)) {
+                return CompletableFuture.completedFuture(Collections.<Integer> emptyList());
+            } else {
+                return stream.getActiveSegments();
+            }
+        }).thenCompose(currentSegments -> {
+            return sequence(currentSegments.stream().map(stream::getSegment).collect(Collectors.toList()));
+        });
     }
 
     @Override
@@ -141,6 +159,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final UUID txId) {
         return getStream(stream).abortTransaction(txId);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream) {
+        return getStream(stream).isTransactionOngoing();
     }
 
     private Stream getStream(final String name) {

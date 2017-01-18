@@ -193,8 +193,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                                 this.connectionFactory), executor);
     }
 
-    private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyDropToHost(
-            final String scope, final String stream, final int segmentNumber, final UUID txId) {
+    private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                     .retryingOn(WireCommandFailedException.class)
                     .throwingOn(RuntimeException.class)
@@ -207,8 +206,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                               executor);
     }
 
-    private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyCommitToHost(
-            final String scope, final String stream, final int segmentNumber, final UUID txId) {
+    private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                     .retryingOn(WireCommandFailedException.class)
                     .throwingOn(RuntimeException.class)

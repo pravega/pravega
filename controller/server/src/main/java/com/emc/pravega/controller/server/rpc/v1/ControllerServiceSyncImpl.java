@@ -72,6 +72,11 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
     }
 
     @Override
+    public UpdateStreamStatus sealStream(String scope, String stream) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.sealStream(scope, stream), RuntimeException::new);
+    }
+
+    @Override
     public List<SegmentRange> getCurrentSegments(final String scope, final String stream) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.getCurrentSegments(scope, stream), RuntimeException::new);
     }
@@ -108,17 +113,19 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
 
     @Override
     public TxnStatus commitTransaction(final String scope, final String stream, final TxnId txnid) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.commitTransaction(scope, stream, txnid), RuntimeException::new);
+        return FutureHelpers.getAndHandleExceptions(controllerService.commitTransaction(scope, stream, txnid),
+                RuntimeException::new);
     }
 
     @Override
-    public TxnStatus dropTransaction(final String scope, final String stream, final TxnId txid) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.dropTransaction(scope, stream, txid), RuntimeException::new);
+    public TxnStatus dropTransaction(final String scope, final String stream, final TxnId txnid) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.dropTransaction(scope, stream, txnid), RuntimeException::new);
     }
 
     @Override
-    public TxnState checkTransactionStatus(final String scope, final String stream, final TxnId txid) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.checkTransactionStatus(scope, stream, txid), RuntimeException::new);
+    public TxnState checkTransactionStatus(final String scope, final String stream, final TxnId txnid) throws
+            TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.checkTransactionStatus(scope, stream, txnid), RuntimeException::new);
     }
 
 }
