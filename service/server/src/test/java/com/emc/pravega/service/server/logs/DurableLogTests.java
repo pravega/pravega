@@ -134,7 +134,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Wait for all such operations to complete. If any of them failed, this will fail too and report the exception.
         LogTestHelpers.allOf(completionFutures).join();
 
-        performLogOperationChecks(completionFutures, durableLog, setup.cache);
+        performLogOperationChecks(completionFutures, durableLog);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), transactions, completionFutures, setup.metadata, mergeTransactions, sealStreamSegments);
         performReadIndexChecks(completionFutures, setup.readIndex);
 
@@ -211,7 +211,7 @@ public class DurableLogTests extends OperationLogTestBase {
             oc.completion.join();
         }
 
-        performLogOperationChecks(completionFutures, durableLog, setup.cache);
+        performLogOperationChecks(completionFutures, durableLog);
         performMetadataChecks(streamSegmentIds, streamSegmentsWithNoContents, new HashMap<>(), completionFutures, setup.metadata, false, false);
         performReadIndexChecks(completionFutures, setup.readIndex);
 
@@ -276,7 +276,7 @@ public class DurableLogTests extends OperationLogTestBase {
             }
         }
 
-        performLogOperationChecks(completionFutures, durableLog, setup.cache);
+        performLogOperationChecks(completionFutures, durableLog);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, setup.metadata, false, false);
         performReadIndexChecks(completionFutures, setup.readIndex);
 
@@ -325,7 +325,7 @@ public class DurableLogTests extends OperationLogTestBase {
                 LogTestHelpers.allOf(completionFutures)::join,
                 ex -> ex instanceof IOException || ex instanceof DurableDataLogException);
 
-        performLogOperationChecks(completionFutures, durableLog, setup.cache);
+        performLogOperationChecks(completionFutures, durableLog);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, setup.metadata, false, false);
         performReadIndexChecks(completionFutures, setup.readIndex);
 
@@ -443,7 +443,7 @@ public class DurableLogTests extends OperationLogTestBase {
         }
 
         // Add one operation at at time, and each time, verify that the correct Read got activated.
-        OperationComparer operationComparer = new OperationComparer(true, setup.cache);
+        OperationComparer operationComparer = new OperationComparer(true);
         for (int appendId = 0; appendId < operationCount; appendId++) {
             Operation operation = new StreamSegmentAppendOperation(segmentId, ("foo" + Integer.toString(appendId)).getBytes(), new AppendContext(UUID.randomUUID(), appendId));
             durableLog.add(operation, TIMEOUT).join();
@@ -990,12 +990,12 @@ public class DurableLogTests extends OperationLogTestBase {
 
     //region Helpers
 
-    private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, DurableLog durableLog, Cache cache) {
+    private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, DurableLog durableLog) {
         // Log Operation based checks
         long lastSeqNo = -1;
         Iterator<Operation> logIterator = durableLog.read(-1L, operations.size() + 1, TIMEOUT).join();
         verifyFirstItemIsMetadataCheckpoint(logIterator);
-        OperationComparer comparer = new OperationComparer(true, cache);
+        OperationComparer comparer = new OperationComparer(true);
         for (LogTestHelpers.OperationWithCompletion oc : operations) {
             if (oc.completion.isCompletedExceptionally()) {
                 // We expect this operation to not have been processed.

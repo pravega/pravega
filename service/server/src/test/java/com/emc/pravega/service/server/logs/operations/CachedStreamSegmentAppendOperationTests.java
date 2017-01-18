@@ -19,12 +19,10 @@
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.service.contracts.AppendContext;
-import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.testcommon.AssertExtensions;
+import java.util.UUID;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.UUID;
 
 /**
  * Unit tests for CachedStreamSegmentAppendOperation.
@@ -49,11 +47,6 @@ public class CachedStreamSegmentAppendOperationTests {
         Assert.assertEquals("Unexpected sequence number.", baseOp.getSequenceNumber(), newOp.getSequenceNumber());
         Assert.assertEquals("Unexpected offset.", baseOp.getStreamSegmentOffset(), newOp.getStreamSegmentOffset());
         Assert.assertEquals("Unexpected length .", baseOp.getData().length, newOp.getLength());
-
-        // Valid cacheKey.
-        CacheKey cacheKey = newOp.createCacheKey();
-        Assert.assertEquals("Unexpected CacheKey.StreamSegmentId.", newOp.getStreamSegmentId(), cacheKey.getStreamSegmentId());
-        Assert.assertEquals("Unexpected CacheKey.Offset.", newOp.getStreamSegmentOffset(), cacheKey.getOffset());
 
         // Invalid scenarios.
         AssertExtensions.assertThrows(

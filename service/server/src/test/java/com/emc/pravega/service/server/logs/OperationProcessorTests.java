@@ -110,7 +110,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Stop the processor.
         operationProcessor.stopAsync().awaitTerminated();
 
-        performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata, context.cache);
+        performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), transactions, completionFutures, context.metadata, mergeTransactions, sealStreamSegments);
         performReadIndexChecks(completionFutures, context.readIndex);
     }
@@ -190,7 +190,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
             oc.completion.join();
         }
 
-        performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata, context.cache);
+        performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata);
         performMetadataChecks(streamSegmentIds, streamSegmentsWithNoContents, new HashMap<>(), completionFutures, context.metadata, false, false);
         performReadIndexChecks(completionFutures, context.readIndex);
     }
@@ -258,7 +258,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
             }
         }
 
-        performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata, context.cache);
+        performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, context.metadata, false, false);
         performReadIndexChecks(completionFutures, context.readIndex);
     }
@@ -308,7 +308,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Stop the processor.
         operationProcessor.stopAsync().awaitTerminated();
 
-        performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata, context.cache);
+        performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, context.metadata, false, false);
         performReadIndexChecks(completionFutures, context.readIndex);
     }
@@ -403,7 +403,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         }
 
         AssertExtensions.assertGreaterThan("No operation succeeded.", 0, successCount);
-        performLogOperationChecks(completionFutures, corruptedMemoryLog, dataLog, context.metadata, context.cache);
+        performLogOperationChecks(completionFutures, corruptedMemoryLog, dataLog, context.metadata);
 
         // There is no point in performing metadata checks. A DataCorruptionException means the Metadata (and the general
         // state of the Container) is in an undefined state.
@@ -415,13 +415,13 @@ public class OperationProcessorTests extends OperationLogTestBase {
         return completionFutures;
     }
 
-    private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, MemoryOperationLog memoryLog, DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers, Cache cache) throws Exception {
+    private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, MemoryOperationLog memoryLog, DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers) throws Exception {
         // Log Operation based checks
         @Cleanup
         DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationFactory(), CONTAINER_ID);
         long lastSeqNo = -1;
         Iterator<Operation> memoryLogIterator = memoryLog.read(o -> true, operations.size() + 1);
-        OperationComparer memoryLogComparer = new OperationComparer(true, cache);
+        OperationComparer memoryLogComparer = new OperationComparer(true);
         for (LogTestHelpers.OperationWithCompletion oc : operations) {
             if (oc.completion.isCompletedExceptionally()) {
                 // We expect this operation to not have been processed.
