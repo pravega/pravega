@@ -26,6 +26,7 @@ import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
+import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
@@ -119,6 +120,6 @@ public class Main {
 
         // 4. start REST server
         log.info("Starting Pravega REST Service");
-        RESTServer.start();
+        RESTServer.start(new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
     }
 }

@@ -18,7 +18,9 @@
 
 package com.emc.pravega.controller.server.rest;
 
+import com.emc.pravega.controller.server.rest.resources.StreamMetaDataResourceImpl;
 import com.emc.pravega.controller.server.rest.resources.PingImpl;
+import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
 import org.glassfish.jersey.netty.httpserver.NettyHttpContainerProvider;
@@ -38,10 +40,12 @@ import static com.emc.pravega.controller.util.Config.REST_SERVER_PORT;
 @Slf4j
 public class RESTServer {
 
-    public static final void start() {
+    public static final void start(ControllerService controllerService) {
 
         Set<Object> resourceObjs = new HashSet<Object>();
         resourceObjs.add(new PingImpl());
+        resourceObjs.add(new StreamMetaDataResourceImpl(controllerService));
+
         ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
 
         String serverURI = "http://" + REST_SERVER_IP + "/";

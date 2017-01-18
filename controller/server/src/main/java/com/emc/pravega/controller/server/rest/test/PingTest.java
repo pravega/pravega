@@ -35,7 +35,7 @@ public class PingTest extends JerseyTest {
 
     @Test
     public void test() {
-        final String hello = target("/v1/ping").request().get(String.class);
+        final String hello = target("/ping").request().get(String.class);
         assertEquals("true", hello);
     }
 }

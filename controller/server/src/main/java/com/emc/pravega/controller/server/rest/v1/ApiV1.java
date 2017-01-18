@@ -18,8 +18,19 @@
 
 package com.emc.pravega.controller.server.rest.v1;
 
-import javax.ws.rs.Path;
+import com.emc.pravega.controller.server.rest.contract.request.CreateStreamRequest;
+import com.emc.pravega.controller.server.rest.contract.request.UpdateStreamRequest;
+
 import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.PUT;
+import javax.ws.rs.container.AsyncResponse;
+import javax.ws.rs.container.Suspended;
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 /*
@@ -29,11 +40,34 @@ Different interfaces will hold different groups of APIs
 
 public final class ApiV1 {
 
-    @Path("/v1")
+    @Path("/ping")
     public static interface Ping {
+        @GET
+        public Response ping();
+    }
+
+    @Path("/v1")
+    public static interface StreamMetaData {
+
+        @POST
+        @Path("/scopes/{scope}/streams")
+        @Produces(MediaType.APPLICATION_JSON)
+        @Consumes(MediaType.APPLICATION_JSON)
+        public void createStream(@Suspended final AsyncResponse asyncResponse, CreateStreamRequest createStreamRequest,
+                                 @PathParam("scope") String scope);
+
+
+        @PUT
+        @Path("/scopes/{scope}/streams/{stream}")
+        @Produces(MediaType.APPLICATION_JSON)
+        @Consumes(MediaType.APPLICATION_JSON)
+        public void updateStreamConfig(@Suspended final AsyncResponse asyncResponse, UpdateStreamRequest updateStreamRequest, @PathParam("scope") String scope,
+                                           @PathParam("stream") String stream);
 
         @GET
-        @Path("/ping")
-        public Response ping();
+        @Path("/scopes/{scope}/streams/{stream}")
+        @Produces(MediaType.APPLICATION_JSON)
+        public void getStreamConfig(@Suspended final AsyncResponse asyncResponse, @PathParam("scope") String scope, @PathParam("stream") String stream);
+
     }
 }
