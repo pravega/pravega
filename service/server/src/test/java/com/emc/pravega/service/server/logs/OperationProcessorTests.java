@@ -89,9 +89,9 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestContext context = new TestContext();
 
         // Generate some test data.
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
-        AbstractMap<Long, Long> transactions = LogTestHelpers.createTransactionsInMetadata(streamSegmentIds, transactionsPerStreamSegment, context.metadata);
-        List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, mergeTransactions, sealStreamSegments);
+        HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
+        AbstractMap<Long, Long> transactions = createTransactionsInMetadata(streamSegmentIds, transactionsPerStreamSegment, context.metadata);
+        List<Operation> operations = generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, mergeTransactions, sealStreamSegments);
 
         // Setup an OperationProcessor and start it.
         @Cleanup
@@ -102,10 +102,10 @@ public class OperationProcessorTests extends OperationLogTestBase {
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
-        List<LogTestHelpers.OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
+        List<OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
 
         // Wait for all such operations to complete. If any of them failed, this will fail too and report the exception.
-        LogTestHelpers.allOf(completionFutures).join();
+        OperationWithCompletion.allOf(completionFutures).join();
 
         // Stop the processor.
         operationProcessor.stopAsync().awaitTerminated();
@@ -134,12 +134,12 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestContext context = new TestContext();
 
         // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
+        HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         nonExistentStreamSegmentId = streamSegmentIds.size();
         streamSegmentIds.add(nonExistentStreamSegmentId);
         context.metadata.getStreamSegmentMetadata(sealedStreamSegmentId).markSealed();
         context.metadata.getStreamSegmentMetadata(deletedStreamSegmentId).markDeleted();
-        List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
+        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
         // Setup an OperationProcessor and start it.
         @Cleanup
@@ -150,12 +150,12 @@ public class OperationProcessorTests extends OperationLogTestBase {
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
-        List<LogTestHelpers.OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
+        List<OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
 
         // Wait for all such operations to complete. We are expecting exceptions, so verify that we do.
         AssertExtensions.assertThrows(
                 "No operations failed.",
-                LogTestHelpers.allOf(completionFutures)::join,
+                OperationWithCompletion.allOf(completionFutures)::join,
                 ex -> ex instanceof MetadataUpdateException || ex instanceof StreamSegmentException);
 
         // Stop the processor.
@@ -167,7 +167,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         streamSegmentsWithNoContents.add(nonExistentStreamSegmentId);
 
         // Verify that the "right" operations failed, while the others succeeded.
-        for (LogTestHelpers.OperationWithCompletion oc : completionFutures) {
+        for (OperationWithCompletion oc : completionFutures) {
             if (oc.operation instanceof StorageOperation) {
                 long streamSegmentId = ((StorageOperation) oc.operation).getStreamSegmentId();
                 if (streamSegmentsWithNoContents.contains(streamSegmentId)) {
@@ -208,8 +208,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestContext context = new TestContext();
 
         // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
-        List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
+        HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
+        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
         // Replace some of the Append Operations with a FailedAppendOperations. Some operations fail at the beginning,
         // some at the end of the serialization.
@@ -233,12 +233,12 @@ public class OperationProcessorTests extends OperationLogTestBase {
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
-        List<LogTestHelpers.OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
+        List<OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
 
         // Wait for all such operations to complete. We are expecting exceptions, so verify that we do.
         AssertExtensions.assertThrows(
                 "No operations failed.",
-                LogTestHelpers.allOf(completionFutures)::join,
+                OperationWithCompletion.allOf(completionFutures)::join,
                 ex -> ex instanceof IOException);
 
         // Stop the processor.
@@ -246,7 +246,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Verify that the "right" operations failed, while the others succeeded.
         for (int i = 0; i < completionFutures.size(); i++) {
-            LogTestHelpers.OperationWithCompletion oc = completionFutures.get(i);
+            OperationWithCompletion oc = completionFutures.get(i);
             if (failedOperationIndices.contains(i)) {
                 AssertExtensions.assertThrows(
                         "Unexpected exception for failed Operation.",
@@ -277,8 +277,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestContext context = new TestContext();
 
         // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
-        List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
+        HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
+        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
         // Setup an OperationProcessor and start it.
         @Cleanup
@@ -297,12 +297,12 @@ public class OperationProcessorTests extends OperationLogTestBase {
         dataLog.setAppendErrorInjectors(syncErrorInjector, aSyncErrorInjector);
 
         // Process all generated operations.
-        List<LogTestHelpers.OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
+        List<OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
 
         // Wait for all such operations to complete. We are expecting exceptions, so verify that we do.
         AssertExtensions.assertThrows(
                 "No operations failed.",
-                LogTestHelpers.allOf(completionFutures)::join,
+                OperationWithCompletion.allOf(completionFutures)::join,
                 ex -> ex instanceof IOException || ex instanceof DurableDataLogException);
 
         // Stop the processor.
@@ -334,8 +334,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
         MemoryStateUpdater stateUpdater = new MemoryStateUpdater(corruptedMemoryLog, new CacheUpdater(context.cache, context.readIndex));
 
         // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
-        List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
+        HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
+        List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
         // Setup an OperationProcessor and start it.
         @Cleanup
@@ -346,12 +346,12 @@ public class OperationProcessorTests extends OperationLogTestBase {
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
-        List<LogTestHelpers.OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
+        List<OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
 
         // Wait for all such operations to complete. We are expecting exceptions, so verify that we do.
         AssertExtensions.assertThrows(
                 "No operations failed.",
-                LogTestHelpers.allOf(completionFutures)::join,
+                OperationWithCompletion.allOf(completionFutures)::join,
                 ex -> ex instanceof DataCorruptionException);
 
         // Wait for the store to fail (and make sure it failed).
@@ -365,7 +365,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         int successCount = 0;
         boolean encounteredFirstFailure = false;
         for (int i = 0; i < completionFutures.size(); i++) {
-            LogTestHelpers.OperationWithCompletion oc = completionFutures.get(i);
+            OperationWithCompletion oc = completionFutures.get(i);
 
             // Once an operation failed (in our scenario), no other operation can succeed.
             if (encounteredFirstFailure) {
@@ -409,20 +409,20 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // state of the Container) is in an undefined state.
     }
 
-    private List<LogTestHelpers.OperationWithCompletion> processOperations(Collection<Operation> operations, OperationProcessor operationProcessor) {
-        List<LogTestHelpers.OperationWithCompletion> completionFutures = new ArrayList<>();
-        operations.forEach(op -> completionFutures.add(new LogTestHelpers.OperationWithCompletion(op, operationProcessor.process(op))));
+    private List<OperationWithCompletion> processOperations(Collection<Operation> operations, OperationProcessor operationProcessor) {
+        List<OperationWithCompletion> completionFutures = new ArrayList<>();
+        operations.forEach(op -> completionFutures.add(new OperationWithCompletion(op, operationProcessor.process(op))));
         return completionFutures;
     }
 
-    private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, MemoryOperationLog memoryLog, DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers) throws Exception {
+    private void performLogOperationChecks(Collection<OperationWithCompletion> operations, MemoryOperationLog memoryLog, DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers) throws Exception {
         // Log Operation based checks
         @Cleanup
         DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationFactory(), CONTAINER_ID);
         long lastSeqNo = -1;
         Iterator<Operation> memoryLogIterator = memoryLog.read(o -> true, operations.size() + 1);
         OperationComparer memoryLogComparer = new OperationComparer(true);
-        for (LogTestHelpers.OperationWithCompletion oc : operations) {
+        for (OperationWithCompletion oc : operations) {
             if (oc.completion.isCompletedExceptionally()) {
                 // We expect this operation to not have been processed.
                 continue;
