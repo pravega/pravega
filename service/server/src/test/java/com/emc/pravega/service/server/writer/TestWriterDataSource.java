@@ -60,8 +60,6 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     private final UpdateableContainerMetadata metadata;
     private final SequencedItemList<Operation> log;
-    private final Cache cache;
-    private final MemoryOperationLog log;
     private final ScheduledExecutorService executor;
     private final DataSourceConfig config;
     @GuardedBy("lock")

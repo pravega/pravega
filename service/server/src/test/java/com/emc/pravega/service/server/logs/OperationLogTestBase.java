@@ -19,8 +19,8 @@
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.common.util.SequencedItemList;
+import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.server.ContainerMetadata;
@@ -56,9 +56,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicLong;
-import lombok.Cleanup;
-import org.junit.Assert;
-import java.util.function.Predicate;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import org.junit.Assert;

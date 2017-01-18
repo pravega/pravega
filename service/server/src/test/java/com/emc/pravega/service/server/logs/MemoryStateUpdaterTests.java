@@ -35,6 +35,7 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperati
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.testcommon.AssertExtensions;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
