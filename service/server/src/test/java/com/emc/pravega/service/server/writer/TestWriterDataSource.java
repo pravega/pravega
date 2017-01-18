@@ -20,27 +20,26 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
-import com.emc.pravega.service.server.logs.MemoryOperationLog;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
-import lombok.Setter;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.Setter;
 
 /**
  * Test version of a WriterDataSource that can accumulate operations in memory (just like the real DurableLog) and only
@@ -53,7 +52,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     //region Members
 
     private final UpdateableContainerMetadata metadata;
-    private final MemoryOperationLog log;
+    private final SequencedItemList<Operation> log;
     private final Cache cache;
     private final ScheduledExecutorService executor;
     private final DataSourceConfig config;
@@ -89,7 +88,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         this.cache = cache;
         this.executor = executor;
         this.config = config;
-        this.log = new MemoryOperationLog();
+        this.log = new SequencedItemList<>();
         this.lastAddedCheckpoint = new AtomicLong(0);
         this.waitFullyAcked = null;
         this.ackEffective = new AtomicBoolean(true);
@@ -144,7 +143,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             this.metadata.setValidTruncationPoint(operation.getSequenceNumber());
         }
 
-        if (!this.log.addIf(operation, previous -> previous.getSequenceNumber() < operation.getSequenceNumber())) {
+        if (!this.log.add(operation)) {
             throw new RuntimeStreamingException(new DataCorruptionException("Sequence numbers out of order."));
         }
 
@@ -172,7 +171,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
                 .thenRunAsync(() -> {
                     if (this.ackEffective.get()) {
                         // ackEffective determines whether the ack operation has any effect or not.
-                        this.log.truncate(o -> o.getSequenceNumber() <= upToSequenceNumber);
+                        this.log.truncate(upToSequenceNumber);
                         this.metadata.removeTruncationMarkers(upToSequenceNumber);
                     }
 
@@ -180,7 +179,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
                     CompletableFuture<Void> callback = null;
                     synchronized (this.log) {
                         // We need to check both log size and last seq no (that's because of ackEffective that may not actually trim the log).
-                        if (this.waitFullyAcked != null && (this.log.size() == 0 || this.log.getLast().getSequenceNumber() <= upToSequenceNumber)) {
+                        Operation last = this.log.getLast();
+                        if (this.waitFullyAcked != null && (last == null || last.getSequenceNumber() <= upToSequenceNumber)) {
                             callback = this.waitFullyAcked;
                             this.waitFullyAcked = null;
                         }
@@ -200,7 +200,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         return ErrorInjector
                 .throwAsyncExceptionIfNeeded(this.readAsyncErrorInjector)
                 .thenCompose(v -> {
-                    Iterator<Operation> logReadResult = this.log.read(e -> e.getSequenceNumber() > afterSequenceNumber, maxCount);
+                    Iterator<Operation> logReadResult = this.log.read(afterSequenceNumber, maxCount);
                     if (logReadResult.hasNext()) {
                         // Result is readily available; return it.
                         return CompletableFuture.completedFuture(logReadResult);
@@ -261,7 +261,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         synchronized (this.log) {
             if (this.waitFullyAcked == null) {
                 // Nobody else is waiting for the DataSource to empty out.
-                if (this.log.size() == 0) {
+                if (this.log.getLast() == null) {
                     // We are already empty; return a completed future.
                     return CompletableFuture.completedFuture(null);
                 } else {
@@ -281,7 +281,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     private CompletableFuture<Void> waitForAdd(long currentSeqNo, Duration timeout) {
         CompletableFuture<Void> result;
         synchronized (this.log) {
-            if (this.log.size() > 0 && this.log.getLast().getSequenceNumber() > currentSeqNo) {
+            Operation last = this.log.getLast();
+            if (last != null && last.getSequenceNumber() > currentSeqNo) {
                 // An add has already been processed that meets or exceeds the given sequence number.
                 result = CompletableFuture.completedFuture(null);
             } else {
