@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-
 /**
  * Stream Controller APIs.
  */
@@ -60,6 +59,7 @@ public interface Controller {
 
     /**
      * Api to seal stream.
+     * 
      * @param scope scope
      * @param streamName stream name
      * @return status of update stream operation.
@@ -68,19 +68,20 @@ public interface Controller {
 
     /**
      * API to merge or split stream segments.
+     * 
      * @param stream stream object.
      * @param sealedSegments list of segments to be sealed.
      * @param newKeyRanges key ranges after scaling the stream.
      * @return status of scale operation.
      */
-    CompletableFuture<ScaleResponse> scaleStream(final Stream stream,
-                                                 final List<Integer> sealedSegments,
-                                                 final Map<Double, Double> newKeyRanges);
+    CompletableFuture<ScaleResponse> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+            final Map<Double, Double> newKeyRanges);
 
     // Controller Apis called by pravega producers for getting stream specific information
 
     /**
      * Api to get list of current segments for the stream to write to.
+     * 
      * @param scope scope
      * @param streamName stream name
      * @return current stream segments.
@@ -88,8 +89,8 @@ public interface Controller {
     CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName);
 
     /**
-     * Api to create a new transaction.
-     * The transaction timeout is relative to the creation time.
+     * Api to create a new transaction. The transaction timeout is relative to the creation time.
+     * 
      * @param stream stream name
      * @param timeout tx timeout
      * @return transaction identifier.
@@ -98,8 +99,8 @@ public interface Controller {
 
     /**
      * Commits a transaction, atomically committing all events to the stream, subject to the
-     * ordering guarantees specified in {@link EventStreamWriter}. Will fail with {@link TxnFailedException}
-     * if the transaction has already been committed or aborted.
+     * ordering guarantees specified in {@link EventStreamWriter}. Will fail with
+     * {@link TxnFailedException} if the transaction has already been committed or aborted.
      * 
      * @param stream stream name
      * @param txId transaction id
@@ -108,9 +109,9 @@ public interface Controller {
     CompletableFuture<Void> commitTransaction(final Stream stream, final UUID txId);
 
     /**
-     * Drops a transaction. No events written to it may be read, and no further events may be written. 
-     * Will fail with {@link TxnFailedException}
-     * if the transaction has already been committed or aborted.
+     * Drops a transaction. No events written to it may be read, and no further events may be
+     * written. Will fail with {@link TxnFailedException} if the transaction has already been
+     * committed or aborted.
      * 
      * @param stream stream name
      * @param txId transaction id
@@ -120,6 +121,7 @@ public interface Controller {
 
     /**
      * Returns the status of the specified transaction.
+     * 
      * @param stream stream name
      * @param txId transaction id
      * @return transaction status.
@@ -129,8 +131,8 @@ public interface Controller {
     // Controller Apis that are called by readers
 
     /**
-     * Returns list of position objects by distributing available segments at the
-     * given timestamp into requested number of position objects.
+     * Returns list of position objects by distributing available segments at the given timestamp
+     * into requested number of position objects.
      *
      * @param stream name
      * @param timestamp timestamp for getting position objects
@@ -156,7 +158,7 @@ public interface Controller {
      */
     CompletableFuture<Map<Segment, List<Integer>>> getSegmentsImmediatlyFollowing(final Segment segment);
 
-    //Controller Apis that are called by writers and readers
+    // Controller Apis that are called by writers and readers
 
     /**
      * Given a segment return the endpoint that currently is the owner of that segment.
@@ -164,7 +166,8 @@ public interface Controller {
      * The result of this function can be cached until the endpoint is unreachable or indicates it
      * is no longer the owner.
      *
-     * @param qualifiedSegmentName The name of the segment. Usually obtained from {@link Segment#getScopedName()}.
+     * @param qualifiedSegmentName The name of the segment. Usually obtained from
+     *        {@link Segment#getScopedName()}.
      */
     CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName);
 
@@ -178,7 +181,5 @@ public interface Controller {
      * @param segmentNumber segment number
      * @return boolean indicating validity of segment.
      */
-    CompletableFuture<Boolean> isSegmentValid(final String scope,
-                                              final String stream,
-                                              final int segmentNumber);
+    CompletableFuture<Boolean> isSegmentValid(final String scope, final String stream, final int segmentNumber);
 }
