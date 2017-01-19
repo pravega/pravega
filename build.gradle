@@ -406,6 +406,25 @@ project('controller:server') {
     }
 }
 
+project('systemtests:tests') {
+    dependencies {
+        compile project(":clients:streaming")
+        compile 'junit:junit:4.12'
+    }
+    test {
+        exclude 'com/emc/pravega/**'
+    }
+
+    jar { //create a fat jar
+        from {
+            (configurations.runtime).collect {
+                it.isDirectory() ? it : zipTree(it)
+            }
+        }
+        from sourceSets.test.output
+    }
+}
+
 subprojects {
     task allDeps(type: DependencyReportTask) {}
 }
