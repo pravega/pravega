@@ -19,16 +19,15 @@
 package com.emc.pravega.common.util;
 
 import com.emc.pravega.testcommon.AssertExtensions;
-import lombok.val;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
 import java.util.LinkedList;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.val;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Base class for testing any SortedIndex implementation.
@@ -36,6 +35,7 @@ import java.util.concurrent.atomic.AtomicLong;
 abstract class SortedIndexTestBase {
     private static final int ITEM_COUNT = 100 * 1000;
     private static final Comparator<Integer> KEY_COMPARATOR = Integer::compare;
+    private static final Comparator<Integer> KEY_REVERSE_COMPARATOR = (n1, n2) -> -Integer.compare(n1, n2);
 
     //region Test Targets
 
@@ -187,6 +187,38 @@ abstract class SortedIndexTestBase {
             }
 
             val ceilingEntry = index.getCeiling(testKey);
+            Integer actualValue = ceilingEntry.isPresent() ? ceilingEntry.get().key() : null;
+            Assert.assertEquals("Unexpected value for getCeiling for key " + testKey, expectedValue, actualValue);
+        }
+    }
+
+    /**
+     * Tests the getFloor() method.
+     */
+    @Test
+    public void testGetFloor() {
+        final int itemCount = 1000;
+        final int maxKey = itemCount * 10;
+
+        // Create an index and populate sparsely.
+        val index = createIndex();
+        val validKeys = populate(index, itemCount, maxKey);
+        validKeys.sort(KEY_REVERSE_COMPARATOR);
+
+        val validKeysIterator = validKeys.iterator();
+        Integer expectedValue = Integer.MAX_VALUE;
+        for (int testKey = maxKey; testKey >= 0; testKey--) {
+            // Since both testKey and validKeysIterator increase with natural ordering, finding the next expected value
+            // is a straightforward call to the iterator next() method.
+            while (expectedValue != null && testKey < expectedValue) {
+                if (validKeysIterator.hasNext()) {
+                    expectedValue = validKeysIterator.next();
+                } else {
+                    expectedValue = null;
+                }
+            }
+
+            val ceilingEntry = index.getFloor(testKey);
             Integer actualValue = ceilingEntry.isPresent() ? ceilingEntry.get().key() : null;
             Assert.assertEquals("Unexpected value for getCeiling for key " + testKey, expectedValue, actualValue);
         }

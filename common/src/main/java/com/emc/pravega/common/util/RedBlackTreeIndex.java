@@ -83,6 +83,11 @@ public class RedBlackTreeIndex<K, V extends IndexEntry<K>> implements SortedInde
     }
 
     @Override
+    public Optional<V> getFloor(K key) {
+        return getValue(this.map.floorEntry(key));
+    }
+
+    @Override
     public Optional<V> getFirst() {
         return getValue(this.map.firstEntry());
     }

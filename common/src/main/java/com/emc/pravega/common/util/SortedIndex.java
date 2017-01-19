@@ -71,6 +71,14 @@ public interface SortedIndex<K, V extends IndexEntry<K>> {
     Optional<V> getCeiling(K key);
 
     /**
+     * Gets the largest item whose key is smaller than or equal to the given key.
+     *
+     * @param key the Key to search by.
+     * @return An Optional containing the sought item, or empty if it doesn't exist.
+     */
+    Optional<V> getFloor(K key);
+
+    /**
      * Gets the smallest item in the index.
      *
      * @return An Optional containing the sought item, or empty (if no items in the index).
