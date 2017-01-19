@@ -434,11 +434,11 @@ public final class FutureHelpers {
     
     /**
      * Returns a CompletableFuture that will end when the given future ends, expecting a certain
-     * result. If the supplied value is not the same as the result an exception from the supplier
-     * will be thrown. If the given future fails, the returned future will fail with the same
-     * exception.
+     * result. If the supplied value is not the same (using .equals() comparison) as the result an
+     * exception from the supplier will be thrown. If the given future fails, the returned future
+     * will fail with the same exception.
      * 
-     * @param T The type of value expected
+     * @param T The value expected
      * @param future the CompletableFuture to attach to.
      * @param exceptionConstructor Constructor for an exception in the event there is not a match.
      * @return A void completable future.
