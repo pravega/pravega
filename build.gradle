@@ -408,7 +408,7 @@ project('controller:server') {
 project('singlenode') {
     apply plugin: 'application'
     mainClassName = "com.emc.pravega.local.LocalPravegaEmulator"
-    applicationDefaultJvmArgs = ["-server", "-Xms4g", "-XX:+HeapDumpOnOutOfMemoryError" "-Xdebug",
+    applicationDefaultJvmArgs = ["-server", "-Xms4g", "-XX:+HeapDumpOnOutOfMemoryError", "-Xdebug",
                                  "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"]
     dependencies {
         compile project(':common')
@@ -416,6 +416,11 @@ project('singlenode') {
         compile project(':service:server')
         compile project(':service:server:host')
         compile project(':controller:server')
+
+        compile project(':service:contracts')
+        compile project(':service:storage')
+        compile project(':service:storage:impl')
+
         compile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: '2.7.3'
@@ -438,6 +443,13 @@ project('singlenode') {
         compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
+    }
+
+    task startSinglenode(type: JavaExec) {
+        main = "com.emc.pravega.local.LocalPravegaEmulator"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+        args = ["4000", "5000", "6000"]
     }
 }
 
