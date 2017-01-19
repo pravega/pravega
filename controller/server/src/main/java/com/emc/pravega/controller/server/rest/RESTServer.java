@@ -18,8 +18,8 @@
 
 package com.emc.pravega.controller.server.rest;
 
-import com.emc.pravega.controller.server.rest.resources.StreamMetaDataResourceImpl;
 import com.emc.pravega.controller.server.rest.resources.PingImpl;
+import com.emc.pravega.controller.server.rest.resources.StreamMetaDataResourceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;

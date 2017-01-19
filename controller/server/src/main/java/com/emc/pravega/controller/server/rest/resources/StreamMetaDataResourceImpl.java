@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.server.rest.resources;
 
+import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.controller.server.rest.ModelHelper;
 import com.emc.pravega.controller.server.rest.contract.request.CreateStreamRequest;
 import com.emc.pravega.controller.server.rest.contract.request.UpdateStreamRequest;
@@ -26,106 +27,92 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import lombok.extern.slf4j.Slf4j;
-import org.glassfish.jersey.server.ManagedAsync;
 
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Response;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 
 @Slf4j
 public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
 
-    private ControllerService controllerService;
+    private final ControllerService controllerService;
+    private final String traceObjectId;
 
     public StreamMetaDataResourceImpl(ControllerService controllerService) {
         this.controllerService = controllerService;
+        traceObjectId = String.format("StreamMetaDataResource");
     }
 
-    @ManagedAsync
     @Override
-    public void createStream(final AsyncResponse asyncResponse, CreateStreamRequest createStreamRequest, String scope) {
-        StreamConfigurationImpl streamConfiguration = ModelHelper.getCreateStreamConfig(createStreamRequest, scope);
-        log.info("CreateStream called for: \nStream name: {}, \nScope name: {}, \nScaling policy: {}, \nRetention policy: {} ", streamConfiguration.getName(),
-                streamConfiguration.getScope(), streamConfiguration.getScalingPolicy(), streamConfiguration.getRetentionPolicy());
+    public void createStream(final CreateStreamRequest createStreamRequest, final String scope, final AsyncResponse asyncResponse) {
+        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createStream");
+        log.debug("{}: CreateStream called for stream {}", this.traceObjectId, createStreamRequest.getStreamName());
 
-        CompletableFuture<CreateStreamStatus> createStreamStatus = controllerService.createStream(streamConfiguration, System.currentTimeMillis());
+        StreamConfiguration streamConfiguration = ModelHelper.getCreateStreamConfig(createStreamRequest, scope);
 
-        CompletableFuture<Response> response = createStreamStatus.thenApply(x -> {
-                    if (x == CreateStreamStatus.SUCCESS ) {
-                        return Response.ok(streamConfiguration).status(201).build();
-                    } else if (x == CreateStreamStatus.STREAM_EXISTS) {
+        CompletableFuture<CreateStreamStatus> createStreamStatus = controllerService.createStream(streamConfiguration,
+                System.currentTimeMillis());
+
+        createStreamStatus.thenApply(streamStatus -> {
+                    if (streamStatus == CreateStreamStatus.SUCCESS) {
+                        return Response.ok(ModelHelper.encodeStreamResponse(streamConfiguration)).status(201).build();
+                    } else if (streamStatus == CreateStreamStatus.STREAM_EXISTS) {
                         return Response.status(409).build();
                     } else {
                         return Response.status(500).build();
                     }
                 }
+        ).thenApply(response ->
+                asyncResponse.resume(response)
         );
 
-        try {
-            asyncResponse.resume(response.get());
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-        }
-
+        LoggerHelpers.traceLeave(log, traceObjectId, "createStream", traceId);
+        log.debug("{}: Stream created.", this.traceObjectId);
     }
 
     @Override
-    public void updateStreamConfig(final AsyncResponse asyncResponse, UpdateStreamRequest updateStreamRequest, String scope, String stream) {
-        StreamConfigurationImpl streamConfiguration = ModelHelper.getUpdateStreamConfig(updateStreamRequest, scope, stream);
+    public void updateStreamConfig(final UpdateStreamRequest updateStreamRequest, final String scope,
+                                   final String stream, final AsyncResponse asyncResponse) {
+        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "updateStreamConfig");
+        log.debug("{}: UpdateStream called for stream {}", this.traceObjectId, stream);
 
-        log.info("UpdateStream called for: \nStream name: {}, \nScope name: {}, \nScaling policy: {}, \nRetention policy: {} ", streamConfiguration.getName(),
-                streamConfiguration.getScope(), streamConfiguration.getScalingPolicy(), streamConfiguration.getRetentionPolicy());
+        StreamConfiguration streamConfiguration = ModelHelper.getUpdateStreamConfig(updateStreamRequest, scope, stream);
 
         CompletableFuture<UpdateStreamStatus> updateStreamStatus = controllerService.alterStream(streamConfiguration);
 
-        CompletableFuture<Response> response = updateStreamStatus.thenApply(x -> {
-                    if (x == UpdateStreamStatus.SUCCESS ) {
-                        return Response.ok(streamConfiguration).status(201).build();
-                    } else if (x == UpdateStreamStatus.STREAM_NOT_FOUND) {
+        updateStreamStatus.thenApply(streamStatus -> {
+                    if (streamStatus == UpdateStreamStatus.SUCCESS) {
+                        return Response.ok(ModelHelper.encodeStreamResponse(streamConfiguration)).status(201).build();
+                    } else if (streamStatus == UpdateStreamStatus.STREAM_NOT_FOUND) {
                         return Response.status(404).build();
                     } else {
                         return Response.status(500).build();
                     }
                 }
-        );
+        ).thenApply(response -> asyncResponse.resume(response));
 
-        try {
-            asyncResponse.resume(response.get());
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-        }
+        LoggerHelpers.traceLeave(log, traceObjectId, "updateStreamConfig", traceId);
+        log.debug("{}: Stream updated.", this.traceObjectId);
     }
 
     @Override
-    public void getStreamConfig(final AsyncResponse asyncResponse, String scope, String stream) {
-        log.info("GetStreamConfig called for: \nStream name: {}, \nScope name: {} ", stream, scope);
+    public void getStreamConfig(String scope, String stream, final AsyncResponse asyncResponse) {
+        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "getStreamConfig");
+        log.debug("{}: GetStreamConfig called for stream {}", this.traceObjectId, stream);
 
         StreamMetadataStore streamStore = controllerService.getStreamStore();
-        CompletableFuture<StreamConfiguration>  streamConfig = streamStore.getConfiguration(stream);
-
-        CompletableFuture<Response> response = streamConfig.thenApply( x -> {
-                    if (x != null) {
-                        return Response.ok(x).status(200).build();
+        CompletableFuture<StreamConfiguration> streamConfig = streamStore.getConfiguration(stream);
+        streamConfig.thenApply(streamConfiguration -> {
+                    if (streamConfiguration != null) {
+                        return Response.ok(ModelHelper.encodeStreamResponse(streamConfiguration)).status(200).build();
                     } else {
                         return Response.status(404).build();
                     }
                 }
-        );
+        ).thenApply(response -> asyncResponse.resume(response));
 
-        try {
-            //System.out.println("streamConfig get "+streamConfig.get());
-            asyncResponse.resume(response.get());
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-        }
+        LoggerHelpers.traceLeave(log, traceObjectId, "getStreamConfig", traceId);
+        log.debug("{}: Stream Config returned.", this.traceObjectId);
     }
 }

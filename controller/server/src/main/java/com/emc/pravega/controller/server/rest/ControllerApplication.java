@@ -23,7 +23,6 @@ import java.util.Set;
 
 /**
  * Application to register the REST resource classes.
- *
  */
 public class ControllerApplication extends Application {
 

@@ -17,48 +17,59 @@
  */
 package com.emc.pravega.controller.server.rest;
 
+import com.emc.pravega.controller.server.rest.contract.common.RetentionPolicyCommon;
+import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommon;
 import com.emc.pravega.controller.server.rest.contract.request.CreateStreamRequest;
 import com.emc.pravega.controller.server.rest.contract.request.UpdateStreamRequest;
+import com.emc.pravega.controller.server.rest.contract.response.StreamProperty;
+import com.emc.pravega.controller.server.rest.contract.response.StreamResponse;
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 
 public class ModelHelper {
 
-    public static StreamConfigurationImpl getCreateStreamConfig(CreateStreamRequest createStreamRequest, String scope) {
-        String streamName = createStreamRequest.getStreamName();
-        ScalingPolicy.Type type = ScalingPolicy.Type.values()[createStreamRequest.getScalingPolicy().getType().ordinal()];
-        long targetRate = createStreamRequest.getScalingPolicy().getTargetRate();
-        int  scaleFactor = createStreamRequest.getScalingPolicy().getScaleFactor();
-        int minNumSegments = createStreamRequest.getScalingPolicy().getMinNumSegments();
-        long retentionTimeMillis = createStreamRequest.getRetentionPolicy().getRetentionTimeMillis();
-
-        ScalingPolicy scalingPolicy = new ScalingPolicy(type,
-                targetRate,
-                scaleFactor,
-                minNumSegments
-                );
-
-        RetentionPolicy retentionPolicy = new RetentionPolicy(retentionTimeMillis);
-        return new StreamConfigurationImpl(scope, streamName, scalingPolicy, retentionPolicy);
-    }
-
-    public static StreamConfigurationImpl getUpdateStreamConfig(UpdateStreamRequest updateStreamRequest, String scope, String stream) {
-        String streamName = stream;
-        ScalingPolicy.Type type = ScalingPolicy.Type.values()[updateStreamRequest.getScalingPolicy().getType().ordinal()];
-        long targetRate = updateStreamRequest.getScalingPolicy().getTargetRate();
-        int  scaleFactor = updateStreamRequest.getScalingPolicy().getScaleFactor();
-        int minNumSegments = updateStreamRequest.getScalingPolicy().getMinNumSegments();
-        long retentionTimeMillis = updateStreamRequest.getRetentionPolicy().getRetentionTimeMillis();
-
-        ScalingPolicy scalingPolicy = new ScalingPolicy(type,
-                targetRate,
-                scaleFactor,
-                minNumSegments
+    public static final StreamConfiguration getCreateStreamConfig(CreateStreamRequest createStreamRequest,
+                                                                  String scope) {
+        return new StreamConfigurationImpl(
+                scope,
+                createStreamRequest.getStreamName(),
+                new ScalingPolicy(
+                        ScalingPolicy.Type.valueOf(createStreamRequest.getScalingPolicy().getType().name()),
+                        createStreamRequest.getScalingPolicy().getTargetRate(),
+                        createStreamRequest.getScalingPolicy().getScaleFactor(),
+                        createStreamRequest.getScalingPolicy().getMinNumSegments()),
+                new RetentionPolicy(createStreamRequest.getRetentionPolicy().getRetentionTimeMillis())
         );
-
-        RetentionPolicy retentionPolicy = new RetentionPolicy(retentionTimeMillis);
-        return new StreamConfigurationImpl(scope, streamName, scalingPolicy, retentionPolicy);
     }
 
+    public static final StreamConfiguration getUpdateStreamConfig(UpdateStreamRequest updateStreamRequest, String scope,
+                                                                  String stream) {
+        return new StreamConfigurationImpl(
+                scope,
+                stream,
+                new ScalingPolicy(
+                        ScalingPolicy.Type.valueOf(updateStreamRequest.getScalingPolicy().getType().name()),
+                        updateStreamRequest.getScalingPolicy().getTargetRate(),
+                        updateStreamRequest.getScalingPolicy().getScaleFactor(),
+                        updateStreamRequest.getScalingPolicy().getMinNumSegments()),
+                new RetentionPolicy(updateStreamRequest.getRetentionPolicy().getRetentionTimeMillis())
+        );
+    }
+
+    public static final StreamResponse encodeStreamResponse(StreamConfiguration streamConfiguration) {
+        return new StreamResponse(new StreamProperty(
+                streamConfiguration.getScope(),
+                streamConfiguration.getName(),
+                new ScalingPolicyCommon(
+                        ScalingPolicyCommon.Type.valueOf(streamConfiguration.getScalingPolicy().getType().name()),
+                        streamConfiguration.getScalingPolicy().getTargetRate(),
+                        streamConfiguration.getScalingPolicy().getScaleFactor(),
+                        streamConfiguration.getScalingPolicy().getMinNumSegments()
+                ),
+                new RetentionPolicyCommon(streamConfiguration.getRetentionPolicy().getRetentionTimeMillis())
+        ));
+
+    }
 }

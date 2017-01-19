@@ -53,21 +53,22 @@ public final class ApiV1 {
         @Path("/scopes/{scope}/streams")
         @Produces(MediaType.APPLICATION_JSON)
         @Consumes(MediaType.APPLICATION_JSON)
-        public void createStream(@Suspended final AsyncResponse asyncResponse, CreateStreamRequest createStreamRequest,
-                                 @PathParam("scope") String scope);
-
+        public void createStream(final CreateStreamRequest createStreamRequest,
+                                 @PathParam("scope") final String scope, @Suspended final AsyncResponse asyncResponse);
 
         @PUT
         @Path("/scopes/{scope}/streams/{stream}")
         @Produces(MediaType.APPLICATION_JSON)
         @Consumes(MediaType.APPLICATION_JSON)
-        public void updateStreamConfig(@Suspended final AsyncResponse asyncResponse, UpdateStreamRequest updateStreamRequest, @PathParam("scope") String scope,
-                                           @PathParam("stream") String stream);
+        public void updateStreamConfig(final UpdateStreamRequest updateStreamRequest, @PathParam("scope") final String scope,
+                                       @PathParam("stream") final String stream,
+                                       @Suspended final AsyncResponse asyncResponse);
 
         @GET
         @Path("/scopes/{scope}/streams/{stream}")
         @Produces(MediaType.APPLICATION_JSON)
-        public void getStreamConfig(@Suspended final AsyncResponse asyncResponse, @PathParam("scope") String scope, @PathParam("stream") String stream);
+        public void getStreamConfig(@PathParam("scope") final String scope, @PathParam("stream") final String stream,
+                                    @Suspended final AsyncResponse asyncResponse);
 
     }
 }

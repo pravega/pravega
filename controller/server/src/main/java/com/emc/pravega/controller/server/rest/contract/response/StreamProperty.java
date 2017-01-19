@@ -17,15 +17,20 @@
  */
 package com.emc.pravega.controller.server.rest.contract.response;
 
+import com.emc.pravega.controller.server.rest.contract.common.RetentionPolicyCommon;
+import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommon;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.io.Serializable;
 
+@AllArgsConstructor
 @Getter
 @Setter
-@AllArgsConstructor
-public class StreamResponse implements Serializable {
-    private StreamProperty stream;
+public class StreamProperty implements Serializable {
+    private String scope;
+    private String streamName;
+    private ScalingPolicyCommon scalingPolicy;
+    private RetentionPolicyCommon retentionPolicy;
 }
