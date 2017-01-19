@@ -25,6 +25,7 @@ import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
 
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -44,8 +45,6 @@ class ReaderGroupState implements Revisioned {
 
     private final String scopedSynchronizerStream;
     @GuardedBy("$lock")
-    private final List<String> streams;
-    @GuardedBy("$lock")
     private Revision revision;
     @GuardedBy("$lock")
     private final Map<String, Long> distanceToTail = new HashMap<>();
@@ -54,15 +53,15 @@ class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     private final Map<String, Set<Segment>> assignedSegments = new HashMap<>();
     @GuardedBy("$lock")
-    private final Map<Segment, Long> unassignedSegments = new HashMap<>();
+    private final Map<Segment, Long> unassignedSegments;
 
-    ReaderGroupState (String scopedSynchronizerStream, Revision revision, List<String> streams) {
+    ReaderGroupState (String scopedSynchronizerStream, Revision revision, Map<Segment, Long> segmentsToOffsets) {
         Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
         Preconditions.checkNotNull(revision);
-        Exceptions.checkNotNullOrEmpty(streams, "streams");
+        Exceptions.checkNotNullOrEmpty(segmentsToOffsets.entrySet(), "segmentsToOffsets");
         this.scopedSynchronizerStream = scopedSynchronizerStream;
         this.revision = revision;
-        this.streams = streams;
+        this.unassignedSegments = segmentsToOffsets;
     }
     
     /**
@@ -130,16 +129,16 @@ class ReaderGroupState implements Revisioned {
     }
     
     @RequiredArgsConstructor
-    static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState> {
-        private final List<String> streams;
+    static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState>, Serializable {
+        private final Map<Segment, Long> segments;
         
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
-            return new ReaderGroupState(scopedStreamName, revision, streams);
+            return new ReaderGroupState(scopedStreamName, revision, segments);
         }
     }
     
-    static abstract class ReaderGroupStateUpdate implements Update<ReaderGroupState> {
+    static abstract class ReaderGroupStateUpdate implements Update<ReaderGroupState>, Serializable {
         @Override
         public ReaderGroupState applyTo(ReaderGroupState oldState, Revision newRevision) {
             synchronized (oldState.$lock) {

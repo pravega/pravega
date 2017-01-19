@@ -93,6 +93,13 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     public void updateState(Function<StateT, List<? extends Update<StateT>>> updateGenerator) {
         while (true) {
             StateT state = getState();
+            if (state == null) {
+                fetchUpdates();
+                state = getState();
+                if (state == null) {
+                    throw new IllegalStateException("UpdateState was called before the state was initialized.");
+                }
+            }
             List<? extends Update<StateT>> updates = updateGenerator.apply(state);
             if (updates == null || updates.isEmpty()) {
                 break;

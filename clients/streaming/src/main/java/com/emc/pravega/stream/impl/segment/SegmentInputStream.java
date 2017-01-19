@@ -28,7 +28,7 @@ import java.nio.ByteBuffer;
  * one left off. (Parallel calls to read data will be serialized)
  * Get offset can be used to store a location to revert back to that position in the future.
  */
-public abstract class SegmentInputStream implements AutoCloseable {
+public interface SegmentInputStream extends AutoCloseable {
     /**
      * Sets the offset for reading from the segment.
      *

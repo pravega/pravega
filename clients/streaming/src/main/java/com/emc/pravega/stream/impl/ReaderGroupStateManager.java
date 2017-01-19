@@ -56,6 +56,10 @@ public class ReaderGroupStateManager {
     private final AtomicLong nextReleaseTime = new AtomicLong();
     private final AtomicLong nextAquireTime = new AtomicLong();
 
+    void initializeReadererGroup(Map<Segment, Long> segments) {
+        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(segments)); 
+    }
+    
     void initializeReader() {
         sync.updateState(state -> {
             if (state.getSegments(readerId) == null) {
