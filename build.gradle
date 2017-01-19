@@ -408,7 +408,8 @@ project('controller:server') {
 project('singlenode') {
     apply plugin: 'application'
     mainClassName = "com.emc.pravega.local.LocalPravegaEmulator"
-    applicationDefaultJvmArgs = ["-server", "-Xms4g", "-XX:+HeapDumpOnOutOfMemoryError"]
+    applicationDefaultJvmArgs = ["-server", "-Xms4g", "-XX:+HeapDumpOnOutOfMemoryError" "-Xdebug",
+                                 "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"]
     dependencies {
         compile project(':common')
         compile project(':clients:streaming')
