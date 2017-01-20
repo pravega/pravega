@@ -45,7 +45,6 @@ public class ControllerActors {
     private final Host host;
     private final CuratorFramework client;
     private final ClusterZKImpl clusterZK;
-    private ActorGroupRef metricsActors;
     private ActorGroupRef commitActors;
 
     // This executor is used to process callbacks from
@@ -84,27 +83,6 @@ public class ControllerActors {
         client.getConnectionStateListenable().addListener(connectionListener, executor);
         //endregion
 
-        // todo: create metricsStream, if it does not exist
-        final String metricsStream = "metricsStream";
-        final String metricsStreamReaderGroup = "metricsStreamReaders";
-        final int metricsReaderGroupSize = 10;
-        final int metricsPositionPersistenceFrequency = 100;
-
-        ActorGroupConfig metricsReadersConfig =
-                ActorGroupConfigImpl.builder()
-                        .streamName(metricsStream)
-                        .readerGroupName(metricsStreamReaderGroup)
-                        .actorCount(metricsReaderGroupSize)
-                        .checkpointFrequency(metricsPositionPersistenceFrequency)
-                        .build();
-        Props metricsProps =
-                Props.builder()
-                        .config(metricsReadersConfig)
-                        .clazz(MetricsActor.class)
-                        .build();
-
-        metricsActors = system.actorOf(metricsProps);
-
         // todo: create commitStream, if it does not exist
         final String commitStream = "commitStream";
         final String commitStreamReaderGroup = "commitStreamReaders";
@@ -119,18 +97,15 @@ public class ControllerActors {
                         .checkpointFrequency(commitPositionPersistenceFrequency)
                         .build();
 
-        Props commitProps =
-                Props.builder()
-                        .config(commitReadersConfig)
-                        .clazz(CommitActor.class)
-                        .args(new Object[] {streamMetadataStore, hostControllerStore})
-                        .build();
+        Props<CommitEvent> commitProps =
+                new Props<>(commitReadersConfig,
+                        null,
+                        CommitEvent.getSerializer(),
+                        CommitActor.class,
+                        streamMetadataStore,
+                        hostControllerStore);
 
         commitActors = system.actorOf(commitProps);
-    }
-
-    public ActorGroupRef getMetricsActorGroupRef() {
-        return metricsActors;
     }
 
     public ActorGroupRef getCommitActorGroupRef() {

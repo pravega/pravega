@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.actor;
 
 import com.emc.pravega.controller.actor.impl.Actor;
+import com.emc.pravega.stream.Serializer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Singular;
@@ -30,26 +31,28 @@ import java.util.Optional;
  * Configuration object for creating Actors via actorOf method of ActorSystem or ActorContext.
  */
 @Data
-public class Props {
+public class Props<T extends StreamEvent> {
 
     private final ActorGroupConfig config;
     private final ReaderStatePersistence persister;
-    private final Class<? extends Actor> clazz;
+    private final Serializer<T> serializer;
+    private final Class<? extends Actor<T>> clazz;
     @Singular
     private final Object[] args;
-    private final Constructor<? extends Actor> constructor;
+    private final Constructor<? extends Actor<T>> constructor;
 
     @Builder
-    public Props(ActorGroupConfig config, ReaderStatePersistence persister, Class<? extends Actor> clazz, Object... args) {
+    public Props(ActorGroupConfig config, ReaderStatePersistence persister, Serializer<T> serializer, Class<? extends Actor<T>> clazz, Object... args) {
         if (!validate(clazz)) {
             throw new IllegalArgumentException("Non-actor type or non-instantiable type");
         }
         this.config = config;
         this.persister = persister;
+        this.serializer = serializer;
         this.clazz = clazz;
         this.args = args;
 
-        Optional<Constructor<? extends Actor>> optional = getValidConstructor(clazz, args);
+        Optional<Constructor<? extends Actor<T>>> optional = getValidConstructor(clazz, args);
         if (optional.isPresent()) {
             this.constructor = optional.get();
         } else {
@@ -57,11 +60,11 @@ public class Props {
         }
     }
 
-    private boolean validate(Class<? extends Actor> clazz) {
+    private boolean validate(Class<? extends Actor<T>> clazz) {
         return !Modifier.isAbstract(clazz.getModifiers());
     }
 
-    private Optional<Constructor<? extends Actor>> getValidConstructor(Class<? extends Actor> clazz, Object... args) {
+    private Optional<Constructor<? extends Actor<T>>> getValidConstructor(Class<? extends Actor<T>> clazz, Object... args) {
         int n = args.length;
         Class[] argumentTypes = new Class[n];
         for (int i = 0; i < n; i++) {

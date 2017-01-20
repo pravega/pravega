@@ -19,6 +19,7 @@ package com.emc.pravega.controller.actor.impl;
 
 import com.emc.pravega.controller.actor.ActorGroupRef;
 import com.emc.pravega.controller.actor.Props;
+import com.emc.pravega.controller.actor.StreamEvent;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
@@ -34,10 +35,10 @@ import java.util.List;
 import java.util.concurrent.Executor;
 
 @Slf4j
-public abstract class Actor {
+public abstract class Actor<T extends StreamEvent> {
 
     @Getter(AccessLevel.PACKAGE)
-    private EventStreamReader<byte[]> reader;
+    private EventStreamReader<T> reader;
 
     @Getter(AccessLevel.PACKAGE)
     private Props props;
@@ -52,9 +53,9 @@ public abstract class Actor {
     private Executor executor;
 
     @GuardedBy("actorGroups")
-    private List<ActorGroupImpl> actorGroups;
+    private List<ActorGroupImpl<T>> actorGroups;
 
-    private ActorContext context;
+    private ActorContext<T> context;
 
     private int count = 0;
 
@@ -75,7 +76,7 @@ public abstract class Actor {
             final long defaultTimeout = Long.MAX_VALUE;
 
             while (isRunning()) {
-                EventRead<byte[]> event = reader.readNextEvent(defaultTimeout);
+                EventRead<T> event = reader.readNextEvent(defaultTimeout);
                 receive(event.getEvent());
 
                 // persist reader position if persistenceFrequency number of events are processed
@@ -136,10 +137,10 @@ public abstract class Actor {
         this.executor = executor;
         this.props = props;
         this.actorGroups = new ArrayList<>();
-        this.context = new ActorContext(actorSystem, executor, actorGroups);
+        this.context = new ActorContext<>(actorSystem, executor, actorGroups);
     }
 
-    final void setReader(EventStreamReader<byte[]> reader, String readerId) {
+    final void setReader(EventStreamReader<T> reader, String readerId) {
         this.reader = reader;
         this.readerId = readerId;
     }
@@ -155,7 +156,7 @@ public abstract class Actor {
      * @param event Event received from Pravega Stream.
      * @throws Exception Exception thrown from user defined preStart method.
      */
-    protected abstract void receive(byte[] event) throws Exception;
+    protected abstract void receive(T event) throws Exception;
 
     /**
      * AbstractActor shutdown hook that is called on shut down.
@@ -180,18 +181,18 @@ public abstract class Actor {
     }
 
     @AllArgsConstructor
-    public static class ActorContext {
+    public static class ActorContext<T extends StreamEvent> {
 
         private final ActorSystemImpl actorSystem;
         private final Executor executor;
-        private final List<ActorGroupImpl> actorGroups;
+        private final List<ActorGroupImpl<T>> actorGroups;
 
-        public ActorGroupRef actorOf(Props props) {
+        public ActorGroupRef actorOf(Props<T> props) {
             synchronized (actorGroups) {
-                ActorGroupImpl actorGroup;
+                ActorGroupImpl<T> actorGroup;
 
                 // Create the actor group, add it to the list of actor groups and start it.
-                actorGroup = new ActorGroupImpl(actorSystem, executor, props);
+                actorGroup = new ActorGroupImpl<>(actorSystem, executor, props);
 
                 actorGroups.add(actorGroup);
 

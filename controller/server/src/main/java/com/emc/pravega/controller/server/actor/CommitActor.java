@@ -27,9 +27,6 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import org.apache.commons.lang.NotImplementedException;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -43,7 +40,7 @@ import java.util.stream.Collectors;
  * 1. Send commit txn message to active segments of the stream.
  * 2. Change txn state from committing to committed.
  */
-public class CommitActor extends Actor {
+public class CommitActor extends Actor<CommitEvent> {
 
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
@@ -58,13 +55,12 @@ public class CommitActor extends Actor {
     }
 
     @Override
-    protected void receive(final byte[] event) throws Exception {
-        CommitEvent commitEvent = new CommitEvent(event);
-        String scope = commitEvent.scope;
-        String stream = commitEvent.stream;
-        UUID txId = commitEvent.txid;
+    protected void receive(CommitEvent event) throws Exception {
+        String scope = event.getScope();
+        String stream = event.getStream();
+        UUID txId = event.getTxid();
 
-        streamMetadataStore.getActiveSegments(commitEvent.getStream())
+        streamMetadataStore.getActiveSegments(event.getStream())
                 .thenCompose(segments ->
                         FutureCollectionHelper.sequence(segments.stream()
                                 .parallel()
@@ -89,21 +85,4 @@ public class CommitActor extends Actor {
                         this.hostControllerStore,
                         this.connectionFactory), executor);
     }
-
-    @Data
-    @AllArgsConstructor
-    public static class CommitEvent {
-        private final String scope;
-        private final String stream;
-        private final UUID txid;
-
-        public CommitEvent(final byte[] bytes) {
-            throw new NotImplementedException();
-        }
-
-        public byte[] getBytes() {
-            throw new NotImplementedException();
-        }
-    }
-
 }

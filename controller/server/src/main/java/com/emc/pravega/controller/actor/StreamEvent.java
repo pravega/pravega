@@ -15,18 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server.actor;
-
-import com.emc.pravega.controller.actor.impl.Actor;
+package com.emc.pravega.controller.actor;
 
 /**
- * Metrics processing logic.
+ * Interface that all controller events need to implement.
  */
-public class MetricsActor extends Actor {
-
-    @Override
-    protected void receive(byte[] event) throws Exception {
-        // todo: this is where metrics event processing logic goes
-    }
+public interface StreamEvent {
 
 }

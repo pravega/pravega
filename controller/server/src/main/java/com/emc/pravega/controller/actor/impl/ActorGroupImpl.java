@@ -21,10 +21,10 @@ import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.actor.ActorGroup;
 import com.emc.pravega.controller.actor.ActorGroupRef;
 import com.emc.pravega.controller.actor.Props;
+import com.emc.pravega.controller.actor.StreamEvent;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroup;
-import com.emc.pravega.stream.impl.ByteArraySerializer;
 import com.google.common.util.concurrent.AbstractService;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -37,15 +37,15 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 
-public final class ActorGroupImpl extends AbstractService implements ActorGroup {
+public final class ActorGroupImpl<T extends StreamEvent> extends AbstractService implements ActorGroup {
 
     private final ActorSystemImpl actorSystem;
 
     @Getter(AccessLevel.PACKAGE)
-    private final Props props;
+    private final Props<T> props;
 
     @Getter(AccessLevel.PACKAGE)
-    private final List<Actor> actors;
+    private final List<Actor<T>> actors;
 
     @Getter(AccessLevel.PACKAGE)
     private final ActorGroupRef ref;
@@ -54,7 +54,7 @@ public final class ActorGroupImpl extends AbstractService implements ActorGroup 
 
     private final Executor executor;
 
-    ActorGroupImpl(final ActorSystemImpl actorSystem, final Executor executor, final Props props) {
+    ActorGroupImpl(final ActorSystemImpl actorSystem, final Executor executor, final Props<T> props) {
         this.actorSystem = actorSystem;
         this.executor = executor;
         this.props = props;
@@ -76,23 +76,22 @@ public final class ActorGroupImpl extends AbstractService implements ActorGroup 
         }
     }
 
-
     private void createActors(final int startIndex, final int count) throws IllegalAccessException,
             InvocationTargetException,
             InstantiationException {
         for (int i = startIndex; i < startIndex+count; i++) {
             String readerId = UUID.randomUUID().toString();
-            EventStreamReader<byte[]> reader =
+            EventStreamReader<T> reader =
                     actorSystem.clientFactory.createReader(readerId,
                             props.getConfig().getReaderGroupName(),
-                            new ByteArraySerializer(),
+                            props.getSerializer(),
                             new ReaderConfig());
 
             // create a new actor, and add it to the list
-            Actor actor = props.getConstructor().newInstance(props.getArgs());
+            Actor<T> actor = props.getConstructor().newInstance(props.getArgs());
             actor.setReader(reader, readerId);
             actor.setup(this.actorSystem, this.executor, props);
-            actor.addListener(new ActorFailureListener(actors, i), executor);
+            actor.addListener(new ActorFailureListener<>(actors.get(i)), executor);
             actors.add(actor);
             // todo: persist the readerIds against this host in the persister
         }

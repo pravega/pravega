@@ -20,7 +20,7 @@ package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.concurrent.FutureCollectionHelper;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.server.actor.CommitActor;
+import com.emc.pravega.controller.server.actor.CommitEvent;
 import com.emc.pravega.controller.server.actor.ControllerActors;
 import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
@@ -177,7 +177,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid) {
         return streamMetadataStore.sealTransaction(scope, stream, txid)
                 .thenApply(x -> {
-                    CommitActor.CommitEvent commitEvent = new CommitActor.CommitEvent(scope, stream, txid);
+                    CommitEvent commitEvent = new CommitEvent(scope, stream, txid);
                     controllerActorsSupplier.get().getCommitActorGroupRef().sendEvent(commitEvent.getBytes());
                     return x;
                 });

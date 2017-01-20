@@ -15,27 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.actor.impl;
+package com.emc.pravega.controller.server.actor;
 
 import com.emc.pravega.controller.actor.StreamEvent;
-import com.google.common.util.concurrent.Service;
-import lombok.extern.log4j.Log4j;
+import com.emc.pravega.stream.Serializer;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import org.apache.commons.lang.NotImplementedException;
 
-@Log4j
-public class ActorFailureListener<T extends StreamEvent> extends Service.Listener {
+import java.util.UUID;
 
-    private final Actor<T> actor;
+@Data
+@AllArgsConstructor
+public class CommitEvent implements StreamEvent {
+    private final String scope;
+    private final String stream;
+    private final UUID txid;
 
-    public ActorFailureListener(Actor<T> actor) {
-        this.actor = actor;
+    public byte[] getBytes() {
+        throw new NotImplementedException();
     }
 
-    public void failed(Service.State from, Throwable failure) {
-        log.warn("Actor " + actor + " failed with exception from state " + from, failure);
-
-        // Default policy: if the actor failed while processing messages, i.e., from running state, then restart it.
-        if (from == Service.State.RUNNING) {
-            actor.restartAsync();
-        }
+    public static Serializer<CommitEvent> getSerializer() {
+        throw new NotImplementedException();
     }
 }
