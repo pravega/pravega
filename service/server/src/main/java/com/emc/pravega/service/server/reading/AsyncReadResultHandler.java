@@ -26,7 +26,7 @@ import java.time.Duration;
 /**
  * Defines an Entry Handler for an AsyncReadResultProcessor.
  */
-public interface AsyncReadResultEntryHandler {
+public interface AsyncReadResultHandler {
     /**
      * Determines whether the AsyncReadResultProcessor should request data for the given ReadResultEntryType and Offset.
      * <p/>
@@ -50,14 +50,20 @@ public interface AsyncReadResultEntryHandler {
     boolean processEntry(ReadResultEntry entry);
 
     /**
-     * This method is called whenever a retrieval error occurred on a ReadResultEntry. This is not an exception handler,
+     * This method is called whenever an exception occurred while processing the ReadResult. This is not an exception handler,
      * rather just a notification that an exception occurred. After this is called, the generating AsyncReadResultProcessor
      * will auto-close.
      *
-     * @param entry The entry that caused the processing error (this may be null, depending on when the error occurred).
      * @param cause The error that triggered this.
      */
-    void processError(ReadResultEntry entry, Throwable cause);
+    void processError(Throwable cause);
+
+    /**
+     * This method is called when the AsyncReadResultProcessor terminates successfully or via a call to close().
+     * If it terminates with an exception, then processError() will be invoked instead.
+     * After this is called, the generating AsyncReadResultProcessor will auto-close.
+     */
+    void processResultComplete();
 
     /**
      * Gets a value indicating the timeout for requesting content.

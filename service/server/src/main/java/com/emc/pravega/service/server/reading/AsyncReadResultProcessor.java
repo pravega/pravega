@@ -24,12 +24,11 @@ import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.server.ExceptionHelpers;
-import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractIdleService;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * An Asynchronous processor for ReadResult objects. Attaches to a ReadResult and executes a callback using an Executor
@@ -42,18 +41,16 @@ import java.util.concurrent.Executor;
  * <li> The ReadResult reaches the end (hasNext() == false)
  * <li> The ReadResult is closed
  * <li> An error was encountered while fetching such an entry.
- * <li> The user-supplied AsyncReadResultEntryHandler returns false from a call to shouldRequestContents.
- * <li> The user-supplied AsyncReadResultEntryHandler returns false from a call to processEntry.
+ * <li> The user-supplied AsyncReadResultHandler returns false from a call to shouldRequestContents.
+ * <li> The user-supplied AsyncReadResultHandler returns false from a call to processEntry.
  * </ul>
  */
-public class AsyncReadResultProcessor extends AbstractIdleService implements AutoCloseable {
+public class AsyncReadResultProcessor implements AutoCloseable {
     //region Members
 
     private final ReadResult readResult;
-    private final AsyncReadResultEntryHandler entryHandler;
-    private final Executor executor;
-    private ReadResultEntry currentEntry;
-    private boolean closed;
+    private final AsyncReadResultHandler entryHandler;
+    private final AtomicBoolean closed;
 
     //endregion
 
@@ -65,16 +62,31 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
      * @param readResult   The ReadResult to attach to. When the ReadResult is closed, the AsyncReadResultProcessor
      *                     is closed as well. When the AsyncReadResultProcessor is closed, the ReadResult is closed too.
      * @param entryHandler A handler for every ReadResultEntry that is extracted out of the ReadResult.
-     * @param executor     An Executor to use for asynchronous callbacks.
      */
-    public AsyncReadResultProcessor(ReadResult readResult, AsyncReadResultEntryHandler entryHandler, Executor executor) {
+    private AsyncReadResultProcessor(ReadResult readResult, AsyncReadResultHandler entryHandler) {
         Preconditions.checkNotNull(readResult, "readResult");
         Preconditions.checkNotNull(entryHandler, "entryHandler");
-        Preconditions.checkNotNull(executor, "executor");
 
         this.readResult = readResult;
         this.entryHandler = entryHandler;
-        this.executor = executor;
+        this.closed = new AtomicBoolean();
+    }
+
+    /**
+     * Processes the given ReadResult using the given AsyncReadResultHandler.
+     *
+     * @param readResult   The ReadResult to process.
+     * @param entryHandler An AsyncReadResultHandler to be used for callbacks.
+     * @param executor     An Executor to run asynchronous tasks on.
+     * @return An instance of the AsyncReadResultProcessor that is processing the result. This can be closed at any time
+     * there is no longer a need to process the result (Note that this will also close the underlying ReadResult). The
+     * returned instance will auto-close when the ReadResult is processed in its entirety or when an exception is encountered.
+     */
+    public static AsyncReadResultProcessor process(ReadResult readResult, AsyncReadResultHandler entryHandler, Executor executor) {
+        Preconditions.checkNotNull(executor, "executor");
+        AsyncReadResultProcessor processor = new AsyncReadResultProcessor(readResult, entryHandler);
+        processor.processResult(executor);
+        return processor;
     }
 
     //endregion
@@ -83,124 +95,67 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
 
     @Override
     public void close() {
-        if (!this.closed) {
-            if (state() == State.RUNNING) {
-                stopAsync();
-                ServiceShutdownListener.awaitShutdown(this, false);
+        // Try to close without setting any exception.
+        close(null);
+    }
+
+    private void close(Throwable failureCause) {
+        if (!this.closed.getAndSet(true)) {
+            this.readResult.close();
+            if (failureCause == null) {
+                // We are closing normally with no processing exception.
+                this.entryHandler.processResultComplete();
+            } else {
+                // An exception was encountered; this must be reported to the entry handler.
+                this.entryHandler.processError(ExceptionHelpers.getRealException(failureCause));
             }
-
-            this.closed = true;
         }
-    }
-
-    //endregion
-
-    //region AbstractIdleService Implementation
-
-    @Override
-    protected void startUp() throws Exception {
-        this.executor.execute(this::fetchNextEntry);
-    }
-
-    @Override
-    protected void shutDown() throws Exception {
-        if (this.currentEntry != null) {
-            this.currentEntry.getContent().cancel(true);
-            this.currentEntry = null;
-        }
-
-        this.readResult.close();
     }
 
     //endregion
 
     //region Processing
 
-    private void fetchNextEntry() {
-        if (this.closed) {
-            // Nothing else to do.
-            return;
-        }
-
-        if (this.currentEntry != null) {
-            fail(new AssertionError("fetchNextEntry: previous entry retrieval is still in progress."));
-            return;
-        }
-
-        // Get the next item. Both next() and getContent() may throw exceptions at us, so we must make sure we handle
-        // them appropriately.
-        try {
-            // We don't really rely on hasNext; we just use the fact that next() returns null if there is nothing else to read.
-            this.currentEntry = this.readResult.next();
-            if (this.currentEntry == null || this.currentEntry.getType() == ReadResultEntryType.EndOfStreamSegment) {
-                close();
-                return;
-            }
-
-            // Retrieve the contents.
-            CompletableFuture<ReadResultEntryContents> entryContentsFuture = this.currentEntry.getContent();
-            if (!entryContentsFuture.isDone()) {
-                // We have received a ReadResultEntry that does not have data readily available.
-                if (this.entryHandler.shouldRequestContents(this.currentEntry.getType(), this.currentEntry.getStreamSegmentOffset())) {
-                    // We were instructed to request the content.
-                    this.currentEntry.requestContent(this.entryHandler.getRequestContentTimeout());
-                } else {
-                    // Not requesting content means we do not want to proceed with the result anymore.
-                    close();
-                    return;
-                }
-            }
-
-            // Attach the appropriate handlers.
-            FutureHelpers.exceptionListener(entryContentsFuture, this::fail);
-            entryContentsFuture.thenRunAsync(this::handleEntryFetched, this.executor);
-        } catch (Exception | AssertionError ex) {
-            // Any processing exception must be dealt with. Otherwise we are stuck with a Processor that keeps running forever.
-            fail(ex);
-        }
+    private void processResult(Executor executor) {
+        // Process the result, one entry at a time, until one of the stopping conditions occurs.
+        AtomicBoolean shouldContinue = new AtomicBoolean(true);
+        FutureHelpers
+                .loop(
+                        () -> !this.closed.get() && shouldContinue.get(),
+                        () -> {
+                            CompletableFuture<ReadResultEntry> resultEntryFuture = fetchNextEntry();
+                            shouldContinue.set(resultEntryFuture != null);
+                            return resultEntryFuture != null ? resultEntryFuture : CompletableFuture.completedFuture(null);
+                        },
+                        resultEntry -> {
+                            if (resultEntry != null) {
+                                shouldContinue.set(this.entryHandler.processEntry(resultEntry));
+                            }
+                        },
+                        executor)
+                .whenComplete((r, ex) -> close(ex)); // Make sure always close the result processor when done (with our without failures).
     }
 
-    private void handleEntryFetched() {
-        if (this.currentEntry == null) {
-            fail(new AssertionError("handleEntryFetched: currentEntry is null"));
-            return;
-        }
-
-        boolean shouldContinue;
-        try {
-            if (this.currentEntry.getContent().isCompletedExceptionally()) {
-                fail(new AssertionError("handleEntryFetched: About to have processed a ReadResultEntry that was not properly fetched."));
-                return;
-            }
-
-            // Process the current entry.
-            shouldContinue = this.entryHandler.processEntry(this.currentEntry);
-            this.currentEntry = null;
-        } catch (Exception | AssertionError ex) {
-            // Any processing exception must be dealt with. Otherwise we are stuck with a Processor that keeps running forever.
-            fail(ex);
-            return;
-        }
-
-        if (shouldContinue) {
-            // If the callback indicated we should continue, do so.
-            fetchNextEntry();
-        } else {
-            // Otherwise close the processor (and the underlying result).
-            close();
-        }
-    }
-
-    private void fail(Throwable exception) {
-        try {
-            this.entryHandler.processError(this.currentEntry, exception);
-        } catch (Throwable ex) {
-            if (ExceptionHelpers.mustRethrow(ex)) {
-                throw ex;
+    private CompletableFuture<ReadResultEntry> fetchNextEntry() {
+        // Get the next item. We don't really rely on hasNext; we just use the fact that next() returns null
+        // if there is nothing else to read.
+        ReadResultEntry currentEntry = this.readResult.next();
+        if (currentEntry != null && currentEntry.getType() != ReadResultEntryType.EndOfStreamSegment) {
+            // We have something to retrieve.
+            CompletableFuture<ReadResultEntryContents> entryContentsFuture = currentEntry.getContent();
+            if (entryContentsFuture.isDone()) {
+                // Result is readily available.
+                return CompletableFuture.completedFuture(currentEntry);
+            } else if (this.entryHandler.shouldRequestContents(currentEntry.getType(), currentEntry.getStreamSegmentOffset())) {
+                // ReadResultEntry that does not have data readily available and we were instructed to request the content.
+                currentEntry.requestContent(this.entryHandler.getRequestContentTimeout());
+                CompletableFuture<ReadResultEntry> resultEntryFuture = new CompletableFuture<>();
+                entryContentsFuture.whenComplete((r, e) -> FutureHelpers.complete(resultEntryFuture, currentEntry, e));
+                return resultEntryFuture;
             }
         }
 
-        close();
+        return null;
     }
 
     //endregion

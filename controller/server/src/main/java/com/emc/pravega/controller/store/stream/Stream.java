@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 
@@ -55,6 +56,18 @@ interface Stream {
      * @return current stream configuration.
      */
     CompletableFuture<StreamConfiguration> getConfiguration();
+
+    /**
+     * Update the state of the stream.
+     * @return boolean indicating whether the state of stream is updated.
+     */
+    CompletableFuture<Boolean> updateState(final State state);
+
+    /**
+     *  Get the state of the stream.
+     * @return state othe given stream.
+     */
+    CompletableFuture<State> getState();
 
     /**
      * Fetches details of specified segment.

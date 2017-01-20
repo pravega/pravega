@@ -18,8 +18,6 @@
 
 package com.emc.pravega.service.server;
 
-import com.emc.pravega.service.storage.Cache;
-
 /**
  * Defines a Factory for Writers.
  */
@@ -30,8 +28,7 @@ public interface WriterFactory {
      * @param containerMetadata Metadata for the container that this Writer will be for.
      * @param operationLog      The OperationLog to attach to.
      * @param readIndex         The ReadIndex to attach to (to provide feedback for mergers).
-     * @param cache             The cache to use (to fetch cached append data).
      * @return An instance of a class that implements the Writer interface.
      */
-    Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Cache cache);
+    Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex);
 }

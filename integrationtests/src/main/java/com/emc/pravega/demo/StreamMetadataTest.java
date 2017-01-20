@@ -58,7 +58,7 @@ public class StreamMetadataTest {
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
         CompletableFuture<CreateStreamStatus> createStatus;
 
-        //create stream
+        //create stream and seal stream
 
         //CS1:create a stream :given a streamName, scope and config
         System.err.println(String.format("Creating stream (%s, %s)", scope1, streamName1));
@@ -68,6 +68,49 @@ public class StreamMetadataTest {
             return;
         } else {
             System.err.println("SUCCESS: Stream created");
+        }
+
+        //Seal a stream given a streamName and scope.
+        final String scopeSeal = "scopeSeal";
+        final String streamNameSeal = "streamSeal";
+        final StreamConfiguration configSeal =
+                new StreamConfigurationImpl(scopeSeal,
+                        streamNameSeal,
+                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
+        System.err.println(String.format("Seal stream  (%s, %s)", scopeSeal, streamNameSeal));
+        CreateStreamStatus createStream3Status = controller.createStream(configSeal).get();
+        if ( createStream3Status != CreateStreamStatus.SUCCESS) {
+           System.err.println("FAILURE: Create stream operation failed");
+        }
+        StreamSegments result = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
+        UpdateStreamStatus sealStatus = controller.sealStream(scopeSeal, streamNameSeal).get();
+        if (sealStatus == UpdateStreamStatus.SUCCESS) {
+            System.err.println("SUCCESS: Stream Sealed");
+            StreamSegments currentSegs = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
+            if ( !currentSegs.getSegments().isEmpty()) {
+                System.err.println("FAILURE: No active segments should be present in a sealed stream");
+            }
+        } else {
+            System.err.println("FAILURE: Seal stream failed, exiting");
+            return;
+        }
+
+        //Seal an already sealed stream.
+        UpdateStreamStatus reSealStatus = controller.sealStream(scopeSeal, streamNameSeal).get();
+        if (reSealStatus == UpdateStreamStatus.SUCCESS) {
+            StreamSegments currentSegs = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
+            if ( !currentSegs.getSegments().isEmpty()) {
+                System.err.println("FAILURE: No active segments should be present in a sealed stream");
+            }
+        } else {
+            System.err.println("FAILURE: Seal operation on an already sealed stream failed, exiting");
+            return;
+        }
+
+        //Seal a non-existent stream.
+        UpdateStreamStatus errSealStatus = controller.sealStream(scopeSeal, "nonExistentStream").get();
+        if (errSealStatus != UpdateStreamStatus.FAILURE) {
+            System.err.println("FAILURE: Seal operation on a non-existent stream returned " +errSealStatus );
         }
 
         //CS2:stream duplication not allowed

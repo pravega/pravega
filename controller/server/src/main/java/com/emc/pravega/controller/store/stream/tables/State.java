@@ -15,14 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package com.emc.pravega.service.server.logs;
-
-import com.emc.pravega.common.util.TruncateableList;
-import com.emc.pravega.service.server.logs.operations.Operation;
+package com.emc.pravega.controller.store.stream.tables;
 
 /**
- * In-Memory Operation Log.
+ * This is used to represent the state of the Stream.
  */
-public class MemoryOperationLog extends TruncateableList<Operation> {
+public enum State {
+    ACTIVE,
+    SEALED
 }

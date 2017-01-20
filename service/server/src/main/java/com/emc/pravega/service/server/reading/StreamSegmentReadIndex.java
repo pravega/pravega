@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
@@ -32,8 +33,10 @@ import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.ReadOnlyStorage;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
+import com.google.common.collect.Iterators;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,10 +44,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Read Index for a single StreamSegment. Integrates reading data from the following sources:
@@ -163,12 +169,15 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 }
             });
 
-            toRemove.forEach(e -> this.indexEntries.remove(e.getLastStreamSegmentOffset()));
+            // Remove from the index and from the cache.
+            toRemove.forEach(e -> {
+                this.indexEntries.remove(e.getLastStreamSegmentOffset());
+                this.cache.remove(getCacheKey(e));
+            });
         }
 
-        // Remove the cache entries, as well as update the summary (no need for holding the lock here; we are not modifying the index).
+        // Update the summary (no need for holding the lock here; we are not modifying the index).
         toRemove.forEach(e -> {
-            this.cache.remove(getCacheKey(e));
             this.summary.remove(e.getLength(), e.getGeneration());
             sizeRemoved.addAndGet(e.getLength());
         });
@@ -243,7 +252,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
     //endregion
 
-    //region Appending
+    //region Index Updates
 
     /**
      * Appends the given range of bytes at the given offset.
@@ -254,7 +263,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @throws IllegalArgumentException If the operation would cause writing beyond the StreamSegment's DurableLogLength.
      * @throws IllegalArgumentException If the offset is invalid (does not match the previous append offset).
      */
-    public void append(long offset, byte[] data) {
+    void append(long offset, byte[] data) {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(!isMerged(), "StreamSegment has been merged into a different one. Cannot append more ReadIndex entries.");
 
@@ -270,7 +279,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         long endOffset = offset + data.length;
         Exceptions.checkArgument(endOffset <= durableLogLength, "offset", "The given range of bytes (%d-%d) is beyond the StreamSegment Durable Log Length (%d).", offset, endOffset, durableLogLength);
 
-        // Then append an entry for it in the ReadIndex.
+        // Then append an entry for it in the ReadIndex. It's ok to insert into the cache outside of the lock here,
+        // since there is no chance of competing with another write request for the same offset at the same time.
         this.cache.insert(new CacheKey(this.metadata.getId(), offset), data);
         appendEntry(new ReadIndexEntry(offset, data.length));
     }
@@ -291,7 +301,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @throws IllegalArgumentException If sourceStreamSegmentIndex refers to a StreamSegment that has a different parent
      *                                  StreamSegment than the current index's one.
      */
-    public void beginMerge(long offset, StreamSegmentReadIndex sourceStreamSegmentIndex) {
+    void beginMerge(long offset, StreamSegmentReadIndex sourceStreamSegmentIndex) {
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "beginMerge", offset, sourceStreamSegmentIndex.traceObjectId);
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(this.metadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a StreamSegment into a child StreamSegment.");
@@ -342,7 +352,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      *
      * @param sourceSegmentStreamId The Id of the StreamSegment that was merged into this one.
      */
-    public void completeMerge(long sourceSegmentStreamId) {
+    void completeMerge(long sourceSegmentStreamId) {
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "completeMerge", sourceSegmentStreamId);
         Exceptions.checkNotClosed(this.closed, this);
 
@@ -396,16 +406,19 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         // There is a very small chance we might be adding data twice, if we get two concurrent requests that slipped past
         // the StorageReader. Fixing it would be complicated, so let's see if it poses any problems.
-        this.cache.insert(new CacheKey(this.metadata.getId(), offset), data);
         ReadIndexEntry entry = new ReadIndexEntry(offset, data.getLength());
+        Exceptions.checkArgument(entry.getLastStreamSegmentOffset() < this.metadata.getStorageLength(), "entry",
+                "The given range of bytes (%d-%d) does not correspond to the StreamSegment range that is in Storage (%d).",
+                entry.getStreamSegmentOffset(), entry.getLastStreamSegmentOffset(), this.metadata.getStorageLength());
         ReadIndexEntry oldEntry;
         synchronized (this.lock) {
-            Exceptions.checkArgument(entry.getLastStreamSegmentOffset() < this.metadata.getStorageLength(), "entry", "The given range of bytes (%d-%d) does not correspond to the StreamSegment range that is in Storage (%d).", entry.getStreamSegmentOffset(), entry.getLastStreamSegmentOffset(), this.metadata.getStorageLength());
+            this.cache.insert(getCacheKey(entry), data);
             oldEntry = addToIndex(entry);
         }
 
         if (oldEntry != null) {
-            log.warn("{}: Insert overrode existing entry (Offset = {}, OldLength = {}, NewLength = {}).", this.traceObjectId, entry.getStreamSegmentOffset(), entry.getLength(), oldEntry.getLength());
+            log.warn("{}: Insert overrode existing entry (Offset = {}, OldLength = {}, NewLength = {}).",
+                    this.traceObjectId, entry.getStreamSegmentOffset(), entry.getLength(), oldEntry.getLength());
         }
     }
 
@@ -441,7 +454,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      *
      * @throws IllegalStateException If the read index is in recovery mode.
      */
-    public void triggerFutureReads() {
+    void triggerFutureReads() {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
 
@@ -463,10 +476,10 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             futureReads = this.futureReads.poll(lastEntry.getLastStreamSegmentOffset());
         }
 
-        log.debug("{}: triggerFutureReads (Count = {}, Sealed = {}).", this.traceObjectId, futureReads.size(), sealed);
+        log.debug("{}: triggerFutureReads (Count = {}, Offset = {}, Sealed = {}).", this.traceObjectId, lastEntry.getLastStreamSegmentOffset(), futureReads.size(), sealed);
 
         for (FutureReadResultEntry r : futureReads) {
-            ReadResultEntry entry = getFirstReadResultEntry(r.getStreamSegmentOffset(), r.getRequestedReadLength());
+            ReadResultEntry entry = getSingleReadResultEntry(r.getStreamSegmentOffset(), r.getRequestedReadLength());
             assert entry != null : "Serving a StorageReadResultEntry with a null result";
             assert !(entry instanceof FutureReadResultEntry) : "Serving a FutureReadResultEntry with another FutureReadResultEntry.";
 
@@ -475,9 +488,75 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 // We have attempted to read beyond the end of the stream. Fail the read request with the appropriate message.
                 r.fail(new StreamSegmentSealedException(String.format("StreamSegment has been sealed at offset %d. There can be no more reads beyond this offset.", this.metadata.getDurableLogLength())));
             } else {
-                entry.getContent().thenAccept(r::complete);
+                CompletableFuture<ReadResultEntryContents> entryContent = entry.getContent();
+                entryContent.thenAccept(r::complete);
+                FutureHelpers.exceptionListener(entryContent, r::fail);
             }
         }
+    }
+
+    /**
+     * Reads a contiguous sequence of bytes of the given length starting at the given offset. Every byte in the range
+     * must meet the following conditions:
+     * <ul>
+     * <li> It must exist in this segment. This excludes bytes from merged transactions and future reads.
+     * <li> It must be part of data that is not yet committed to Storage (tail part) - as such, it must be fully in the cache.
+     * </ul>
+     * Note: This method will not cause cache statistics to be updated. As such, Cache entry generations will not be
+     * updated for those entries that are touched.
+     *
+     * @param startOffset The offset in the StreamSegment where to start reading.
+     * @param length      The number of bytes to read.
+     * @return An InputStream containing the requested data, or null if all of the conditions of this read cannot be met.
+     * @throws IllegalStateException    If the read index is in recovery mode.
+     * @throws IllegalArgumentException If the parameters are invalid (offset, length or offset+length are not in the Segment's range).
+     */
+    InputStream readDirect(long startOffset, int length) {
+        Preconditions.checkArgument(length >= 0, "length must be a non-negative number");
+        Preconditions.checkArgument(startOffset >= this.metadata.getStorageLength(), "startOffset must refer to an offset beyond the Segment's StorageLength offset.");
+        Preconditions.checkArgument(startOffset + length <= this.metadata.getDurableLogLength(), "startOffset+length must be less than the length of the Segment.");
+
+        // Get the first entry. This one is trickier because the requested start offset may not fall on an entry boundary.
+        CompletableReadResultEntry nextEntry;
+        synchronized (this.lock) {
+            ReadIndexEntry indexEntry = null;
+            if (this.indexEntries.size() > 0) {
+                val treeEntry = this.indexEntries.ceilingEntry(startOffset);
+                indexEntry = treeEntry == null ? null : treeEntry.getValue();
+            }
+
+            if (indexEntry == null || startOffset < indexEntry.getStreamSegmentOffset() || (indexEntry instanceof RedirectReadIndexEntry)) {
+                // Data not available or data exist in a partially merged transaction.
+                return null;
+            } else {
+                // Fetch data from the cache for the first entry, but do not update the cache hit stats.
+                nextEntry = createMemoryRead(indexEntry, startOffset, length, false);
+            }
+        }
+
+        // Collect the contents of congruent Index Entries into a list, as long as we still encounter data in the cache.
+        // Since we know all entries should be in the cache and are contiguous, there is no need
+        assert FutureHelpers.isSuccessful(nextEntry.getContent()) : "Found CacheReadResultEntry that is not completed yet: " + nextEntry;
+        val entryContents = nextEntry.getContent().join();
+
+        ArrayList<InputStream> contents = new ArrayList<>();
+        contents.add(entryContents.getData());
+        int readLength = entryContents.getLength();
+        while (readLength < length) {
+            byte[] entryData = this.cache.get(new CacheKey(this.metadata.getId(), startOffset + readLength));
+            if (entryData == null) {
+                // Could not find the 'next' cache entry: this means the requested range is not fully cached.
+                return null;
+            }
+
+            int entryReadLength = Math.min(entryData.length, length - readLength);
+            assert entryReadLength > 0 : "about to have fetched zero bytes from a cache entry";
+            contents.add(new ByteArrayInputStream(entryData, 0, entryReadLength));
+            readLength += entryReadLength;
+        }
+
+        // Coalesce the results into a single InputStream and return the result.
+        return new SequenceInputStream(Iterators.asEnumeration(contents.iterator()));
     }
 
     /**
@@ -491,7 +570,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @throws IllegalArgumentException If the parameters are invalid.
      * @throws IllegalArgumentException If the StreamSegment is sealed and startOffset is beyond its length.
      */
-    public ReadResult read(long startOffset, int maxLength, Duration timeout) {
+    ReadResult read(long startOffset, int maxLength, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
         Exceptions.checkArgument(startOffset >= 0, "startOffset", "startOffset must be a non-negative number.");
@@ -499,7 +578,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Exceptions.checkArgument(canReadAtOffset(startOffset), "startOffset", "StreamSegment is sealed and startOffset is beyond the last offset of the StreamSegment.");
 
         log.debug("{}: Read (Offset = {}, MaxLength = {}).", this.traceObjectId, startOffset, maxLength);
-        return new StreamSegmentReadResult(startOffset, maxLength, this::getFirstReadResultEntry, this.traceObjectId);
+        return new StreamSegmentReadResult(startOffset, maxLength, this::getMultiReadResultEntry, this.traceObjectId);
     }
 
     private boolean canReadAtOffset(long offset) {
@@ -511,12 +590,18 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
     /**
      * Returns the first ReadResultEntry that matches the specified search parameters.
+     * <p>
+     * Compared to getMultiReadResultEntry(), this method returns exactly one ReadResultEntry.
+     * <p>
+     * Compared to getSingleMemoryReadResultEntry(), this method will return a CompletableReadResultEntry regardless of
+     * whether the data is cached or not. This may involve registering a future read or triggering a Storage read if necessary,
+     * as well as redirecting the read to a Transaction if necessary.
      *
      * @param resultStartOffset The Offset within the StreamSegment where to start returning data from.
      * @param maxLength         The maximum number of bytes to return.
      * @return A ReadResultEntry representing the data to return.
      */
-    private CompletableReadResultEntry getFirstReadResultEntry(long resultStartOffset, int maxLength) {
+    private CompletableReadResultEntry getSingleReadResultEntry(long resultStartOffset, int maxLength) {
         Exceptions.checkNotClosed(this.closed, this);
 
         if (maxLength < 0) {
@@ -529,48 +614,118 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             return new EndOfStreamSegmentReadResultEntry(resultStartOffset, maxLength);
         }
 
+        // Look up an entry in the index that contains our requested start offset.
         CompletableReadResultEntry result;
         synchronized (this.lock) {
-            if (this.indexEntries.size() == 0) {
-                // We have no entries in the Read Index.
-                // Use the metadata to figure out whether to return a Storage or Future Read.
+            Map.Entry<Long, ReadIndexEntry> treeEntry = null;
+            if (this.indexEntries.size() > 0) {
+                treeEntry = this.indexEntries.ceilingEntry(resultStartOffset);
+            }
+
+            if (treeEntry == null) {
+                // We either have no entries in the ReadIndex, or we have at least one entry and the ResultStartOffset is
+                // beyond the End Offset of the last entry in the index.
+                // Use the metadata to figure out whether to return a Storage or Future Read, since we do not have
+                // this data in memory.
                 result = createDataNotAvailableRead(resultStartOffset, maxLength);
             } else {
-                // We have at least one entry.
-                // Find the first entry that has an End offset beyond equal to at least ResultStartOffset.
-                Map.Entry<Long, ReadIndexEntry> treeEntry = this.indexEntries.ceilingEntry(resultStartOffset);
-                if (treeEntry == null) {
-                    // The ResultStartOffset is beyond the End Offset of the last entry in the index.
-                    // Use the metadata to figure out whether to return a Storage or Future Read, since we do not have
-                    // this data in memory.
-                    result = createDataNotAvailableRead(resultStartOffset, maxLength);
+                // We have an entry. Let's see if it's valid or not.
+                ReadIndexEntry currentEntry = treeEntry.getValue();
+                if (resultStartOffset < currentEntry.getStreamSegmentOffset()) {
+                    // ResultStartOffset is before the Start Offset of this entry. This means either:
+                    // 1. This is the first entry and ResultStartOffset is before it. OR
+                    // 2. We have a gap in our entries, and ResultStartOffset is somewhere in there.
+                    // We must issue a Storage Read to bring the data to us (with a readLength of up to the size of the gap).
+                    int readLength = (int) Math.min(maxLength, currentEntry.getStreamSegmentOffset() - resultStartOffset);
+                    result = createStorageRead(resultStartOffset, readLength);
+                } else if (currentEntry instanceof RedirectReadIndexEntry) {
+                    result = createRedirectedRead(resultStartOffset, maxLength, (RedirectReadIndexEntry) currentEntry);
                 } else {
-                    // We have an entry. Let's see if it's valid or not.
-                    ReadIndexEntry currentEntry = treeEntry.getValue();
-
-                    if (resultStartOffset < currentEntry.getStreamSegmentOffset()) {
-                        // ResultStartOffset is before the Start Offset of this entry. This means either:
-                        // 1. This is the first entry and ResultStartOffset is before it. OR
-                        // 2. We have a gap in our entries, and ResultStartOffset is somewhere in there.
-                        // We must issue a Storage Read to bring the data to us (with a readLength of up to the size of the gap).
-                        int readLength = (int) Math.min(maxLength, currentEntry.getStreamSegmentOffset() - resultStartOffset);
-                        result = createStorageRead(resultStartOffset, readLength);
-                    } else if (currentEntry instanceof RedirectReadIndexEntry) {
-                        result = getRedirectedReadResultEntry(resultStartOffset, maxLength, (RedirectReadIndexEntry) currentEntry);
-                    } else {
-                        // ResultStartOffset is after the StartOffset and before the End Offset of this entry.
-                        result = createMemoryRead(currentEntry, resultStartOffset, maxLength);
-                    }
+                    // ResultStartOffset is after the StartOffset and before the End Offset of this entry.
+                    result = createMemoryRead(currentEntry, resultStartOffset, maxLength, true);
                 }
             }
         }
 
         // Just before exiting, check we are returning something. We should always return something if we coded this correctly.
-        assert result != null : String.format("Reached the end of getFirstReadResultEntry(id=%d, offset=%d, length=%d) with no plausible result in sight. This means we missed a case.", this.metadata.getId(), resultStartOffset, maxLength);
+        assert result != null : String.format("Reached the end of getSingleReadResultEntry(id=%d, offset=%d, length=%d) with no plausible result in sight. This means we missed a case.", this.metadata.getId(), resultStartOffset, maxLength);
         return result;
     }
 
-    private CompletableReadResultEntry getRedirectedReadResultEntry(long streamSegmentOffset, int maxLength, RedirectReadIndexEntry entry) {
+    /**
+     * Returns a ReadResultEntry that matches the specified search parameters.
+     * <p>
+     * Compared to getSingleMemoryReadResultEntry(), this method may return a direct entry or a collection of entries.
+     * If the first entry to be returned would constitute a cache hit, then this method will attempt to return data from
+     * subsequent (congruent) entries, as long as they are cache hits. If at any time a cache miss occurs, the data collected
+     * so far is returned as a single entry, excluding the cache miss entry (exception if the first entry is a miss,
+     * then that entry is returned).
+     *
+     * @param resultStartOffset The Offset within the StreamSegment where to start returning data from.
+     * @param maxLength         The maximum number of bytes to return.
+     * @return A ReadResultEntry representing the data to return.
+     */
+    private CompletableReadResultEntry getMultiReadResultEntry(long resultStartOffset, int maxLength) {
+        int readLength = 0;
+
+        CompletableReadResultEntry nextEntry = getSingleReadResultEntry(resultStartOffset, maxLength);
+        if (nextEntry == null || !(nextEntry instanceof CacheReadResultEntry)) {
+            // We can only coalesce CacheReadResultEntries.
+            return nextEntry;
+        }
+
+        // Collect the contents of congruent Index Entries into a list, as long as we still encounter data in the cache.
+        ArrayList<InputStream> contents = new ArrayList<>();
+        do {
+            assert FutureHelpers.isSuccessful(nextEntry.getContent()) : "Found CacheReadResultEntry that is not completed yet: " + nextEntry;
+            val entryContents = nextEntry.getContent().join();
+            contents.add(entryContents.getData());
+            readLength += entryContents.getLength();
+            if (readLength >= this.config.getMemoryReadMinLength() || readLength >= maxLength) {
+                break;
+            }
+
+            nextEntry = getSingleMemoryReadResultEntry(resultStartOffset + readLength, maxLength - readLength);
+        } while (nextEntry != null);
+
+        // Coalesce the results into a single InputStream and return the result.
+        return new CacheReadResultEntry(resultStartOffset, new SequenceInputStream(Iterators.asEnumeration(contents.iterator())), readLength);
+    }
+
+    /**
+     * Returns the first CacheReadResultEntry that matches the specified search parameters, but only if the data is
+     * readily available in the cache. As opposed from getSingleReadResultEntry(), this method will return null if the
+     * requested data is not available.
+     *
+     * @param resultStartOffset The Offset within the StreamSegment where to start returning data from.
+     * @param maxLength         The maximum number of bytes to return.
+     * @return A CacheReadResultEntry representing the data to return.
+     */
+    private CacheReadResultEntry getSingleMemoryReadResultEntry(long resultStartOffset, int maxLength) {
+        Exceptions.checkNotClosed(this.closed, this);
+
+        if (maxLength > 0 && canReadAtOffset(resultStartOffset)) {
+            // Look up an entry in the index that contains our requested start offset.
+            synchronized (this.lock) {
+                if (this.indexEntries.size() > 0) {
+                    Map.Entry<Long, ReadIndexEntry> treeEntry = this.indexEntries.ceilingEntry(resultStartOffset);
+                    if (treeEntry != null) {
+                        // We have an entry. Let's see if it's valid or not.
+                        ReadIndexEntry currentEntry = treeEntry.getValue();
+                        if (resultStartOffset >= currentEntry.getStreamSegmentOffset() && !(currentEntry instanceof RedirectReadIndexEntry)) {
+                            // ResultStartOffset is after the StartOffset and before the End Offset of this entry.
+                            return createMemoryRead(currentEntry, resultStartOffset, maxLength, true);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Nothing could be found in the cache at the given offset.
+        return null;
+    }
+
+    private CompletableReadResultEntry createRedirectedRead(long streamSegmentOffset, int maxLength, RedirectReadIndexEntry entry) {
         StreamSegmentReadIndex redirectedIndex = entry.getRedirectReadIndex();
         long redirectOffset = streamSegmentOffset - entry.getStreamSegmentOffset();
         assert redirectOffset >= 0 && redirectOffset < entry.getLength() :
@@ -585,16 +740,16 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             maxLength = (int) entry.getLength();
         }
 
-        CompletableReadResultEntry result = redirectedIndex.getFirstReadResultEntry(redirectOffset, maxLength);
+        CompletableReadResultEntry result = redirectedIndex.getSingleReadResultEntry(redirectOffset, maxLength);
         if (result != null) {
             // Since this is a redirect to a (merged) Transaction, it is possible that between now and when the caller
             // invokes the requestContent() on the entry the Transaction may be fully merged (in Tier2). If that's the
             // case, then this entry will fail with either ObjectClosedException or StreamSegmentNotFoundException, since
             // it is pointing to the now defunct Transaction segment. At that time, a simple retry of the read would
             // yield the right result. However, in order to recover from this without the caller's intervention, we pass
-            // a pointer to getFirstReadResultEntry to the RedirectedReadResultEntry in case it fails with such an exception;
+            // a pointer to getSingleReadResultEntry to the RedirectedReadResultEntry in case it fails with such an exception;
             // that class has logic in it to invoke it if needed and get the right entry.
-            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(), this::getFirstReadResultEntry, this.executor);
+            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(), this::getSingleReadResultEntry, this.executor);
         }
 
         return result;
@@ -628,8 +783,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param entry               The ReadIndexEntry to use.
      * @param streamSegmentOffset The Offset in the StreamSegment where to the ReadResultEntry starts at.
      * @param maxLength           The maximum length of the Read, from the Offset of this ReadResultEntry.
+     * @param updateStats         If true, the entry's cache generation is updated as a result of this call.
      */
-    private ReadResultEntryBase createMemoryRead(ReadIndexEntry entry, long streamSegmentOffset, int maxLength) {
+    private CacheReadResultEntry createMemoryRead(ReadIndexEntry entry, long streamSegmentOffset, int maxLength, boolean updateStats) {
         assert streamSegmentOffset >= entry.getStreamSegmentOffset() : String.format("streamSegmentOffset{%d} < entry.getStreamSegmentOffset{%d}", streamSegmentOffset, entry.getStreamSegmentOffset());
 
         int entryOffset = (int) (streamSegmentOffset - entry.getStreamSegmentOffset());
@@ -639,9 +795,12 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         byte[] data = this.cache.get(getCacheKey(entry));
         assert data != null : String.format("No Cache Entry could be retrieved for entry %s", entry);
 
-        // Update its generation before returning it.
-        int generation = this.summary.touchOne(entry.getGeneration());
-        entry.setGeneration(generation);
+        if (updateStats) {
+            // Update its generation before returning it.
+            int generation = this.summary.touchOne(entry.getGeneration());
+            entry.setGeneration(generation);
+        }
+
         return new CacheReadResultEntry(entry.getStreamSegmentOffset(), data, entryOffset, length);
     }
 
@@ -684,12 +843,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      */
     private int getReadAlignedLength(long offset, int readLength) {
         // Calculate how many bytes over the last alignment marker the offset is.
-        int lengthSinceLastMultiple = (int) (offset % this.config.getStorageReadMaxLength());
+        int lengthSinceLastMultiple = (int) (offset % this.config.getStorageReadAlignment());
 
         // Even though we were asked to read a number of bytes, in some cases we will return fewer bytes than requested
-        // in order to read-align the reads. Calculate the aligned read length, taking into account the Max and Min
-        // number of bytes we are allowed to read.
-        return Math.min(readLength, Math.max(this.config.getStorageReadMinLength(), this.config.getStorageReadMaxLength() - lengthSinceLastMultiple));
+        // in order to read-align the reads.
+        return Math.min(readLength, this.config.getStorageReadAlignment() - lengthSinceLastMultiple);
     }
 
     /**
@@ -725,4 +883,3 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
     //endregion
 }
-
