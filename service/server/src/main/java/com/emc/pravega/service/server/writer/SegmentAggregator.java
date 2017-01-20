@@ -58,6 +58,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -318,7 +319,11 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                 this.operations.add(operation);
                 this.hasSealPending.set(true);
             } else if (operation instanceof CachedStreamSegmentAppendOperation) {
-                aggregateAppendOperation(operation);
+                // Aggregate the Append Operation.
+                final int maxLength = this.config.getMaxFlushSizeBytes();
+                AggregatedAppendOperation aggregatedAppend = getOrCreateAggregatedAppend(
+                        operation.getStreamSegmentOffset(), operation.getSequenceNumber(), maxLength);
+                aggregateAppendOperation(operation, aggregatedAppend, maxLength);
             }
         }
 
@@ -327,34 +332,19 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         log.debug("{}: Add {}; OpCount={}, MergeCount={}, Seal={}.", this.traceObjectId, operation, this.operations.size(), this.mergeTransactionCount, this.hasSealPending);
     }
 
-    private void aggregateAppendOperation(StorageOperation operation) {
-        final int maxLength = this.config.getMaxFlushSizeBytes();
-        AggregatedAppendOperation aggregatedAppend = null;
-        if (this.operations.size() > 0) {
-            StorageOperation last = this.operations.getLast();
-            if (last.getLength() < maxLength && isAppendOperation(last)) {
-                // Last operation is an AggregatedAppend that still has space - add to it.
-                aggregatedAppend = (AggregatedAppendOperation) last;
-                if (aggregatedAppend.isSealed()) {
-                    // ... but not if it has already been processed. We can get here if we failed to flush it and
-                    // are currently reconciling it - we don't want to alter an operation that needs re-verification.
-                    aggregatedAppend = null;
-                }
-            }
-        }
-
-        if (aggregatedAppend == null) {
-            // No operations or last operation not an AggregatedAppend - create a new one.
-            aggregatedAppend = new AggregatedAppendOperation(this.metadata.getId(), operation.getStreamSegmentOffset(), operation.getSequenceNumber());
-            this.operations.add(aggregatedAppend);
-        }
-
-        // We "aggregate" the current operation by recording the fact that it exists in the current Aggregated Append.
-        // An Aggregated Append cannot exceed a certain size, so if our operation doesn't fit, it will need to
-        // span multiple AggregatedAppends (hence the need for a 'remainingLength' counter).
-        // When aggregating, the SequenceNumber of the AggregatedAppend is the sequence number of the operation
-        // that occupies its first byte. As such, getLowestUncommittedSequenceNumber() will always return the SeqNo
-        // of that first operation that hasn't yet been fully flushed.
+    /**
+     * Aggregates the given operation by recording the fact that it exists in the current Aggregated Append.
+     * An Aggregated Append cannot exceed a certain size, so if the given operation doesn't fit, it will need to
+     * span multiple AggregatedAppends.
+     * When aggregating, the SequenceNumber of the AggregatedAppend is the sequence number of the operation
+     * that occupies its first byte. As such, getLowestUncommittedSequenceNumber() will always return the SeqNo
+     * of that first operation that hasn't yet been fully flushed.
+     *
+     * @param operation        The operation to aggregate.
+     * @param aggregatedAppend The AggregatedAppend to add to.
+     * @param maxLength        The maximum length that the Aggregated Append can have.
+     */
+    private void aggregateAppendOperation(StorageOperation operation, AggregatedAppendOperation aggregatedAppend, int maxLength) {
         long remainingLength = operation.getLength();
         while (remainingLength > 0) {
             // All append lengths are integers, so it's safe to cast here.
@@ -368,6 +358,42 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                 this.operations.add(aggregatedAppend);
             }
         }
+    }
+
+    /**
+     * Gets an existing AggregatedAppendOperation or creates a new one to add the given operation to.
+     * An existing AggregatedAppend will be returned if it meets the following criteria:
+     * * It is the last operation in the operation queue.
+     * * Its size is smaller than maxLength.
+     * * It is not sealed (already flushed).
+     * <p>
+     * If at least one of the above criteria is not met, a new AggregatedAppend is created and added at the end of the
+     * operation queue.
+     *
+     * @param operationOffset         The Segment Offset of the operation to add.
+     * @param operationSequenceNumber The Sequence Number of the operation to add.
+     * @param maxLength               The maximum length for an aggregated append.
+     * @return The AggregatedAppend to use (existing or freshly created).
+     */
+    private AggregatedAppendOperation getOrCreateAggregatedAppend(long operationOffset, long operationSequenceNumber, int maxLength) {
+        AggregatedAppendOperation aggregatedAppend = null;
+        if (this.operations.size() > 0) {
+            StorageOperation last = this.operations.getLast();
+            if (last.getLength() < maxLength && isAppendOperation(last)) {
+                aggregatedAppend = (AggregatedAppendOperation) last;
+                if (aggregatedAppend.isSealed()) {
+                    aggregatedAppend = null;
+                }
+            }
+        }
+
+        if (aggregatedAppend == null) {
+            // No operations or last operation not an AggregatedAppend - create a new one.
+            aggregatedAppend = new AggregatedAppendOperation(this.metadata.getId(), operationOffset, operationSequenceNumber);
+            this.operations.add(aggregatedAppend);
+        }
+
+        return aggregatedAppend;
     }
 
     //endregion
@@ -896,17 +922,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                         executor)
                 .thenApply(v -> {
                     // Compare, byte-by-byte, the contents of the append.
-                    try {
-                        for (int i = 0; i < storageData.length; i++) {
-                            if ((byte) appendStream.read() != storageData[i]) {
-                                throw new ReconciliationFailureException(
-                                        String.format("Unable to reconcile operation '%s' because of data differences at SegmentOffset %d.", op, op.getStreamSegmentOffset() + i), this.metadata, storageInfo);
-                            }
-                        }
-                    } catch (IOException | ReconciliationFailureException ex) {
-                        throw new CompletionException(ex);
-                    }
-
+                    verifySame(appendStream, storageData, op, storageInfo);
                     if (readLength >= op.getLength() && op.getLastStreamSegmentOffset() <= storageInfo.getLength()) {
                         // Operation has been completely validated; pop it off the list.
                         StorageOperation removedOp = this.operations.removeFirst();
@@ -915,6 +931,16 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
                     return new FlushResult().withFlushedBytes(readLength);
                 });
+    }
+
+    @SneakyThrows
+    private void verifySame(InputStream appendStream, byte[] storageData, StorageOperation op, SegmentProperties storageInfo) {
+        for (int i = 0; i < storageData.length; i++) {
+            if ((byte) appendStream.read() != storageData[i]) {
+                throw new ReconciliationFailureException(
+                        String.format("Unable to reconcile operation '%s' because of data differences at SegmentOffset %d.", op, op.getStreamSegmentOffset() + i), this.metadata, storageInfo);
+            }
+        }
     }
 
     /**

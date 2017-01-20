@@ -75,12 +75,11 @@ public interface ReadIndex extends AutoCloseable {
      * <li> It must exist in this segment. This excludes bytes from merged transactions and future reads.
      * <li> It must be part of data that is not yet committed to Storage (tail part) - as such, it must be fully in the cache.
      * </ul>
-     * <p>
      * Notes:
      * <ul>
      * <li> This method allows reading from partially merged transactions (on which beginMerge was called but not completeMerge).
-     * This is acceptable because this method is only meant to be used internally and it prebuilds the result into the
-     * returned InputStream.
+     * This is acceptable because this method is only meant to be used by internal clients (not by an outside request)
+     * and it prebuilds the result into the returned InputStream.
      * <li> This method will not cause cache statistics to be updated. As such, Cache entry generations will not be
      * updated for those entries that are touched.
      * </ul>
