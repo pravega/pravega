@@ -22,18 +22,25 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
-import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
-import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.io.SequenceInputStream;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -53,12 +60,13 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     private final UpdateableContainerMetadata metadata;
     private final SequencedItemList<Operation> log;
-    private final Cache cache;
     private final ScheduledExecutorService executor;
     private final DataSourceConfig config;
-    @GuardedBy("log")
+    @GuardedBy("lock")
+    private final HashMap<Long, AppendData> appendData;
+    @GuardedBy("lock")
     private CompletableFuture<Void> waitFullyAcked;
-    @GuardedBy("log")
+    @GuardedBy("lock")
     private CompletableFuture<Void> addProcessed;
     private final AtomicLong lastAddedCheckpoint;
     private final AtomicBoolean ackEffective;
@@ -73,21 +81,21 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     private ErrorInjector<Exception> ackAsyncErrorInjector;
     @Setter
     private ErrorInjector<Exception> getAppendDataErrorInjector;
+    private final Object lock = new Object();
 
     //endregion
 
     //region Constructor
 
-    TestWriterDataSource(UpdateableContainerMetadata metadata, Cache cache, ScheduledExecutorService executor, DataSourceConfig config) {
+    TestWriterDataSource(UpdateableContainerMetadata metadata, ScheduledExecutorService executor, DataSourceConfig config) {
         Preconditions.checkNotNull(metadata, "metadata");
-        Preconditions.checkNotNull(cache, "cache");
         Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkNotNull(config, "config");
 
         this.metadata = metadata;
-        this.cache = cache;
         this.executor = executor;
         this.config = config;
+        this.appendData = new HashMap<>();
         this.log = new SequencedItemList<>();
         this.lastAddedCheckpoint = new AtomicLong(0);
         this.waitFullyAcked = null;
@@ -104,7 +112,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         if (!this.closed.getAndSet(true)) {
             // Cancel any pending adds.
             CompletableFuture<Void> addProcessed;
-            synchronized (this.log) {
+            synchronized (this.lock) {
                 addProcessed = this.addProcessed;
                 this.addProcessed = null;
             }
@@ -151,6 +159,31 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         return operation.getSequenceNumber();
     }
 
+    /**
+     * Records data for appends (to be fetched with getAppendData()).
+     */
+    void recordAppend(StreamSegmentAppendOperation operation) {
+        AppendData ad;
+        synchronized (this.lock) {
+            ad = this.appendData.getOrDefault(operation.getStreamSegmentId(), null);
+            if (ad == null) {
+                ad = new AppendData();
+                this.appendData.put(operation.getStreamSegmentId(), ad);
+            }
+        }
+
+        ad.append(operation.getStreamSegmentOffset(), operation.getData());
+    }
+
+    /**
+     * Clears all append data.
+     */
+    void clearAppendData() {
+        synchronized (this.lock) {
+            this.appendData.clear();
+        }
+    }
+
     //endregion
 
     //region WriterDataSource Implementation
@@ -177,7 +210,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
                     // See if anyone is waiting for the DataSource to be emptied out; if so, notify them.
                     CompletableFuture<Void> callback = null;
-                    synchronized (this.log) {
+                    synchronized (this.lock) {
                         // We need to check both log size and last seq no (that's because of ackEffective that may not actually trim the log).
                         Operation last = this.log.getLast();
                         if (this.waitFullyAcked != null && (last == null || last.getSequenceNumber() <= upToSequenceNumber)) {
@@ -218,9 +251,18 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
-    public byte[] getAppendData(CacheKey key) {
+    public InputStream getAppendData(long streamSegmentId, long startOffset, int length) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.getAppendDataErrorInjector);
-        return this.cache.get(key);
+        AppendData ad;
+        synchronized (this.lock) {
+            ad = this.appendData.getOrDefault(streamSegmentId, null);
+        }
+
+        if (ad == null) {
+            return null;
+        }
+
+        return ad.read(startOffset, length);
     }
 
     @Override
@@ -258,7 +300,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
      * Returns a CompletableFuture that will be completed when the TestWriterDataSource becomes empty.
      */
     CompletableFuture<Void> waitFullyAcked() {
-        synchronized (this.log) {
+        synchronized (this.lock) {
             if (this.waitFullyAcked == null) {
                 // Nobody else is waiting for the DataSource to empty out.
                 if (this.log.getLast() == null) {
@@ -280,7 +322,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     private CompletableFuture<Void> waitForAdd(long currentSeqNo, Duration timeout) {
         CompletableFuture<Void> result;
-        synchronized (this.log) {
+        synchronized (this.lock) {
             Operation last = this.log.getLast();
             if (last != null && last.getSequenceNumber() > currentSeqNo) {
                 // An add has already been processed that meets or exceeds the given sequence number.
@@ -290,7 +332,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
                     // We need to wait for an add, and nobody else is waiting for it too.
                     this.addProcessed = FutureHelpers.futureWithTimeout(timeout, this.executor);
                     FutureHelpers.onTimeout(this.addProcessed, ex -> {
-                        synchronized (this.log) {
+                        synchronized (this.lock) {
                             if (this.addProcessed.isCompletedExceptionally()) {
                                 this.addProcessed = null;
                             }
@@ -308,7 +350,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     private void notifyAddProcessed() {
         if (this.addProcessed != null) {
             CompletableFuture<Void> f;
-            synchronized (this.log) {
+            synchronized (this.lock) {
                 f = this.addProcessed;
                 this.addProcessed = null;
             }
@@ -331,4 +373,44 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             super(sequence);
         }
     }
+
+    private static class AppendData {
+        @GuardedBy("this")
+        private final TreeMap<Long, byte[]> data = new TreeMap<>();
+
+        synchronized void append(long segmentOffset, byte[] data) {
+            this.data.put(segmentOffset, data);
+        }
+
+        synchronized InputStream read(final long segmentOffset, final int length) {
+            ArrayList<InputStream> result = new ArrayList<>();
+
+            // Locate first entry.
+            long currentOffset = segmentOffset;
+            Map.Entry<Long, byte[]> entry = this.data.floorEntry(currentOffset);
+            if (entry == null || entry.getKey() + entry.getValue().length <= currentOffset) {
+                // Requested offset is before first entry or in a "gap".
+                return null;
+            }
+
+            int entryOffset = (int) (currentOffset - entry.getKey());
+            byte[] entryData = entry.getValue();
+            int remainingLength = length;
+            while (entryData != null && remainingLength > 0) {
+                int entryLength = Math.min(remainingLength, entryData.length - entryOffset);
+                result.add(new ByteArrayInputStream(entryData, entryOffset, entryLength));
+                currentOffset += entryLength;
+                remainingLength -= entryLength;
+                entryOffset = 0;
+                entryData = this.data.get(currentOffset);
+            }
+
+            if (remainingLength > 0) {
+                return null;
+            }
+
+            return new SequenceInputStream(Iterators.asEnumeration(result.iterator()));
+        }
+    }
 }
+

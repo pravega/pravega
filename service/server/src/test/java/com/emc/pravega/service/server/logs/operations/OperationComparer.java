@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
-import com.emc.pravega.service.storage.Cache;
 import org.junit.Assert;
 
 /**
@@ -28,8 +27,7 @@ public class OperationComparer {
     /**
      * Most commonly used OperationComparer: not enforcing reference equality and no cache provided.
      */
-    public static final OperationComparer DEFAULT = new OperationComparer(false, null);
-    private final Cache cache;
+    public static final OperationComparer DEFAULT = new OperationComparer(false);
     private final boolean enforceReferenceEquality;
 
     /**
@@ -38,11 +36,8 @@ public class OperationComparer {
      * @param enforceReferenceEquality If true, every call to assertEquals will check the actual object reference; if
      *                                 false, it checks object properties. This parameter does not apply when comparing
      *                                 StreamSegmentAppendOperation with CachedStreamSegmentAppendOperation.
-     * @param cache                    (Optional) The cache to use to compare StreamSegmentAppendOperations with
-     *                                 CachedStreamSegmentAppendOperations.
      */
-    public OperationComparer(boolean enforceReferenceEquality, Cache cache) {
-        this.cache = cache;
+    public OperationComparer(boolean enforceReferenceEquality) {
         this.enforceReferenceEquality = enforceReferenceEquality;
     }
 
@@ -129,11 +124,8 @@ public class OperationComparer {
     }
 
     private void assertSame(String message, StreamSegmentAppendOperation expected, CachedStreamSegmentAppendOperation cachedActual) {
-        Assert.assertNotNull("Cannot compare StreamSegmentAppendOperation with a CachedStreamSegmentAppendOperation without a Cache.", this.cache);
         Assert.assertEquals(message + " Unexpected StreamSegmentOffset.", expected.getStreamSegmentOffset(), cachedActual.getStreamSegmentOffset());
         Assert.assertEquals(message + " Unexpected Length.", expected.getData().length, cachedActual.getLength());
-        byte[] actualData = cache.get(cachedActual.createCacheKey());
-        Assert.assertArrayEquals(message + " Unexpected Data. ", expected.getData(), actualData);
     }
 
     private void assertSame(String message, CachedStreamSegmentAppendOperation expected, CachedStreamSegmentAppendOperation actual) {

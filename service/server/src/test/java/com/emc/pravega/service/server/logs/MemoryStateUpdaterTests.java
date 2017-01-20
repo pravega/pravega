@@ -35,6 +35,7 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperati
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.testcommon.AssertExtensions;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -195,6 +196,7 @@ public class MemoryStateUpdaterTests {
         static final String BEGIN_MERGE = "beginMerge";
         static final String COMPLETE_MERGE = "completeMerge";
         static final String READ = "read";
+        static final String READ_DIRECT = "readDirect";
         static final String TRIGGER_FUTURE_READS = "triggerFutureReads";
         static final String CLEANUP = "cleanup";
         static final String ENTER_RECOVERY_MODE = "enterRecoveryMode";
@@ -228,6 +230,14 @@ public class MemoryStateUpdaterTests {
             invoke(new MethodInvocation(COMPLETE_MERGE)
                     .withArg("targetStreamSegmentId", targetStreamSegmentId)
                     .withArg("sourceStreamSegmentId", sourceStreamSegmentId));
+        }
+
+        @Override
+        public InputStream readDirect(long streamSegmentId, long offset, int length) {
+            invoke(new MethodInvocation(READ_DIRECT)
+                    .withArg("offset", offset)
+                    .withArg("length", length));
+            return null;
         }
 
         @Override
