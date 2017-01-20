@@ -25,10 +25,8 @@ import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.storage.LogAddress;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -38,11 +36,14 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Metadata for a Stream Segment Container.
  */
 @Slf4j
+@VisibleForTesting
 public class StreamSegmentContainerMetadata implements UpdateableContainerMetadata {
     //region Members
 

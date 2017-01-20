@@ -34,7 +34,6 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.ExceptionHelpers;
-import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
@@ -42,7 +41,6 @@ import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
 import com.emc.pravega.service.server.mocks.InMemoryCacheFactory;
-import com.emc.pravega.service.server.mocks.InMemoryMetadataRepository;
 import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
@@ -818,7 +816,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     private class TestContext implements AutoCloseable {
         final SegmentContainer container;
-        private final MetadataRepository metadataRepository;
         private final StorageFactory storageFactory;
         private final DurableDataLogFactory dataLogFactory;
         private final OperationLogFactory operationLogFactory;
@@ -828,14 +825,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final InMemoryStorage storage;
 
         TestContext() {
-            this.metadataRepository = new InMemoryMetadataRepository();
             this.storageFactory = new InMemoryStorageFactory(executorService());
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
             this.cacheFactory = new InMemoryCacheFactory();
             this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.storageFactory, executorService());
             this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, this.storageFactory, executorService());
-            StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, executorService());
+            StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(this.operationLogFactory, this.readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, executorService());
             this.container = factory.createStreamSegmentContainer(CONTAINER_ID);
             this.storage = (InMemoryStorage) this.storageFactory.getStorageAdapter();
         }

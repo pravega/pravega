@@ -21,7 +21,6 @@ package com.emc.pravega.service.server.store;
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
-import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainerFactory;
@@ -32,7 +31,6 @@ import com.emc.pravega.service.server.containers.StreamSegmentContainerFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
 import com.emc.pravega.service.server.mocks.InMemoryCacheFactory;
-import com.emc.pravega.service.server.mocks.InMemoryMetadataRepository;
 import com.emc.pravega.service.server.mocks.LocalSegmentContainerManager;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
@@ -73,13 +71,11 @@ public final class ServiceBuilder implements AutoCloseable {
     private final AtomicReference<SegmentContainerFactory> containerFactory;
     private final AtomicReference<SegmentContainerRegistry> containerRegistry;
     private final AtomicReference<SegmentContainerManager> containerManager;
-    private final AtomicReference<MetadataRepository> metadataRepository;
     private final AtomicReference<CacheFactory> cacheFactory;
     private final AtomicReference<WriterFactory> writerFactory;
     private final AtomicReference<StreamSegmentStore> streamSegmentService;
     private Function<ComponentSetup, DurableDataLogFactory> dataLogFactoryCreator;
     private Function<ComponentSetup, StorageFactory> storageFactoryCreator;
-    private Function<ComponentSetup, MetadataRepository> metadataRepositoryCreator;
     private Function<ComponentSetup, SegmentContainerManager> segmentContainerManagerCreator;
     private Function<ComponentSetup, CacheFactory> cacheFactoryCreator;
     private Function<ComponentSetup, StreamSegmentStore> streamSegmentStoreCreator;
@@ -111,7 +107,6 @@ public final class ServiceBuilder implements AutoCloseable {
         this.containerFactory = new AtomicReference<>();
         this.containerRegistry = new AtomicReference<>();
         this.containerManager = new AtomicReference<>();
-        this.metadataRepository = new AtomicReference<>();
         this.cacheFactory = new AtomicReference<>();
         this.writerFactory = new AtomicReference<>();
         this.streamSegmentService = new AtomicReference<>();
@@ -119,7 +114,6 @@ public final class ServiceBuilder implements AutoCloseable {
         // Setup default creators - we cannot use the ServiceBuilder unless all of these are setup.
         this.dataLogFactoryCreator = notConfiguredCreator(DurableDataLogFactory.class);
         this.storageFactoryCreator = notConfiguredCreator(StorageFactory.class);
-        this.metadataRepositoryCreator = notConfiguredCreator(MetadataRepository.class);
         this.segmentContainerManagerCreator = notConfiguredCreator(SegmentContainerManager.class);
         this.cacheFactoryCreator = notConfiguredCreator(CacheFactory.class);
         this.streamSegmentStoreCreator = notConfiguredCreator(StreamSegmentStore.class);
@@ -175,19 +169,6 @@ public final class ServiceBuilder implements AutoCloseable {
     public ServiceBuilder withStorageFactory(Function<ComponentSetup, StorageFactory> storageFactoryCreator) {
         Preconditions.checkNotNull(storageFactoryCreator, "storageFactoryCreator");
         this.storageFactoryCreator = storageFactoryCreator;
-        return this;
-    }
-
-    /**
-     * Attaches the given MetadataRepository creator to this ServiceBuilder. The given Function will only not be invoked
-     * right away; it will be called when needed.
-     *
-     * @param metadataRepositoryCreator The Function to attach.
-     * @return This ServiceBuilder.
-     */
-    public ServiceBuilder withMetadataRepository(Function<ComponentSetup, MetadataRepository> metadataRepositoryCreator) {
-        Preconditions.checkNotNull(metadataRepositoryCreator, "metadataRepositoryCreator");
-        this.metadataRepositoryCreator = metadataRepositoryCreator;
         return this;
     }
 
@@ -273,13 +254,12 @@ public final class ServiceBuilder implements AutoCloseable {
     }
 
     private SegmentContainerFactory createSegmentContainerFactory() {
-        MetadataRepository metadataRepository = getSingleton(this.metadataRepository, this.metadataRepositoryCreator);
         ReadIndexFactory readIndexFactory = getSingleton(this.readIndexFactory, this::createReadIndexFactory);
         StorageFactory storageFactory = getSingleton(this.storageFactory, this.storageFactoryCreator);
         OperationLogFactory operationLogFactory = getSingleton(this.operationLogFactory, this::createOperationLogFactory);
         CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         WriterFactory writerFactory = getSingleton(this.writerFactory, this::createWriterFactory);
-        return new StreamSegmentContainerFactory(metadataRepository, operationLogFactory, readIndexFactory, writerFactory, storageFactory, cacheFactory, this.executorService);
+        return new StreamSegmentContainerFactory(operationLogFactory, readIndexFactory, writerFactory, storageFactory, cacheFactory, this.executorService);
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {
@@ -361,7 +341,6 @@ public final class ServiceBuilder implements AutoCloseable {
         return serviceBuilder.withCacheFactory(setup -> new InMemoryCacheFactory())
                              .withContainerManager(setup -> new LocalSegmentContainerManager(
                                      setup.getContainerRegistry(), setup.getSegmentToContainerMapper()))
-                             .withMetadataRepository(setup -> new InMemoryMetadataRepository())
                              .withStorageFactory(setup -> new InMemoryStorageFactory(setup.getExecutor()))
                              .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor()))
                              .withStreamSegmentStore(setup -> new StreamSegmentService(setup.getContainerRegistry(),

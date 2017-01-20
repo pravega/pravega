@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.containers;
 
-import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
@@ -27,14 +26,12 @@ import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
-
 import java.util.concurrent.Executor;
 
 /**
  * Represents a SegmentContainerFactory that builds instances of the StreamSegmentContainer class.
  */
 public class StreamSegmentContainerFactory implements SegmentContainerFactory {
-    private final MetadataRepository metadataRepository;
     private final OperationLogFactory operationLogFactory;
     private final ReadIndexFactory readIndexFactory;
     private final WriterFactory writerFactory;
@@ -45,7 +42,6 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
     /**
      * Creates a new instance of the StreamSegmentContainerFactory.
      *
-     * @param metadataRepository  The Metadata Repository to use for every container creation.
      * @param operationLogFactory The OperationLogFactory to use for every container creation.
      * @param readIndexFactory    The ReadIndexFactory to use for every container creation.
      * @param writerFactory       The Writer Factory to use for every container creation.
@@ -54,8 +50,7 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
      * @param executor            The Executor to use for running async tasks.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public StreamSegmentContainerFactory(MetadataRepository metadataRepository, OperationLogFactory operationLogFactory, ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory, CacheFactory cacheFactory, Executor executor) {
-        Preconditions.checkNotNull(metadataRepository, "metadataRepository");
+    public StreamSegmentContainerFactory(OperationLogFactory operationLogFactory, ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory, CacheFactory cacheFactory, Executor executor) {
         Preconditions.checkNotNull(operationLogFactory, "operationLogFactory");
         Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
         Preconditions.checkNotNull(writerFactory, "writerFactory");
@@ -63,7 +58,6 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
         Preconditions.checkNotNull(cacheFactory, "cacheFactory");
         Preconditions.checkNotNull(executor, "executor");
 
-        this.metadataRepository = metadataRepository;
         this.operationLogFactory = operationLogFactory;
         this.readIndexFactory = readIndexFactory;
         this.writerFactory = writerFactory;
@@ -74,6 +68,6 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
 
     @Override
     public SegmentContainer createStreamSegmentContainer(int containerId) {
-        return new StreamSegmentContainer(containerId, this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, this.executor);
+        return new StreamSegmentContainer(containerId, this.operationLogFactory, this.readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, this.executor);
     }
 }

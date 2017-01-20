@@ -28,7 +28,6 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
-import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndex;
@@ -90,7 +89,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * Creates a new instance of the StreamSegmentContainer class.
      *
      * @param streamSegmentContainerId The Id of the StreamSegmentContainer.
-     * @param metadataRepository       The MetadataRepository to use.
      * @param durableLogFactory        The DurableLogFactory to use to create DurableLogs.
      * @param readIndexFactory         The ReadIndexFactory to use to create Read Indices.
      * @param writerFactory            The WriterFactory to use to create Writers.
@@ -98,8 +96,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * @param cacheFactory             The CacheFactory to use to create Caches.
      * @param executor                 An Executor that can be used to run async tasks.
      */
-    StreamSegmentContainer(int streamSegmentContainerId, MetadataRepository metadataRepository, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory, CacheFactory cacheFactory, Executor executor) {
-        Preconditions.checkNotNull(metadataRepository, "metadataRepository");
+    StreamSegmentContainer(int streamSegmentContainerId, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory, CacheFactory cacheFactory, Executor executor) {
         Preconditions.checkNotNull(durableLogFactory, "durableLogFactory");
         Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
         Preconditions.checkNotNull(writerFactory, "writerFactory");
@@ -109,7 +106,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
         this.storage = storageFactory.getStorageAdapter();
-        this.metadata = metadataRepository.getMetadata(streamSegmentContainerId);
+        this.metadata = new StreamSegmentContainerMetadata(streamSegmentContainerId);
         this.cache = cacheFactory.getCache(String.format("Container_%d", streamSegmentContainerId));
         this.readIndex = readIndexFactory.createReadIndex(this.metadata, this.cache);
         this.executor = executor;
