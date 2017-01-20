@@ -15,17 +15,8 @@
 
 package com.emc.pravega.service.server.host.handler;
 
-import java.time.Duration;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.function.BiFunction;
-
-import javax.annotation.concurrent.GuardedBy;
-
+import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.DelegatingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
@@ -45,10 +36,22 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
 import com.google.common.collect.LinkedListMultimap;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.extern.slf4j.Slf4j;
+
+import javax.annotation.concurrent.GuardedBy;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
+
+import static com.emc.pravega.service.server.host.PravegaRequestStats.PENDING_APPEND_BYTES;
 
 /**
  * Process incomming Append requests and write them to the appropriate store.
@@ -60,10 +63,15 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     static final int HIGH_WATER_MARK = 128 * 1024;
     static final int LOW_WATER_MARK = 64 * 1024;
 
+    static AtomicLong pendBytes = new AtomicLong();
+    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
+    static {
+        STATS_LOGGER.registerGauge(PENDING_APPEND_BYTES, pendBytes::get);
+    }
+
     private final StreamSegmentStore store;
     private final ServerConnection connection;
     private final RequestProcessor next;
-
     private final Object lock = new Object();
 
     @GuardedBy("lock")
@@ -230,7 +238,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else {
             // TODO: don't know what to do here...
             connection.close();
-            log.error("Unknown excpetion on append for segment " + segment, u);
+            log.error("Unknown exception on append for segment " + segment, u);
         }
     }
 
@@ -246,6 +254,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 .mapToInt(a -> a.getData().readableBytes())
                 .sum();
         }
+        // Registered gauge value
+        pendBytes.set(bytesWaiting);
+
         if (bytesWaiting > HIGH_WATER_MARK) {
             connection.pauseReading();
         }

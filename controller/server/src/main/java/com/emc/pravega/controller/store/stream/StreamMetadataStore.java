@@ -63,6 +63,20 @@ public interface StreamMetadataStore {
     CompletableFuture<StreamConfiguration> getConfiguration(final String name);
 
     /**
+     * Set the stream state to sealed.
+     * @param name stream name.
+     * @return boolean indicating whether the stream was updated.
+     */
+    CompletableFuture<Boolean> setSealed(final String name);
+
+    /**
+     * Get the stream sealed status.
+     * @param name stream name.
+     * @return boolean indicating whether the stream is sealed.
+     */
+    CompletableFuture<Boolean> isSealed(final String name);
+
+    /**
      * Get Segment.
      *  @param name   stream name.
      * @param number segment number.
@@ -162,6 +176,14 @@ public interface StreamMetadataStore {
      * @return
      */
     CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final UUID txId);
+
+    /**
+     * Returns a boolean indicating whether any transaction is active on the specified stream.
+     * @param scope  scope.
+     * @param stream stream.
+     * @return boolean indicating whether any transaction is active on the specified stream.
+     */
+    CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream);
 
     /**
      * Returns all active transactions for all streams.

@@ -42,6 +42,10 @@ import org.slf4j.LoggerFactory;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.emc.pravega.common.metrics.MetricsConfig;
+import com.emc.pravega.common.metrics.StatsProvider;
+import com.emc.pravega.common.metrics.MetricsProvider;
+
 /**
  * Starts the Pravega Service.
  */
@@ -52,6 +56,7 @@ public final class ServiceStarter {
     private final ServiceBuilderConfig builderConfig;
     private final ServiceConfig serviceConfig;
     private final ServiceBuilder serviceBuilder;
+    private StatsProvider statsProvider;
     private PravegaConnectionListener listener;
     private boolean closed;
 
@@ -59,14 +64,14 @@ public final class ServiceStarter {
 
     //region Constructor
 
-    private ServiceStarter(ServiceBuilderConfig config) {
+    public ServiceStarter(ServiceBuilderConfig config) {
         this.builderConfig = config;
         this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::new);
         Options opt = new Options();
-        opt.distributedLog = false;
-        opt.hdfs = false;
+        opt.distributedLog = true;
+        opt.hdfs = true;
         opt.rocksDb = true;
-        opt.zkSegmentManager = false;
+        opt.zkSegmentManager = true;
         this.serviceBuilder = createServiceBuilder(opt);
     }
 
@@ -95,11 +100,19 @@ public final class ServiceStarter {
 
     //region Service Operation
 
-    private void start() {
+    public void start() {
         Exceptions.checkNotClosed(this.closed, this);
 
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        MetricsConfig metricsConfig = this.builderConfig.getConfig(MetricsConfig::new);
         context.getLoggerList().get(0).setLevel(Level.INFO);
+
+        log.info("Initializing metrics provider ...");
+        statsProvider = metricsConfig.enableStatistics() ?
+                        MetricsProvider.getNullProvider() :
+                        MetricsProvider.getProvider();
+
+        statsProvider.start(metricsConfig);
 
         log.info("Initializing Service Builder ...");
         this.serviceBuilder.initialize().join();
@@ -113,7 +126,7 @@ public final class ServiceStarter {
         log.info("StreamSegmentService started.");
     }
 
-    private void shutdown() {
+    public void shutdown() {
         if (!this.closed) {
             this.serviceBuilder.close();
             log.info("StreamSegmentService shut down.");
@@ -121,6 +134,12 @@ public final class ServiceStarter {
             if (this.listener != null) {
                 this.listener.close();
                 log.info("PravegaConnectionListener closed.");
+            }
+
+            if (this.statsProvider != null) {
+                statsProvider.close();
+                statsProvider = null;
+                log.info("Metrics statsProvider is now closed.");
             }
 
             this.closed = true;

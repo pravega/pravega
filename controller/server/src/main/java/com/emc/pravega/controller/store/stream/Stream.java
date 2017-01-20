@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 
@@ -55,6 +56,18 @@ interface Stream {
      * @return current stream configuration.
      */
     CompletableFuture<StreamConfiguration> getConfiguration();
+
+    /**
+     * Update the state of the stream.
+     * @return boolean indicating whether the state of stream is updated.
+     */
+    CompletableFuture<Boolean> updateState(final State state);
+
+    /**
+     *  Get the state of the stream.
+     * @return state othe given stream.
+     */
+    CompletableFuture<State> getState();
 
     /**
      * Fetches details of specified segment.
@@ -136,6 +149,12 @@ interface Stream {
      * @return
      */
     CompletableFuture<TxnStatus> abortTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
+
+    /**
+     * Return whether any transaction is active on the stream.
+     * @return a boolean indicating whether a transaction is active on the stream.
+     */
+    CompletableFuture<Boolean> isTransactionOngoing();
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.
