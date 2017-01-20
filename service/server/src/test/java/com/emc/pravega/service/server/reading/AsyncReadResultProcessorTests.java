@@ -18,14 +18,15 @@
 
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
-import com.emc.pravega.service.server.CloseableExecutorService;
-import com.emc.pravega.service.server.ServiceShutdownListener;
+import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -35,9 +36,10 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -45,10 +47,14 @@ import java.util.function.Supplier;
 /**
  * Unit tests for AsyncReadResultProcessor.
  */
-public class AsyncReadResultProcessorTests {
+public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
     private static final int ENTRY_COUNT = 10000;
-    private static final int THREAD_POOL_SIZE = 50;
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 5;
+    }
 
     /**
      * Tests the AsyncReadResultProcessor on catch-up reads (that are already available in memory).
@@ -72,21 +78,17 @@ public class AsyncReadResultProcessorTests {
 
         // Start an AsyncReadResultProcessor.
         @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
-        @Cleanup
         StreamSegmentReadResult rr = new StreamSegmentReadResult(0, totalLength, supplier, "");
-        TestEntryHandler testEntryHandler = new TestEntryHandler(entries);
-        try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, testEntryHandler, executor.get())) {
-            rp.startAsync().awaitRunning();
-
+        TestReadResultHandler testReadResultHandler = new TestReadResultHandler(entries);
+        try (AsyncReadResultProcessor rp = AsyncReadResultProcessor.process(rr, testReadResultHandler, executorService())) {
             // Wait for it to complete, and then verify that no errors have been recorded via the callbacks.
-            ServiceShutdownListener.awaitShutdown(rp, TIMEOUT, true);
+            testReadResultHandler.completed.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-            if (testEntryHandler.error.get() != null) {
-                Assert.fail("Read failure: " + testEntryHandler.error.toString());
+            if (testReadResultHandler.error.get() != null) {
+                Assert.fail("Read failure: " + testReadResultHandler.error.get().toString());
             }
 
-            Assert.assertEquals("Unexpected number of reads processed.", entries.size(), testEntryHandler.readCount.get());
+            Assert.assertEquals("Unexpected number of reads processed.", entries.size(), testReadResultHandler.readCount.get());
         }
 
         Assert.assertTrue("ReadResult was not closed when the AsyncReadResultProcessor was closed.", rr.isClosed());
@@ -102,8 +104,6 @@ public class AsyncReadResultProcessorTests {
         int totalLength = generateEntries(entries);
 
         // Setup an entry provider supplier.
-        @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         AtomicInteger currentIndex = new AtomicInteger();
         StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
             int idx = currentIndex.getAndIncrement();
@@ -112,24 +112,22 @@ public class AsyncReadResultProcessorTests {
             }
 
             Supplier<ReadResultEntryContents> entryContentsSupplier = () -> new ReadResultEntryContents(new ByteArrayInputStream(entries.get(idx)), entries.get(idx).length);
-            return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executor.get());
+            return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executorService());
         };
 
         // Start an AsyncReadResultProcessor.
         @Cleanup
         StreamSegmentReadResult rr = new StreamSegmentReadResult(0, totalLength, supplier, "");
-        TestEntryHandler testEntryHandler = new TestEntryHandler(entries);
-        try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, testEntryHandler, executor.get())) {
-            rp.startAsync().awaitRunning();
-
+        TestReadResultHandler testReadResultHandler = new TestReadResultHandler(entries);
+        try (AsyncReadResultProcessor rp = AsyncReadResultProcessor.process(rr, testReadResultHandler, executorService())) {
             // Wait for it to complete, and then verify that no errors have been recorded via the callbacks.
-            ServiceShutdownListener.awaitShutdown(rp, TIMEOUT, true);
+            testReadResultHandler.completed.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-            if (testEntryHandler.error.get() != null) {
-                Assert.fail("Read failure: " + testEntryHandler.error.toString());
+            if (testReadResultHandler.error.get() != null) {
+                Assert.fail("Read failure: " + testReadResultHandler.error.toString());
             }
 
-            Assert.assertEquals("Unexpected number of reads processed.", entries.size(), testEntryHandler.readCount.get());
+            Assert.assertEquals("Unexpected number of reads processed.", entries.size(), testReadResultHandler.readCount.get());
         }
 
         Assert.assertTrue("ReadResult was not closed when the AsyncReadResultProcessor was closed.", rr.isClosed());
@@ -145,31 +143,31 @@ public class AsyncReadResultProcessorTests {
         final Semaphore barrier = new Semaphore(0);
 
         // Setup an entry provider supplier that returns Future Reads, which will eventually fail.
-        @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
             Supplier<ReadResultEntryContents> entryContentsSupplier = () -> {
                 barrier.acquireUninterruptibly();
                 throw new IntentionalException("Intentional");
             };
 
-            return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executor.get());
+            return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executorService());
         };
 
         // Start an AsyncReadResultProcessor.
         @Cleanup
         StreamSegmentReadResult rr = new StreamSegmentReadResult(0, totalLength, supplier, "");
-        TestEntryHandler testEntryHandler = new TestEntryHandler(new ArrayList<>());
-        try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, testEntryHandler, executor.get())) {
-            rp.startAsync().awaitRunning();
+        TestReadResultHandler testReadResultHandler = new TestReadResultHandler(new ArrayList<>());
+        try (AsyncReadResultProcessor rp = AsyncReadResultProcessor.process(rr, testReadResultHandler, executorService())) {
             barrier.release();
 
             // Wait for it to complete, and then verify that no errors have been recorded via the callbacks.
-            ServiceShutdownListener.awaitShutdown(rp, TIMEOUT, true);
+            AssertExtensions.assertThrows(
+                    "Processor did not complete with the expected failure.",
+                    () -> testReadResultHandler.completed.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
+                    ex -> ExceptionHelpers.getRealException(ex) instanceof IntentionalException);
 
-            Assert.assertEquals("Unexpected number of reads processed.", 0, testEntryHandler.readCount.get());
-            Assert.assertNotNull("No read failure encountered.", testEntryHandler.error.get());
-            Assert.assertTrue("Unexpected type of exception was raised.", testEntryHandler.error.get() instanceof IntentionalException);
+            Assert.assertEquals("Unexpected number of reads processed.", 0, testReadResultHandler.readCount.get());
+            Assert.assertNotNull("No read failure encountered.", testReadResultHandler.error.get());
+            Assert.assertTrue("Unexpected type of exception was raised: " + testReadResultHandler.error.get(), testReadResultHandler.error.get() instanceof IntentionalException);
         }
 
         Assert.assertTrue("ReadResult was not closed when the AsyncReadResultProcessor was closed.", rr.isClosed());
@@ -186,14 +184,16 @@ public class AsyncReadResultProcessorTests {
         return totalLength;
     }
 
-    private static class TestEntryHandler implements AsyncReadResultEntryHandler {
+    private static class TestReadResultHandler implements AsyncReadResultHandler {
         public final AtomicReference<Throwable> error = new AtomicReference<>();
         public final AtomicInteger readCount = new AtomicInteger();
         private final AtomicInteger readEntryCount = new AtomicInteger();
         private final List<byte[]> entries;
+        private final CompletableFuture<Void> completed;
 
-        public TestEntryHandler(List<byte[]> entries) {
+        public TestReadResultHandler(List<byte[]> entries) {
             this.entries = entries;
+            this.completed = new CompletableFuture<>();
         }
 
         @Override
@@ -204,6 +204,7 @@ public class AsyncReadResultProcessorTests {
         @Override
         public boolean processEntry(ReadResultEntry e) {
             try {
+                Assert.assertTrue("Received Entry that is not ready to serve data yet.", FutureHelpers.isSuccessful(e.getContent()));
                 ReadResultEntryContents c = e.getContent().join();
                 byte[] data = new byte[c.getLength()];
                 StreamHelpers.readAll(c.getData(), data, 0, data.length);
@@ -213,7 +214,7 @@ public class AsyncReadResultProcessorTests {
                 Assert.assertArrayEquals(String.format("Unexpected read contents after reading %d entries.", idx + 1), expected, data);
                 readCount.incrementAndGet();
             } catch (Exception ex) {
-                error.set(ex);
+                processError(ex);
                 return false;
             }
 
@@ -221,8 +222,16 @@ public class AsyncReadResultProcessorTests {
         }
 
         @Override
-        public void processError(ReadResultEntry entry, Throwable cause) {
+        public void processError(Throwable cause) {
             this.error.set(cause);
+            Assert.assertFalse("Result is already completed.", this.completed.isDone());
+            this.completed.completeExceptionally(cause);
+        }
+
+        @Override
+        public void processResultComplete() {
+            Assert.assertFalse("Result is already completed.", this.completed.isDone());
+            this.completed.complete(null);
         }
 
         @Override

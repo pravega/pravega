@@ -27,6 +27,7 @@ import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -42,7 +43,7 @@ import java.util.function.Predicate;
 /**
  * Unit tests for DataFrameReader class.
  */
-public class DataFrameReaderTests {
+public class DataFrameReaderTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 1234567;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int SMALL_RECORD_MIN_SIZE = 0;
@@ -67,7 +68,7 @@ public class DataFrameReaderTests {
         }
 
         HashSet<Integer> failedIndices = new HashSet<>();
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
@@ -97,7 +98,7 @@ public class DataFrameReaderTests {
     public void testReadsWithPartialEntries() throws Exception {
         // This test will only work if LARGE_RECORD_MIN_SIZE > FRAME_SIZE.
         ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(3, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MIN_SIZE, 0);
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
@@ -133,7 +134,7 @@ public class DataFrameReaderTests {
         ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
         records.addAll(DataFrameTestHelpers.generateLogItems(100, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
 
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
@@ -166,7 +167,7 @@ public class DataFrameReaderTests {
         ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
         records.addAll(DataFrameTestHelpers.generateLogItems(100, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
 
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();

@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.reading;
 
 import com.google.common.base.Preconditions;
+import javax.annotation.concurrent.GuardedBy;
 
 /**
  * An entry in the Read Index with data at a particular offset.
@@ -28,6 +29,7 @@ class ReadIndexEntry {
 
     private final long streamSegmentOffset;
     private final long length;
+    @GuardedBy("this")
     private int generation;
 
     //endregion
@@ -58,7 +60,7 @@ class ReadIndexEntry {
      *
      * @return The entry's generation.
      */
-    int getGeneration() {
+    synchronized int getGeneration() {
         return this.generation;
     }
 
@@ -67,7 +69,7 @@ class ReadIndexEntry {
      *
      * @param generation The current generation.
      */
-    void setGeneration(int generation) {
+    synchronized void setGeneration(int generation) {
         this.generation = generation;
     }
 

@@ -24,8 +24,8 @@ import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
-import com.emc.pravega.controller.stream.api.v1.TxId;
-import com.emc.pravega.controller.stream.api.v1.TxState;
+import com.emc.pravega.controller.stream.api.v1.TxnId;
+import com.emc.pravega.controller.stream.api.v1.TxnState;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -47,14 +47,14 @@ import java.util.stream.Collectors;
  */
 public final class ModelHelper {
 
-    public static final UUID encode(TxId txId) {
-        Preconditions.checkNotNull(txId, "txId");
-        return new UUID(txId.getHighBits(), txId.getLowBits());
+    public static final UUID encode(TxnId txnId) {
+        Preconditions.checkNotNull(txnId, "txnId");
+        return new UUID(txnId.getHighBits(), txnId.getLowBits());
     }
 
-    public static final TxnStatus encode(TxState txStatus) {
-        Preconditions.checkNotNull(txStatus, "txStatus");
-        return TxnStatus.valueOf(txStatus.name());
+    public static final TxnStatus encode(TxnState txnState) {
+        Preconditions.checkNotNull(txnState, "txnState");
+        return TxnStatus.valueOf(txnState.name());
     }
 
     public static final Segment encode(final SegmentId segment) {
@@ -97,11 +97,11 @@ public final class ModelHelper {
                 .collect(Collectors.toList());
     }
 
-    public static Transaction.Status encode(TxState status, String logString) {
+    public static Transaction.Status encode(TxnState status, String logString) {
         switch (status) {
             case COMMITTED:
                 return Transaction.Status.COMMITTED;
-            case DROPPED:
+            case ABORTED:
                 return Transaction.Status.ABORTED;
             case OPEN:
                 return Transaction.Status.OPEN;
@@ -114,14 +114,14 @@ public final class ModelHelper {
         }
     }
 
-    public static final TxId decode(UUID txId) {
-        Preconditions.checkNotNull(txId, "txId");
-        return new TxId(txId.getMostSignificantBits(), txId.getLeastSignificantBits());
+    public static final TxnId decode(UUID txnId) {
+        Preconditions.checkNotNull(txnId, "txnId");
+        return new TxnId(txnId.getMostSignificantBits(), txnId.getLeastSignificantBits());
     }
 
-    public static final TxState decode(TxnStatus txstatus) {
-        Preconditions.checkNotNull(txstatus, "txstatus");
-        return TxState.valueOf(txstatus.name());
+    public static final TxnState decode(TxnStatus txnStatus) {
+        Preconditions.checkNotNull(txnStatus, "txnStatus");
+        return TxnState.valueOf(txnStatus.name());
     }
 
     public static final SegmentId decode(final Segment segment) {

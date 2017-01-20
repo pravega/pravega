@@ -36,6 +36,7 @@ public class StartProducer {
                                                                 new JavaSerializer<>(),
                                                                 new EventWriterConfig(null));
         Transaction<String> transaction = producer.beginTxn(60000);
+
         for (int i = 0; i < 10; i++) {
             String event = "\n Transactional Publish \n";
             System.err.println("Producing event: " + event);

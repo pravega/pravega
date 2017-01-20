@@ -29,9 +29,10 @@ import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
-import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
+import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -52,6 +53,7 @@ import org.apache.thrift.TException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.UUID;
@@ -109,6 +111,22 @@ public class ControllerWrapper implements Controller {
     }
 
     @Override
+    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String streamName) {
+        return controller.sealStream(scope, streamName);
+    }
+
+    @Override
+    public CompletableFuture<ScaleResponse> scaleStream(final Stream stream,
+                                                        final List<Integer> sealedSegments,
+                                                        final Map<Double, Double> newKeyRanges) {
+        return controller.scale(stream.getScope(),
+                stream.getStreamName(),
+                sealedSegments,
+                newKeyRanges,
+                System.currentTimeMillis());
+    }
+
+    @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
         return controller.getCurrentSegments(scope, stream)
                 .thenApply((List<SegmentRange> ranges) -> {
@@ -122,19 +140,19 @@ public class ControllerWrapper implements Controller {
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> commitTransaction(Stream stream, UUID txId) {
-        return controller.commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId));
+    public CompletableFuture<TxnStatus> commitTransaction(Stream stream, UUID txnId) {
+        return controller.commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId));
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> dropTransaction(Stream stream, UUID txId) {
-        return controller.dropTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId));
+    public CompletableFuture<TxnStatus> dropTransaction(Stream stream, UUID txnId) {
+        return controller.dropTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId));
     }
 
     @Override
-    public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txId) {
-        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId))
-                .thenApply(status -> ModelHelper.encode(status, stream + " " + txId));
+    public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txnId) {
+        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
+                .thenApply(status -> ModelHelper.encode(status, stream + " " + txnId));
     }
 
     @Override
