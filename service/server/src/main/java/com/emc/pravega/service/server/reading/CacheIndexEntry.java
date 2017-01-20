@@ -44,4 +44,9 @@ public class CacheIndexEntry extends ReadIndexEntry {
     long getLength() {
         return this.length;
     }
+
+    @Override
+    boolean isDataEntry() {
+        return true;
+    }
 }

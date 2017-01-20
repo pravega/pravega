@@ -90,6 +90,11 @@ abstract class ReadIndexEntry implements IndexEntry<Long> {
         return this.streamSegmentOffset + getLength() - 1;
     }
 
+    /**
+     * Gets a value indicating whether this ReadIndexEntry actually points to data (vs. being a meta-entry).
+     */
+    abstract boolean isDataEntry();
+
     @Override
     public String toString() {
         return String.format("Offset = %d, Length = %d, Gen = %d", this.streamSegmentOffset, getLength(), this.generation);
