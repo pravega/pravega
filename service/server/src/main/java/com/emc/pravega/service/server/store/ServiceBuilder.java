@@ -43,16 +43,15 @@ import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Helps create StreamSegmentStore Instances.
@@ -123,7 +122,18 @@ public final class ServiceBuilder implements AutoCloseable {
         val tf = new ThreadFactoryBuilder()
                 .setNameFormat("segment-store-%d")
                 .build();
-        return Executors.newScheduledThreadPool(serviceConfig.getThreadPoolSize(), tf);
+        val executor = new ScheduledThreadPoolExecutor(serviceConfig.getThreadPoolSize(), tf);
+
+        // Do not execute any periodic tasks after shutdown.
+        executor.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+
+        // Do not execute any delayed tasks after shutdown.
+        executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+
+        // Remove tasks from the executor once they are done executing. By default, even when canceled, these tasks are
+        // not removed; if this setting is not enabled we could end up with leaked (and obsolete) tasks.
+        executor.setRemoveOnCancelPolicy(true);
+        return executor;
     }
 
     //endregion

@@ -212,6 +212,10 @@ public class ContainerReadIndex implements ReadIndex {
         List<Long> removed = new ArrayList<>();
         List<Long> notRemoved = new ArrayList<>();
         synchronized (this.lock) {
+            if (segmentIds == null) {
+                segmentIds = new ArrayList<>(this.readIndices.keySet());
+            }
+
             for (long streamSegmentId : segmentIds) {
                 SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
                 boolean wasRemoved = false;

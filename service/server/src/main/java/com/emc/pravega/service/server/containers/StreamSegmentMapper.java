@@ -101,9 +101,9 @@ public class StreamSegmentMapper {
      */
     public CompletableFuture<Void> createNewStreamSegment(String streamSegmentName, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewStreamSegment", streamSegmentName);
-        long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
-        if (isValidStreamSegmentId(streamId)) {
-            return FutureHelpers.failedFuture(new StreamSegmentExistsException("Given StreamSegmentName is already registered internally. Most likely it already exists."));
+        long segmentId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
+        if (isValidStreamSegmentId(segmentId)) {
+            return FutureHelpers.failedFuture(new StreamSegmentExistsException(streamSegmentName));
         }
 
         // Create the StreamSegment, and then assign a Unique Internal Id to it.

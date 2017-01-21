@@ -36,9 +36,6 @@ import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -51,6 +48,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Storage Writer. Applies operations from Operation Log to Storage.
@@ -198,16 +197,12 @@ class StorageWriter extends AbstractService implements Writer {
     }
 
     private void endIteration(Void ignored) {
+        // Perform internal cleanup (get rid of those SegmentAggregators that are closed).
+        cleanup();
         logStageEvent("Finish", "Elapsed " + this.state.getElapsedSinceIterationStart(this.stopwatch).toMillis() + "ms");
     }
 
     private Void iterationErrorHandler(Throwable ex) {
-        boolean critical = isCriticalError(ex);
-        if (!critical) {
-            // Perform internal cleanup (get rid of those SegmentAggregators that are closed).
-            cleanup();
-        }
-
         if (ExceptionHelpers.getRealException(ex) instanceof CancellationException && !canRun()) {
             // Writer is not running and we caught a CancellationException.
             // This is a normal behavior and it is triggered by stopAsync(); just exit without logging or triggering anything else.
@@ -215,6 +210,7 @@ class StorageWriter extends AbstractService implements Writer {
             return null;
         }
 
+        boolean critical = isCriticalError(ex);
         logError(ex, critical);
         if (critical) {
             // Setting a stop exception guarantees the main Writer loop will not continue running again.
@@ -370,11 +366,27 @@ class StorageWriter extends AbstractService implements Writer {
     private void cleanup() {
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "cleanup");
         val toRemove = this.aggregators.values().stream()
+                                       .map(this::closeIfNecessary)
                                        .filter(SegmentAggregator::isClosed)
                                        .map(a -> a.getMetadata().getId())
                                        .collect(Collectors.toList());
         toRemove.forEach(this.aggregators::remove);
         LoggerHelpers.traceLeave(log, this.traceObjectId, "cleanup", traceId, toRemove.size());
+    }
+
+    /**
+     * Closes the given SegmentAggregator if it is deleted in Storage or inexistent in the Container Metadata.
+     *
+     * @param aggregator The SegmentAggregator to test (and close if needed).
+     * @return The same SegmentAggregator.
+     */
+    private SegmentAggregator closeIfNecessary(SegmentAggregator aggregator) {
+        if (aggregator.getMetadata().isDeleted()
+                || this.dataSource.getStreamSegmentMetadata(aggregator.getMetadata().getId()) == null) {
+            aggregator.close();
+        }
+
+        return aggregator;
     }
 
     /**

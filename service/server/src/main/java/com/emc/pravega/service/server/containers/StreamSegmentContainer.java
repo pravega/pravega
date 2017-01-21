@@ -49,17 +49,18 @@ import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import lombok.extern.slf4j.Slf4j;
-
 import java.time.Duration;
 import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -78,7 +79,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final Storage storage;
     private final PendingAppendsCollection pendingAppendsCollection;
     private final StreamSegmentMapper segmentMapper;
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
+    private ScheduledFuture<?> cleanupTask;
     private boolean closed;
 
     //endregion
@@ -96,7 +98,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * @param cacheFactory             The CacheFactory to use to create Caches.
      * @param executor                 An Executor that can be used to run async tasks.
      */
-    StreamSegmentContainer(int streamSegmentContainerId, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory, CacheFactory cacheFactory, Executor executor) {
+    StreamSegmentContainer(int streamSegmentContainerId, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory,
+                           WriterFactory writerFactory, StorageFactory storageFactory, CacheFactory cacheFactory, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(durableLogFactory, "durableLogFactory");
         Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
         Preconditions.checkNotNull(writerFactory, "writerFactory");
@@ -145,6 +148,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     protected void doStart() {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
         log.info("{}: Starting.", this.traceObjectId);
+        this.cleanupTask = this.executor.scheduleWithFixedDelay(this::metadataCleanup,
+                StreamSegmentContainerMetadata.SEGMENT_METADATA_EXPIRATION.toMillis(),
+                StreamSegmentContainerMetadata.SEGMENT_METADATA_EXPIRATION.toMillis(), TimeUnit.MILLISECONDS);
         this.durableLog.startAsync();
         this.executor.execute(() -> {
             this.durableLog.awaitRunning();
@@ -169,10 +175,19 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.executor.execute(() -> {
             this.writer.awaitTerminated();
             this.durableLog.awaitTerminated();
+            this.cleanupTask.cancel(true);
+            FutureHelpers.await(this.cleanupTask);
             log.info("{}: Stopped.", this.traceObjectId);
             LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
             this.notifyStopped();
         });
+    }
+
+    private void metadataCleanup() {
+        if(this.closed){
+            this.cleanupTask.cancel(true);
+            return;
+        }
     }
 
     //endregion

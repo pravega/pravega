@@ -403,6 +403,18 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability of the StorageWriter to cleanup SegmentAggregators that have been deleted in Storage or are
+     * gone from the Metadata.
+     */
+    @Test
+    public void testCleanup() {
+        // TODO: implement.
+        // Have 3 segments, keep one, delete one and remove one from the metadata.
+        // Run a Writer cycle.
+        // Add an operation for each of them, and verify the writer requests metadata for the two missing ones.
+    }
+
+    /**
      * Tests the writer as it is setup in the given context.
      * General test flow:
      * 1. Add Appends (Cached/non-cached) to both Parent and Transaction segments

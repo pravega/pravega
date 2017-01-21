@@ -28,6 +28,10 @@ import com.emc.pravega.service.server.SegmentContainerRegistry;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Service;
+import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -43,13 +47,13 @@ import java.util.function.Consumer;
  * Registry for SegmentContainers.
  */
 @Slf4j
-public class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
+class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
     //region Members
 
     private final SegmentContainerFactory factory;
     private final AbstractMap<Integer, ContainerWithHandle> containers;
     private final Executor executor;
-    private boolean closed;
+    private final AtomicBoolean closed;
 
     //endregion
 
@@ -62,13 +66,14 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
      * @param executor         The Executor to use for async tasks.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public StreamSegmentContainerRegistry(SegmentContainerFactory containerFactory, Executor executor) {
+    StreamSegmentContainerRegistry(SegmentContainerFactory containerFactory, Executor executor) {
         Preconditions.checkNotNull(containerFactory, "containerFactory");
         Preconditions.checkNotNull(executor, "executor");
 
         this.factory = containerFactory;
         this.executor = executor;
         this.containers = new ConcurrentHashMap<>();
+        this.closed = new AtomicBoolean();
     }
 
     //endregion
@@ -77,10 +82,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
     @Override
     public void close() {
-        if (!this.closed) {
-            // Mark the class as Closed first; this will prevent others from creating new containers.
-            this.closed = true;
-
+        if (!this.closed.getAndSet(true)) {
             // Close all open containers and notify their handles - as this was an unrequested stop.
             ArrayList<ContainerWithHandle> toClose = new ArrayList<>(this.containers.values());
             for (ContainerWithHandle c : toClose) {
@@ -105,7 +107,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
     @Override
     public SegmentContainer getContainer(int containerId) throws ContainerNotFoundException {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         ContainerWithHandle result = this.containers.getOrDefault(containerId, null);
         if (result == null) {
             throw new ContainerNotFoundException(containerId);
@@ -116,7 +118,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
     @Override
     public CompletableFuture<ContainerHandle> startContainer(int containerId, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
 
         // Check if container exists
         Exceptions.checkArgument(!this.containers.containsKey(containerId), "containerId", "Container %d is already registered.", containerId);
@@ -148,7 +150,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
     @Override
     public CompletableFuture<Void> stopContainer(ContainerHandle handle, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         ContainerWithHandle result = this.containers.getOrDefault(handle.getContainerId(), null);
         if (result == null) {
             return CompletableFuture.completedFuture(null); // This could happen due to some race (or AutoClose) in the caller.
@@ -187,15 +189,10 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
     //region ContainerWithHandle
 
+    @RequiredArgsConstructor
     private static class ContainerWithHandle {
-        public final SegmentContainer container;
-        public final SegmentContainerHandle handle;
-
-        ContainerWithHandle(SegmentContainer container, SegmentContainerHandle handle) {
-            assert container.getId() == handle.getContainerId() : "Mismatch between container id and handle container id.";
-            this.container = container;
-            this.handle = handle;
-        }
+        final SegmentContainer container;
+        final SegmentContainerHandle handle;
 
         @Override
         public String toString() {
@@ -207,28 +204,12 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
     //region SegmentContainerHandle
 
+    @RequiredArgsConstructor
     private static class SegmentContainerHandle implements ContainerHandle {
+        @Getter
         private final int containerId;
+        @Setter
         private Consumer<Integer> containerStoppedListener;
-
-        /**
-         * Creates a new instance of the ContainerHandle class.
-         *
-         * @param containerId The Id of the container.
-         */
-        public SegmentContainerHandle(int containerId) {
-            this.containerId = containerId;
-        }
-
-        @Override
-        public int getContainerId() {
-            return this.containerId;
-        }
-
-        @Override
-        public void setContainerStoppedListener(Consumer<Integer> handler) {
-            this.containerStoppedListener = handler;
-        }
 
         /**
          * Notifies the Container Stopped Listener that the container for this handle has stopped processing,

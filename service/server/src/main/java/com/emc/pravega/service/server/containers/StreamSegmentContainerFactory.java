@@ -26,7 +26,7 @@ import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Represents a SegmentContainerFactory that builds instances of the StreamSegmentContainer class.
@@ -37,7 +37,7 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
     private final WriterFactory writerFactory;
     private final StorageFactory storageFactory;
     private final CacheFactory cacheFactory;
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
 
     /**
      * Creates a new instance of the StreamSegmentContainerFactory.
@@ -50,7 +50,7 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
      * @param executor            The Executor to use for running async tasks.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public StreamSegmentContainerFactory(OperationLogFactory operationLogFactory, ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory, CacheFactory cacheFactory, Executor executor) {
+    public StreamSegmentContainerFactory(OperationLogFactory operationLogFactory, ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory, CacheFactory cacheFactory, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(operationLogFactory, "operationLogFactory");
         Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
         Preconditions.checkNotNull(writerFactory, "writerFactory");

@@ -27,6 +27,7 @@ import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -46,6 +47,11 @@ import lombok.extern.slf4j.Slf4j;
 @VisibleForTesting
 public class StreamSegmentContainerMetadata implements UpdateableContainerMetadata {
     //region Members
+
+    /**
+     * The amount of time after which unused segments expire.
+     */
+    static final Duration SEGMENT_METADATA_EXPIRATION = Duration.ofSeconds(30);
 
     private final String traceObjectId;
     private final AtomicLong sequenceNumber;
