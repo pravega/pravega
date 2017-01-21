@@ -69,7 +69,7 @@ abstract class SortedIndexTestBase {
             int key;
             do {
                 key = rnd.nextInt();
-            } while (index.get(key).isPresent());
+            } while (index.get(key) != null);
 
             // Keep track of it for reinsertion later.
             if (i % reinsertFrequency == 0) {
@@ -89,8 +89,8 @@ abstract class SortedIndexTestBase {
             index.put(entry);
 
             Assert.assertEquals("Unexpected size.", i + 1, index.size());
-            Assert.assertEquals("Unexpected value from getFirst() after " + index.size() + " insertions.", firstEntry, index.getFirst().orElse(null));
-            Assert.assertEquals("Unexpected value from getLast() after " + index.size() + " insertions.", lastEntry, index.getLast().orElse(null));
+            Assert.assertEquals("Unexpected value from getFirst() after " + index.size() + " insertions.", firstEntry, index.getFirst());
+            Assert.assertEquals("Unexpected value from getLast() after " + index.size() + " insertions.", lastEntry, index.getLast());
         }
 
         // Now try to reinsert some of the items.
@@ -98,7 +98,7 @@ abstract class SortedIndexTestBase {
             val oldEntry = index.get(key);
             val entry = new TestEntry(key);
             val overriddenEntry = index.put(entry);
-            val reRetrievedEntry = index.get(key).orElse(null);
+            val reRetrievedEntry = index.get(key);
             Assert.assertEquals("Unexpected overridden entry for key " + key, oldEntry, overriddenEntry);
             Assert.assertEquals("New entry was not placed in the index for key " + key, entry, reRetrievedEntry);
             Assert.assertEquals("Unexpected size when overriding entry.", ITEM_COUNT, index.size());
@@ -120,20 +120,20 @@ abstract class SortedIndexTestBase {
         while (keysToRemove.size() > 0) {
             // Remove either the first or the last key - this helps test getFirst/getLast properly.
             int key = expectedSize % 2 == 0 ? keysToRemove.removeLast() : keysToRemove.removeFirst();
-            val entry = index.get(key).orElse(null);
-            val removedEntry = index.remove(key).orElse(null);
+            val entry = index.get(key);
+            val removedEntry = index.remove(key);
             expectedSize--;
 
             Assert.assertEquals("Unexpected removed entry for key " + key, entry, removedEntry);
             Assert.assertEquals("Unexpected size after removing key " + key, expectedSize, index.size());
-            Assert.assertFalse("Entry was not removed for key " + key, index.get(key).isPresent());
+            Assert.assertNull("Entry was not removed for key " + key, index.get(key));
 
             if (expectedSize == 0) {
-                Assert.assertFalse("Unexpected value from getFirst() when index is empty.", index.getFirst().isPresent());
-                Assert.assertFalse("Unexpected value from getLast() when index is empty.", index.getLast().isPresent());
+                Assert.assertNull("Unexpected value from getFirst() when index is empty.", index.getFirst());
+                Assert.assertNull("Unexpected value from getLast() when index is empty.", index.getLast());
             } else {
-                Assert.assertEquals("Unexpected value from getFirst() after removing key " + key, keysToRemove.getFirst(), index.getFirst().orElse(null).key());
-                Assert.assertEquals("Unexpected value from getLast() after removing key " + key, keysToRemove.getLast(), index.getLast().orElse(null).key());
+                Assert.assertEquals("Unexpected value from getFirst() after removing key " + key, keysToRemove.getFirst(), index.getFirst().key());
+                Assert.assertEquals("Unexpected value from getLast() after removing key " + key, keysToRemove.getLast(), index.getLast().key());
             }
         }
     }
@@ -146,17 +146,17 @@ abstract class SortedIndexTestBase {
         val index = createIndex();
         val keys = populate(index);
 
-        Assert.assertTrue("Unexpected return value for getFirst() on non-empty index.", index.getFirst().isPresent());
-        Assert.assertTrue("Unexpected return value for getLast() on non-empty index.", index.getLast().isPresent());
+        Assert.assertNotNull("Unexpected return value for getFirst() on non-empty index.", index.getFirst());
+        Assert.assertNotNull("Unexpected return value for getLast() on non-empty index.", index.getLast());
 
         index.clear();
         Assert.assertEquals("Unexpected size of empty index.", 0, index.size());
-        Assert.assertFalse("Unexpected return value for getFirst() on empty index.", index.getFirst().isPresent());
-        Assert.assertFalse("Unexpected return value for getLast() on empty index.", index.getLast().isPresent());
+        Assert.assertNull("Unexpected return value for getFirst() on empty index.", index.getFirst());
+        Assert.assertNull("Unexpected return value for getLast() on empty index.", index.getLast());
 
         for (int key : keys) {
-            Assert.assertFalse("Unexpected value for get() on empty index.", index.get(key).isPresent());
-            Assert.assertFalse("Unexpected value for getCeiling() on empty index.", index.getCeiling(key).isPresent());
+            Assert.assertNull("Unexpected value for get() on empty index.", index.get(key));
+            Assert.assertNull("Unexpected value for getCeiling() on empty index.", index.getCeiling(key));
         }
     }
 
@@ -187,7 +187,7 @@ abstract class SortedIndexTestBase {
             }
 
             val ceilingEntry = index.getCeiling(testKey);
-            Integer actualValue = ceilingEntry.isPresent() ? ceilingEntry.get().key() : null;
+            Integer actualValue = ceilingEntry != null ? ceilingEntry.key() : null;
             Assert.assertEquals("Unexpected value for getCeiling for key " + testKey, expectedValue, actualValue);
         }
     }
@@ -219,7 +219,7 @@ abstract class SortedIndexTestBase {
             }
 
             val ceilingEntry = index.getFloor(testKey);
-            Integer actualValue = ceilingEntry.isPresent() ? ceilingEntry.get().key() : null;
+            Integer actualValue = ceilingEntry != null ? ceilingEntry.key() : null;
             Assert.assertEquals("Unexpected value for getCeiling for key " + testKey, expectedValue, actualValue);
         }
     }
@@ -269,19 +269,19 @@ abstract class SortedIndexTestBase {
 
         //Get + GetCeiling.
         for (int key = 0; key < ITEM_COUNT; key++) {
-            Assert.assertEquals("Unexpected value from get() for key " + key, key, (long) index.get(key).orElse(null).key());
-            Assert.assertEquals("Unexpected value from getCeiling() for key " + key, key, (long) index.getCeiling(key).orElse(null).key());
+            Assert.assertEquals("Unexpected value from get() for key " + key, key, (long) index.get(key).key());
+            Assert.assertEquals("Unexpected value from getCeiling() for key " + key, key, (long) index.getCeiling(key).key());
         }
 
         // Remove + get.
         for (int key = 0; key < ITEM_COUNT; key++) {
-            int removedKey = index.remove(key).orElse(null).key();
+            int removedKey = index.remove(key).key();
             Assert.assertEquals("Unexpected value from remove(). ", key, removedKey);
-            Assert.assertFalse("Unexpected value from get() for removed key " + key, index.get(key).isPresent());
+            Assert.assertNull("Unexpected value from get() for removed key " + key, index.get(key));
             if (key == ITEM_COUNT - 1) {
-                Assert.assertFalse("Unexpected value from getCeiling() for removed key " + key, index.getCeiling(key).isPresent());
+                Assert.assertNull("Unexpected value from getCeiling() for removed key " + key, index.getCeiling(key));
             } else {
-                Assert.assertEquals("Unexpected value from getCeiling() for removed key " + key, key + 1, (long) index.getCeiling(key).orElse(null).key());
+                Assert.assertEquals("Unexpected value from getCeiling() for removed key " + key, key + 1, (long) index.getCeiling(key).key());
             }
         }
     }
@@ -308,7 +308,7 @@ abstract class SortedIndexTestBase {
             int key;
             do {
                 key = rnd.nextInt(maxKey);
-            } while (index.get(key).isPresent());
+            } while (index.get(key) != null);
 
             keys.add(key);
             index.put(new TestEntry(key));

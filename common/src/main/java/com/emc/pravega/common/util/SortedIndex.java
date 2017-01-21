@@ -18,11 +18,18 @@
 
 package com.emc.pravega.common.util;
 
-import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
  * Defines an Index that orders its IndexEntries by a Key.
+ * <p>
+ * Notes:
+ * <ul>
+ * <li> Implementations of this interface are not necessarily thread-safe and no assumptions should be made about
+ * multi-thread consistency.
+ * <li> No implementation of this class should be able to index null values. As such, for all the retrieval methods,
+ * a null value can be safely interpreted as no result found.
+ * </ul>
  *
  * @param <K> The type of the Key.
  * @param <V> The type of the IndexEntries.
@@ -37,17 +44,17 @@ public interface SortedIndex<K, V extends IndexEntry<K>> {
      * Inserts the given item into the Index. If there already exists an item with the same key, it will be overridden.
      *
      * @param item The item to insert.
-     * @return An Optional containing the displaced item, if any.
+     * @return The displaced item, if any.
      */
-    Optional<V> put(V item);
+    V put(V item);
 
     /**
      * Removes any item with the given key from the Index.
      *
      * @param key The key of the item to remove.
-     * @return An Optional containing the removed item, or empty if nothing was removed.
+     * @return The removed item, or null if nothing was removed.
      */
-    Optional<V> remove(K key);
+    V remove(K key);
 
     /**
      * Gets a value indicating the number of items in the Index.
@@ -58,44 +65,45 @@ public interface SortedIndex<K, V extends IndexEntry<K>> {
      * Gets an item with the given key.
      *
      * @param key The key to search by.
-     * @return An Optional containing the requested item, if it exists, or empty if it doesn't.
+     * @return The requested item, if it exists, or null if it doesn't.
      */
-    Optional<V> get(K key);
+    V get(K key);
 
     /**
      * Gets the smallest item whose key is greater than or equal to the given key.
      *
      * @param key the Key to search by.
-     * @return An Optional containing the sought item, or empty if it doesn't exist.
+     * @return The sought item, or null if it doesn't exist.
      */
-    Optional<V> getCeiling(K key);
+    V getCeiling(K key);
 
     /**
      * Gets the largest item whose key is smaller than or equal to the given key.
      *
      * @param key the Key to search by.
-     * @return An Optional containing the sought item, or empty if it doesn't exist.
+     * @return The sought item, or null if it doesn't exist.
      */
-    Optional<V> getFloor(K key);
+    V getFloor(K key);
 
     /**
      * Gets the smallest item in the index.
      *
-     * @return An Optional containing the sought item, or empty (if no items in the index).
+     * @return The sought item, or null (if no items in the index).
      */
-    Optional<V> getFirst();
+    V getFirst();
 
     /**
      * Gets the largest item in the index.
      *
-     * @return An Optional containing the sought item, or empty (if no items in the index).
+     * @return The sought item, or null (if no items in the index).
      */
-    Optional<V> getLast();
+    V getLast();
 
     /**
      * Iterates through each item in the Index, in natural order, and calls the given consumer on all of them.
      *
      * @param consumer The consumer to invoke.
+     * @throws java.util.ConcurrentModificationException If the Index is modified while this method is executing.
      */
     void forEach(Consumer<V> consumer);
 }

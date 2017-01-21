@@ -52,4 +52,9 @@ class RedirectIndexEntry extends ReadIndexEntry {
     public long getLength() {
         return this.redirectReadIndex.getSegmentLength();
     }
+
+    @Override
+    boolean isDataEntry() {
+        return false;
+    }
 }

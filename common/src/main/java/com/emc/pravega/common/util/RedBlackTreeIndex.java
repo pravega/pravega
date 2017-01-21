@@ -20,16 +20,19 @@ package com.emc.pravega.common.util;
 
 import java.util.Comparator;
 import java.util.Map;
-import java.util.Optional;
 import java.util.TreeMap;
 import java.util.function.Consumer;
+import javax.annotation.concurrent.NotThreadSafe;
 
 /**
  * SortedIndex backed by a Red-Black Tree (java.util.TreeMap).
+ * <p>
+ * Note: This class is not thread-safe and requires external synchronization when in a multi-threaded environment.
  *
  * @param <K> The type of the Key.
  * @param <V> The type of the IndexEntries.
  */
+@NotThreadSafe
 public class RedBlackTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, V> {
     // region Members
 
@@ -58,13 +61,13 @@ public class RedBlackTreeIndex<K, V extends IndexEntry<K>> implements SortedInde
     }
 
     @Override
-    public Optional<V> put(V item) {
-        return Optional.ofNullable(this.map.put(item.key(), item));
+    public V put(V item) {
+        return this.map.put(item.key(), item);
     }
 
     @Override
-    public Optional<V> remove(K key) {
-        return Optional.ofNullable(this.map.remove(key));
+    public V remove(K key) {
+        return this.map.remove(key);
     }
 
     @Override
@@ -73,27 +76,27 @@ public class RedBlackTreeIndex<K, V extends IndexEntry<K>> implements SortedInde
     }
 
     @Override
-    public Optional<V> get(K key) {
-        return Optional.ofNullable(this.map.get(key));
+    public V get(K key) {
+        return this.map.get(key);
     }
 
     @Override
-    public Optional<V> getCeiling(K key) {
+    public V getCeiling(K key) {
         return getValue(this.map.ceilingEntry(key));
     }
 
     @Override
-    public Optional<V> getFloor(K key) {
+    public V getFloor(K key) {
         return getValue(this.map.floorEntry(key));
     }
 
     @Override
-    public Optional<V> getFirst() {
+    public V getFirst() {
         return getValue(this.map.firstEntry());
     }
 
     @Override
-    public Optional<V> getLast() {
+    public V getLast() {
         return getValue(this.map.lastEntry());
     }
 
@@ -102,8 +105,8 @@ public class RedBlackTreeIndex<K, V extends IndexEntry<K>> implements SortedInde
         this.map.values().forEach(consumer);
     }
 
-    private Optional<V> getValue(Map.Entry<K, V> e) {
-        return e == null ? Optional.empty() : Optional.of(e.getValue());
+    private V getValue(Map.Entry<K, V> e) {
+        return e == null ? null : e.getValue();
     }
 
     //endregion
