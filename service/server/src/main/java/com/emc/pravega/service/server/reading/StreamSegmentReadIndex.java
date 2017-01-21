@@ -48,6 +48,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -66,15 +67,19 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     //region Members
 
     private final String traceObjectId;
+    @GuardedBy("lock")
     private final SortedIndex<Long, ReadIndexEntry> indexEntries; // Key = First Offset of Entry, Value = Entry.
     private final ReadIndexConfig config;
+    @GuardedBy("lock")
     private final Cache cache;
     private final FutureReadResultEntryCollection futureReads;
+    @GuardedBy("lock")
     private final HashMap<Long, Long> mergeOffsets; //Key = StreamSegmentId (Merged), Value = Merge offset.
     private final StorageReader storageReader;
     private final ReadIndexSummary summary;
     private final ScheduledExecutorService executor;
     private SegmentMetadata metadata;
+    @GuardedBy("lock")
     private long lastAppendedOffset;
     private boolean recoveryMode;
     private boolean closed;
@@ -468,7 +473,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         // Get all eligible Future Reads which wait for data prior to the end offset.
         // Since we are not actually using this entry's data, there is no need to 'touch' it.
-        ReadIndexEntry lastEntry = this.indexEntries.getLast();
+        ReadIndexEntry lastEntry;
+        synchronized (this.lock) {
+            lastEntry = this.indexEntries.getLast();
+        }
+
         if (lastEntry == null) {
             // Nothing to do.
             return;
