@@ -30,8 +30,8 @@ import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 
 public class ModelHelper {
 
-    public static final StreamConfiguration getCreateStreamConfig(CreateStreamRequest createStreamRequest,
-                                                                  String scope) {
+    public static final StreamConfiguration getCreateStreamConfig(final CreateStreamRequest createStreamRequest,
+                                                                  final String scope) {
         return new StreamConfigurationImpl(
                 scope,
                 createStreamRequest.getStreamName(),
@@ -44,8 +44,8 @@ public class ModelHelper {
         );
     }
 
-    public static final StreamConfiguration getUpdateStreamConfig(UpdateStreamRequest updateStreamRequest, String scope,
-                                                                  String stream) {
+    public static final StreamConfiguration getUpdateStreamConfig(final UpdateStreamRequest updateStreamRequest,
+                                                                  final String scope, final String stream) {
         return new StreamConfigurationImpl(
                 scope,
                 stream,
@@ -58,7 +58,7 @@ public class ModelHelper {
         );
     }
 
-    public static final StreamResponse encodeStreamResponse(StreamConfiguration streamConfiguration) {
+    public static final StreamResponse encodeStreamResponse(final StreamConfiguration streamConfiguration) {
         return new StreamResponse(new StreamProperty(
                 streamConfiguration.getScope(),
                 streamConfiguration.getName(),
