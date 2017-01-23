@@ -17,13 +17,40 @@
  */
 package com.emc.pravega;
 
+import com.emc.pravega.framework.Environment;
+import com.emc.pravega.framework.SystemTestRunner;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+//@Distributed -- Distributed tests: All the tests are executed as marathon jobs.
+//@Simple -- Each test is executed (as a marathon job ) one after another.
+//@Local -- Each test is executed locally and not as a marathon job.
+//@FreshSetup -- this is used to indicate the Setup needs to be created afresh.
+
+@RunWith(SystemTestRunner.class)
 public class PrimeNumberCheckerTest {
     private PrimeNumberChecker primeNumberChecker = new PrimeNumberChecker();
+
+    @Environment
+    public static void requiredEnvironment() {
+        System.out.println("Environment");
+    }
+
+    @BeforeClass
+    public static void beforeEveryone() {
+        System.out.println("BeforeClass invoked");
+    }
+
+    @Before
+    public void before() {
+        System.out.println("Before every test method invoked");
+    }
 
     @Test
     public void validate() throws Exception {
@@ -31,6 +58,11 @@ public class PrimeNumberCheckerTest {
         int inputNumber = Integer.valueOf(System.getProperty("number", "13"));
         System.out.println("Parameterized Number is : " + inputNumber);
         assertEquals(true, primeNumberChecker.validate(inputNumber));
+    }
+
+    @After
+    public void after() {
+
     }
 
     @Test

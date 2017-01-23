@@ -17,17 +17,57 @@
  */
 package com.emc.pravega;
 
-import org.junit.runner.JUnitCore;
-import org.junit.runner.Request;
-import org.junit.runner.Result;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.runners.BlockJUnit4ClassRunner;
+import org.junit.runners.model.FrameworkMethod;
+import org.junit.runners.model.InitializationError;
+import org.junit.runners.model.Statement;
 
-public class SingleJUnitTestRunner {
+import java.lang.reflect.Method;
+
+@Slf4j
+public class SingleJUnitTestRunner extends BlockJUnit4ClassRunner {
+    /**
+     * Creates a BlockJUnit4ClassRunner to run {@code klass}
+     *
+     * @param klass
+     * @throws InitializationError if the test class is malformed.
+     */
+    private String methodName;
+    private Class<?> className;
+
+    public SingleJUnitTestRunner(Class<?> klass, String method) throws InitializationError {
+        super(klass);
+        className = klass;
+        methodName = method;
+
+    }
+
+    public void runMethod() throws Throwable {
+        Method m = className.getDeclaredMethod(methodName);
+        Statement statement = methodBlock(new FrameworkMethod(m));
+        statement.evaluate();
+    }
+
+    public static boolean execute(String className, String methodName) {
+        try {
+            SingleJUnitTestRunner runner = new SingleJUnitTestRunner(Class.forName(className), methodName);
+            runner.runMethod();
+            return false;
+        } catch (Throwable ex) {
+            log.error("Error while executing the test", ex);
+            return true;
+        }
+    }
+
     public static void main(String... args) throws ClassNotFoundException {
         String[] classAndMethod = args[0].split("#");
-        Request request = Request.method(Class.forName(classAndMethod[0]),
-                classAndMethod[1]);
+        //Request request = Request.method(Class.forName(classAndMethod[0]),
+        //classAndMethod[1]);
 
-        Result result = new JUnitCore().run(request);
-        System.exit(result.wasSuccessful() ? 0 : 1);
+        // Result result = new JUnitCore().run(request);
+        // return 0 in case the execution is successful.
+        // return 1 in case the execution is a failure.
+        System.exit(execute(classAndMethod[0], classAndMethod[1]) ? 0 : 1);
     }
 }
