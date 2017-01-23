@@ -23,6 +23,8 @@ import com.emc.pravega.controller.server.rest.contract.request.CreateStreamReque
 import com.emc.pravega.controller.server.rest.contract.request.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.v1.ApiV1;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.store.stream.DataNotFoundException;
+import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -32,7 +34,6 @@ import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 
 @Slf4j
 public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
@@ -50,25 +51,21 @@ public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
         long traceId = LoggerHelpers.traceEnter(log, "createStream");
 
         StreamConfiguration streamConfiguration = ModelHelper.getCreateStreamConfig(createStreamRequest, scope);
-        CompletableFuture.supplyAsync(() -> controllerService.createStream(streamConfiguration,
-                System.currentTimeMillis()))
-                .thenApply(streamStatus -> {
-                            try {
-                                if (streamStatus.get() == CreateStreamStatus.SUCCESS) {
-                                    return Response.ok(ModelHelper.encodeStreamResponse(streamConfiguration))
-                                            .status(Status.CREATED).build();
-                                } else if (streamStatus.get() == CreateStreamStatus.STREAM_EXISTS) {
-                                    return Response.status(Status.CONFLICT).entity("Stream Exists").build();
-                                }
-                            } catch (InterruptedException | ExecutionException e) {
-                                log.error("Exception occurred while executing createStreamConfig:", e);
-                            }
-                            return Response.status(Status.INTERNAL_SERVER_ERROR).entity("Internal Server Error")
-                                    .build();
-                        }
+        CompletableFuture<CreateStreamStatus> createStreamStatus = controllerService.createStream(streamConfiguration,
+                System.currentTimeMillis());
 
-                ).thenApply(response -> asyncResponse.resume(response)
-        );
+        createStreamStatus.thenApply(streamStatus -> {
+                    if (streamStatus == CreateStreamStatus.SUCCESS) {
+                        return Response.ok(ModelHelper.encodeStreamResponse(streamConfiguration))
+                                .status(Status.CREATED).build();
+                    } else if (streamStatus == CreateStreamStatus.STREAM_EXISTS) {
+                        return Response.status(Status.CONFLICT).entity("Stream Exists").build();
+                    } else {
+                        return Response.status(Status.INTERNAL_SERVER_ERROR).entity("Internal Server Error")
+                                .build();
+                    }
+                }
+        ).thenApply(response -> asyncResponse.resume(response));
 
         LoggerHelpers.traceLeave(log, "createStream", traceId);
     }
@@ -80,23 +77,19 @@ public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
         long traceId = LoggerHelpers.traceEnter(log, "updateStreamConfig");
 
         StreamConfiguration streamConfiguration = ModelHelper.getUpdateStreamConfig(updateStreamRequest, scope, stream);
-        CompletableFuture.supplyAsync(() -> controllerService.alterStream(streamConfiguration))
-                .thenApply(streamStatus -> {
-                            try {
-                                if (streamStatus.get() == UpdateStreamStatus.SUCCESS) {
-                                    return Response.ok(ModelHelper.encodeStreamResponse(
-                                            ModelHelper.getUpdateStreamConfig(updateStreamRequest, scope, stream)))
-                                            .status(Status.CREATED).build();
-                                } else if (streamStatus.get() == UpdateStreamStatus.STREAM_NOT_FOUND) {
-                                    return Response.status(Status.NOT_FOUND).entity("Stream Not Found").build();
-                                }
-                            } catch (InterruptedException | ExecutionException e) {
-                                log.error("Exception occurred while executing updateStreamConfig:", e);
-                            }
-                            return Response.status(Status.INTERNAL_SERVER_ERROR).entity("Internal Server Error").
-                                    build();
-                        }
-                ).thenApply(response -> asyncResponse.resume(response));
+        CompletableFuture<UpdateStreamStatus> updateStreamStatus = controllerService.alterStream(streamConfiguration);
+
+        updateStreamStatus.thenApply(streamStatus -> {
+                    if (streamStatus == UpdateStreamStatus.SUCCESS) {
+                        return Response.ok(ModelHelper.encodeStreamResponse(streamConfiguration))
+                                .status(Status.CREATED).build();
+                    } else if (streamStatus == UpdateStreamStatus.STREAM_NOT_FOUND) {
+                        return Response.status(Status.NOT_FOUND).entity("Stream Not Found").build();
+                    } else {
+                        return Response.status(Status.INTERNAL_SERVER_ERROR).entity("Internal Server Error").build();
+                    }
+                }
+        ).thenApply(response -> asyncResponse.resume(response));
 
         LoggerHelpers.traceLeave(log, "updateStreamConfig", traceId);
     }
@@ -105,24 +98,17 @@ public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
     public void getStreamConfig(String scope, String stream, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamConfig");
 
-        CompletableFuture.supplyAsync(() -> controllerService.getStreamStore())
-                .thenApply(streamMetadataStore -> streamMetadataStore.getConfiguration(stream))
-                .thenApply(streamConfComplFuture -> {
-                    if (streamConfComplFuture != null) {
-                        try {
-                            return Response.status(Status.OK)
-                                    .entity(ModelHelper.encodeStreamResponse(streamConfComplFuture.get())).build();
-                        } catch (InterruptedException | ExecutionException e) {
-                            log.error("Exception occurred while executing getStreamConfig:", e);
-                        }
-                    } else {
+        StreamMetadataStore streamStore = controllerService.getStreamStore();
+        streamStore.getConfiguration(stream)
+                .thenApply(streamConfig -> Response.status(Status.OK).entity(ModelHelper.encodeStreamResponse(streamConfig)).build())
+                .exceptionally(exception -> {
+                    if (exception.getCause() instanceof DataNotFoundException) {
                         return Response.status(Status.NOT_FOUND).entity("Stream Not found").build();
+                    } else {
+                        return Response.status(Status.INTERNAL_SERVER_ERROR).entity("Internal Server error").build();
                     }
-                    return Response.status(Status.INTERNAL_SERVER_ERROR).entity("Internal Server error").build();
                 }).thenApply(response -> asyncResponse.resume(response));
 
         LoggerHelpers.traceLeave(log, "getStreamConfig", traceId);
     }
-
-
 }
