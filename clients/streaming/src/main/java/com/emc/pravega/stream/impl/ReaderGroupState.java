@@ -29,6 +29,7 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -61,7 +62,7 @@ class ReaderGroupState implements Revisioned {
         Exceptions.checkNotNullOrEmpty(segmentsToOffsets.entrySet(), "segmentsToOffsets");
         this.scopedSynchronizerStream = scopedSynchronizerStream;
         this.revision = revision;
-        this.unassignedSegments = segmentsToOffsets;
+        this.unassignedSegments = new LinkedHashMap<>(segmentsToOffsets);
     }
     
     /**
@@ -89,15 +90,12 @@ class ReaderGroupState implements Revisioned {
      */
     @Synchronized
     int getRanking(String reader) {
-        if (!distanceToTail.containsKey(reader)) {
-            return -1;
-        }
         List<String> sorted = distanceToTail.entrySet()
                                    .stream()
-                                   .sorted((o1, o2) -> Long.compare(o1.getValue(), o2.getValue()))
+                                   .sorted((o1, o2) -> -Long.compare(o1.getValue(), o2.getValue()))
                                    .map(e -> e.getKey())
                                    .collect(Collectors.toList());
-        return sorted.size() - sorted.indexOf(reader);
+        return sorted.indexOf(reader);
     }
 
     @Override
@@ -126,6 +124,14 @@ class ReaderGroupState implements Revisioned {
     @Synchronized
     public Map<Segment,Long> getUnassignedSegments() {
         return Collections.unmodifiableMap(unassignedSegments);
+    }
+    
+    /**
+     * Returns the number of segments currently being read from and that are unassigned within the reader group.
+     */
+    @Synchronized
+    public int getNumberOfSegments() {
+        return assignedSegments.values().stream().mapToInt(Set::size).sum() + unassignedSegments.size();
     }
     
     @RequiredArgsConstructor

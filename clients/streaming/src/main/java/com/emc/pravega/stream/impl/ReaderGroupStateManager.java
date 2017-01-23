@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.common.TimeoutTimer;
+import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Sequence;
@@ -27,7 +29,9 @@ import com.emc.pravega.stream.impl.ReaderGroupState.ReleaseSegment;
 import com.emc.pravega.stream.impl.ReaderGroupState.RemoveReader;
 import com.emc.pravega.stream.impl.ReaderGroupState.SegmentCompleted;
 import com.emc.pravega.stream.impl.ReaderGroupState.UpdateDistanceToTail;
+import com.google.common.base.Preconditions;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -36,28 +40,43 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
-import lombok.RequiredArgsConstructor;
 import lombok.val;
 
-@RequiredArgsConstructor
 public class ReaderGroupStateManager {
     
-    private static final long TIME_UNIT_MILLIS = 1000;
-    private static final long UPDATE_TIME_MILLIS = 30000;
-    private static final long ASSUMED_LAG_MILLIS = 30000;
+    static final Duration TIME_UNIT = Duration.ofMillis(1000);
+    static final Duration UPDATE_TIME = Duration.ofMillis(30000);
+    static final long ASSUMED_LAG_MILLIS = 30000;
+    private final Object decisionLock = new Object();
+    private final HashHelper hashHelper;
     private final String readerId;
     private final StateSynchronizer<ReaderGroupState> sync;
     private final Controller controller;
-    private final AtomicLong nextReleaseTime = new AtomicLong();
-    private final AtomicLong nextAquireTime = new AtomicLong();
+    private final TimeoutTimer releaseTimer;
+    private final TimeoutTimer aquireTimer;
 
+    ReaderGroupStateManager(String readerId, StateSynchronizer<ReaderGroupState> sync, Controller controller, Supplier<Long> nanoClock) {
+        Preconditions.checkNotNull(readerId);
+        Preconditions.checkNotNull(sync);
+        Preconditions.checkNotNull(controller);
+        this.readerId = readerId;
+        this.hashHelper = HashHelper.seededWith(readerId);
+        this.sync = sync;
+        this.controller = controller;
+        if (nanoClock == null) {
+            nanoClock = System::nanoTime;
+        }
+        releaseTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
+        aquireTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
+    }
+    
     void initializeReadererGroup(Map<Segment, Long> segments) {
-        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(segments)); 
+        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(segments));
     }
     
     void initializeReader() {
@@ -68,6 +87,7 @@ public class ReaderGroupStateManager {
                 return null;
             }
         });
+        aquireTimer.zero();
     }
     
     /**
@@ -98,7 +118,7 @@ public class ReaderGroupStateManager {
         sync.updateState(state -> {
             return Collections.singletonList(new SegmentCompleted(readerId, segmentCompleted, successors));
         });
-        nextAquireTime.set(0);
+        aquireTimer.zero();
     }
 
     /**
@@ -106,26 +126,18 @@ public class ReaderGroupStateManager {
      * this reader has not done so in a while, this returns the segment that should be released.
      */
     Segment findSegmentToReleaseIfRequired() {
-        if (shouldReleaseSegment()) {
-            return findSegmentToRelease();
-        } else { 
-            return null;
+        Segment segment = null;
+        synchronized (decisionLock) {
+            if (!releaseTimer.hasRemaining() && doesReaderOwnTooManySegments(sync.getState())) {
+                segment = findSegmentToRelease();
+                if (segment != null) {
+                    releaseTimer.reset(UPDATE_TIME);
+                }
+            }
         }
+        return segment;
     }
     
-    private boolean shouldReleaseSegment() {
-        long releaseTime;
-        do { // Loop handles race with another thread releasing a segment.
-            releaseTime = nextReleaseTime.get();
-            if (System.currentTimeMillis() < releaseTime) {
-                return false;
-            }
-            if (!doesReaderOwnTooManySegments(sync.getState())) {
-                return false;
-            }
-        } while (!nextReleaseTime.compareAndSet(releaseTime, System.currentTimeMillis() + UPDATE_TIME_MILLIS));
-        return true;
-    }
 
     /**
      * Returns true if this reader owns multiple segments and has more than a full segment more than
@@ -146,7 +158,10 @@ public class ReaderGroupStateManager {
      */
     private Segment findSegmentToRelease() {
         Set<Segment> segments = sync.getState().getSegments(readerId);
-        return segments.stream().max((s1, s2) -> Integer.compare(s1.getSegmentNumber(), s2.getSegmentNumber())).orElse(null);
+        return segments.stream()
+                       .max((s1, s2) -> Double.compare(hashHelper.hashToRange(s1.getScopedName()),
+                                                       hashHelper.hashToRange(s2.getScopedName())))
+                       .orElse(null);
     }
 
     /**
@@ -169,12 +184,12 @@ public class ReaderGroupStateManager {
             return result;
         });
         ReaderGroupState state = sync.getState();
-        nextReleaseTime.set(calculateReleaseTime(state));
+        releaseTimer.reset(calculateReleaseTime(state));
         return !state.getSegments(readerId).contains(segment);
     }
 
-    private long calculateReleaseTime(ReaderGroupState state) {
-        return System.currentTimeMillis() + (1 + state.getRanking(readerId)) * TIME_UNIT_MILLIS;
+    private Duration calculateReleaseTime(ReaderGroupState state) {
+        return TIME_UNIT.multipliedBy(1 + state.getRanking(readerId));
     }
 
     /**
@@ -190,27 +205,26 @@ public class ReaderGroupStateManager {
     }
     
     private boolean shouldAquireSegment() {
-        long aquireTime;
-        do { // Loop handles race with another thread acquiring a segment.
-            aquireTime = nextAquireTime.get();
-            if (System.currentTimeMillis() < aquireTime) {
+        synchronized (decisionLock) {
+            if (aquireTimer.hasRemaining()) {
                 return false;
             }
             if (sync.getState().getUnassignedSegments().isEmpty()) {
                 return false;
             }
-        } while (!nextAquireTime.compareAndSet(aquireTime, System.currentTimeMillis() + UPDATE_TIME_MILLIS));
-        return true;
+            aquireTimer.reset(UPDATE_TIME);
+            return true;
+        }
     }
 
     private Map<Segment, Long> aquireSegment(Sequence lastRead) {
         AtomicReference<Map<Segment, Long>> result = new AtomicReference<>();
         sync.updateState(state -> {
-            Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
-            if (unassignedSegments.isEmpty()) {
+            int toAquire = caluclateNumSegmentsToAquire(state);
+            if (toAquire == 0) {
                 return null;
             }
-            int toAquire = Math.max(1, unassignedSegments.size() / state.getNumberOfReaders());
+            Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
             Map<Segment, Long> aquired = new HashMap<>(toAquire);
             List<ReaderGroupStateUpdate> updates = new ArrayList<>(toAquire);
             Iterator<Entry<Segment, Long>> iter = unassignedSegments.entrySet().iterator();
@@ -224,13 +238,26 @@ public class ReaderGroupStateManager {
             result.set(aquired);
             return updates;
         });
-        nextAquireTime.set(calculateAquireTime(sync.getState()));
+        aquireTimer.reset(calculateAquireTime(sync.getState()));
         return result.get();
     }
+    
+    private int caluclateNumSegmentsToAquire(ReaderGroupState state) {
+        Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
+        if (unassignedSegments.isEmpty()) {
+            return 0;
+        }
+        int numSegments = state.getNumberOfSegments();
+        int segmentsOwned = state.getSegments(readerId).size();
+        int numReaders = state.getNumberOfReaders();
+        return Math.max(Math.max(
+                                 1,
+                                 Math.round((numSegments / (float) numReaders)) - segmentsOwned),
+                                 unassignedSegments.size() / numReaders);
+    }
 
-    private long calculateAquireTime(ReaderGroupState state) {
-        return System.currentTimeMillis()
-                + (state.getNumberOfReaders() - state.getRanking(readerId)) * TIME_UNIT_MILLIS;
+    private Duration calculateAquireTime(ReaderGroupState state) {
+        return TIME_UNIT.multipliedBy(state.getNumberOfReaders() - state.getRanking(readerId));
     }
 
     private long computeDistanceToTail(Sequence lastRead, int numSegments) {
