@@ -132,8 +132,10 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     public Future<Void> writeEvent(String routingKey, Type event) {
         Preconditions.checkState(!closed.get());
         CompletableFuture<Boolean> result = new CompletableFuture<>();
+        PendingEvent<Type> eventToWrite = new PendingEvent<Type>(event, routingKey, result);
+        //TBD: Can add a zipkin trace here
         synchronized (lock) {
-            if (!attemptWrite(new PendingEvent<Type>(event, routingKey, result))) {
+            if (!attemptWrite(eventToWrite)) {
                 handleLogSealed();
             }
         }

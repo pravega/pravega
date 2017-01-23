@@ -76,6 +76,8 @@ allprojects {
         compile group: 'org.projectlombok', name: 'lombok', version: '1.16.10'
         compile group: 'commons-io', name: 'commons-io', version: '2.5'
         compile 'io.netty:netty-all:4.0.36.Final'
+        // https://mvnrepository.com/artifact/io.zipkin.reporter/zipkin-sender-okhttp3
+        compile group: 'io.zipkin.reporter', name: 'zipkin-sender-okhttp3', version: '0.6.12'
 
         testCompile "org.mockito:mockito-core:2.+"
     }

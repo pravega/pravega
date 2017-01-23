@@ -91,7 +91,7 @@ public class LocalPravegaEmulator {
             final File zkDir = IOUtils.createTempDir("distrlog", "zookeeper");
             final LocalDLMEmulator localDlm = LocalDLMEmulator.newBuilder()
                     .zkPort(zkPort)
-                    .numBookies(5)
+                    .numBookies(3)
                     .build();
 
              localHdfs = LocalHDFSEmulator.newBuilder()

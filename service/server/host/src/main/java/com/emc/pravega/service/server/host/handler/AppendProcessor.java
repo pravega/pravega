@@ -28,6 +28,7 @@ import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
+import com.emc.pravega.common.util.ZipKinTracer;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
@@ -80,6 +81,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final HashMap<UUID, Long> latestEventNumbers = new HashMap<>();
     @GuardedBy("lock")
     private Append outstandingAppend = null;
+    private long lastAcked = 0;
 
     public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next) {
         this.store = store;
@@ -204,7 +206,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             handleException(segment, u);
                         }
                     } else {
-                        connection.send(new DataAppended(context.getClientId(),  context.getEventNumber()));
+                        DataAppended appended = new DataAppended(context.getClientId(),  context.getEventNumber());
+                        ZipKinTracer.getTracer().traceServerAcking(lastAcked, appended);
+                        lastAcked = context.getEventNumber();
+                        connection.send(appended);
                     }
                     pauseOrResumeReading();
                     performNextWrite();
@@ -281,6 +286,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             if (append.getEventNumber() <= lastEventNumber) {
                 throw new IllegalStateException("Event was already appended.");
             }
+            ZipKinTracer.getTracer().traceAppendReceived(append);
             latestEventNumbers.put(id, append.getEventNumber());
             waitingAppends.put(id, append);
         }

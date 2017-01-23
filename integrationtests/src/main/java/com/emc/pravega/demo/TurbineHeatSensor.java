@@ -31,6 +31,7 @@ import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import com.emc.pravega.common.util.ZipKinTracer;
 import lombok.Cleanup;
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
@@ -152,6 +153,7 @@ public class TurbineHeatSensor {
         if ( !onlyWrite ) {
             consumeStats.printTotal();
         }
+        ZipKinTracer.getTracer().close();
         System.exit(0);
     }
 
@@ -306,7 +308,7 @@ public class TurbineHeatSensor {
                 }
             }
             producer.flush();
-            producer.close();
+            //producer.close();
             try {
                 //Wait for the last packet to get acked
                 retFuture.get();

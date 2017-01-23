@@ -45,5 +45,6 @@
     <allow pkg="org.rocksdb"/>
     <allow pkg="com.codahale"/>
     <allow pkg="com.readytalk"/>
+    <allow pkg="zipkin"/>
 
 </import-control>

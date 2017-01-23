@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.util.ZipKinTracer;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
@@ -134,6 +135,8 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     protected void serializeContent(DataOutputStream target) throws IOException {
         ensureSerializationCondition(this.streamSegmentOffset >= 0, "StreamSegment Offset has not been assigned for this entry.");
 
+        ZipKinTracer.getTracer().traceDataFrameSerialize(this.appendContext.getClientId(),
+                this.appendContext.getEventNumber());
         target.writeByte(CURRENT_VERSION);
         target.writeLong(getStreamSegmentId());
         target.writeLong(this.streamSegmentOffset);
