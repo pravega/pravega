@@ -32,11 +32,16 @@ import java.util.UUID;
 @Slf4j
 public class ZipKinTracer implements AutoCloseable {
     private static ZipKinTracer tracer;
-    private final AsyncReporter<Span> reporter;
+    private static String zipkinEndpoint = "http://localhost:9411/api/v1/spans";
+    private static boolean enabled = false;
+
+    private AsyncReporter<Span> reporter;
+
+
 
     private ZipKinTracer() {
         reporter = AsyncReporter.builder(OkHttpSender.builder().
-                endpoint("http://localhost:9411/api/v1/spans").encoding(Encoding.JSON).build()).build();
+                endpoint(zipkinEndpoint).encoding(Encoding.JSON).build()).build();
     }
 
     public static ZipKinTracer getTracer() {
@@ -46,80 +51,97 @@ public class ZipKinTracer implements AutoCloseable {
         return tracer;
     }
 
+    public static void setZipkinEndpoint(String zipkinEndpoint) {
+        ZipKinTracer.zipkinEndpoint = zipkinEndpoint;
+    }
+
     public void traceStartAppend(Append append) {
-        log.trace("Tracing append {}", append.getEventNumber());
-        Span span = Span.builder().name("rpc").
-                id(0).
-                traceId(Math.abs(append.getConnectionId().hashCode() << 32 )+ append.getEventNumber()).
-                debug(true).
-                addAnnotation(Annotation.create(System.currentTimeMillis() * 1000,
-                                "cs", Endpoint.create("producer", 1000)))
-                .build();
-        reporter.report(span);
+       if ( enabled ) {
+           log.trace("Tracing append {}", append.getEventNumber());
+           Span span = Span.builder().name("rpc").
+                   id(0).
+                   traceId(Math.abs(append.getConnectionId().hashCode() << 32) + append.getEventNumber()).
+                   debug(true).
+                   addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "cs",
+                           Endpoint.create("producer", 1000))).build();
+           reporter.report(span);
+       }
     }
 
     public void traceAppendAcked(Append append) {
-        log.trace("Tracking ack {}", append.getEventNumber());
-        Span span = Span.builder().name("rpc").
-                id(0).
-                traceId(Math.abs(append.getConnectionId().hashCode() << 32 ) + append.getEventNumber()).
-                debug(true).
-                addAnnotation(Annotation.create(System.currentTimeMillis() * 1000,
-                        "cr", Endpoint.create("producer", 1000)))
-                .build();
-        reporter.report(span);
-
+       if ( enabled ) {
+           log.trace("Tracking ack {}", append.getEventNumber());
+           Span span = Span.builder().name("rpc").
+                   id(0).
+                   traceId(Math.abs(append.getConnectionId().hashCode() << 32) + append.getEventNumber()).
+                   debug(true).
+                   addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "cr",
+                           Endpoint.create("producer", 1000))).build();
+           reporter.report(span);
+       }
     }
 
     @Override
     public void close() throws Exception {
-        reporter.flush();
+       if ( enabled ) {
+           reporter.flush();
+       }
     }
 
     public void traceAppendReceived(Long lastAcked, Append append) {
-        for ( long traced = lastAcked +1; traced <= append.getEventNumber(); traced++ ) {
-            log.trace("Tracking server receive {}", traced);
-            Span span = Span.builder().name("rpc").
-                    id(1).
-                    traceId(Math.abs(append.getConnectionId().hashCode() << 32) + traced).
-                    debug(true).
-                    addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "sr",
-                            Endpoint.create("host", 1000))).build();
-            reporter.report(span);
-        }
+       if ( enabled ) {
+           for (long traced = lastAcked + 1; traced <= append.getEventNumber(); traced++) {
+               log.trace("Tracking server receive {}", traced);
+               Span span = Span.builder().name("rpc").
+                       id(1).
+                       traceId(Math.abs(append.getConnectionId().hashCode() << 32) + traced).
+                       debug(true).
+                       addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "sr",
+                               Endpoint.create("host", 1000))).build();
+               reporter.report(span);
+           }
+       }
     }
 
     public void traceServerAcking(long lastAcked, WireCommands.DataAppended appended) {
-        for ( long traced = lastAcked +1; traced <= appended.getEventNumber(); traced++ ) {
-            log.trace("Tracking server acking {}", traced);
-            Span span = Span.builder().name("dl").
-                    id(2).
-                    traceId(Math.abs(appended.getConnectionId().hashCode() << 32 ) +traced).
-                    debug(true).
-                    addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "dr",
-                            Endpoint.create("dl", 1000))).build();
-            reporter.report(span);
-            span = Span.builder().name("rpc").
-                    id(1).
-                    traceId(Math.abs(appended.getConnectionId().hashCode() << 32 ) +traced).
-                    debug(true).
-                    addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "ss",
-                            Endpoint.create("host", 1000))).build();
-            reporter.report(span);
+       if ( enabled ) {
+           for (long traced = lastAcked + 1; traced <= appended.getEventNumber(); traced++) {
+               log.trace("Tracking server acking {}", traced);
+               Span span = Span.builder().name("dl").
+                       id(2).
+                       traceId(Math.abs(appended.getConnectionId().hashCode() << 32) + traced).
+                       debug(true).
+                       addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "dr",
+                               Endpoint.create("dl", 1000))).build();
+               reporter.report(span);
+               span = Span.builder().name("rpc").
+                       id(1).
+                       traceId(Math.abs(appended.getConnectionId().hashCode() << 32) + traced).
+                       debug(true).
+                       addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "ss",
+                               Endpoint.create("host", 1000))).build();
+               reporter.report(span);
 
-        }
+           }
+       }
     }
 
     public void traceDataFrameSerialize(UUID clientId, long lastStartedSeqNo, long eventNumber) {
-        for ( long traced = lastStartedSeqNo +1; traced <= eventNumber; traced++ ) {
-            log.trace("Tracking data frame serialized for {}", traced);
-            Span span = Span.builder().name("dl").
-                    id(2).
-                    traceId(Math.abs(clientId.hashCode() << 32) + traced).
-                    debug(true).
-                    addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "ds", Endpoint.create("dl",
-                            1000))).build();
-            reporter.report(span);
-        }
+       if ( enabled ) {
+           for (long traced = lastStartedSeqNo + 1; traced <= eventNumber; traced++) {
+               log.trace("Tracking data frame serialized for {}", traced);
+               Span span = Span.builder().name("dl").
+                       id(2).
+                       traceId(Math.abs(clientId.hashCode() << 32) + traced).
+                       debug(true).
+                       addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "ds",
+                               Endpoint.create("dl", 1000))).build();
+               reporter.report(span);
+           }
+       }
+    }
+
+    public static void enableZipkin(boolean zipkinEnabled) {
+       enabled = zipkinEnabled;
     }
 }

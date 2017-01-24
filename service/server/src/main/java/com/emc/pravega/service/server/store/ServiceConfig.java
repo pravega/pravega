@@ -42,6 +42,8 @@ public class ServiceConfig extends ComponentConfig {
     public static final String PROPERTY_ZK_RETRY_SLEEP_MS = "zkRetrySleepMs";
     public static final String PROPERTY_ZK_RETRY_COUNT = "zkRetryCount";
     public static final String PROPERTY_CLUSTER_NAME = "clusterName";
+    private static final String PROPERTY_ENABLE_ZIPKIN = "enablezipkin";
+    private static final String PROPERTY_ZIPKIN_ENDPOINT = "zipkinendpoint";
 
     private static final int DEFAULT_LISTENING_PORT = 12345;
     private static final int DEFAULT_THREAD_POOL_SIZE = 50;
@@ -60,6 +62,8 @@ public class ServiceConfig extends ComponentConfig {
     private int zkRetrySleepMs;
     private int zkRetryCount;
     private String clusterName;
+    private boolean enableZipkin;
+    private String zipkinEndpoint;
 
     //endregion
 
@@ -152,6 +156,22 @@ public class ServiceConfig extends ComponentConfig {
         return clusterName;
     }
 
+    /**
+     * Gets whether Zipkin logs are enabled.
+     */
+
+    public boolean getEnableZipkin() {
+        return enableZipkin;
+    }
+
+    /**
+     * Gets Zipkin endpoint.
+     */
+
+    public String getZipkinEndpoint() {
+        return zipkinEndpoint;
+    }
+
     //endregion
 
     //region ComponentConfig Implementation
@@ -171,6 +191,9 @@ public class ServiceConfig extends ComponentConfig {
         this.zkRetrySleepMs = getInt32Property(PROPERTY_ZK_RETRY_SLEEP_MS, DEFAULT_ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = getInt32Property(PROPERTY_ZK_RETRY_COUNT, DEFAULT_ZK_RETRY_COUNT);
         this.clusterName = getProperty(PROPERTY_CLUSTER_NAME, DEFAULT_CLUSTER_NAME);
+
+        this.enableZipkin = getBooleanProperty(PROPERTY_ENABLE_ZIPKIN, false);
+        this.zipkinEndpoint = getProperty(PROPERTY_ZIPKIN_ENDPOINT, "");
     }
 
     private static String getHostAddress() {
@@ -181,6 +204,7 @@ public class ServiceConfig extends ComponentConfig {
             throw new RuntimeException("Unable to get the Host Address", e);
         }
     }
+
 
     //endregion
 }
