@@ -64,8 +64,10 @@ public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
                 }
-        ).exceptionally(exception -> Response.status(Status.INTERNAL_SERVER_ERROR).build())
-                .thenApply(response -> asyncResponse.resume(response));
+        ).exceptionally(exception -> {
+            log.error("Exception occurred while executing updateStreamConfig: " + exception);
+            return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+        }).thenApply(response -> asyncResponse.resume(response));
 
         LoggerHelpers.traceLeave(log, "createStream", traceId);
     }
@@ -89,8 +91,10 @@ public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
                 }
-        ).exceptionally(exception -> Response.status(Status.INTERNAL_SERVER_ERROR).build())
-                .thenApply(response -> asyncResponse.resume(response));
+        ).exceptionally(exception -> {
+            log.error("Exception occurred while executing updateStreamConfig: " + exception);
+            return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+        }).thenApply(response -> asyncResponse.resume(response));
 
         LoggerHelpers.traceLeave(log, "updateStreamConfig", traceId);
     }
@@ -108,7 +112,7 @@ public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
                     if (exception.getCause() instanceof DataNotFoundException || exception instanceof DataNotFoundException) {
                         return Response.status(Status.NOT_FOUND).build();
                     } else {
-                        System.out.println("500 ");
+                        log.error("Exception occurred while executing getStreamConfig: " + exception);
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
                 }).thenApply(response -> asyncResponse.resume(response));

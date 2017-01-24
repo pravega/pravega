@@ -87,7 +87,6 @@ public class StreamMetaDataTests extends JerseyTest {
     private final UpdateStreamRequest updateStreamRequest2 = new UpdateStreamRequest(
             scalingPolicyCommon, retentionPolicyCommon);
 
-
     private final CompletableFuture<StreamConfiguration> streamConfigFuture = CompletableFuture.supplyAsync(
             () -> streamConfiguration);
     private final CompletableFuture<StreamConfiguration> streamConfigFuture2 = CompletableFuture.supplyAsync(
@@ -97,7 +96,6 @@ public class StreamMetaDataTests extends JerseyTest {
             () -> CreateStreamStatus.SUCCESS);
     private final CompletableFuture<CreateStreamStatus> createStreamStatus2 = CompletableFuture.supplyAsync(
             () -> CreateStreamStatus.STREAM_EXISTS);
-
 
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus = CompletableFuture.supplyAsync(
             () -> UpdateStreamStatus.SUCCESS);
