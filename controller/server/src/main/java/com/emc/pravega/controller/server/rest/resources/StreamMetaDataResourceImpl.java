@@ -65,7 +65,7 @@ public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
                     }
                 }
         ).exceptionally(exception -> {
-            log.error("Exception occurred while executing updateStreamConfig: " + exception);
+            log.error("Exception occurred while executing createStream: " + exception);
             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
         }).thenApply(response -> asyncResponse.resume(response));
 
