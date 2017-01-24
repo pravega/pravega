@@ -22,9 +22,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 class PerfStats {
+    private long windowStartTime;
     private long start;
     private long windowStart;
-    private int[] latencies;
+    private long[] latencies;
     private int sampling;
     private int iteration;
     private int index;
@@ -40,12 +41,12 @@ class PerfStats {
 
     public PerfStats(long numRecords, int reportingInterval) {
         this.start = System.nanoTime();
-        //  this.windowStart = System.nanoTime();
+        this.windowStartTime = System.nanoTime();
         this.windowStart = 0;
         this.index = 0;
         this.iteration = 0;
         this.sampling = (int) (numRecords / Math.min(numRecords, 500000));
-        this.latencies = new int[(int) (numRecords / this.sampling) ];
+        this.latencies = new long[(int) (numRecords / this.sampling)];
         this.index = 0;
         this.maxLatency = 0;
         this.totalLatency = 0;
@@ -57,17 +58,17 @@ class PerfStats {
         this.reportingInterval = reportingInterval;
     }
 
-    public synchronized void record(int iter, int latency, int bytes, long time) {
+    public synchronized void record(int iter, int latencyMicro, int bytes, long time) {
         this.count++;
         this.bytes += bytes;
-        this.totalLatency += latency;
-        this.maxLatency = Math.max(this.maxLatency, latency);
+        this.totalLatency += latencyMicro;
+        this.maxLatency = Math.max(this.maxLatency, latencyMicro);
         this.windowCount++;
         this.windowBytes += bytes;
-        this.windowTotalLatency += latency;
-        this.windowMaxLatency = Math.max(windowMaxLatency, latency);
+        this.windowTotalLatency += latencyMicro;
+        this.windowMaxLatency = Math.max(windowMaxLatency, latencyMicro);
         if (iter % this.sampling == 0) {
-            this.latencies[index] = latency;
+            this.latencies[index] = latencyMicro;
             this.index++;
         }
         /* maybe report the recent perf */
@@ -78,20 +79,20 @@ class PerfStats {
     }
 
     private void printWindow() {
-        long elapsed = System.nanoTime() - windowStart;
-        double recsPerSec = 1000000.0 * windowCount / (double) elapsed;
-        double mbPerSec = 1000000.0 * this.windowBytes / (double) elapsed / (1024.0 * 1024.0);
+        long elapsed = System.nanoTime() - windowStartTime;
+        double recsPerSec = 1000000000.0 * windowCount / (double) elapsed;
+        double mbPerSec = 1000000000.0 * this.windowBytes / (double) elapsed / (1024.0 * 1024.0);
         System.out.printf("%d records sent, %.1f records/sec (%.5f MB/sec), %.1f ms avg latency, %.1f max latency.\n",
                 windowCount,
                 recsPerSec,
                 mbPerSec,
-                windowTotalLatency / (double) windowCount,
-                (double) windowMaxLatency);
+                windowTotalLatency / ( (double) windowCount * 1000.0 ),
+                (double) windowMaxLatency / 1000.0 );
     }
 
     private void newWindow(long currentNumber) {
-        //  this.windowStart = System.nanoTime();
         this.windowStart = currentNumber;
+        this.windowStartTime = System.nanoTime();
         this.windowCount = 0;
         this.windowMaxLatency = 0;
         this.windowTotalLatency = 0;
@@ -107,26 +108,26 @@ class PerfStats {
 
     public synchronized void printTotal() {
         long elapsed = System.nanoTime() - start;
-        double recsPerSec = 1000000.0 * count / (double) elapsed;
-        double mbPerSec = 1000000.0 * this.bytes / (double) elapsed / (1024.0 * 1024.0);
-        int[] percs = percentiles(this.latencies, index, 0.5, 0.95, 0.99, 0.999);
+        double recsPerSec = 1000000000.0 * count / (double) elapsed;
+        double mbPerSec = 1000000000.0 * this.bytes / (double) elapsed / (1024.0 * 1024.0);
+        long[] percs = percentiles(this.latencies, 0.5, 0.95, 0.99, 0.999);
         System.out.printf("%d records sent, %f records/sec (%.5f MB/sec), %.2f ms avg latency, %.2f ms max " +
-                        "latency, %d ms 50th, %d ms 95th, %d ms 99th, %d ms 99.9th.\n",
+                        "latency, %.2f ms 50th, %.2f ms 95th, %.2f ms 99th, %.2f ms 99.9th.\n",
                 count,
                 recsPerSec,
                 mbPerSec,
-                totalLatency / (double) count,
-                (double) maxLatency,
-                percs[0],
-                percs[1],
-                percs[2],
-                percs[3]);
+                totalLatency / ((double) count * 1000.0 ),
+                (double) maxLatency / 1000.0,
+                percs[0] / 1000.0,
+                percs[1] / 1000.0,
+                percs[2] / 1000.0,
+                percs[3] / 1000.0);
     }
 
-    private static int[] percentiles(int[] latencies, int count, double... percentiles) {
-        int size = Math.min(count, latencies.length);
-        Arrays.sort(latencies, 0, size);
-        int[] values = new int[percentiles.length];
+    private long[] percentiles(long[] latencies, double... percentiles) {
+        long size = Math.min(count, latencies.length);
+        Arrays.sort(latencies, 0, (int) size);
+        long[] values = new long[percentiles.length];
         for (int i = 0; i < percentiles.length; i++) {
             int index = (int) (percentiles[i] * size);
             values[i] = latencies[index];
@@ -135,11 +136,11 @@ class PerfStats {
     }
 
     public CompletableFuture<Void> runAndRecordTime(Supplier<CompletableFuture<Void>> fn,
-                                                    long startTime,
+                                                    long startTimeNano,
                                                     int length) {
         int iter = this.iteration++;
         return fn.get().thenAccept( (lmn) -> {
-            record(iter, (int) (System.nanoTime() - startTime), length,
+            record(iter, (int) (System.nanoTime() - startTimeNano) / 1000, length,
                     System.nanoTime());
         });
 

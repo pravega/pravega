@@ -47,7 +47,7 @@ public class ZipKinTracer implements AutoCloseable {
     }
 
     public void traceStartAppend(Append append) {
-        log.info("Tracing append {}", append.getEventNumber());
+        log.trace("Tracing append {}", append.getEventNumber());
         Span span = Span.builder().name("rpc").
                 id(0).
                 traceId(Math.abs(append.getConnectionId().hashCode() << 32 )+ append.getEventNumber()).
@@ -59,7 +59,7 @@ public class ZipKinTracer implements AutoCloseable {
     }
 
     public void traceAppendAcked(Append append) {
-        log.info("Tracking ack {}", append.getEventNumber());
+        log.trace("Tracking ack {}", append.getEventNumber());
         Span span = Span.builder().name("rpc").
                 id(0).
                 traceId(Math.abs(append.getConnectionId().hashCode() << 32 ) + append.getEventNumber()).
@@ -78,7 +78,7 @@ public class ZipKinTracer implements AutoCloseable {
 
     public void traceAppendReceived(Long lastAcked, Append append) {
         for ( long traced = lastAcked +1; traced <= append.getEventNumber(); traced++ ) {
-            log.info("Tracking server receive {}", traced);
+            log.trace("Tracking server receive {}", traced);
             Span span = Span.builder().name("rpc").
                     id(1).
                     traceId(Math.abs(append.getConnectionId().hashCode() << 32) + traced).
@@ -91,7 +91,7 @@ public class ZipKinTracer implements AutoCloseable {
 
     public void traceServerAcking(long lastAcked, WireCommands.DataAppended appended) {
         for ( long traced = lastAcked +1; traced <= appended.getEventNumber(); traced++ ) {
-            log.info("Tracking server acking {}", traced);
+            log.trace("Tracking server acking {}", traced);
             Span span = Span.builder().name("dl").
                     id(2).
                     traceId(Math.abs(appended.getConnectionId().hashCode() << 32 ) +traced).
@@ -112,7 +112,7 @@ public class ZipKinTracer implements AutoCloseable {
 
     public void traceDataFrameSerialize(UUID clientId, long lastStartedSeqNo, long eventNumber) {
         for ( long traced = lastStartedSeqNo +1; traced <= eventNumber; traced++ ) {
-            log.info("Tracking data frame serialized for {}", traced);
+            log.trace("Tracking data frame serialized for {}", traced);
             Span span = Span.builder().name("dl").
                     id(2).
                     traceId(Math.abs(clientId.hashCode() << 32) + traced).
