@@ -48,6 +48,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import java.net.URI;
+import java.util.List;
+import java.util.Random;
 
 import org.apache.commons.lang.NotImplementedException;
 
@@ -55,7 +57,6 @@ public class ClientFactoryImpl implements ClientFactory {
 
     private final String scope;
     private final Controller controller;
-    private final StreamManager streamManager;
     private final SegmentInputStreamFactory inFactory;
     private final SegmentOutputStreamFactory outFactory;
 
@@ -64,7 +65,6 @@ public class ClientFactoryImpl implements ClientFactory {
         Preconditions.checkNotNull(controllerUri);
         this.scope = scope;
         this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
-        this.streamManager = StreamManager.withScope(scope, controllerUri);
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
@@ -87,7 +87,6 @@ public class ClientFactoryImpl implements ClientFactory {
         Preconditions.checkNotNull(outFactory);
         this.scope = scope;
         this.controller = controller;
-        this.streamManager = streamManager;
         this.inFactory = inFactory;
         this.outFactory = outFactory;
     }
@@ -95,7 +94,7 @@ public class ClientFactoryImpl implements ClientFactory {
 
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
-        Stream stream = streamManager.getStream(streamName);
+        Stream stream = new StreamImpl(scope, streamName);
         EventRouter router = new EventRouter(stream, controller);
         return new EventStreamWriterImpl<T>(stream, controller, outFactory, router, s, config);
     }
@@ -115,7 +114,25 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
             ReaderConfig config) {
-        throw new NotImplementedException();
+        SynchronizerConfig synchronizerConfig = new SynchronizerConfig(null, null);
+        StateSynchronizer<ReaderGroupState> sync = createStateSynchronizer(readerGroup,
+                                                                           new JavaSerializer<>(),
+                                                                           new JavaSerializer<>(),
+                                                                           synchronizerConfig);
+        ReaderGroupStateManager stateManager = new ReaderGroupStateManager(readerId,
+                sync,
+                controller,
+                System::nanoTime);
+        return new EventReaderImpl<T>(inFactory, s, stateManager, new RandomOrderer<>(), config);
+    }
+    
+    private static class RandomOrderer<T> implements Orderer<T> {
+        Random rand = new Random();
+
+        @Override
+        public SegmentReader<T> nextSegment(List<SegmentReader<T>> segments) {
+            return segments.get(rand.nextInt(segments.size()));
+        }
     }
 
     @Override

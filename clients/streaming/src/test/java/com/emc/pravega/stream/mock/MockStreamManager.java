@@ -31,14 +31,12 @@ import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.lang.NotImplementedException;
 
 public class MockStreamManager implements StreamManager {
 
     private final String scope;
-    private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
     private final ConnectionFactoryImpl connectionFactory;
     private final Controller controller;
 
@@ -55,13 +53,12 @@ public class MockStreamManager implements StreamManager {
     }
 
     @Override
-    public Stream createStream(String streamName, StreamConfiguration config) {
+    public void createStream(String streamName, StreamConfiguration config) {
         if (config == null) {
             config = new StreamConfigurationImpl(scope, streamName, new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0,
                     1));
         }
-        Stream stream = createStreamHelper(streamName, config);
-        return stream;
+        createStreamHelper(streamName, config);
     }
 
     @Override
@@ -73,19 +70,12 @@ public class MockStreamManager implements StreamManager {
         FutureHelpers.getAndHandleExceptions(controller
                         .createStream(new StreamConfigurationImpl(scope, streamName, config.getScalingPolicy())),
                 RuntimeException::new);
-        Stream stream = new StreamImpl(scope, streamName, config);
-        created.put(streamName, stream);
-        return stream;
+        return new StreamImpl(scope, streamName);
     }
 
     @Override
     public void sealStream(String streamName) {
             FutureHelpers.getAndHandleExceptions(controller.sealStream(scope, streamName), RuntimeException::new);
-    }
-
-    @Override
-    public Stream getStream(String streamName) {
-        return created.get(streamName);
     }
 
     @Override
@@ -114,7 +104,7 @@ public class MockStreamManager implements StreamManager {
     }
 
     @Override
-    public void deleteStream(Stream toDelete) {
+    public void deleteStream(String toDelete) {
         throw new NotImplementedException();
     }
 }

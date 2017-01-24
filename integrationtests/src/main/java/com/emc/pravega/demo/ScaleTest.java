@@ -68,7 +68,7 @@ public class ScaleTest {
                         streamName,
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 1));
 
-        Stream stream = new StreamImpl(scope, streamName, config);
+        Stream stream = new StreamImpl(scope, streamName);
 
         System.err.println(String.format("Creating stream (%s, %s)", scope, streamName));
         CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
