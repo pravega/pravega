@@ -42,8 +42,8 @@ public class ServiceConfig extends ComponentConfig {
     public static final String PROPERTY_ZK_RETRY_SLEEP_MS = "zkRetrySleepMs";
     public static final String PROPERTY_ZK_RETRY_COUNT = "zkRetryCount";
     public static final String PROPERTY_CLUSTER_NAME = "clusterName";
-    private static final String PROPERTY_ENABLE_ZIPKIN = "enablezipkin";
-    private static final String PROPERTY_ZIPKIN_ENDPOINT = "zipkinendpoint";
+    public static final String PROPERTY_ENABLE_ZIPKIN = "enablezipkin";
+    public static final String PROPERTY_ZIPKIN_ENDPOINT = "zipkinendpoint";
 
     private static final int DEFAULT_LISTENING_PORT = 12345;
     private static final int DEFAULT_THREAD_POOL_SIZE = 50;

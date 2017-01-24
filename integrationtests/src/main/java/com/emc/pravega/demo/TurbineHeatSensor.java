@@ -174,6 +174,9 @@ public class TurbineHeatSensor {
 
         options.addOption("help", false, "Help message");
 
+        ZipKinTracer.enableZipkin(true);
+        ZipKinTracer.setZipkinEndpoint("http://10.249.250.151:9411/api/v1/spans");
+
         CommandLineParser parser = new BasicParser();
         try {
 
