@@ -71,11 +71,17 @@ class ReaderGroupState implements Revisioned {
      */
     @Synchronized
     Map<String, Double> getRelativeSizes() {
-        Long maxTime = distanceToTail.values().stream().max(Long::compareTo).orElse(null);
+        long maxDistance = Long.MIN_VALUE;
         Map<String, Double> result = new HashMap<>();
-        distanceToTail.forEach((host, size) -> {
-            result.put(host, size / (double) maxTime);
-        });
+        for (Entry<String, Set<Segment>> entry : assignedSegments.entrySet()) {
+            if (entry.getValue().isEmpty()) {
+                result.put(entry.getKey(), 0.0);
+            } else {
+                Long distance = distanceToTail.get(entry.getKey());
+                maxDistance = Long.max(distance, maxDistance);
+                result.put(entry.getKey(), entry.getValue().size() * distance / (double) maxDistance);
+            }
+        }
         return result;
     }
     

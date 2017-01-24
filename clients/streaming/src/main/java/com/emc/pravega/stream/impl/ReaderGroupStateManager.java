@@ -21,7 +21,6 @@ import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.impl.ReaderGroupState.AddReader;
 import com.emc.pravega.stream.impl.ReaderGroupState.AquireSegment;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
@@ -150,7 +149,7 @@ public class ReaderGroupStateManager {
             return false;
         }
         double min = sizesOfAssignemnts.values().stream().min(Double::compareTo).get();
-        return sizesOfAssignemnts.get(readerId) > min + 1.0;
+        return sizesOfAssignemnts.get(readerId) > min + Math.max(1, state.getUnassignedSegments().size());
     }
 
     /**
@@ -168,10 +167,10 @@ public class ReaderGroupStateManager {
      * Releases a segment to another reader. This reader should no longer read from the segment. 
      * @param segment The segment to be released
      * @param lastOffset The offset from which the new owner should start reading from.
-     * @param pos The current position of the reader
+     * @param timeLag How far the reader is from the tail of the stream in time.
      * @return a boolean indicating if the segment was successfully released.
      */
-    boolean releaseSegment(Segment segment, long lastOffset, Sequence pos) {
+    boolean releaseSegment(Segment segment, long lastOffset, long timeLag) {
         sync.updateState(state -> {
             Set<Segment> segments = state.getSegments(readerId);
             if (segments == null || !segments.contains(segment) || !doesReaderOwnTooManySegments(state)) {
@@ -179,8 +178,7 @@ public class ReaderGroupStateManager {
             }
             List<ReaderGroupStateUpdate> result = new ArrayList<>(2);
             result.add(new ReleaseSegment(readerId, segment, lastOffset));
-            long distanceToTail = computeDistanceToTail(pos, segments.size() - 1);
-            result.add(new UpdateDistanceToTail(readerId, distanceToTail));
+            result.add(new UpdateDistanceToTail(readerId, Math.max(ASSUMED_LAG_MILLIS, timeLag)));
             return result;
         });
         ReaderGroupState state = sync.getState();
@@ -196,11 +194,11 @@ public class ReaderGroupStateManager {
      * If there are unassigned segments and this host has not acquired one in a while, acquires them.
      * @return A map from the new segment that was acquired to the offset to begin reading from within the segment.
      */
-    Map<Segment, Long> aquireNewSegmentsIfNeeded(Sequence lastRead) {
+    Map<Segment, Long> aquireNewSegmentsIfNeeded(long timeLag) {
         if (shouldAquireSegment()) {
-            return aquireSegment(lastRead);
+            return aquireSegment(timeLag);
         } else {
-            return null;
+            return Collections.emptyMap();
         }
     }
     
@@ -217,7 +215,7 @@ public class ReaderGroupStateManager {
         }
     }
 
-    private Map<Segment, Long> aquireSegment(Sequence lastRead) {
+    private Map<Segment, Long> aquireSegment(long timeLag) {
         AtomicReference<Map<Segment, Long>> result = new AtomicReference<>();
         sync.updateState(state -> {
             int toAquire = caluclateNumSegmentsToAquire(state);
@@ -233,8 +231,7 @@ public class ReaderGroupStateManager {
                 aquired.put(segment.getKey(), segment.getValue());
                 updates.add(new AquireSegment(readerId, segment.getKey()));
             }
-            long toTail = computeDistanceToTail(lastRead, state.getSegments(readerId).size() + aquired.size());
-            updates.add(new UpdateDistanceToTail(readerId, toTail));
+            updates.add(new UpdateDistanceToTail(readerId, Math.max(ASSUMED_LAG_MILLIS, timeLag)));
             result.set(aquired);
             return updates;
         });
@@ -258,9 +255,5 @@ public class ReaderGroupStateManager {
 
     private Duration calculateAquireTime(ReaderGroupState state) {
         return TIME_UNIT.multipliedBy(state.getNumberOfReaders() - state.getRanking(readerId));
-    }
-
-    private long computeDistanceToTail(Sequence lastRead, int numSegments) {
-        return Math.max(ASSUMED_LAG_MILLIS, System.currentTimeMillis() - lastRead.getHighOrder()) * numSegments;
     }
 }
