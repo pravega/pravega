@@ -121,6 +121,8 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
      * @param writerMode    The mode of operation.
      */
     public void setPravegaWriterMode(PravegaWriterMode writerMode) {
+        Preconditions.checkNotNull(writerMode);
+
         this.writerMode = writerMode;
     }
 
