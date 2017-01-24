@@ -18,6 +18,7 @@
 package com.emc.pravega;
 
 import com.emc.pravega.framework.Environment;
+import com.emc.pravega.framework.MarathonSequential;
 import com.emc.pravega.framework.SystemTestRunner;
 import org.junit.After;
 import org.junit.Before;
@@ -28,12 +29,13 @@ import org.junit.runner.RunWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-//@Distributed -- Distributed tests: All the tests are executed as marathon jobs.
-//@Simple -- Each test is executed (as a marathon job ) one after another.
-//@Local -- Each test is executed locally and not as a marathon job.
+//@MarathonDistributed -- MarathonDistributed tests: All the tests are executed as marathon jobs.
+//@MarathonSequential -- Each test is executed (as a marathon job ) one after another.
+//@Local -- Each test is executed locally and not as a marathon job. (Default)
 //@FreshSetup -- this is used to indicate the Setup needs to be created afresh.
 
 @RunWith(SystemTestRunner.class)
+@MarathonSequential
 public class PrimeNumberCheckerTest {
     private PrimeNumberChecker primeNumberChecker = new PrimeNumberChecker();
 

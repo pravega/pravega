@@ -408,9 +408,12 @@ project('controller:server') {
 
 project('systemtests:tests') {
     dependencies {
+        // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
+        compile group: 'com.mesosphere', name: 'marathon-client', version: '0.3.0'
         compile project(":clients:streaming")
         compile 'junit:junit:4.12'
     }
+    //disable the default test task.
     test {
         exclude 'com/emc/pravega/**'
     }
@@ -422,6 +425,11 @@ project('systemtests:tests') {
             }
         }
         from sourceSets.test.output
+    }
+    //This is  used to invoke systemTests
+    task systemTest(type: Test) {
+        testClassesDir = sourceSets.test.output.classesDir
+        classpath = sourceSets.test.runtimeClasspath
     }
 }
 

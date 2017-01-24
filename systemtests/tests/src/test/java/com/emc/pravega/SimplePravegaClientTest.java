@@ -32,6 +32,7 @@ import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import lombok.Cleanup;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -46,10 +47,11 @@ import java.util.concurrent.TimeoutException;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
-//@Distributed -- Distributed tests: All the tests are executed as marathon jobs.
-//@Simple -- Each test is executed (as a marathon job ) one after another.
-//@Local -- Each test is executed locally and not as a marathon job.
+//@MarathonDistributed -- MarathonDistributed tests: All the tests are executed as marathon jobs.
+//@MarathonSequential -- Each test is executed (as a marathon job ) one after another.
+//@Local -- Each test is executed locally and not as a marathon job. (Default)
 //@FreshSetup -- this is used to indicate the Setup needs to be created afresh.
+@Ignore
 @RunWith(SystemTestRunner.class)
 public class SimplePravegaClientTest {
     private final static String STREAM_NAME = "testStream";

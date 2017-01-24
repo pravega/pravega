@@ -19,6 +19,7 @@ package com.emc.pravega.framework;
 
 import com.emc.pravega.SingleJUnitTestRunner;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.internal.runners.model.EachTestNotifier;
 import org.junit.internal.runners.statements.RunBefores;
 import org.junit.runner.Description;
 import org.junit.runner.notification.RunNotifier;
@@ -52,18 +53,41 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
         return withEnvironment(statement);
     }
 
-
     @Override
     protected void runChild(final FrameworkMethod method, RunNotifier notifier) {
         Description description = describeChild(method);
         if (isIgnored(method)) {
             notifier.fireTestIgnored(description);
         } else {
-            Method m1 = method.getMethod();
-            //Execute method ; currently it is directly being executed by SingleJUnitTestRunner
-            //this can be executed using marathon too.
-            //TODO: Set usage using marathon.
-            SingleJUnitTestRunner.execute(m1.getDeclaringClass().getName(), m1.getName());
+            EachTestNotifier eachNotifier = new EachTestNotifier(notifier, description);
+            eachNotifier.fireTestStarted();
+            Method m = method.getMethod();
+            if (getTestClass().getAnnotation(MarathonDistributed.class) != null) {
+                log.info("Execute Test in a distributed fashion by triggering multiple marathon jobs");
+                //TODO: Write a distributed Test invoker.
+            } else if (getTestClass().getAnnotation(MarathonSequential.class) != null) {
+                log.info("Execute test using marathon one by one.");
+                //TODO: Invoke the method using marathon sequentially.
+                invokeTestLocally(eachNotifier, m);
+            } else {
+                log.info("Execute test locally without marathon");
+                //Currently executing the test using SingleJUnitTestRunner; it will be changed to Marathon.
+                //Based on the annotations defined.
+                invokeTestLocally(eachNotifier, m);
+            }
+        }
+    }
+
+    /*
+        Invoke the test locally without using marathon.
+     */
+    private void invokeTestLocally(EachTestNotifier eachNotifier, Method method) {
+        try {
+            boolean result = SingleJUnitTestRunner.execute(method.getDeclaringClass().getName(), method.getName());
+        } catch (Throwable e) {
+            eachNotifier.addFailure(e);
+        } finally {
+            eachNotifier.fireTestFinished();
         }
     }
 
