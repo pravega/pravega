@@ -25,6 +25,7 @@ import com.emc.pravega.controller.server.rest.contract.response.StreamProperty;
 import com.emc.pravega.controller.server.rest.contract.response.StreamResponse;
 import com.emc.pravega.controller.server.rest.resources.StreamMetaDataResourceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
@@ -62,8 +63,10 @@ public class StreamMetaDataTests extends JerseyTest {
     StreamResponse streamResponseActual;
 
     private final String stream1 = "stream1";
+    private final String stream2 = "stream2";
     private final String scope1 = "scope1";
     private final String resourceURI = "v1/scopes/" + scope1 + "/streams/" + stream1;
+    private final String resourceURI2 = "v1/scopes/" + scope1 + "/streams/" + stream2;
     private final String streamResourceURI = "v1/scopes/" + scope1 + "/streams";
 
     private final ScalingPolicyCommon scalingPolicyCommon = new ScalingPolicyCommon(
@@ -74,17 +77,32 @@ public class StreamMetaDataTests extends JerseyTest {
     private final StreamConfiguration streamConfiguration = new StreamConfigurationImpl(scope1, stream1,
             new ScalingPolicy(FIXED_NUM_SEGMENTS, 100L, 2, 2), new RetentionPolicy(123L));
 
+    private final StreamConfiguration streamConfiguration2 = new StreamConfigurationImpl(null, null,
+            null, null);
+
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest(
             stream1, scalingPolicyCommon, retentionPolicyCommon);
     private final UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest(
             scalingPolicyCommon, retentionPolicyCommon);
+    private final UpdateStreamRequest updateStreamRequest2 = new UpdateStreamRequest(
+            scalingPolicyCommon, retentionPolicyCommon);
+
 
     private final CompletableFuture<StreamConfiguration> streamConfigFuture = CompletableFuture.supplyAsync(
             () -> streamConfiguration);
+    private final CompletableFuture<StreamConfiguration> streamConfigFuture2 = CompletableFuture.supplyAsync(
+            () -> streamConfiguration2);
+
     private final CompletableFuture<CreateStreamStatus> createStreamStatus = CompletableFuture.supplyAsync(
             () -> CreateStreamStatus.SUCCESS);
+    private final CompletableFuture<CreateStreamStatus> createStreamStatus2 = CompletableFuture.supplyAsync(
+            () -> CreateStreamStatus.STREAM_EXISTS);
+
+
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus = CompletableFuture.supplyAsync(
             () -> UpdateStreamStatus.SUCCESS);
+    private CompletableFuture<UpdateStreamStatus> updateStreamStatus2 = CompletableFuture.supplyAsync(
+            () -> UpdateStreamStatus.STREAM_NOT_FOUND);
 
     @Override
     protected Application configure() {
@@ -104,38 +122,54 @@ public class StreamMetaDataTests extends JerseyTest {
 
     @Test
     public void testCreateStream() throws ExecutionException, InterruptedException {
+
+        // Test to create a stream which doesn't exist
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
-
-        response = target(streamResourceURI).request().async().
-                post(Entity.json(createStreamRequest));
+        response = target(streamResourceURI).request().async().post(Entity.json(createStreamRequest));
         streamResponseActual = response.get().readEntity(StreamResponse.class);
-
         assertEquals("Create Stream Status", 201, response.get().getStatus());
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
+
+        // Test to create a stream that already exists
+        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus2);
+        response = target(streamResourceURI).request().async().post(Entity.json(createStreamRequest));
+        assertEquals("Create Stream Status", 409, response.get().getStatus());
     }
 
     @Test
     public void testUpdateStream() throws ExecutionException, InterruptedException {
+
+        // Test to update an existing stream
         when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus);
-
-        response = target(resourceURI).request().async().
-                put(Entity.json(updateStreamRequest));
+        response = target(resourceURI).request().async().put(Entity.json(updateStreamRequest));
         streamResponseActual = response.get().readEntity(StreamResponse.class);
-
         assertEquals("Update Stream Status", 201, response.get().getStatus());
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
+
+        // Test to update an non-existing stream
+        when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus2);
+        response = target(resourceURI).request().async().put(Entity.json(updateStreamRequest2));
+        assertEquals("Update Stream Status", 404, response.get().getStatus());
     }
 
     @Test
     public void testGetStreamConfig() throws ExecutionException, InterruptedException {
         when(mockControllerService.getStreamStore()).thenReturn(mockStreamStore);
-        when(mockStreamStore.getConfiguration(stream1)).thenReturn(streamConfigFuture);
 
+        // Test to get an existing stream
+        when(mockStreamStore.getConfiguration(stream1)).thenReturn(streamConfigFuture);
         response = target(resourceURI).request().async().get();
         streamResponseActual = response.get().readEntity(StreamResponse.class);
-
         assertEquals("Get Stream Config Status", 200, response.get().getStatus());
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
+
+        // Get a non-existent stream
+        when(mockStreamStore.getConfiguration(stream2)).thenReturn(CompletableFuture.supplyAsync(() -> {
+            throw new DataNotFoundException("Stream Not Found");
+        }));
+        response = target(resourceURI2).request().async().get();
+        streamResponseActual = response.get().readEntity(StreamResponse.class);
+        assertEquals("Get Stream Config Status", 404, response.get().getStatus());
     }
 
     private static void testExpectedVsActualObject(StreamResponse expected, StreamResponse actual) {

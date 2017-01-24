@@ -56,16 +56,16 @@ public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
 
         createStreamStatus.thenApply(streamStatus -> {
                     if (streamStatus == CreateStreamStatus.SUCCESS) {
-                        return Response.ok(ModelHelper.encodeStreamResponse(streamConfiguration))
-                                .status(Status.CREATED).build();
+                        return Response.status(Status.CREATED).
+                                entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
                     } else if (streamStatus == CreateStreamStatus.STREAM_EXISTS) {
-                        return Response.status(Status.CONFLICT).entity("Stream Exists").build();
+                        return Response.status(Status.CONFLICT).build();
                     } else {
-                        return Response.status(Status.INTERNAL_SERVER_ERROR).entity("Internal Server Error")
-                                .build();
+                        return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
                 }
-        ).thenApply(response -> asyncResponse.resume(response));
+        ).exceptionally(exception -> Response.status(Status.INTERNAL_SERVER_ERROR).build())
+                .thenApply(response -> asyncResponse.resume(response));
 
         LoggerHelpers.traceLeave(log, "createStream", traceId);
     }
@@ -81,15 +81,16 @@ public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
 
         updateStreamStatus.thenApply(streamStatus -> {
                     if (streamStatus == UpdateStreamStatus.SUCCESS) {
-                        return Response.ok(ModelHelper.encodeStreamResponse(streamConfiguration))
-                                .status(Status.CREATED).build();
+                        return Response.status(Status.CREATED).
+                                entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
                     } else if (streamStatus == UpdateStreamStatus.STREAM_NOT_FOUND) {
-                        return Response.status(Status.NOT_FOUND).entity("Stream Not Found").build();
+                        return Response.status(Status.NOT_FOUND).build();
                     } else {
-                        return Response.status(Status.INTERNAL_SERVER_ERROR).entity("Internal Server Error").build();
+                        return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
                 }
-        ).thenApply(response -> asyncResponse.resume(response));
+        ).exceptionally(exception -> Response.status(Status.INTERNAL_SERVER_ERROR).build())
+                .thenApply(response -> asyncResponse.resume(response));
 
         LoggerHelpers.traceLeave(log, "updateStreamConfig", traceId);
     }
@@ -100,12 +101,15 @@ public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
 
         StreamMetadataStore streamStore = controllerService.getStreamStore();
         streamStore.getConfiguration(stream)
-                .thenApply(streamConfig -> Response.status(Status.OK).entity(ModelHelper.encodeStreamResponse(streamConfig)).build())
+                .thenApply(streamConfig -> {
+                    return Response.status(Status.OK).entity(ModelHelper.encodeStreamResponse(streamConfig)).build();
+                })
                 .exceptionally(exception -> {
-                    if (exception.getCause() instanceof DataNotFoundException) {
-                        return Response.status(Status.NOT_FOUND).entity("Stream Not found").build();
+                    if (exception.getCause() instanceof DataNotFoundException || exception instanceof DataNotFoundException) {
+                        return Response.status(Status.NOT_FOUND).build();
                     } else {
-                        return Response.status(Status.INTERNAL_SERVER_ERROR).entity("Internal Server error").build();
+                        System.out.println("500 ");
+                        return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
                 }).thenApply(response -> asyncResponse.resume(response));
 
