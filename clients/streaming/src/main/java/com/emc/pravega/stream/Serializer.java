@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.stream;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 
 /**
@@ -28,7 +29,7 @@ import java.nio.ByteBuffer;
  *
  * @param <T> The type of event that this serializes.
  */
-public interface Serializer<T> {
+public interface Serializer<T> extends Serializable {
     /**
      * The maximum event size, in bytes.
      */

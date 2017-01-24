@@ -243,11 +243,10 @@ public class StreamMetadataTest {
         //get  positions at a given time stamp
 
         //PS1:get  positions at a given time stamp:given stream, time stamp, count
-        Stream stream1 = new StreamImpl(scope1, streamName1, config1);
         final int count1 = 10;
         CompletableFuture<List<PositionInternal>> getPositions;
         System.err.println(String.format("Fetching positions at given time stamp of (%s,%s)", scope1, streamName1));
-        getPositions  =  controller.getPositions(stream1, System.currentTimeMillis(), count1);
+        getPositions  =  controller.getPositions(scope1, streamName1, System.currentTimeMillis(), count1);
         if (getPositions.get().isEmpty()) {
             System.err.println("FAILURE: Fetching positions at given time stamp failed, exiting");
             return;
@@ -258,7 +257,7 @@ public class StreamMetadataTest {
         //PS2:get positions of a stream with different count
         final int count2 = 20;
         System.err.println(String.format("Positions at given time stamp (%s, %s)", scope1, streamName1));
-        getPositions  =  controller.getPositions(stream1, System.currentTimeMillis(), count2);
+        getPositions  =  controller.getPositions(scope1, streamName1, System.currentTimeMillis(), count2);
         if (getPositions.get().isEmpty()) {
             System.err.println("FAILURE: Fetching positions at given time stamp with different count failed, exiting");
             return;
@@ -268,8 +267,8 @@ public class StreamMetadataTest {
 
         //PS3:get positions of a different stream at a given time stamp
         Stream stream2 = new StreamImpl(scope1, streamName2, config3);
-        System.err.println(String.format("Fetching positions at given time stamp of (%s, %s)", scope1, stream2));
-        getPositions  =  controller.getPositions(stream2, System.currentTimeMillis(), count1);
+        System.err.println(String.format("Fetching positions at given time stamp of (%s, %s)", scope1, streamName2));
+        getPositions  =  controller.getPositions(scope1, streamName2, System.currentTimeMillis(), count1);
         if (getPositions.get().isEmpty()) {
             System.err.println("FAILURE: Fetching positions at given time stamp for a different stream of same scope failed, exiting");
             return;
@@ -278,9 +277,8 @@ public class StreamMetadataTest {
         }
 
         //PS4:get positions at a given timestamp for non-existent stream.
-        Stream stream = new StreamImpl("scope", "streamName", config);
         System.err.println(String.format("Fetching positions at given time stamp for non existent stream (%s, %s)", "scope", "streamName"));
-        getPositions   =  controller.getPositions(stream, System.currentTimeMillis(), count1);
+        getPositions   =  controller.getPositions("scope", "streamName", System.currentTimeMillis(), count1);
         if (getPositions.get().isEmpty()) {
             System.err.println("SUCCESS: Positions cannot be fetched for non existent stream");
         } else {
@@ -290,7 +288,7 @@ public class StreamMetadataTest {
 
         //PS5:Get position at time before stream creation
         System.err.println(String.format("Get positions at time before (%s, %s) creation ", scope1, streamName1));
-        getPositions  =  controller.getPositions(stream1, System.currentTimeMillis()-3600, count1);
+        getPositions  =  controller.getPositions(scope1, streamName1, System.currentTimeMillis()-3600, count1);
         if (getPositions.get().isEmpty()) {
             System.err.println("SUCCESS: Fetching positions at given time before stream creation");
         } else {
@@ -300,7 +298,7 @@ public class StreamMetadataTest {
 
         //PS6:Get positions at a time in future after stream creation
         System.err.println(String.format("Get positions at given time in future after (%s, %s) creation ", scope1, streamName1));
-        getPositions  =  controller.getPositions(stream1, System.currentTimeMillis()+3600, count1);
+        getPositions  =  controller.getPositions(scope1, streamName1, System.currentTimeMillis()+3600, count1);
         if (getPositions.get().isEmpty()) {
             System.err.println("FAILURE: Fetching positions at given time in furture after stream creation failed, exiting");
             return;

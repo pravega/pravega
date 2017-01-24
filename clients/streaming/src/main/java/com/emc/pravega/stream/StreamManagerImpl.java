@@ -66,6 +66,7 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public Stream getStream(String streamName) {
+
         return created.get(streamName);
     }
 

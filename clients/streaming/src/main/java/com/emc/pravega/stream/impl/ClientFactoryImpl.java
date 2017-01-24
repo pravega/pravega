@@ -34,7 +34,6 @@ import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
-import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
@@ -55,7 +54,6 @@ public class ClientFactoryImpl implements ClientFactory {
     private final String scope;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
-    private final StreamManager streamManager;
 
     public ClientFactoryImpl(String scope, URI controllerUri) {
         Preconditions.checkNotNull(scope);
@@ -63,7 +61,6 @@ public class ClientFactoryImpl implements ClientFactory {
         this.scope = scope;
         this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
         this.connectionFactory = new ConnectionFactoryImpl(false);
-        this.streamManager = StreamManager.withScope(scope, controllerUri);
     }
 
     @VisibleForTesting
@@ -76,14 +73,12 @@ public class ClientFactoryImpl implements ClientFactory {
         this.scope = scope;
         this.controller = controller;
         this.connectionFactory = connectionFactory;
-        this.streamManager = streamManager;
     }
 
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
-        Stream stream = streamManager.getStream(streamName);
-        EventRouter router = new EventRouter(stream, controller);
-        return new EventStreamWriterImpl<T>(stream,
+        EventRouter router = new EventRouter(scope, streamName, controller);
+        return new EventStreamWriterImpl<T>(scope, streamName,
                 controller,
                 new SegmentOutputStreamFactoryImpl(controller, connectionFactory),
                 router,

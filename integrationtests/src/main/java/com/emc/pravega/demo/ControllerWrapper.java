@@ -37,7 +37,6 @@ import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
@@ -111,11 +110,10 @@ public class ControllerWrapper implements Controller {
     }
 
     @Override
-    public CompletableFuture<ScaleResponse> scaleStream(final Stream stream,
-                                                        final List<Integer> sealedSegments,
-                                                        final Map<Double, Double> newKeyRanges) {
-        return controller.scale(stream.getScope(),
-                stream.getStreamName(),
+    public CompletableFuture<ScaleResponse> scaleStream(String scope, String stream, final List<Integer> sealedSegments,
+            final Map<Double, Double> newKeyRanges) {
+        return controller.scale(scope,
+                stream,
                 sealedSegments,
                 newKeyRanges,
                 System.currentTimeMillis());
@@ -135,39 +133,41 @@ public class ControllerWrapper implements Controller {
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> commitTransaction(Stream stream, UUID txId) {
-        return controller.commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId));
+    public CompletableFuture<TransactionStatus> commitTransaction(String scope, String stream, UUID txId) {
+        return controller.commitTransaction(scope, stream, ModelHelper.decode(txId));
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> dropTransaction(Stream stream, UUID txId) {
-        return controller.dropTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId));
+    public CompletableFuture<TransactionStatus> dropTransaction(String scope, String stream, UUID txId) {
+        return controller.dropTransaction(scope, stream, ModelHelper.decode(txId));
     }
 
     @Override
-    public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txId) {
-        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId))
+    public CompletableFuture<Transaction.Status> checkTransactionStatus(String scope, String stream, UUID txId) {
+        return controller.checkTransactionStatus(scope, stream, ModelHelper.decode(txId))
                 .thenApply(status -> ModelHelper.encode(status, stream + " " + txId));
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(Stream stream, long timeout) {
-        return controller.createTransaction(stream.getScope(), stream.getStreamName())
+    public CompletableFuture<UUID> createTransaction(String scope, String stream, long timeout) {
+        return controller.createTransaction(scope, stream)
                 .thenApply(ModelHelper::encode);
     }
 
     @Override
-    public CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count) {
-        return controller.getPositions(stream.getScope(), stream.getStreamName(), timestamp, count)
+    public CompletableFuture<List<PositionInternal>> getPositions(String scope, String stream, long timestamp,
+            int count) {
+        return controller.getPositions(scope, stream, timestamp, count)
                 .thenApply(result -> result.stream().map(ModelHelper::encode).collect(Collectors.toList()));
     }
 
     @Override
-    public CompletableFuture<List<PositionInternal>> updatePositions(Stream stream, List<PositionInternal> positions) {
+    public CompletableFuture<List<PositionInternal>> updatePositions(String scope, String stream,
+            List<PositionInternal> positions) {
         final List<com.emc.pravega.controller.stream.api.v1.Position> transformed =
                 positions.stream().map(ModelHelper::decode).collect(Collectors.toList());
 
-        return controller.updatePositions(stream.getScope(), stream.getStreamName(), transformed)
+        return controller.updatePositions(scope, stream, transformed)
                 .thenApply(result -> result.stream().map(ModelHelper::encode).collect(Collectors.toList()));
     }
 

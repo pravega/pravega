@@ -83,7 +83,7 @@ public class ScaleTest {
         map.put(0.0, 0.5);
         map.put(0.5, 1.0);
         CompletableFuture<ScaleResponse> scaleResponseFuture =
-                controller.scaleStream(stream, Collections.singletonList(0), map);
+                controller.scaleStream(scope, streamName, Collections.singletonList(0), map);
         ScaleResponse scaleResponse = scaleResponseFuture.get();
         if (scaleResponse.getStatus() != ScaleStreamStatus.SUCCESS) {
             System.err.println("Scale stream: splitting segment into two failed, exiting");
@@ -92,7 +92,11 @@ public class ScaleTest {
 
         // Test 2: scale stream: merge two segments into one
         System.err.println(String.format("Scaling stream (%s, %s), merging two segments into one", scope, streamName));
-        scaleResponseFuture = controller.scaleStream(stream, Arrays.asList(1, 2), Collections.singletonMap(0.0, 1.0));
+        scaleResponseFuture = controller.scaleStream(
+                scope,
+                streamName,
+                Arrays.asList(1, 2),
+                Collections.singletonMap(0.0, 1.0));
         scaleResponse = scaleResponseFuture.get();
         if (scaleResponse.getStatus() != ScaleStreamStatus.SUCCESS) {
             System.err.println("Scale stream: merging two segments into one failed, exiting");
@@ -100,7 +104,7 @@ public class ScaleTest {
         }
 
         // Test 3: create a transaction, and try scale operation, it should fail with precondition check failure
-        CompletableFuture<UUID> txIdFuture = controller.createTransaction(stream, 60000);
+        CompletableFuture<UUID> txIdFuture = controller.createTransaction(scope, streamName, 60000);
         UUID txId = txIdFuture.get();
         if (txId == null) {
             System.err.println("Create transaction failed, exiting");
@@ -112,14 +116,14 @@ public class ScaleTest {
                         "Scaling stream (%s, %s), splitting one segment into two, while transaction is ongoing",
                         scope,
                         streamName));
-        scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(3), map);
+        scaleResponseFuture = controller.scaleStream(scope, streamName, Collections.singletonList(3), map);
         scaleResponse = scaleResponseFuture.get();
         if (scaleResponse.getStatus() != ScaleStreamStatus.PRECONDITION_FAILED) {
             System.err.println("Scale stream while transaction is ongoing failed, exiting");
             return;
         }
 
-        CompletableFuture<TransactionStatus> statusFuture = controller.dropTransaction(stream, txId);
+        CompletableFuture<TransactionStatus> statusFuture = controller.dropTransaction(scope, streamName, txId);
         TransactionStatus status = statusFuture.get();
 
         if (status != TransactionStatus.SUCCESS) {
@@ -134,7 +138,7 @@ public class ScaleTest {
                         scope,
                         streamName));
 
-        scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(3), map);
+        scaleResponseFuture = controller.scaleStream(scope, streamName, Collections.singletonList(3), map);
         scaleResponse = scaleResponseFuture.get();
         if (scaleResponse.getStatus() != ScaleStreamStatus.SUCCESS) {
             System.err.println("Scale stream after transaction is dropped failed, exiting");

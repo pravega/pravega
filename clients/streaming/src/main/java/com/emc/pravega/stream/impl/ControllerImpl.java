@@ -43,7 +43,6 @@ import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.util.ThriftAsyncCallback;
 import com.emc.pravega.controller.util.ThriftHelper;
 import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 
@@ -99,15 +98,14 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<ScaleResponse> scaleStream(final Stream stream,
-                                                        final List<Integer> sealedSegments,
-                                                        final Map<Double, Double> newKeyRanges) {
-        log.debug("Invoke AdminService.Client.scaleStream() for stream: {}", stream);
+    public CompletableFuture<ScaleResponse> scaleStream(final String scope, final String streamName,
+            final List<Integer> sealedSegments, final Map<Double, Double> newKeyRanges) {
+        log.debug("Invoke AdminService.Client.scaleStream() for stream: {}", streamName);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.scale_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.scale(stream.getScope(),
-                    stream.getStreamName(),
+            client.scale(scope,
+                    streamName,
                     sealedSegments,
                     newKeyRanges,
                     System.currentTimeMillis(),
@@ -119,12 +117,13 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count) {
-        log.debug("Invoke ConsumerService.Client.getPositions() for stream: {}, timestamp: {}, count: {}", stream, timestamp, count);
+    public CompletableFuture<List<PositionInternal>> getPositions(final String scope, final String streamName,
+            final long timestamp, final int count) {
+        log.debug("Invoke ConsumerService.Client.getPositions() for stream: {}, timestamp: {}, count: {}", streamName, timestamp, count);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.getPositions_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.getPositions(stream.getScope(), stream.getStreamName(), timestamp, count, callback);
+            client.getPositions(scope, streamName, timestamp, count, callback);
             return null;
         });
         return callback
@@ -137,7 +136,8 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<PositionInternal>> updatePositions(final Stream stream, List<PositionInternal> positions) {
+    public CompletableFuture<List<PositionInternal>> updatePositions(final String scope, final String streamName,
+            List<PositionInternal> positions) {
         log.debug("Invoke ConsumerService.Client.updatePositions() for positions: {} ", positions);
 
         final List<com.emc.pravega.controller.stream.api.v1.Position> transformed =
@@ -145,7 +145,7 @@ public class ControllerImpl implements Controller {
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.updatePositions_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.updatePositions(stream.getScope(), stream.getStreamName(), transformed, callback);
+            client.updatePositions(scope, streamName, transformed, callback);
             return null;
         });
         return callback
@@ -158,13 +158,13 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String stream) {
+    public CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName) {
         //Use RPC client to invoke getPositions
-        log.debug("Invoke ProducerService.Client.getCurrentSegments() for stream: {}", stream);
+        log.debug("Invoke ProducerService.Client.getCurrentSegments() for stream: {}", streamName);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.getCurrentSegments_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.getCurrentSegments(scope, stream, callback);
+            client.getCurrentSegments(scope, streamName, callback);
             return callback.getResult();
         });
         return callback.getResult()
@@ -194,10 +194,11 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> isSegmentValid(final String scope, final String stream, final int segmentNumber) {
+    public CompletableFuture<Boolean> isSegmentValid(final String scope, final String streamName,
+            final int segmentNumber) {
         final ThriftAsyncCallback<ControllerService.AsyncClient.isSegmentValid_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.isSegmentValid(scope, stream, segmentNumber, callback);
+            client.isSegmentValid(scope, streamName, segmentNumber, callback);
             return callback.getResult();
         });
 
@@ -206,12 +207,13 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout) {
-        log.debug("Invoke AdminService.Client.createTransaction() with stream: {}", stream);
+    public CompletableFuture<UUID> createTransaction(final String scope, final String streamName,
+            final long timeout) {
+        log.debug("Invoke AdminService.Client.createTransaction() with stream: {}", streamName);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.createTransaction_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.createTransaction(stream.getScope(), stream.getStreamName(), callback);
+            client.createTransaction(scope, streamName, callback);
             return null;
         });
         return callback.getResult()
@@ -219,12 +221,13 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> commitTransaction(final Stream stream, final UUID txId) {
-        log.debug("Invoke AdminService.Client.commitTransaction() with stream: {}, txUd: {}", stream, txId);
+    public CompletableFuture<TransactionStatus> commitTransaction(final String scope, final String streamName,
+            final UUID txId) {
+        log.debug("Invoke AdminService.Client.commitTransaction() with stream: {}, txUd: {}", streamName, txId);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.commitTransaction_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), callback);
+            client.commitTransaction(scope, streamName, ModelHelper.decode(txId), callback);
             return null;
         });
         return callback.getResult()
@@ -232,12 +235,13 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> dropTransaction(final Stream stream, final UUID txId) {
-        log.debug("Invoke AdminService.Client.dropTransaction() with stream: {}, txUd: {}", stream, txId);
+    public CompletableFuture<TransactionStatus> dropTransaction(final String scope, final String streamName,
+            final UUID txId) {
+        log.debug("Invoke AdminService.Client.dropTransaction() with stream: {}, txUd: {}", streamName, txId);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.dropTransaction_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.dropTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), callback);
+            client.dropTransaction(scope, streamName, ModelHelper.decode(txId), callback);
             return null;
         });
         return callback.getResult()
@@ -245,19 +249,18 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId) {
-        log.debug("Invoke AdminService.Client.checkTransactionStatus() with stream: {}, txUd: {}", stream, txId);
+    public CompletableFuture<Transaction.Status> checkTransactionStatus(final String scope, final String streamName,
+            final UUID txId) {
+        log.debug("Invoke AdminService.Client.checkTransactionStatus() with stream: {}, txUd: {}", streamName, txId);
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.checkTransactionStatus_call> callback = new ThriftAsyncCallback<>();
+        final ThriftAsyncCallback<ControllerService.AsyncClient.checkTransactionStatus_call> callback =
+                new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.checkTransactionStatus(stream.getScope(),
-                                          stream.getStreamName(),
-                                          ModelHelper.decode(txId),
-                                          callback);
+            client.checkTransactionStatus(scope, streamName, ModelHelper.decode(txId), callback);
             return null;
         });
         return callback.getResult()
             .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
-            .thenApply(status -> ModelHelper.encode(status, stream + " " + txId));
+            .thenApply(status -> ModelHelper.encode(status, streamName + " " + txId));
     }
 }
