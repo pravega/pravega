@@ -19,6 +19,7 @@ package com.emc.pravega.common.util;
 
 import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.WireCommands;
+import lombok.extern.slf4j.Slf4j;
 import zipkin.Annotation;
 import zipkin.Endpoint;
 import zipkin.Span;
@@ -28,25 +29,28 @@ import zipkin.reporter.okhttp3.OkHttpSender;
 
 import java.util.UUID;
 
+@Slf4j
 public class ZipKinTracer implements AutoCloseable {
     private static ZipKinTracer tracer;
     private final AsyncReporter<Span> reporter;
 
+    private ZipKinTracer() {
+        reporter = AsyncReporter.builder(OkHttpSender.builder().
+                endpoint("http://localhost:9411/api/v1/spans").encoding(Encoding.JSON).build()).build();
+    }
+
     public static ZipKinTracer getTracer() {
-        if( tracer == null ) {
+        if ( tracer == null ) {
             tracer = new ZipKinTracer();
         }
         return tracer;
     }
 
-    protected ZipKinTracer() {
-        reporter = AsyncReporter.builder(OkHttpSender.builder().
-                endpoint("http://localhost:9411/api/v1/spans").encoding(Encoding.JSON).build()).build();
-    }
     public void traceStartAppend(Append append) {
+        log.info("Tracing append {}", append.getEventNumber());
         Span span = Span.builder().name("rpc").
                 id(0).
-                traceId(append.getEventNumber()).
+                traceId(Math.abs(append.getConnectionId().hashCode() << 32 )+ append.getEventNumber()).
                 debug(true).
                 addAnnotation(Annotation.create(System.currentTimeMillis() * 1000,
                                 "cs", Endpoint.create("producer", 1000)))
@@ -55,9 +59,10 @@ public class ZipKinTracer implements AutoCloseable {
     }
 
     public void traceAppendAcked(Append append) {
+        log.info("Tracking ack {}", append.getEventNumber());
         Span span = Span.builder().name("rpc").
                 id(0).
-                traceId(append.getEventNumber()).
+                traceId(Math.abs(append.getConnectionId().hashCode() << 32 ) + append.getEventNumber()).
                 debug(true).
                 addAnnotation(Annotation.create(System.currentTimeMillis() * 1000,
                         "cr", Endpoint.create("producer", 1000)))
@@ -71,37 +76,50 @@ public class ZipKinTracer implements AutoCloseable {
         reporter.flush();
     }
 
-    public void traceAppendReceived(Append append) {
-        Span span = Span.builder().name("rpc").
-                id(1).
-                traceId(append.getEventNumber()).
-                debug(true).
-                addAnnotation(Annotation.create(System.currentTimeMillis() * 1000,
-                        "sr", Endpoint.create("host", 1000)))
-                .build();
-        reporter.report(span);
-    }
-
-    public void traceServerAcking(long lastAcked, WireCommands.DataAppended appended) {
-        for( long traced = lastAcked +1; traced <= appended.getEventNumber(); traced++ ) {
+    public void traceAppendReceived(Long lastAcked, Append append) {
+        for ( long traced = lastAcked +1; traced <= append.getEventNumber(); traced++ ) {
+            log.info("Tracking server receive {}", traced);
             Span span = Span.builder().name("rpc").
                     id(1).
-                    traceId(traced).
+                    traceId(Math.abs(append.getConnectionId().hashCode() << 32) + traced).
                     debug(true).
-                    addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "ss",
+                    addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "sr",
                             Endpoint.create("host", 1000))).build();
             reporter.report(span);
         }
     }
 
-    public void traceDataFrameSerialize(UUID clientId, long eventNumber) {
-  /*      Span span = Span.builder().name("df").
-                id(2).
-                traceId(eventNumber).
-                debug(true).
-                addAnnotation(Annotation.create(System.currentTimeMillis() * 1000,
-                        "df", Endpoint.create("host", 1000)))
-                .build();
-        reporter.report(span);
-    */}
+    public void traceServerAcking(long lastAcked, WireCommands.DataAppended appended) {
+        for ( long traced = lastAcked +1; traced <= appended.getEventNumber(); traced++ ) {
+            log.info("Tracking server acking {}", traced);
+            Span span = Span.builder().name("dl").
+                    id(2).
+                    traceId(Math.abs(appended.getConnectionId().hashCode() << 32 ) +traced).
+                    debug(true).
+                    addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "dr",
+                            Endpoint.create("dl", 1000))).build();
+            reporter.report(span);
+            span = Span.builder().name("rpc").
+                    id(1).
+                    traceId(Math.abs(appended.getConnectionId().hashCode() << 32 ) +traced).
+                    debug(true).
+                    addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "ss",
+                            Endpoint.create("host", 1000))).build();
+            reporter.report(span);
+
+        }
+    }
+
+    public void traceDataFrameSerialize(UUID clientId, long lastStartedSeqNo, long eventNumber) {
+        for ( long traced = lastStartedSeqNo +1; traced <= eventNumber; traced++ ) {
+            log.info("Tracking data frame serialized for {}", traced);
+            Span span = Span.builder().name("dl").
+                    id(2).
+                    traceId(Math.abs(clientId.hashCode() << 32) + traced).
+                    debug(true).
+                    addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "ds", Endpoint.create("dl",
+                            1000))).build();
+            reporter.report(span);
+        }
+    }
 }

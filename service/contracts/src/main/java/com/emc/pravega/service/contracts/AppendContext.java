@@ -28,7 +28,21 @@ import java.util.UUID;
 @Data
 public class AppendContext {
     private final UUID clientId;
+    private final Long startEventNumber;
     private final long eventNumber;
+
+    /**
+     * Creates a new instance of the AppendContext class.
+     *
+     * @param clientId    The Unique Id of the client this append was received from.
+     * @param startEventNumber The starting event number in this append request
+     * @param eventNumber The client-assigned event number within the client context.
+     */
+    public AppendContext(UUID clientId, Long startEventNumber, long eventNumber) {
+        this.clientId = clientId;
+        this.startEventNumber = startEventNumber;
+        this.eventNumber = eventNumber;
+    }
 
     /**
      * Creates a new instance of the AppendContext class.
@@ -38,6 +52,7 @@ public class AppendContext {
      */
     public AppendContext(UUID clientId, long eventNumber) {
         this.clientId = clientId;
+        this.startEventNumber = (long) 0;
         this.eventNumber = eventNumber;
     }
 

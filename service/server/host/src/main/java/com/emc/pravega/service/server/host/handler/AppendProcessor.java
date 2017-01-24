@@ -133,8 +133,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * If there isn't already an append outstanding against the store, write a new one.
      * Appends are opportunistically batched here. i.e. If many are waiting they are combined into a single append and
      * that is written.
+     * @param lastEventNumber last event number extracted from the queue
      */
-    public void performNextWrite() {
+    public void performNextWrite(Long lastWrittenEventNumber) {
         Append append;
         synchronized (lock) {
             if (outstandingAppend != null || waitingAppends.isEmpty()) {
@@ -163,17 +164,18 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             }
             outstandingAppend = append;
         }
-        write(append);
+        write(lastWrittenEventNumber, append);
     }
 
     /**
      * Write the provided append to the store, and upon completion ack it back to the producer.
      */
-    private void write(Append toWrite) {
+    private void write(Long lastWrittenEventNumber, Append toWrite) {
         ByteBuf buf = Unpooled.unmodifiableBuffer(toWrite.getData());
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
-        AppendContext context = new AppendContext(toWrite.getConnectionId(), toWrite.getEventNumber());
+        AppendContext context = new AppendContext(toWrite.getConnectionId(), lastWrittenEventNumber+1,
+                toWrite.getEventNumber());
         CompletableFuture<Void> future;
         String segment = toWrite.getSegment();
         if (toWrite.isConditional()) {
@@ -212,7 +214,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         connection.send(appended);
                     }
                     pauseOrResumeReading();
-                    performNextWrite();
+                    performNextWrite(context.getEventNumber()+1);
                 } catch (Throwable e) {
                     handleException(segment, e);
                 }
@@ -277,21 +279,23 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     @Override
     public void append(Append append) {
+
+        Long lastEventNumber ;
         synchronized (lock) {
             UUID id = append.getConnectionId();
-            Long lastEventNumber = latestEventNumbers.get(id);
+            lastEventNumber = latestEventNumbers.get(id);
             if (lastEventNumber == null) {
                 throw new IllegalStateException("Data from unexpected connection: " + id);
             }
             if (append.getEventNumber() <= lastEventNumber) {
                 throw new IllegalStateException("Event was already appended.");
             }
-            ZipKinTracer.getTracer().traceAppendReceived(append);
+            ZipKinTracer.getTracer().traceAppendReceived(lastEventNumber, append);
             latestEventNumbers.put(id, append.getEventNumber());
             waitingAppends.put(id, append);
         }
         pauseOrResumeReading();
-        performNextWrite();
+        performNextWrite(lastEventNumber);
     }
 
     @Override
