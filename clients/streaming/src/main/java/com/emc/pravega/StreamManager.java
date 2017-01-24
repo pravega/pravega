@@ -33,7 +33,7 @@ import java.util.List;
 public interface StreamManager extends AutoCloseable {
 
     public static StreamManager withScope(String scope, URI controllerUri) {
-        return new StreamManagerImpl(scope, controllerUri);
+        return new StreamManagerImpl(scope, controllerUri, ClientFactory.withScope(scope, controllerUri));
     }
     
     /**

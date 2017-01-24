@@ -17,9 +17,14 @@
  */
 package com.emc.pravega.stream;
 
+import com.emc.pravega.ClientFactory;
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.state.SynchronizerConfig;
+import com.emc.pravega.stream.ScalingPolicy.Type;
 import com.emc.pravega.stream.impl.ControllerImpl;
+import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.ReaderGroupImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 
@@ -34,10 +39,12 @@ import org.apache.commons.lang.NotImplementedException;
 public class StreamManagerImpl implements StreamManager {
 
     private final String scope;
+    private final ClientFactory clientFactory;
     private final ControllerImpl controller;
 
-    public StreamManagerImpl(String scope, URI controllerUri) {
+    public StreamManagerImpl(String scope, URI controllerUri, ClientFactory clientFactory) {
         this.scope = scope;
+        this.clientFactory = clientFactory;
         this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
     }
 
@@ -55,7 +62,6 @@ public class StreamManagerImpl implements StreamManager {
         FutureHelpers.getAndHandleExceptions(controller.createStream(new StreamConfigurationImpl(scope, streamName,
                         config.getScalingPolicy())),
                 RuntimeException::new);
-
         return new StreamImpl(scope, streamName);
     }
 
@@ -71,7 +77,9 @@ public class StreamManagerImpl implements StreamManager {
     
     @Override
     public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, List<String> streams) {
-        throw new NotImplementedException();
+        createStreamHelper(groupName, new StreamConfigurationImpl(scope, groupName, new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0, 1)));
+        SynchronizerConfig synchronizerConfig = new SynchronizerConfig(null, null);
+        return new ReaderGroupImpl(scope, groupName, streams, config, synchronizerConfig , new JavaSerializer<>(),  new JavaSerializer<>(), clientFactory);
     }
     
     @Override
