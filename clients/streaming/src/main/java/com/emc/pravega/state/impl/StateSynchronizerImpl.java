@@ -100,11 +100,12 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
                     throw new IllegalStateException("UpdateState was called before the state was initialized.");
                 }
             }
+            Revision revision = state.getRevision();
             List<? extends Update<StateT>> updates = updateGenerator.apply(state);
             if (updates == null || updates.isEmpty()) {
                 break;
             }
-            Revision newRevision = client.writeConditionally(state.getRevision(), new UpdateOrInit<>(updates));
+            Revision newRevision = client.writeConditionally(revision, new UpdateOrInit<>(updates));
             if (newRevision == null) {
                 fetchUpdates();
             } else {
