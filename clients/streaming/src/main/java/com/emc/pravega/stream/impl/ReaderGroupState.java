@@ -26,7 +26,6 @@ import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
 
 import java.io.Serializable;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -90,6 +89,11 @@ class ReaderGroupState implements Revisioned {
         return assignedSegments.size();
     }
     
+    @Synchronized
+    Set<String> getOnlineReaders() {
+        return new HashSet<>(assignedSegments.keySet());
+    }
+    
     /**
      * @return The 0 indexed ranking of the requested reader in the reader group in terms of amount
      *         of keyspace assigned to it, or -1 if the reader is not part of the group.
@@ -124,12 +128,17 @@ class ReaderGroupState implements Revisioned {
         if (segments == null) {
             return null;
         }
-        return Collections.unmodifiableSet(segments);
+        return new HashSet<>(segments);
     }
     
     @Synchronized
-    public Map<Segment,Long> getUnassignedSegments() {
-        return Collections.unmodifiableMap(unassignedSegments);
+    public int getNumberOfUnassignedSegments() {
+        return unassignedSegments.size();
+    }
+    
+    @Synchronized
+    public Map<Segment, Long> getUnassignedSegments() {
+        return new HashMap<>(unassignedSegments);
     }
     
     /**
@@ -189,7 +198,7 @@ class ReaderGroupState implements Revisioned {
     @RequiredArgsConstructor
     static class RemoveReader extends ReaderGroupStateUpdate {
         private final String readerId;
-        private final PositionImpl lastPosition;
+        private final PositionInternal lastPosition;
         
         /**
          * @see com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate#update(com.emc.pravega.stream.impl.ReaderGroupState)

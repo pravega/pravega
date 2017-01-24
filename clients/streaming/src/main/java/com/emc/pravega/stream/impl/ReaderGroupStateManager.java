@@ -93,7 +93,11 @@ public class ReaderGroupStateManager {
      * Shuts down a reader, releasing all of its segments. The reader should cease all operations.
      * @param lastPosition The last position the reader successfully read from.
      */
-    void readerShutdown(PositionImpl lastPosition) {
+    void readerShutdown(PositionInternal lastPosition) {
+        readerShutdown(readerId, lastPosition, sync);
+    }
+    
+    static void readerShutdown(String readerId, PositionInternal lastPosition, StateSynchronizer<ReaderGroupState> sync) {
         sync.updateState(state -> {
             Set<Segment> segments = state.getSegments(readerId);
             if (segments == null) {
@@ -149,7 +153,7 @@ public class ReaderGroupStateManager {
             return false;
         }
         double min = sizesOfAssignemnts.values().stream().min(Double::compareTo).get();
-        return sizesOfAssignemnts.get(readerId) > min + Math.max(1, state.getUnassignedSegments().size());
+        return sizesOfAssignemnts.get(readerId) > min + Math.max(1, state.getNumberOfUnassignedSegments());
     }
 
     /**
@@ -207,7 +211,7 @@ public class ReaderGroupStateManager {
             if (aquireTimer.hasRemaining()) {
                 return false;
             }
-            if (sync.getState().getUnassignedSegments().isEmpty()) {
+            if (sync.getState().getNumberOfUnassignedSegments() == 0) {
                 return false;
             }
             aquireTimer.reset(UPDATE_TIME);
@@ -240,8 +244,8 @@ public class ReaderGroupStateManager {
     }
     
     private int caluclateNumSegmentsToAquire(ReaderGroupState state) {
-        Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
-        if (unassignedSegments.isEmpty()) {
+        int unassignedSegments = state.getNumberOfUnassignedSegments();
+        if (unassignedSegments == 0) {
             return 0;
         }
         int numSegments = state.getNumberOfSegments();
@@ -250,7 +254,7 @@ public class ReaderGroupStateManager {
         return Math.max(Math.max(
                                  1,
                                  Math.round((numSegments / (float) numReaders)) - segmentsOwned),
-                                 unassignedSegments.size() / numReaders);
+                                 unassignedSegments / numReaders);
     }
 
     private Duration calculateAquireTime(ReaderGroupState state) {
