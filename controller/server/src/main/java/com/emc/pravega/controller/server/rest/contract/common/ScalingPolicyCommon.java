@@ -20,6 +20,9 @@ package com.emc.pravega.controller.server.rest.contract.common;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+/**
+ * REST representation of scaling policy of a stream.
+ */
 @Getter
 @AllArgsConstructor
 public class ScalingPolicyCommon {

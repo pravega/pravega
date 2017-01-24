@@ -21,15 +21,20 @@ package com.emc.pravega.controller.server.rest.resources;
 import com.emc.pravega.controller.server.rest.v1.ApiV1;
 import lombok.extern.slf4j.Slf4j;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
 
 /*
-Implementation of Resource
+Implementation of Ping, which serves as a check for working REST server.
  */
 @Slf4j
 public class PingImpl implements ApiV1.Ping {
 
+    /**
+     * Implementation of Ping API.
+     * @return Response 200 OK
+     */
     @Override
     public Response ping() {
-        return Response.ok(true).status(200).build();
+        return Response.status(Status.OK).build();
     }
 }

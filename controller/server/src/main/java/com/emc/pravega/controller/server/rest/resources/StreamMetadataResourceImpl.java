@@ -35,16 +35,24 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Stream metadata resource implementation.
+ */
 @Slf4j
-public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
+public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
 
     private final ControllerService controllerService;
 
-    public StreamMetaDataResourceImpl(ControllerService controllerService) {
+    public StreamMetadataResourceImpl(ControllerService controllerService) {
         this.controllerService = controllerService;
     }
 
-
+    /**
+     * Implementation of createStream REST API.
+     * @param scope The scope of stream
+     * @param createStreamRequest The object conforming to createStream request json
+     * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing
+     */
     @Override
     public void createStream(final String scope, final CreateStreamRequest createStreamRequest,
                              final AsyncResponse asyncResponse) {
@@ -65,13 +73,20 @@ public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
                     }
                 }
         ).exceptionally(exception -> {
-            log.error("Exception occurred while executing createStream: " + exception);
+            log.debug("Exception occurred while executing createStream: " + exception);
             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
         }).thenApply(response -> asyncResponse.resume(response));
 
         LoggerHelpers.traceLeave(log, "createStream", traceId);
     }
 
+    /**
+     * Implementation of updateStreamConfig REST API.
+     * @param scope The scope of stream
+     * @param stream The name of stream
+     * @param updateStreamRequest The object conforming to updateStreamConfig request json
+     * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing
+     */
     @Override
     public void updateStreamConfig(final String scope, final String stream,
                                    final UpdateStreamRequest updateStreamRequest,
@@ -92,13 +107,19 @@ public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
                     }
                 }
         ).exceptionally(exception -> {
-            log.error("Exception occurred while executing updateStreamConfig: " + exception);
+            log.debug("Exception occurred while executing updateStreamConfig: " + exception);
             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
         }).thenApply(response -> asyncResponse.resume(response));
 
         LoggerHelpers.traceLeave(log, "updateStreamConfig", traceId);
     }
 
+    /**
+     * Implementation of getStreamConfig REST API.
+     * @param scope The scope of stream
+     * @param stream The name of stream
+     * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing
+     */
     @Override
     public void getStreamConfig(String scope, String stream, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamConfig");
@@ -112,7 +133,7 @@ public class StreamMetaDataResourceImpl implements ApiV1.StreamMetaData {
                     if (exception.getCause() instanceof DataNotFoundException || exception instanceof DataNotFoundException) {
                         return Response.status(Status.NOT_FOUND).build();
                     } else {
-                        log.error("Exception occurred while executing getStreamConfig: " + exception);
+                        log.debug("Exception occurred while executing getStreamConfig: " + exception);
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
                 }).thenApply(response -> asyncResponse.resume(response));

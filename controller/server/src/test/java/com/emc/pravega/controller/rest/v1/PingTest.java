@@ -23,9 +23,13 @@ import org.glassfish.jersey.test.JerseyTest;
 import org.junit.Test;
 
 import javax.ws.rs.core.Application;
+import javax.ws.rs.core.Response;
 
 import static org.junit.Assert.assertEquals;
 
+/**
+ * Test for ping API.
+ */
 public class PingTest extends JerseyTest {
 
     @Override
@@ -35,7 +39,7 @@ public class PingTest extends JerseyTest {
 
     @Test
     public void test() {
-        final String hello = target("/ping").request().get(String.class);
-        assertEquals("true", hello);
+        final Response hello = target("/ping").request().get(Response.class);
+        assertEquals(200, hello.getStatus());
     }
 }

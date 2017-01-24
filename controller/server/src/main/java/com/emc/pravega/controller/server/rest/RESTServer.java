@@ -19,7 +19,7 @@
 package com.emc.pravega.controller.server.rest;
 
 import com.emc.pravega.controller.server.rest.resources.PingImpl;
-import com.emc.pravega.controller.server.rest.resources.StreamMetaDataResourceImpl;
+import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
@@ -47,7 +47,7 @@ public class RESTServer {
 
         final Set<Object> resourceObjs = new HashSet<Object>();
         resourceObjs.add(new PingImpl());
-        resourceObjs.add(new StreamMetaDataResourceImpl(controllerService));
+        resourceObjs.add(new StreamMetadataResourceImpl(controllerService));
 
         final ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
         final ResourceConfig resourceConfig = ResourceConfig.forApplication(controllerApplication);

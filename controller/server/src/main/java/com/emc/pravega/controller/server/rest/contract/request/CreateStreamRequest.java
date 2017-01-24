@@ -23,6 +23,9 @@ import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommo
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+/**
+ * Conforms to createStream REST API request object.
+ */
 @Getter
 @AllArgsConstructor
 public class CreateStreamRequest {

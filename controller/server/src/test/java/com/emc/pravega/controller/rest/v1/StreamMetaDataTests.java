@@ -23,7 +23,7 @@ import com.emc.pravega.controller.server.rest.contract.request.CreateStreamReque
 import com.emc.pravega.controller.server.rest.contract.request.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.contract.response.StreamProperty;
 import com.emc.pravega.controller.server.rest.contract.response.StreamResponse;
-import com.emc.pravega.controller.server.rest.resources.StreamMetaDataResourceImpl;
+import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -53,12 +53,14 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * Tests for Stream metadata REST APIs.
+ */
 public class StreamMetaDataTests extends JerseyTest {
-
 
     ControllerService mockControllerService;
     StreamMetadataStore mockStreamStore;
-    StreamMetaDataResourceImpl streamMetaDataResource;
+    StreamMetadataResourceImpl streamMetadataResource;
     Future<Response> response;
     StreamResponse streamResponseActual;
 
@@ -68,7 +70,6 @@ public class StreamMetaDataTests extends JerseyTest {
     private final String resourceURI = "v1/scopes/" + scope1 + "/streams/" + stream1;
     private final String resourceURI2 = "v1/scopes/" + scope1 + "/streams/" + stream2;
     private final String streamResourceURI = "v1/scopes/" + scope1 + "/streams";
-
     private final ScalingPolicyCommon scalingPolicyCommon = new ScalingPolicyCommon(
             ScalingPolicyCommon.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
     private final RetentionPolicyCommon retentionPolicyCommon = new RetentionPolicyCommon(123L);
@@ -76,9 +77,6 @@ public class StreamMetaDataTests extends JerseyTest {
             new StreamProperty(scope1, stream1, scalingPolicyCommon, retentionPolicyCommon));
     private final StreamConfiguration streamConfiguration = new StreamConfigurationImpl(scope1, stream1,
             new ScalingPolicy(FIXED_NUM_SEGMENTS, 100L, 2, 2), new RetentionPolicy(123L));
-
-    private final StreamConfiguration streamConfiguration2 = new StreamConfigurationImpl(null, null,
-            null, null);
 
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest(
             stream1, scalingPolicyCommon, retentionPolicyCommon);
@@ -89,27 +87,27 @@ public class StreamMetaDataTests extends JerseyTest {
 
     private final CompletableFuture<StreamConfiguration> streamConfigFuture = CompletableFuture.supplyAsync(
             () -> streamConfiguration);
-    private final CompletableFuture<StreamConfiguration> streamConfigFuture2 = CompletableFuture.supplyAsync(
-            () -> streamConfiguration2);
-
     private final CompletableFuture<CreateStreamStatus> createStreamStatus = CompletableFuture.supplyAsync(
             () -> CreateStreamStatus.SUCCESS);
     private final CompletableFuture<CreateStreamStatus> createStreamStatus2 = CompletableFuture.supplyAsync(
             () -> CreateStreamStatus.STREAM_EXISTS);
-
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus = CompletableFuture.supplyAsync(
             () -> UpdateStreamStatus.SUCCESS);
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus2 = CompletableFuture.supplyAsync(
             () -> UpdateStreamStatus.STREAM_NOT_FOUND);
 
+    /**
+     * Configure resource class.
+     * @return JAX-RS application
+     */
     @Override
     protected Application configure() {
         mockControllerService = mock(ControllerService.class);
         mockStreamStore = mock(StreamMetadataStore.class);
-        streamMetaDataResource = new StreamMetaDataResourceImpl(mockControllerService);
+        streamMetadataResource = new StreamMetadataResourceImpl(mockControllerService);
 
         return new ResourceConfig()
-                .register(streamMetaDataResource)
+                .register(streamMetadataResource)
                 .register(new AbstractBinder() {
                     @Override
                     protected void configure() {
@@ -118,9 +116,13 @@ public class StreamMetaDataTests extends JerseyTest {
                 });
     }
 
+    /**
+     * Test for createStream REST API.
+     * @throws ExecutionException
+     * @throws InterruptedException
+     */
     @Test
     public void testCreateStream() throws ExecutionException, InterruptedException {
-
         // Test to create a stream which doesn't exist
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
         response = target(streamResourceURI).request().async().post(Entity.json(createStreamRequest));
@@ -134,9 +136,13 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("Create Stream Status", 409, response.get().getStatus());
     }
 
+    /**
+     * Test for updateStreamConfig REST API
+     * @throws ExecutionException
+     * @throws InterruptedException
+     */
     @Test
     public void testUpdateStream() throws ExecutionException, InterruptedException {
-
         // Test to update an existing stream
         when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus);
         response = target(resourceURI).request().async().put(Entity.json(updateStreamRequest));
@@ -150,6 +156,11 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("Update Stream Status", 404, response.get().getStatus());
     }
 
+    /**
+     * Test for getStreamConfig REST API
+     * @throws ExecutionException
+     * @throws InterruptedException
+     */
     @Test
     public void testGetStreamConfig() throws ExecutionException, InterruptedException {
         when(mockControllerService.getStreamStore()).thenReturn(mockStreamStore);

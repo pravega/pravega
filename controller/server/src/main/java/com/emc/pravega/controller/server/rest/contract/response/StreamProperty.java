@@ -25,6 +25,9 @@ import lombok.Setter;
 
 import java.io.Serializable;
 
+/**
+ * REST representation of properties of a stream.
+ */
 @AllArgsConstructor
 @Getter
 @Setter
