@@ -8,7 +8,6 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.stream.mock.MockSegmentStreamFactory;
-import com.emc.pravega.stream.mock.MockStreamManager;
 import com.google.common.collect.Sets;
 
 import java.util.HashMap;
@@ -32,11 +31,9 @@ public class ReaderGroupStateManagerTest {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
-        MockStreamManager streamManager = new MockStreamManager(scope, controller);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         ClientFactory clientFactory = new ClientFactoryImpl(scope,
                 controller,
-                streamManager,
                 streamFactory,
                 streamFactory);
 
@@ -66,11 +63,9 @@ public class ReaderGroupStateManagerTest {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
-        MockStreamManager streamManager = new MockStreamManager(scope, controller);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         ClientFactory clientFactory = new ClientFactoryImpl(scope,
                 controller,
-                streamManager,
                 streamFactory,
                 streamFactory);
 
@@ -144,14 +139,11 @@ public class ReaderGroupStateManagerTest {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
-        MockStreamManager streamManager = new MockStreamManager(scope, controller);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         ClientFactory clientFactory = new ClientFactoryImpl(scope,
                 controller,
-                streamManager,
                 streamFactory,
                 streamFactory);
-
         SynchronizerConfig config = new SynchronizerConfig(null, null);
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),

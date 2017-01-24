@@ -31,7 +31,7 @@ public class RevisionedStreamClientTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockStreamManager streamManager = new MockStreamManager(scope, controller);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamManager, streamFactory, streamFactory);
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamFactory, streamFactory);
         
         SynchronizerConfig config = new SynchronizerConfig(null, null);
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
@@ -69,7 +69,7 @@ public class RevisionedStreamClientTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockStreamManager streamManager = new MockStreamManager(scope, controller);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamManager, streamFactory, streamFactory);
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamFactory, streamFactory);
         
         SynchronizerConfig config = new SynchronizerConfig(null, null);
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);

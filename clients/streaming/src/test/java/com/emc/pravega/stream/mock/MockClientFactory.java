@@ -52,12 +52,12 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
         connectionFactory = new ConnectionFactoryImpl(false);
         MockController controller = new MockController(endpoint, port, connectionFactory);
         streamManager = new MockStreamManager(scope, controller);
-        impl = new ClientFactoryImpl(scope, controller, connectionFactory, streamManager);
+        impl = new ClientFactoryImpl(scope, controller, connectionFactory);
     }
 
     public MockClientFactory(String scope, Controller controller) {
         connectionFactory = new ConnectionFactoryImpl(false);
-        impl = new ClientFactoryImpl(scope, controller, connectionFactory, new MockStreamManager(scope, controller));
+        impl = new ClientFactoryImpl(scope, controller, connectionFactory);
     }
 
     @Override

@@ -15,7 +15,6 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.ClientFactory;
-import com.emc.pravega.StreamManager;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.RevisionedStreamClient;
@@ -71,18 +70,16 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     @VisibleForTesting
-    public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
-            StreamManager streamManager) {
-        this(scope, controller, streamManager, new SegmentInputStreamFactoryImpl(controller, connectionFactory),
+    public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
+        this(scope, controller, new SegmentInputStreamFactoryImpl(controller, connectionFactory),
                 new SegmentOutputStreamFactoryImpl(controller, connectionFactory));
     }
     
     @VisibleForTesting
-    public ClientFactoryImpl(String scope, Controller controller, StreamManager streamManager,
-            SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory) {
+    public ClientFactoryImpl(String scope, Controller controller, SegmentInputStreamFactory inFactory,
+            SegmentOutputStreamFactory outFactory) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controller);
-        Preconditions.checkNotNull(streamManager);
         Preconditions.checkNotNull(inFactory);
         Preconditions.checkNotNull(outFactory);
         this.scope = scope;
