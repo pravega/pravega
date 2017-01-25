@@ -33,6 +33,7 @@ public class ControllerApplication extends Application {
 
     /**
      * Get a set of root resources.
+     *
      * @return a set of root resource instances.
      */
     @Override

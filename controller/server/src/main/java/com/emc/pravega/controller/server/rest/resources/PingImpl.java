@@ -31,6 +31,7 @@ public class PingImpl implements ApiV1.Ping {
 
     /**
      * Implementation of Ping API.
+     *
      * @return Response 200 OK
      */
     @Override

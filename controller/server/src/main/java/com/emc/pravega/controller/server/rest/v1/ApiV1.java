@@ -53,9 +53,10 @@ public final class ApiV1 {
 
         /**
          * REST API to create a stream.
-         * @param scope The scope of stream
+         *
+         * @param scope               The scope of stream
          * @param createStreamRequest The object conforming to createStream request json
-         * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing
+         * @param asyncResponse       AsyncResponse provides means for asynchronous server side response processing
          */
         @POST
         @Path("/scopes/{scope}/streams")
@@ -66,10 +67,11 @@ public final class ApiV1 {
 
         /**
          * REST API to update stream configuration.
-         * @param scope The scope of stream
-         * @param stream The name of stream
+         *
+         * @param scope               The scope of stream
+         * @param stream              The name of stream
          * @param updateStreamRequest The object conforming to updateStreamConfig request json
-         * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing
+         * @param asyncResponse       AsyncResponse provides means for asynchronous server side response processing
          */
         @PUT
         @Path("/scopes/{scope}/streams/{stream}")
@@ -81,8 +83,9 @@ public final class ApiV1 {
 
         /**
          * REST API to get configuration of a stream.
-         * @param scope The scope of stream
-         * @param stream The name of stream
+         *
+         * @param scope         The scope of stream
+         * @param stream        The name of stream
          * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing
          */
         @GET

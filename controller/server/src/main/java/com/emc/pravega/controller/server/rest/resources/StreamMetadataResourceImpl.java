@@ -49,9 +49,10 @@ public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
 
     /**
      * Implementation of createStream REST API.
-     * @param scope The scope of stream
+     *
+     * @param scope               The scope of stream
      * @param createStreamRequest The object conforming to createStream request json
-     * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing
+     * @param asyncResponse       AsyncResponse provides means for asynchronous server side response processing
      */
     @Override
     public void createStream(final String scope, final CreateStreamRequest createStreamRequest,
@@ -82,10 +83,11 @@ public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
 
     /**
      * Implementation of updateStreamConfig REST API.
-     * @param scope The scope of stream
-     * @param stream The name of stream
+     *
+     * @param scope               The scope of stream
+     * @param stream              The name of stream
      * @param updateStreamRequest The object conforming to updateStreamConfig request json
-     * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing
+     * @param asyncResponse       AsyncResponse provides means for asynchronous server side response processing
      */
     @Override
     public void updateStreamConfig(final String scope, final String stream,
@@ -116,8 +118,9 @@ public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
 
     /**
      * Implementation of getStreamConfig REST API.
-     * @param scope The scope of stream
-     * @param stream The name of stream
+     *
+     * @param scope         The scope of stream
+     * @param stream        The name of stream
      * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing
      */
     @Override
