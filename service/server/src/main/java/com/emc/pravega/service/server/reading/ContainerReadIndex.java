@@ -25,6 +25,7 @@ import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.ReadOnlyStorage;
 import com.google.common.base.Preconditions;
 import java.io.InputStream;
@@ -81,15 +82,15 @@ public class ContainerReadIndex implements ReadIndex {
      *
      * @param config       Configuration for the ReadIndex.
      * @param metadata     The ContainerMetadata to attach to.
-     * @param cache        The cache to store data into.
+     * @param cachefactory A CacheFactory that can be used to store data into.
      * @param storage      Storage to read data not in the ReadIndex from.
      * @param cacheManager The CacheManager to use for cache lifecycle management.
      * @param executor     An Executor to run async callbacks on.
      */
-    public ContainerReadIndex(ReadIndexConfig config, ContainerMetadata metadata, Cache cache, ReadOnlyStorage storage, CacheManager cacheManager, ScheduledExecutorService executor) {
+    public ContainerReadIndex(ReadIndexConfig config, ContainerMetadata metadata, CacheFactory cachefactory, ReadOnlyStorage storage, CacheManager cacheManager, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
-        Preconditions.checkNotNull(cache, "cache");
+        Preconditions.checkNotNull(cachefactory, "cacheFactory");
         Preconditions.checkNotNull(storage, "storage");
         Preconditions.checkNotNull(cacheManager, "cacheManager");
         Preconditions.checkNotNull(executor, "executor");
@@ -98,7 +99,7 @@ public class ContainerReadIndex implements ReadIndex {
         this.traceObjectId = String.format("ReadIndex[%s]", metadata.getContainerId());
         this.readIndices = new HashMap<>();
         this.config = config;
-        this.cache = cache;
+        this.cache = cachefactory.getCache(String.format("Container_%d", metadata.getContainerId()));
         this.metadata = metadata;
         this.storage = storage;
         this.cacheManager = cacheManager;
@@ -115,6 +116,7 @@ public class ContainerReadIndex implements ReadIndex {
     public void close() {
         if (!this.closed.getAndSet(true)) {
             closeAllIndices();
+            this.cache.close();
             log.info("{}: Closed.", this.traceObjectId);
         }
     }
@@ -154,7 +156,9 @@ public class ContainerReadIndex implements ReadIndex {
 
         StreamSegmentReadIndex targetIndex = getReadIndex(targetStreamSegmentId, true);
         targetIndex.completeMerge(sourceStreamSegmentId);
-        closeIndex(sourceStreamSegmentId);
+        synchronized (this.lock) {
+            closeIndex(sourceStreamSegmentId);
+        }
     }
 
     @Override
@@ -331,16 +335,15 @@ public class ContainerReadIndex implements ReadIndex {
         return index;
     }
 
+    @GuardedBy("lock")
     private boolean closeIndex(long streamSegmentId) {
-        synchronized (this.lock) {
-            StreamSegmentReadIndex index = this.readIndices.remove(streamSegmentId);
-            if (index != null) {
-                this.cacheManager.unregister(index);
-                index.close();
-            }
-
-            return index != null;
+        StreamSegmentReadIndex index = this.readIndices.remove(streamSegmentId);
+        if (index != null) {
+            this.cacheManager.unregister(index);
+            index.close();
         }
+
+        return index != null;
     }
 
     private void closeAllIndices() {

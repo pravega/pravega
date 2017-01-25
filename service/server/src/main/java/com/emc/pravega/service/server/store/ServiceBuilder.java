@@ -260,18 +260,18 @@ public final class ServiceBuilder implements AutoCloseable {
 
     private ReadIndexFactory createReadIndexFactory() {
         StorageFactory storageFactory = getSingleton(this.storageFactory, this.storageFactoryCreator);
+        CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         ReadIndexConfig readIndexConfig = this.serviceBuilderConfig.getConfig(ReadIndexConfig::new);
-        return new ContainerReadIndexFactory(readIndexConfig, storageFactory, this.executorService);
+        return new ContainerReadIndexFactory(readIndexConfig, cacheFactory, storageFactory, this.executorService);
     }
 
     private SegmentContainerFactory createSegmentContainerFactory() {
         ReadIndexFactory readIndexFactory = getSingleton(this.readIndexFactory, this::createReadIndexFactory);
         StorageFactory storageFactory = getSingleton(this.storageFactory, this.storageFactoryCreator);
         OperationLogFactory operationLogFactory = getSingleton(this.operationLogFactory, this::createOperationLogFactory);
-        CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         WriterFactory writerFactory = getSingleton(this.writerFactory, this::createWriterFactory);
         ContainerConfig containerConfig = this.serviceBuilderConfig.getConfig(ContainerConfig::new);
-        return new StreamSegmentContainerFactory(containerConfig, operationLogFactory, readIndexFactory, writerFactory, storageFactory, cacheFactory, this.executorService);
+        return new StreamSegmentContainerFactory(containerConfig, operationLogFactory, readIndexFactory, writerFactory, storageFactory, this.executorService);
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {

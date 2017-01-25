@@ -38,12 +38,12 @@ import com.emc.pravega.service.server.logs.operations.OperationComparer;
 import com.emc.pravega.service.server.logs.operations.OperationFactory;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
-import com.emc.pravega.service.server.mocks.InMemoryCache;
+import com.emc.pravega.service.server.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.server.reading.CacheManager;
 import com.emc.pravega.service.server.reading.ContainerReadIndex;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.LogAddress;
@@ -332,7 +332,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Create a different state updater and Memory log - and use these throughout this test.
         CorruptedMemoryOperationLog corruptedMemoryLog = new CorruptedMemoryOperationLog(failAtOperationIndex);
-        MemoryStateUpdater stateUpdater = new MemoryStateUpdater(corruptedMemoryLog, new CacheUpdater(context.cache, context.readIndex));
+        MemoryStateUpdater stateUpdater = new MemoryStateUpdater(corruptedMemoryLog, context.readIndex);
 
         // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
@@ -482,29 +482,28 @@ public class OperationProcessorTests extends OperationLogTestBase {
         final CacheManager cacheManager;
         final Storage storage;
         final SequencedItemList<Operation> memoryLog;
-        final Cache cache;
+        final CacheFactory cacheFactory;
         final UpdateableContainerMetadata metadata;
         final ReadIndex readIndex;
         final MemoryStateUpdater stateUpdater;
 
         TestContext() {
-            this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
+            this.cacheFactory = new InMemoryCacheFactory();
             this.storage = new InMemoryStorage(executorService());
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             ReadIndexConfig readIndexConfig = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
                     PropertyBag.create().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024));
-
             this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), executorService());
-            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, executorService());
+            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cacheFactory, this.storage, this.cacheManager, executorService());
             this.memoryLog = new SequencedItemList<>();
-            this.stateUpdater = new MemoryStateUpdater(this.memoryLog, new CacheUpdater(this.cache, this.readIndex));
+            this.stateUpdater = new MemoryStateUpdater(this.memoryLog, this.readIndex);
         }
 
         @Override
         public void close() {
             this.readIndex.close();
             this.storage.close();
-            this.cache.close();
+            this.cacheFactory.close();
             this.cacheManager.close();
         }
     }

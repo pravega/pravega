@@ -831,10 +831,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
             this.cacheFactory = new InMemoryCacheFactory();
-            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.storageFactory, executorService());
+            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheFactory, this.storageFactory, executorService());
             this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, this.storageFactory, executorService());
             StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(DEFAULT_CONFIG, this.operationLogFactory,
-                    this.readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, executorService());
+                    this.readIndexFactory, this.writerFactory, this.storageFactory, executorService());
             this.container = factory.createStreamSegmentContainer(CONTAINER_ID);
             this.storage = (InMemoryStorage) this.storageFactory.getStorageAdapter();
         }

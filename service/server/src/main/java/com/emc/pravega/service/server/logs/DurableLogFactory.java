@@ -20,10 +20,10 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.OperationLogFactory;
+import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.google.common.base.Preconditions;
-
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -51,7 +51,7 @@ public class DurableLogFactory implements OperationLogFactory {
     }
 
     @Override
-    public OperationLog createDurableLog(UpdateableContainerMetadata containerMetadata, CacheUpdater cacheUpdater) {
-        return new DurableLog(config, containerMetadata, this.dataLogFactory, cacheUpdater, this.executor);
+    public OperationLog createDurableLog(UpdateableContainerMetadata containerMetadata, ReadIndex readIndex) {
+        return new DurableLog(config, containerMetadata, this.dataLogFactory, readIndex, this.executor);
     }
 }

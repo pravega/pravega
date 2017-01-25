@@ -38,18 +38,14 @@ import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.Writer;
 import com.emc.pravega.service.server.WriterFactory;
-import com.emc.pravega.service.server.logs.CacheUpdater;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
-import com.emc.pravega.service.storage.Cache;
-import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-
 import java.time.Duration;
 import java.util.Date;
 import java.util.Map;
@@ -61,7 +57,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -76,7 +71,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final UpdateableContainerMetadata metadata;
     private final OperationLog durableLog;
     private final ReadIndex readIndex;
-    private final Cache cache;
     private final Writer writer;
     private final Storage storage;
     private final PendingAppendsCollection pendingAppendsCollection;
@@ -98,27 +92,24 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * @param readIndexFactory         The ReadIndexFactory to use to create Read Indices.
      * @param writerFactory            The WriterFactory to use to create Writers.
      * @param storageFactory           The StorageFactory to use to create Storage Adapters.
-     * @param cacheFactory             The CacheFactory to use to create Caches.
      * @param executor                 An Executor that can be used to run async tasks.
      */
     StreamSegmentContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory,
-                           WriterFactory writerFactory, StorageFactory storageFactory, CacheFactory cacheFactory, ScheduledExecutorService executor) {
+                           WriterFactory writerFactory, StorageFactory storageFactory, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(durableLogFactory, "durableLogFactory");
         Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
         Preconditions.checkNotNull(writerFactory, "writerFactory");
         Preconditions.checkNotNull(storageFactory, "storageFactory");
-        Preconditions.checkNotNull(cacheFactory, "cacheFactory");
         Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
         this.config = config;
         this.storage = storageFactory.getStorageAdapter();
         this.metadata = new StreamSegmentContainerMetadata(streamSegmentContainerId);
-        this.cache = cacheFactory.getCache(String.format("Container_%d", streamSegmentContainerId));
-        this.readIndex = readIndexFactory.createReadIndex(this.metadata, this.cache);
+        this.readIndex = readIndexFactory.createReadIndex(this.metadata);
         this.executor = executor;
-        this.durableLog = durableLogFactory.createDurableLog(this.metadata, new CacheUpdater(this.cache, this.readIndex));
+        this.durableLog = durableLogFactory.createDurableLog(this.metadata, this.readIndex);
         this.durableLog.addListener(new ServiceShutdownListener(createComponentStoppedHandler("DurableLog"), createComponentFailedHandler("DurableLog")), this.executor);
         this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex);
         this.writer.addListener(new ServiceShutdownListener(createComponentStoppedHandler("Writer"), createComponentFailedHandler("Writer")), this.executor);
@@ -140,7 +131,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             this.writer.close();
             this.durableLog.close();
             this.readIndex.close();
-            this.cache.close();
             log.info("{}: Closed.", this.traceObjectId);
             this.closed = true;
         }
