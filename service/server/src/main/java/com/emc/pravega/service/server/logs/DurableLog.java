@@ -52,12 +52,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * Represents an OperationLog that durably stores Log Operations it receives.
  */
 @Slf4j
+@ThreadSafe
 public class DurableLog extends AbstractService implements OperationLog {
     //region Members
 
@@ -70,6 +73,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     private final MemoryStateUpdater memoryStateUpdater;
     private final OperationProcessor operationProcessor;
     private final UpdateableContainerMetadata metadata;
+    @GuardedBy("tailReads")
     private final Set<TailRead> tailReads;
     private final ScheduledExecutorService executor;
     private final AtomicReference<Throwable> stopException = new AtomicReference<>();

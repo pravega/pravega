@@ -18,18 +18,17 @@
 
 package com.emc.pravega.service.selftest;
 
-import com.emc.pravega.common.AutoStopwatch;
-
+import com.emc.pravega.common.Timer;
 import java.time.Duration;
 
 /**
  * Logging for Self tester
  */
 class TestLogger {
-    private static final AutoStopwatch TIME = new AutoStopwatch();
+    private static final Timer TIME = new Timer();
 
     static void log(String component, String messageFormat, Object... args) {
-        String header = String.format("%s [%s]: ", formatTime(TIME.elapsed()), component);
+        String header = String.format("%s [%s]: ", formatTime(TIME.getElapsed()), component);
         String message = String.format(messageFormat, args);
         System.out.println(header + message);
     }

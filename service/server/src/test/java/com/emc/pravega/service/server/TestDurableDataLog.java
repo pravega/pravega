@@ -25,8 +25,6 @@ import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
-import lombok.Cleanup;
-
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -34,6 +32,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
+import lombok.Cleanup;
 
 /**
  * Test DurableDataLog. Wraps around an existing DurableDataLog, and allows controlling behavior for each method, such
@@ -85,16 +84,14 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<Boolean> truncate(LogAddress upToAddress, Duration timeout) {
+    public CompletableFuture<Void> truncate(LogAddress upToAddress, Duration timeout) {
         Consumer<LogAddress> truncateCallback = this.truncateCallback;
         return this.wrappedLog
                 .truncate(upToAddress, timeout)
-                .thenApply(result -> {
-                    if (result && truncateCallback != null) {
+                .thenRun(() -> {
+                    if (truncateCallback != null) {
                         truncateCallback.accept(upToAddress);
                     }
-
-                    return result;
                 });
     }
 

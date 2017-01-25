@@ -30,6 +30,7 @@ import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
+import com.emc.pravega.service.server.containers.StreamSegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
@@ -698,21 +699,37 @@ public class OperationMetadataUpdaterTests {
 
         UpdateableContainerMetadata metadata = createMetadata();
         OperationMetadataUpdater updater = createUpdater(metadata);
+        long expectedLastSeqNoParent = -1;
+        long expectedLastSeqNoTransaction = -1;
+        long seqNo = 0;
         for (StorageOperation op : operations) {
             updater.preProcessOperation(op);
+            op.setSequenceNumber(++seqNo);
             updater.acceptOperation(op);
+            if (op.getStreamSegmentId() == SEGMENT_ID) {
+                expectedLastSeqNoParent = op.getSequenceNumber();
+            }
+
+            if (op instanceof MergeTransactionOperation) {
+                expectedLastSeqNoParent = op.getSequenceNumber();
+                expectedLastSeqNoTransaction = op.getSequenceNumber();
+            }
         }
 
         updater.commit();
         Assert.assertEquals("commit() seems to have modified the metadata sequence number while not in recovery mode.", ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER, metadata.nextOperationSequenceNumber() - 1);
 
         long expectedLength = SEGMENT_LENGTH + appendCount * DEFAULT_APPEND_DATA.length + SEALED_TRANSACTION_LENGTH;
+
         SegmentMetadata parentMetadata = metadata.getStreamSegmentMetadata(SEGMENT_ID);
         Assert.assertEquals("Unexpected DurableLogLength in metadata after commit.", expectedLength, parentMetadata.getDurableLogLength());
         Assert.assertTrue("Unexpected value for isSealed in metadata after commit.", parentMetadata.isSealed());
+        checkLastKnownSequenceNumber("Unexpected lastSeqNo for Parent after commit.", expectedLastSeqNoParent, parentMetadata);
+
         SegmentMetadata transactionMetadata = metadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID);
         Assert.assertTrue("Unexpected value for isSealed in Transaction metadata after commit.", transactionMetadata.isSealed());
-        Assert.assertTrue("Unexpected value for isMerged in metadata after commit.", transactionMetadata.isMerged());
+        Assert.assertTrue("Unexpected value for isMerged in Transaction metadata after commit.", transactionMetadata.isMerged());
+        checkLastKnownSequenceNumber("Unexpected lastSeqNo for Transaction after commit.", expectedLastSeqNoTransaction, transactionMetadata);
     }
 
     /**
@@ -761,8 +778,10 @@ public class OperationMetadataUpdaterTests {
         operations.add(createMerge());
         operations.add(createSeal());
 
+        long seqNo = 0;
         for (StorageOperation op : operations) {
             updater.preProcessOperation(op);
+            op.setSequenceNumber(++seqNo);
             updater.acceptOperation(op);
         }
 
@@ -774,8 +793,11 @@ public class OperationMetadataUpdaterTests {
         SegmentMetadata parentMetadata = metadata.getStreamSegmentMetadata(SEGMENT_ID);
         Assert.assertEquals("Unexpected DurableLogLength in metadata after rollback.", expectedLength, parentMetadata.getDurableLogLength());
         Assert.assertFalse("Unexpected value for isSealed in metadata after rollback.", parentMetadata.isSealed());
+        checkLastKnownSequenceNumber("Unexpected lastSeqNo for Parent after rollback.", 0, parentMetadata);
+
         SegmentMetadata transactionMetadata = metadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID);
-        Assert.assertFalse("Unexpected value for isMerged in metadata after rollback.", transactionMetadata.isMerged());
+        Assert.assertFalse("Unexpected value for isMerged in transaction metadata after rollback.", transactionMetadata.isMerged());
+        checkLastKnownSequenceNumber("Unexpected lastSeqNo for Transaction after rollback.", 0, transactionMetadata);
 
         // Now the updater
         parentMetadata = updater.getStreamSegmentMetadata(SEGMENT_ID);
@@ -931,6 +953,11 @@ public class OperationMetadataUpdaterTests {
         Assert.assertEquals(idPrefix + " isMerged() mismatch.", expected.isMerged(), actual.isMerged());
 
         // getLastModified is not tested (yet). Unsure as of this moment if it is required for testing or not.
+    }
+
+    private void checkLastKnownSequenceNumber(String message, long expectedSequenceNumber, SegmentMetadata metadata) {
+        Assert.assertTrue("Unexpected type of metadata.", metadata instanceof StreamSegmentMetadata);
+        Assert.assertEquals(message, expectedSequenceNumber, ((StreamSegmentMetadata) metadata).getLastKnownSequenceNumber());
     }
 
     //endregion

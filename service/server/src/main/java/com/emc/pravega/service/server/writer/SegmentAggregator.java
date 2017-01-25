@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.common.AutoStopwatch;
+import com.emc.pravega.common.AbstractTimer;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
@@ -71,7 +71,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private final UpdateableSegmentMetadata metadata;
     private final WriterConfig config;
     private final OperationQueue operations;
-    private final AutoStopwatch stopwatch;
+    private final AbstractTimer timer;
     private final String traceObjectId;
     private final Storage storage;
     private final WriterDataSource dataSource;
@@ -93,14 +93,14 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @param dataSource      The WriterDataSource to use.
      * @param storage         The Storage to use (for flushing).
      * @param config          The Configuration to use.
-     * @param stopwatch       A Stopwatch to use to determine elapsed time.
+     * @param timer           A Timer to use to determine elapsed time.
      */
-    SegmentAggregator(UpdateableSegmentMetadata segmentMetadata, WriterDataSource dataSource, Storage storage, WriterConfig config, AutoStopwatch stopwatch) {
+    SegmentAggregator(UpdateableSegmentMetadata segmentMetadata, WriterDataSource dataSource, Storage storage, WriterConfig config, AbstractTimer timer) {
         Preconditions.checkNotNull(segmentMetadata, "segmentMetadata");
         Preconditions.checkNotNull(dataSource, "dataSource");
         Preconditions.checkNotNull(storage, "storage");
         Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(stopwatch, "stopwatch");
+        Preconditions.checkNotNull(timer, "timer");
 
         this.metadata = segmentMetadata;
         Preconditions.checkArgument(this.metadata.getContainerId() == dataSource.getId(), "SegmentMetadata.ContainerId is different from WriterDataSource.Id");
@@ -109,8 +109,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         this.config = config;
         this.storage = storage;
         this.dataSource = dataSource;
-        this.stopwatch = stopwatch;
-        this.lastFlush = new AtomicReference<>(stopwatch.elapsed());
+        this.timer = timer;
+        this.lastFlush = new AtomicReference<>(timer.getElapsed());
         this.lastAddedOffset = new AtomicLong(-1); // Will be set properly in initialize().
         this.mergeTransactionCount = new AtomicInteger();
         this.hasSealPending = new AtomicBoolean();
@@ -163,7 +163,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * made yet, this returns the amount of time since the creation of this SegmentAggregator object.
      */
     Duration getElapsedSinceLastFlush() {
-        return this.stopwatch.elapsed().minus(this.lastFlush.get());
+        return this.timer.getElapsed().minus(this.lastFlush.get());
     }
 
     /**
@@ -736,7 +736,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     updateMetadata(segmentProperties);
                     updateMetadataForTransactionPostMerger(transactionMetadata);
 
-                    this.lastFlush.set(this.stopwatch.elapsed());
+                    this.lastFlush.set(this.timer.getElapsed());
                     result.withMergedBytes(mergedLength.get());
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "mergeWith", traceId, result);
                     return result;
@@ -1121,7 +1121,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         // Update the last flush checkpoint.
-        this.lastFlush.set(this.stopwatch.elapsed());
+        this.lastFlush.set(this.timer.getElapsed());
         return new FlushResult().withFlushedBytes(flushArgs.getLength());
     }
 

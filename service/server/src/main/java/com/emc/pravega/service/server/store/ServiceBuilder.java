@@ -27,6 +27,7 @@ import com.emc.pravega.service.server.SegmentContainerFactory;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
 import com.emc.pravega.service.server.WriterFactory;
+import com.emc.pravega.service.server.containers.ContainerConfig;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
@@ -269,7 +270,8 @@ public final class ServiceBuilder implements AutoCloseable {
         OperationLogFactory operationLogFactory = getSingleton(this.operationLogFactory, this::createOperationLogFactory);
         CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         WriterFactory writerFactory = getSingleton(this.writerFactory, this::createWriterFactory);
-        return new StreamSegmentContainerFactory(operationLogFactory, readIndexFactory, writerFactory, storageFactory, cacheFactory, this.executorService);
+        ContainerConfig containerConfig = this.serviceBuilderConfig.getConfig(ContainerConfig::new);
+        return new StreamSegmentContainerFactory(containerConfig, operationLogFactory, readIndexFactory, writerFactory, storageFactory, cacheFactory, this.executorService);
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {

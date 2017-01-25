@@ -19,11 +19,11 @@
 package com.emc.pravega.service.server;
 
 import com.emc.pravega.common.util.PropertyBag;
+import com.emc.pravega.service.server.containers.ContainerConfig;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.writer.WriterConfig;
-
 import java.util.Map;
 import java.util.Properties;
 
@@ -31,6 +31,15 @@ import java.util.Properties;
  * Helper class that can be used to quickly create Configurations.
  */
 public class ConfigHelpers {
+    /**
+     * Creates a new instance of the ContainerConfig class with given arguments.
+     *
+     * @param rawProperties The properties to include.
+     */
+    public static ContainerConfig createContainerConfig(PropertyBag rawProperties) {
+        return new ContainerConfig(convert(rawProperties, ContainerConfig.COMPONENT_CODE));
+    }
+
     /**
      * Creates a new instance of the DurableLogConfig class with given arguments.
      *

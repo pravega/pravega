@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.server.DataCorruptionException;
@@ -45,8 +46,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Setter;
+import lombok.val;
 
 /**
  * Test version of a WriterDataSource that can accumulate operations in memory (just like the real DurableLog) and only
@@ -71,6 +74,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     private final AtomicLong lastAddedCheckpoint;
     private final AtomicBoolean ackEffective;
     private final AtomicBoolean closed;
+    @Setter
+    private Consumer<Long> segmentMetadataRequested;
     @Setter
     private ErrorInjector<Exception> readSyncErrorInjector;
     @Setter
@@ -282,6 +287,11 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     @Override
     public UpdateableSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) {
+        val callback = this.segmentMetadataRequested;
+        if (callback != null) {
+            CallbackHelpers.invokeSafely(callback, streamSegmentId, null);
+        }
+
         return this.metadata.getStreamSegmentMetadata(streamSegmentId);
     }
 

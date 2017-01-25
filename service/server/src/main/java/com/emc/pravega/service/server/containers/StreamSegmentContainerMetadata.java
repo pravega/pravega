@@ -18,7 +18,9 @@
 
 package com.emc.pravega.service.server.containers;
 
+import com.emc.pravega.common.AbstractTimer;
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.util.CollectionHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -28,7 +30,6 @@ import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.time.Duration;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -38,6 +39,7 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -45,26 +47,24 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @VisibleForTesting
+@ThreadSafe
 public class StreamSegmentContainerMetadata implements UpdateableContainerMetadata {
     //region Members
 
-    /**
-     * The amount of time after which unused segments expire.
-     */
-    static final Duration SEGMENT_METADATA_EXPIRATION = Duration.ofSeconds(30);
-
     private final String traceObjectId;
     private final AtomicLong sequenceNumber;
+    private final AtomicLong lastTruncatedSequenceNumber;
     @GuardedBy("lock")
-    private final AbstractMap<String, Long> streamSegmentIds;
+    private final HashMap<String, StreamSegmentMetadata> metadataByName;
     @GuardedBy("lock")
-    private final AbstractMap<Long, UpdateableSegmentMetadata> segmentMetadata;
+    private final HashMap<Long, StreamSegmentMetadata> metadataById;
     private final AtomicBoolean recoveryMode;
     private final int streamSegmentContainerId;
-    @GuardedBy("lock")
+    @GuardedBy("truncationMarkers")
     private final TreeMap<Long, LogAddress> truncationMarkers;
-    @GuardedBy("lock")
+    @GuardedBy("truncationMarkers")
     private final TreeSet<Long> truncationPoints;
+    private final AbstractTimer segmentUsageTimer;
     private final Object lock = new Object();
 
     //endregion
@@ -77,36 +77,49 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
      * @param streamSegmentContainerId The Id of the StreamSegmentContainer.
      */
     public StreamSegmentContainerMetadata(int streamSegmentContainerId) {
+        this(streamSegmentContainerId, new Timer());
+    }
+
+    /**
+     * Creates a new instance of the StreamSegmentContainerMetadata.
+     *
+     * @param streamSegmentContainerId The Id of the StreamSegmentContainer.
+     * @param segmentUsageTimer        A time provider that can be used to track segment usage.
+     */
+    @VisibleForTesting
+    public StreamSegmentContainerMetadata(int streamSegmentContainerId, AbstractTimer segmentUsageTimer) {
         this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
         this.streamSegmentContainerId = streamSegmentContainerId;
         this.sequenceNumber = new AtomicLong();
-        this.streamSegmentIds = new HashMap<>();
-        this.segmentMetadata = new HashMap<>();
+        this.metadataByName = new HashMap<>();
+        this.metadataById = new HashMap<>();
         this.truncationMarkers = new TreeMap<>();
         this.truncationPoints = new TreeSet<>();
         this.recoveryMode = new AtomicBoolean();
+        this.lastTruncatedSequenceNumber = new AtomicLong();
+        this.segmentUsageTimer = segmentUsageTimer;
     }
 
     //endregion
 
     //region SegmentMetadataCollection Implementation
 
-    /**
-     * Gets the Id of the StreamSegment with given name.
-     *
-     * @param streamSegmentName The case-sensitive StreamSegment name.
-     * @return The Id of the StreamSegment, or NO_STREAM_SEGMENT_ID if the Metadata has no knowledge of it.
-     */
-    public long getStreamSegmentId(String streamSegmentName) {
+    @Override
+    public long getStreamSegmentId(String streamSegmentName, boolean updateLastUsed) {
         synchronized (this.lock) {
-            return this.streamSegmentIds.getOrDefault(streamSegmentName, NO_STREAM_SEGMENT_ID);
+            StreamSegmentMetadata metadata = this.metadataByName.getOrDefault(streamSegmentName, null);
+            if (updateLastUsed && metadata != null) {
+                markTimestamp(metadata);
+            }
+
+            return metadata != null ? metadata.getId() : NO_STREAM_SEGMENT_ID;
         }
     }
 
     @Override
     public UpdateableSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) {
         synchronized (this.lock) {
-            return this.segmentMetadata.getOrDefault(streamSegmentId, null);
+            return this.metadataById.getOrDefault(streamSegmentId, null);
         }
     }
 
@@ -134,68 +147,68 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
     @Override
     public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
-        UpdateableSegmentMetadata segmentMetadata;
+        StreamSegmentMetadata segmentMetadata;
         synchronized (this.lock) {
-            Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
-            Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
+            Exceptions.checkArgument(!this.metadataByName.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
+            Exceptions.checkArgument(!this.metadataById.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId());
-            this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
-            this.segmentMetadata.put(streamSegmentId, segmentMetadata);
+            this.metadataByName.put(streamSegmentName, segmentMetadata);
+            this.metadataById.put(streamSegmentId, segmentMetadata);
         }
 
+        markTimestamp(segmentMetadata);
         log.info("{}: MapStreamSegment Id = {}, Name = '{}'", this.traceObjectId, streamSegmentId, streamSegmentName);
         return segmentMetadata;
     }
 
     @Override
     public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
-        UpdateableSegmentMetadata segmentMetadata;
+        StreamSegmentMetadata segmentMetadata;
         synchronized (this.lock) {
-            Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
-            Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
+            Exceptions.checkArgument(!this.metadataByName.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
+            Exceptions.checkArgument(!this.metadataById.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
-            UpdateableSegmentMetadata parentMetadata = this.segmentMetadata.getOrDefault(parentStreamSegmentId, null);
+            StreamSegmentMetadata parentMetadata = this.metadataById.getOrDefault(parentStreamSegmentId, null);
             Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
             Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a transaction StreamSegment for another transaction StreamSegment.");
 
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
-            this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
-            this.segmentMetadata.put(streamSegmentId, segmentMetadata);
+            this.metadataByName.put(streamSegmentName, segmentMetadata);
+            this.metadataById.put(streamSegmentId, segmentMetadata);
         }
 
+        markTimestamp(segmentMetadata);
         log.info("{}: MapTransactionStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
         return segmentMetadata;
     }
 
     @Override
     public Collection<Long> getAllStreamSegmentIds() {
-        return this.segmentMetadata.keySet();
+        return this.metadataById.keySet();
     }
 
     @Override
     public Map<Long, String> deleteStreamSegment(String streamSegmentName) {
         Map<Long, String> result = new HashMap<>();
         synchronized (this.lock) {
-            long streamSegmentId = this.streamSegmentIds.getOrDefault(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID);
-            result.put(streamSegmentId, streamSegmentName);
-            if (streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+            StreamSegmentMetadata segmentMetadata = this.metadataByName.getOrDefault(streamSegmentName, null);
+            if (segmentMetadata == null) {
                 // We have no knowledge in our metadata about this StreamSegment. This means it has no transactions associated
                 // with it, so no need to do anything else.
+                result.put(NO_STREAM_SEGMENT_ID, streamSegmentName);
                 log.info("{}: DeleteStreamSegments {}", this.traceObjectId, result);
                 return result;
             }
 
             // Mark this segment as deleted.
-            UpdateableSegmentMetadata segmentMetadata = this.segmentMetadata.getOrDefault(streamSegmentId, null);
-            if (segmentMetadata != null) {
-                segmentMetadata.markDeleted();
-            }
+            result.put(segmentMetadata.getId(), streamSegmentName);
+            segmentMetadata.markDeleted();
 
             // Find any transactions that point to this StreamSegment (as a parent).
             CollectionHelpers.forEach(
-                    this.segmentMetadata.values(),
-                    m -> m.getParentId() == streamSegmentId,
+                    this.metadataById.values(),
+                    m -> m.getParentId() == segmentMetadata.getId(),
                     m -> {
                         m.markDeleted();
                         result.put(m.getId(), m.getName());
@@ -220,6 +233,69 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         Exceptions.checkArgument(value >= this.sequenceNumber.get(), "value", "Invalid SequenceNumber. Expecting greater than %d.", this.sequenceNumber.get());
         this.sequenceNumber.set(value);
     }
+
+    @Override
+    public Map<Long, String> cleanup(Duration segmentExpiration) {
+        HashMap<Long, String> evictedSegments = new HashMap<>();
+        HashMap<Long, Boolean> activeTransactions = new HashMap<>();
+        long timeExpirationThreshold = this.segmentUsageTimer.getElapsed().minus(segmentExpiration).toMillis();
+        synchronized (this.lock) {
+            // Process all transactions first (we need to figure out which parent segments still have active transactions).
+            this.metadataById
+                    .values().stream()
+                    .filter(m -> m.getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID)
+                    .forEach(m -> {
+                        if (canEvict(m, timeExpirationThreshold)) {
+                            // Transaction is eligible for removal; remove it.
+                            evictedSegments.put(m.getId(), m.getName());
+                        } else {
+                            // Not eligible for removal; record that its parent still has an active transaction.
+                            activeTransactions.put(m.getParentId(), true);
+                        }
+                    });
+
+            // Now process the Parent Segments that do not have any active transactions.
+            this.metadataById
+                    .values().stream()
+                    .filter(m -> m.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID
+                            && !activeTransactions.getOrDefault(m.getId(), false)
+                            && canEvict(m, timeExpirationThreshold))
+                    .forEach(m -> evictedSegments.put(m.getId(), m.getName()));
+
+            // Process the removal, in the order in which they were added to the removal list.
+            evictedSegments.keySet().forEach(this.metadataById::remove);
+            evictedSegments.values().forEach(this.metadataByName::remove);
+        }
+
+        log.info("{}: EvictedStreamSegments {}", this.traceObjectId, evictedSegments);
+        return evictedSegments;
+    }
+
+    /**
+     * Determines whether the Segment with given metadata can be evicted. Conditions:
+     * <ul>
+     * <li> The Segment has not been used in a while.
+     * <li> There is no operation in the DurableLog that refers to this Segment.
+     * </ul>
+     * <p>
+     * Note: normally if we choose a high enough value for timeExpirationThreshold, there would not be a need to also
+     * check 'getLastKnownSequenceNumber'. However it's better to be paranoid in this case and make sure that some
+     * operation referencing this Segment isn't stuck somewhere in our system - evicting the Segment's Metadata in that
+     * case would likely lead to data corruption.
+     *
+     * @param metadata                The Metadata for the Segment that is considered for eviction.
+     * @param timeExpirationThreshold The time expiration threshold, with a reference to segmentUsageTimer.
+     * @return True if the Segment can be safely evicted, false otherwise.
+     */
+    private boolean canEvict(StreamSegmentMetadata metadata, long timeExpirationThreshold) {
+        return metadata.getLastKnownRequestTime() < timeExpirationThreshold
+                && metadata.getLastKnownSequenceNumber() <= this.lastTruncatedSequenceNumber.get();
+    }
+
+    private void markTimestamp(StreamSegmentMetadata metadata) {
+        metadata.setLastKnownRequestTime(this.segmentUsageTimer.getElapsedMillis());
+    }
+
     //endregion
 
     //region RecoverableMetadata Implementation
@@ -242,9 +318,10 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     public void reset() {
         ensureRecoveryMode();
         this.sequenceNumber.set(0);
+        this.lastTruncatedSequenceNumber.set(0);
         synchronized (this.lock) {
-            this.streamSegmentIds.clear();
-            this.segmentMetadata.clear();
+            this.metadataByName.clear();
+            this.metadataById.clear();
         }
 
         synchronized (this.truncationMarkers) {
@@ -289,6 +366,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             toRemove.addAll(this.truncationPoints.headSet(upToOperationSequenceNumber, true));
             this.truncationPoints.removeAll(toRemove);
         }
+
+        this.lastTruncatedSequenceNumber.set(upToOperationSequenceNumber);
     }
 
     @Override

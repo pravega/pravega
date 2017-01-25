@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -52,19 +53,20 @@ import lombok.val;
  * </ol>
  */
 @Slf4j
+@ThreadSafe
 public class ContainerReadIndex implements ReadIndex {
     //region Members
 
     private final String traceObjectId;
     @GuardedBy("lock")
     private final HashMap<Long, StreamSegmentReadIndex> readIndices;
-    @GuardedBy("lock")
     private final Object lock = new Object();
     private final Cache cache;
     private final ReadOnlyStorage storage;
     private final ScheduledExecutorService executor;
     private final ReadIndexConfig config;
     private final CacheManager cacheManager;
+    @GuardedBy("lock")
     private ContainerMetadata metadata;
     @GuardedBy("lock")
     private ContainerMetadata preRecoveryMetadata;
@@ -181,12 +183,14 @@ public class ContainerReadIndex implements ReadIndex {
         Exceptions.checkNotClosed(this.closed.get(), this);
         log.debug("{}: triggerFutureReads (StreamSegmentIds = {}).", this.traceObjectId, streamSegmentIds);
 
-        HashSet<String> missingIds = new HashSet<>();
-        for (long ssId : streamSegmentIds) {
-            StreamSegmentReadIndex index = getReadIndex(ssId, false);
+        HashSet<Long> missingIds = new HashSet<>();
+        for (long segmentId : streamSegmentIds) {
+            StreamSegmentReadIndex index = getReadIndex(segmentId, false);
             if (index == null) {
-                if (this.metadata.getStreamSegmentMetadata(ssId) == null) {
-                    missingIds.add(Long.toString(ssId));
+                synchronized (this.lock) {
+                    if (this.metadata.getStreamSegmentMetadata(segmentId) == null) {
+                        missingIds.add(segmentId);
+                    }
                 }
             } else {
                 index.triggerFutureReads();
@@ -244,12 +248,15 @@ public class ContainerReadIndex implements ReadIndex {
         Preconditions.checkState(!isRecoveryMode(), "Read Index is already in recovery mode.");
         Preconditions.checkNotNull(recoveryMetadataSource, "recoveryMetadataSource");
         Preconditions.checkArgument(recoveryMetadataSource.isRecoveryMode(), "Given ContainerMetadata is not in recovery mode.");
-        Preconditions.checkArgument(this.metadata.getContainerId() == recoveryMetadataSource.getContainerId(), "Given ContainerMetadata refers to a different container than this ReadIndex.");
 
         // Swap metadata with recovery metadata (but still keep track of recovery metadata.
-        assert this.preRecoveryMetadata == null : "preRecoveryMetadata is not null, which should not happen unless we already are in recovery mode";
-        this.preRecoveryMetadata = this.metadata;
-        this.metadata = recoveryMetadataSource;
+        synchronized (this.lock) {
+            Preconditions.checkArgument(this.metadata.getContainerId() == recoveryMetadataSource.getContainerId(), "Given ContainerMetadata refers to a different container than this ReadIndex.");
+            assert this.preRecoveryMetadata == null : "preRecoveryMetadata is not null, which should not happen unless we already are in recovery mode";
+            this.preRecoveryMetadata = this.metadata;
+            this.metadata = recoveryMetadataSource;
+        }
+
         log.info("{} Enter RecoveryMode.", this.traceObjectId);
         clear();
     }
@@ -258,26 +265,30 @@ public class ContainerReadIndex implements ReadIndex {
     public void exitRecoveryMode(boolean successfulRecovery) throws DataCorruptionException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.isRecoveryMode(), "Read Index is not in recovery mode.");
-        assert this.preRecoveryMetadata != null : "preRecoveryMetadata not null, which should only be the case when we are not in recovery mode";
-        Preconditions.checkState(!this.preRecoveryMetadata.isRecoveryMode(), "Cannot take ReadIndex out of recovery: ContainerMetadata is still in recovery mode.");
 
-        if (successfulRecovery) {
-            // Validate that the metadata has been properly recovered and that we are still in sync with it.
-            for (Map.Entry<Long, StreamSegmentReadIndex> e : this.readIndices.entrySet()) {
-                SegmentMetadata metadata = this.preRecoveryMetadata.getStreamSegmentMetadata(e.getKey());
-                if (metadata == null) {
-                    throw new DataCorruptionException(String.format("ContainerMetadata has no knowledge of StreamSegment Id %s.", e.getKey()));
+        synchronized (this.lock) {
+            assert this.preRecoveryMetadata != null : "preRecoveryMetadata not null, which should only be the case when we are not in recovery mode";
+            Preconditions.checkState(!this.preRecoveryMetadata.isRecoveryMode(), "Cannot take ReadIndex out of recovery: ContainerMetadata is still in recovery mode.");
+
+            if (successfulRecovery) {
+                // Validate that the metadata has been properly recovered and that we are still in sync with it.
+                for (Map.Entry<Long, StreamSegmentReadIndex> e : this.readIndices.entrySet()) {
+                    SegmentMetadata metadata = this.preRecoveryMetadata.getStreamSegmentMetadata(e.getKey());
+                    if (metadata == null) {
+                        throw new DataCorruptionException(String.format("ContainerMetadata has no knowledge of StreamSegment Id %s.", e.getKey()));
+                    }
+
+                    e.getValue().exitRecoveryMode(metadata);
                 }
-
-                e.getValue().exitRecoveryMode(metadata);
+            } else {
+                // Recovery was unsuccessful. Clear the contents of the ReadIndex to avoid further issues.
+                clear();
             }
-        } else {
-            // Recovery was unsuccessful. Clear the contents of the ReadIndex to avoid further issues.
-            clear();
+
+            this.metadata = this.preRecoveryMetadata;
+            this.preRecoveryMetadata = null;
         }
 
-        this.metadata = this.preRecoveryMetadata;
-        this.preRecoveryMetadata = null;
         log.info("{} Exit RecoveryMode.", this.traceObjectId);
     }
 
@@ -286,7 +297,9 @@ public class ContainerReadIndex implements ReadIndex {
     //region Helpers
 
     private boolean isRecoveryMode() {
-        return this.preRecoveryMetadata != null;
+        synchronized (this.lock) {
+            return this.preRecoveryMetadata != null;
+        }
     }
 
     /**

@@ -16,24 +16,19 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.common;
+package com.emc.pravega.service.server;
+
+import com.emc.pravega.common.AbstractTimer;
+import lombok.Getter;
 
 /**
- * Allows easy measurement of elapsed time. All elapsed time reported by this class is by reference to the time of
- * this object's creation.
+ * AbstractTimer Implementation that allows full control over the return values, for use in Unit testing.
  */
-public class Timer extends AbstractTimer {
-    private final long startNanos;
+public class ManualTimer extends AbstractTimer {
+    @Getter
+    private long elapsedNanos;
 
-    /**
-     * Creates a new instance of the Timer class.
-     */
-    public Timer() {
-        this.startNanos = System.nanoTime();
-    }
-
-    @Override
-    public long getElapsedNanos() {
-        return Math.max(0, System.nanoTime() - this.startNanos);
+    public void setElapsedMillis(long value) {
+        this.elapsedNanos = value * NANOS_TO_MILLIS;
     }
 }

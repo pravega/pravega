@@ -19,7 +19,6 @@
 package com.emc.pravega.service.server;
 
 import com.emc.pravega.service.contracts.AppendContext;
-
 import java.util.Date;
 
 /**
@@ -85,4 +84,11 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
      * @throws IllegalArgumentException If the other SegmentMetadata refers to a different StreamSegment.
      */
     void copyFrom(SegmentMetadata other);
+
+    /**
+     * Sets the Sequence Number of the last known Operation that involves this Segment.
+     *
+     * @param value The value to set.
+     */
+    void setLastKnownSequenceNumber(long value);
 }

@@ -44,8 +44,6 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -58,6 +56,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.common.util.CollectionHelpers.forEach;
 
@@ -109,7 +108,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
     }
 
     @Override
-    public long getStreamSegmentId(String streamSegmentName) {
+    public long getStreamSegmentId(String streamSegmentName, boolean updateLastUsed) {
+        // We ignore the 'updateLastUsed' argument here since this is an internal call, and there is no need to update the metadata stats.
         UpdateTransaction transaction = this.currentTransaction;
         if (transaction == null) {
             return ContainerMetadata.NO_STREAM_SEGMENT_ID;
@@ -540,12 +540,12 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         private long getExistingStreamSegmentId(String streamSegmentName) {
-            long existingStreamId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
-            if (existingStreamId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                existingStreamId = this.newStreamSegmentNames.getOrDefault(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID);
+            long existingSegmentId = this.containerMetadata.getStreamSegmentId(streamSegmentName, false);
+            if (existingSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+                existingSegmentId = this.newStreamSegmentNames.getOrDefault(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID);
             }
 
-            return existingStreamId;
+            return existingSegmentId;
         }
 
         private long generateUniqueStreamSegmentId() {
@@ -583,8 +583,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
             return metadata;
         }
 
-        private void copySegmentMetadataToSource(Collection<UpdateableSegmentMetadata> newStreams, Predicate<SegmentMetadata> filter) {
-            for (SegmentMetadata newMetadata : newStreams) {
+        private void copySegmentMetadataToSource(Collection<UpdateableSegmentMetadata> newSegments, Predicate<SegmentMetadata> filter) {
+            for (SegmentMetadata newMetadata : newSegments) {
                 if (!filter.test(newMetadata)) {
                     continue;
                 }
@@ -764,6 +764,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
         private boolean sealed;
         private boolean merged;
         private boolean deleted;
+        private long lastKnownSequenceNumber;
         private boolean isChanged;
 
         //endregion
@@ -785,6 +786,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             this.merged = this.baseMetadata.isMerged();
             this.deleted = this.baseMetadata.isDeleted();
             this.lastCommittedAppends = new HashMap<>();
+            this.lastKnownSequenceNumber = -1;
         }
 
         //endregion
@@ -1024,6 +1026,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
             this.currentDurableLogLength += operation.getData().length;
             this.lastCommittedAppends.put(operation.getAppendContext().getClientId(), operation.getAppendContext());
+            this.lastKnownSequenceNumber = operation.getSequenceNumber();
             this.isChanged = true;
         }
 
@@ -1041,6 +1044,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             this.sealed = true;
+            this.lastKnownSequenceNumber = operation.getSequenceNumber();
             this.isChanged = true;
         }
 
@@ -1065,6 +1069,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             this.currentDurableLogLength += transLength;
+            this.lastKnownSequenceNumber = operation.getSequenceNumber();
             this.isChanged = true;
         }
 
@@ -1079,6 +1084,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
             this.sealed = true;
             this.merged = true;
+            this.lastKnownSequenceNumber = operation.getSequenceNumber();
             this.isChanged = true;
         }
 
@@ -1096,6 +1102,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             // Apply to base metadata.
+            this.baseMetadata.setLastKnownSequenceNumber(this.lastKnownSequenceNumber);
             this.lastCommittedAppends.values().forEach(this.baseMetadata::recordAppendContext);
             this.baseMetadata.setDurableLogLength(this.currentDurableLogLength);
             if (this.isSealed()) {

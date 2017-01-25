@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.common.io.FixedByteArrayOutputStream;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
@@ -28,6 +27,7 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
+import com.emc.pravega.service.server.ManualTimer;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.TestStorage;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -240,7 +240,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 "add() allowed a StreamSegmentSealOperation for a non-sealed segment.",
                 () -> {
                     @Cleanup
-                    SegmentAggregator badTransactionAggregator = new SegmentAggregator(badTransactionMetadata, context.dataSource, context.storage, DEFAULT_CONFIG, context.stopwatch);
+                    SegmentAggregator badTransactionAggregator = new SegmentAggregator(badTransactionMetadata, context.dataSource, context.storage, DEFAULT_CONFIG, context.timer);
                     badTransactionAggregator.initialize(TIMEOUT).join();
                     badTransactionAggregator.add(generateSimpleSeal(badTransactionId, context));
                 },
@@ -320,7 +320,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 "add() allowed an operation with wrong offset (too large, but no pending operations).",
                 () -> {
                     @Cleanup
-                    SegmentAggregator badTransactionAggregator = new SegmentAggregator(badTransactionMetadata, context.dataSource, context.storage, DEFAULT_CONFIG, context.stopwatch);
+                    SegmentAggregator badTransactionAggregator = new SegmentAggregator(badTransactionMetadata, context.dataSource, context.storage, DEFAULT_CONFIG, context.timer);
                     badTransactionMetadata.setDurableLogLength(100);
                     badTransactionAggregator.initialize(TIMEOUT).join();
 
@@ -373,10 +373,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final WriterConfig config = DEFAULT_CONFIG;
         final int appendCount = config.getFlushThresholdBytes() * 10;
 
-        // We use this currentTime to simulate time passage - trigger based on time thresholds.
-        final AtomicLong currentTime = new AtomicLong();
         @Cleanup
-        TestContext context = new TestContext(config, currentTime::get);
+        TestContext context = new TestContext(config);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
@@ -423,7 +421,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             sequenceNumbers.record(appendOp);
 
             // Call flush() and inspect the result.
-            currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
+            context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
             Assert.assertTrue("Unexpected value returned by mustFlush() (time threshold).", context.segmentAggregator.mustFlush());
             Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (time threshold).", sequenceNumbers.getLowestUncommitted(), context.segmentAggregator.getLowestUncommittedSequenceNumber());
             FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, executorService()).join();
@@ -476,7 +474,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             sequenceNumbers.record(appendOp);
 
             // Call flush() and inspect the result.
-            currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
+            context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
             Assert.assertTrue("Unexpected value returned by mustFlush() (large appends).", context.segmentAggregator.mustFlush());
             Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (large appends).", sequenceNumbers.getLowestUncommitted(), context.segmentAggregator.getLowestUncommittedSequenceNumber());
             FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, executorService()).join();
@@ -511,17 +509,15 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final int failSyncEvery = 2;
         final int failAsyncEvery = 3;
 
-        // We use this currentTime to simulate time passage - trigger based on time thresholds.
-        final AtomicLong currentTime = new AtomicLong();
         @Cleanup
-        TestContext context = new TestContext(config, currentTime::get);
+        TestContext context = new TestContext(config);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         // Have the writes fail every few attempts with a well known exception.
         AtomicReference<IntentionalException> setException = new AtomicReference<>();
         Supplier<Exception> exceptionSupplier = () -> {
-            IntentionalException ex = new IntentionalException(Long.toString(currentTime.get()));
+            IntentionalException ex = new IntentionalException(Long.toString(context.timer.getElapsedMillis()));
             setException.set(ex);
             return ex;
         };
@@ -541,7 +537,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
             // Call flush() and inspect the result.
             setException.set(null);
-            currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
+            context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
             FlushResult flushResult = null;
 
             try {
@@ -566,7 +562,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         }
 
         // Do one last flush at the end to make sure we clear out all the buffers, if there's anything else left.
-        currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
+        context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
         context.storage.setWriteSyncErrorInjector(null);
         context.storage.setWriteAsyncErrorInjector(null);
         context.segmentAggregator.flush(TIMEOUT, executorService()).join();
@@ -596,10 +592,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                            .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
                            .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10));
 
-        // We use this currentTime to simulate time passage - trigger based on time thresholds.
-        final AtomicLong currentTime = new AtomicLong();
         @Cleanup
-        TestContext context = new TestContext(config, currentTime::get);
+        TestContext context = new TestContext(config);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
@@ -658,10 +652,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         // Add some appends and seal, and then flush together. Verify that everything got flushed in one go.
         final WriterConfig config = DEFAULT_CONFIG;
 
-        // We use this currentTime to simulate time passage - trigger based on time thresholds.
-        final AtomicLong currentTime = new AtomicLong();
         @Cleanup
-        TestContext context = new TestContext(config, currentTime::get);
+        TestContext context = new TestContext(config);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
@@ -693,10 +685,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                            .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
                            .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10));
 
-        // We use this currentTime to simulate time passage - trigger based on time thresholds.
-        final AtomicLong currentTime = new AtomicLong();
         @Cleanup
-        TestContext context = new TestContext(config, currentTime::get);
+        TestContext context = new TestContext(config);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
@@ -720,7 +710,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         AtomicBoolean generateAsyncException = new AtomicBoolean(true);
         AtomicReference<IntentionalException> setException = new AtomicReference<>();
         Supplier<Exception> exceptionSupplier = () -> {
-            IntentionalException ex = new IntentionalException(Long.toString(currentTime.get()));
+            IntentionalException ex = new IntentionalException(Long.toString(context.timer.getElapsedMillis()));
             setException.set(ex);
             return ex;
         };
@@ -785,10 +775,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                            .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
                            .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10));
 
-        // We use this currentTime to simulate time passage - trigger based on time thresholds.
-        final AtomicLong currentTime = new AtomicLong();
         @Cleanup
-        TestContext context = new TestContext(config, currentTime::get);
+        TestContext context = new TestContext(config);
 
         // Create and initialize all segments.
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
@@ -905,10 +893,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                            .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
                            .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10));
 
-        // We use this currentTime to simulate time passage - trigger based on time thresholds.
-        final AtomicLong currentTime = new AtomicLong();
         @Cleanup
-        TestContext context = new TestContext(config, currentTime::get);
+        TestContext context = new TestContext(config);
 
         // Create and initialize all segments.
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
@@ -953,7 +939,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         // Have the writes fail every few attempts with a well known exception.
         AtomicReference<IntentionalException> setException = new AtomicReference<>();
         Supplier<Exception> exceptionSupplier = () -> {
-            IntentionalException ex = new IntentionalException(Long.toString(currentTime.get()));
+            IntentionalException ex = new IntentionalException(Long.toString(context.timer.getElapsedMillis()));
             setException.set(ex);
             return ex;
         };
@@ -992,10 +978,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final int appendCount = 1000;
         final int failEvery = 3;
 
-        // We use this currentTime to simulate time passage - trigger based on time thresholds.
-        final AtomicLong currentTime = new AtomicLong();
         @Cleanup
-        TestContext context = new TestContext(config, currentTime::get);
+        TestContext context = new TestContext(config);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
@@ -1027,7 +1011,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             getAppendData(appendOp, writtenData, context);
         }
 
-        currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
+        context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
         while (context.segmentAggregator.mustFlush()) {
             // Call flush() and inspect the result.
             FlushResult flushResult = null;
@@ -1052,7 +1036,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 Assert.assertEquals("Not expecting any merged bytes in this test.", 0, flushResult.getMergedBytes());
             }
 
-            currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
+            context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
         }
 
         // Verify data.
@@ -1072,10 +1056,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     public void testReconcileSeal() throws Exception {
         final WriterConfig config = DEFAULT_CONFIG;
 
-        // We use this currentTime to simulate time passage - trigger based on time thresholds.
-        final AtomicLong currentTime = new AtomicLong();
         @Cleanup
-        TestContext context = new TestContext(config, currentTime::get);
+        TestContext context = new TestContext(config);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
@@ -1112,10 +1094,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final WriterConfig config = DEFAULT_CONFIG;
         final int appendCount = 100;
 
-        // We use this currentTime to simulate time passage - trigger based on time thresholds.
-        final AtomicLong currentTime = new AtomicLong();
         @Cleanup
-        TestContext context = new TestContext(config, currentTime::get);
+        TestContext context = new TestContext(config);
 
         // Create a parent segment and one transaction segment.
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
@@ -1191,10 +1171,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final int failEvery = 3;
         final int maxFlushLoopCount = 5;
 
-        // We use this currentTime to simulate time passage - trigger based on time thresholds.
-        final AtomicLong currentTime = new AtomicLong();
         @Cleanup
-        TestContext context = new TestContext(config, currentTime::get);
+        TestContext context = new TestContext(config);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
@@ -1226,7 +1204,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                     context.storage.write(SEGMENT_NAME, offset, appendData.get(j), appendData.get(j).available(), TIMEOUT).join();
                 }
             }
-            currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
+
+            context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
             int flushLoopCount = 0;
             while (context.segmentAggregator.mustFlush()) {
                 try {
@@ -1269,10 +1248,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final WriterConfig config = DEFAULT_CONFIG;
         final int appendCount = 100;
 
-        // We use this currentTime to simulate time passage - trigger based on time thresholds.
-        final AtomicLong currentTime = new AtomicLong();
         @Cleanup
-        TestContext context = new TestContext(config, currentTime::get);
+        TestContext context = new TestContext(config);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         for (SegmentAggregator a : context.transactionAggregators) {
             context.storage.create(a.getMetadata().getName(), TIMEOUT).join();
@@ -1522,19 +1499,15 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final UpdateableContainerMetadata containerMetadata;
         final TestWriterDataSource dataSource;
         final TestStorage storage;
-        final AutoStopwatch stopwatch;
+        final ManualTimer timer;
         final SegmentAggregator segmentAggregator;
         final SegmentAggregator[] transactionAggregators;
 
         TestContext(WriterConfig config) {
-            this(config, System::currentTimeMillis);
-        }
-
-        TestContext(WriterConfig config, Supplier<Long> stopwatchGetMillis) {
             this.containerMetadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
 
             this.storage = new TestStorage(new InMemoryStorage(executorService()));
-            this.stopwatch = new AutoStopwatch(stopwatchGetMillis);
+            this.timer = new ManualTimer();
 
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();
             dataSourceConfig.autoInsertCheckpointFrequency = TestWriterDataSource.DataSourceConfig.NO_METADATA_CHECKPOINT;
@@ -1542,12 +1515,16 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
             this.transactionAggregators = new SegmentAggregator[TRANSACTION_COUNT];
             UpdateableSegmentMetadata segmentMetadata = initialize(this.containerMetadata.mapStreamSegmentId(SEGMENT_NAME, SEGMENT_ID));
-            this.segmentAggregator = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, config, this.stopwatch);
+            this.segmentAggregator = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, config, this.timer);
             for (int i = 0; i < TRANSACTION_COUNT; i++) {
                 String name = TRANSACTION_NAME_PREFIX + i;
                 UpdateableSegmentMetadata transactionMetadata = initialize(this.containerMetadata.mapStreamSegmentId(name, TRANSACTION_ID_START + i, SEGMENT_ID));
-                this.transactionAggregators[i] = new SegmentAggregator(transactionMetadata, this.dataSource, this.storage, config, this.stopwatch);
+                this.transactionAggregators[i] = new SegmentAggregator(transactionMetadata, this.dataSource, this.storage, config, this.timer);
             }
+        }
+
+        void increaseTime(long deltaMillis) {
+            this.timer.setElapsedMillis(this.timer.getElapsedMillis() + deltaMillis);
         }
 
         @Override

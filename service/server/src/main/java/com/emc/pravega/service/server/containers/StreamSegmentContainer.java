@@ -69,8 +69,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class StreamSegmentContainer extends AbstractService implements SegmentContainer {
     //region Members
-
     private final String traceObjectId;
+    private final ContainerConfig config;
     private final UpdateableContainerMetadata metadata;
     private final OperationLog durableLog;
     private final ReadIndex readIndex;
@@ -91,6 +91,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * Creates a new instance of the StreamSegmentContainer class.
      *
      * @param streamSegmentContainerId The Id of the StreamSegmentContainer.
+     * @param config                   The ContainerConfig to use for this StreamSegmentContainer.
      * @param durableLogFactory        The DurableLogFactory to use to create DurableLogs.
      * @param readIndexFactory         The ReadIndexFactory to use to create Read Indices.
      * @param writerFactory            The WriterFactory to use to create Writers.
@@ -98,8 +99,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * @param cacheFactory             The CacheFactory to use to create Caches.
      * @param executor                 An Executor that can be used to run async tasks.
      */
-    StreamSegmentContainer(int streamSegmentContainerId, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory,
+    StreamSegmentContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory,
                            WriterFactory writerFactory, StorageFactory storageFactory, CacheFactory cacheFactory, ScheduledExecutorService executor) {
+        Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(durableLogFactory, "durableLogFactory");
         Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
         Preconditions.checkNotNull(writerFactory, "writerFactory");
@@ -108,6 +110,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
+        this.config = config;
         this.storage = storageFactory.getStorageAdapter();
         this.metadata = new StreamSegmentContainerMetadata(streamSegmentContainerId);
         this.cache = cacheFactory.getCache(String.format("Container_%d", streamSegmentContainerId));
@@ -130,6 +133,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         if (!this.closed) {
             stopAsync().awaitTerminated();
 
+            stopCleanupTask();
             this.pendingAppendsCollection.close();
             this.writer.close();
             this.durableLog.close();
@@ -137,6 +141,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             this.cache.close();
             log.info("{}: Closed.", this.traceObjectId);
             this.closed = true;
+        }
+    }
+
+    private void stopCleanupTask() {
+        ScheduledFuture<?> cleanupTask = this.cleanupTask;
+        if (cleanupTask != null && !cleanupTask.isDone()) {
+            cleanupTask.cancel(true);
+            this.cleanupTask = null;
         }
     }
 
@@ -149,8 +161,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
         log.info("{}: Starting.", this.traceObjectId);
         this.cleanupTask = this.executor.scheduleWithFixedDelay(this::metadataCleanup,
-                StreamSegmentContainerMetadata.SEGMENT_METADATA_EXPIRATION.toMillis(),
-                StreamSegmentContainerMetadata.SEGMENT_METADATA_EXPIRATION.toMillis(), TimeUnit.MILLISECONDS);
+                this.config.getSegmentMetadataExpiration().toMillis(),
+                this.config.getSegmentMetadataExpiration().toMillis(), TimeUnit.MILLISECONDS);
         this.durableLog.startAsync();
         this.executor.execute(() -> {
             this.durableLog.awaitRunning();
@@ -175,8 +187,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.executor.execute(() -> {
             this.writer.awaitTerminated();
             this.durableLog.awaitTerminated();
-            this.cleanupTask.cancel(true);
-            FutureHelpers.await(this.cleanupTask);
+            stopCleanupTask();
             log.info("{}: Stopped.", this.traceObjectId);
             LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
             this.notifyStopped();
@@ -184,10 +195,22 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private void metadataCleanup() {
-        if(this.closed){
+        if (this.closed) {
             this.cleanupTask.cancel(true);
             return;
         }
+
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "metadataCleanup");
+
+        // Evict segments from the metadata.
+        Map<Long, String> evictedSegments = this.metadata.cleanup(this.config.getSegmentMetadataExpiration());
+
+        if (evictedSegments.size() > 0) {
+            // Clean up those segments from the Read Index.
+            this.readIndex.cleanup(evictedSegments.keySet());
+        }
+
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "metadataCleanup", traceId, evictedSegments.size());
     }
 
     //endregion

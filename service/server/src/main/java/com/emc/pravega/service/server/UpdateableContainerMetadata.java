@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server;
 
+import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
 
@@ -26,7 +27,7 @@ import java.util.Map;
  */
 public interface UpdateableContainerMetadata extends ContainerMetadata, RecoverableMetadata, TruncationMarkerRepository {
     /**
-     * Maps a new StreamSegment Name to its assigned Id.
+     * Maps a new StreamSegment Name to the given Id.
      *
      * @param streamSegmentName The case-sensitive name of the StreamSegment to map.
      * @param streamSegmentId   The Id of the StreamSegment.
@@ -84,4 +85,12 @@ public interface UpdateableContainerMetadata extends ContainerMetadata, Recovera
      * @return The mapped StreamSegmentMetadata, or null if none is.
      */
     UpdateableSegmentMetadata getStreamSegmentMetadata(long streamSegmentId);
+
+    /**
+     * Evicts those StreamSegments from the metadata which are eligible for removal.
+     *
+     * @param segmentExpiration The amount of time after which inactive segments expire.
+     * @return A Map of SegmentIds-to-SegmentNames that have been evicted from the metadata.
+     */
+    Map<Long, String> cleanup(Duration segmentExpiration);
 }

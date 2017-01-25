@@ -18,10 +18,10 @@
 
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.MathHelpers;
+import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.server.DataCorruptionException;
@@ -66,7 +66,7 @@ class StorageWriter extends AbstractService implements Writer {
     private final HashMap<Long, SegmentAggregator> aggregators;
     private final AtomicReference<Throwable> stopException;
     private final WriterState state;
-    private final AutoStopwatch stopwatch;
+    private final Timer timer;
     private final AckCalculator ackCalculator;
     private final AtomicBoolean closed;
     private CompletableFuture<Void> runTask;
@@ -96,7 +96,7 @@ class StorageWriter extends AbstractService implements Writer {
         this.executor = executor;
         this.aggregators = new HashMap<>();
         this.state = new WriterState();
-        this.stopwatch = new AutoStopwatch();
+        this.timer = new Timer();
         this.stopException = new AtomicReference<>();
         this.ackCalculator = new AckCalculator(this.state);
         this.closed = new AtomicBoolean();
@@ -192,14 +192,14 @@ class StorageWriter extends AbstractService implements Writer {
     }
 
     private void beginIteration(Void ignored) {
-        this.state.recordIterationStarted(this.stopwatch);
+        this.state.recordIterationStarted(this.timer);
         logStageEvent("Start", null);
     }
 
     private void endIteration(Void ignored) {
         // Perform internal cleanup (get rid of those SegmentAggregators that are closed).
         cleanup();
-        logStageEvent("Finish", "Elapsed " + this.state.getElapsedSinceIterationStart(this.stopwatch).toMillis() + "ms");
+        logStageEvent("Finish", "Elapsed " + this.state.getElapsedSinceIterationStart(this.timer).toMillis() + "ms");
     }
 
     private Void iterationErrorHandler(Throwable ex) {
@@ -214,7 +214,7 @@ class StorageWriter extends AbstractService implements Writer {
         logError(ex, critical);
         if (critical) {
             // Setting a stop exception guarantees the main Writer loop will not continue running again.
-            this.stopException.set(ex);
+            this.stopException.set(ExceptionHelpers.getRealException(ex));
             stopAsync();
         } else {
             this.state.recordIterationError();
@@ -435,7 +435,7 @@ class StorageWriter extends AbstractService implements Writer {
             }
 
             // Then create the aggregator.
-            result = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.stopwatch);
+            result = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.timer);
             this.aggregators.put(streamSegmentId, result);
             result.initialize(this.config.getFlushTimeout()).join();
         }

@@ -38,18 +38,24 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
  * In-Memory Mock for DurableDataLog. Contents is destroyed when object is garbage collected.
  */
+@ThreadSafe
 class InMemoryDurableDataLog implements DurableDataLog {
     static final Supplier<Duration> DEFAULT_APPEND_DELAY_PROVIDER = () -> Duration.ZERO; // No delay.
     private final EntryCollection entries;
     private final String clientId;
     private final ScheduledExecutorService executorService;
     private final Supplier<Duration> appendDelayProvider;
+    @GuardedBy("entries")
     private long offset;
+    @GuardedBy("entries")
     private long lastAppendSequence;
     private boolean closed;
     private boolean initialized;
@@ -93,13 +99,15 @@ class InMemoryDurableDataLog implements DurableDataLog {
             throw new CompletionException(ex);
         }
 
-        Entry last = this.entries.getLast();
-        if (last == null) {
-            this.offset = 0;
-            this.lastAppendSequence = -1;
-        } else {
-            this.offset = last.sequenceNumber + last.data.length;
-            this.lastAppendSequence = last.sequenceNumber;
+        synchronized (this.entries) {
+            Entry last = this.entries.getLast();
+            if (last == null) {
+                this.offset = 0;
+                this.lastAppendSequence = -1;
+            } else {
+                this.offset = last.sequenceNumber + last.data.length;
+                this.lastAppendSequence = last.sequenceNumber;
+            }
         }
 
         this.initialized = true;
@@ -114,7 +122,9 @@ class InMemoryDurableDataLog implements DurableDataLog {
     @Override
     public long getLastAppendSequence() {
         ensurePreconditions();
-        return this.lastAppendSequence;
+        synchronized (this.entries) {
+            return this.lastAppendSequence;
+        }
     }
 
     @Override
@@ -131,15 +141,15 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<Boolean> truncate(LogAddress upToAddress, Duration timeout) {
+    public CompletableFuture<Void> truncate(LogAddress upToAddress, Duration timeout) {
         ensurePreconditions();
-        return CompletableFuture.supplyAsync(() -> {
-            synchronized (this.entries) {
-                try {
-                    return this.entries.truncate(upToAddress.getSequence(), this.clientId) > 0;
-                } catch (DataLogWriterNotPrimaryException ex) {
-                    throw new CompletionException(ex);
+        return CompletableFuture.runAsync(() -> {
+            try {
+                synchronized (this.entries) {
+                    this.entries.truncate(upToAddress.getSequence(), this.clientId);
                 }
+            } catch (DataLogWriterNotPrimaryException ex) {
+                throw new CompletionException(ex);
             }
         }, this.executorService);
     }
@@ -178,14 +188,10 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
     //region ReadResultIterator
 
+    @RequiredArgsConstructor
     private static class ReadResultIterator implements CloseableIterator<ReadItem, DurableDataLogException> {
         private final Iterator<Entry> entryIterator;
         private final long afterSequence;
-
-        ReadResultIterator(Iterator<Entry> entryIterator, long afterSequence) {
-            this.entryIterator = entryIterator;
-            this.afterSequence = afterSequence;
-        }
 
         @Override
         public ReadItem getNext() throws DurableDataLogException {
@@ -270,9 +276,9 @@ class InMemoryDurableDataLog implements DurableDataLog {
             return this.entries.getLast();
         }
 
-        int truncate(long upToSequence, String clientId) throws DataLogWriterNotPrimaryException {
+        void truncate(long upToSequence, String clientId) throws DataLogWriterNotPrimaryException {
             ensureLock(clientId);
-            return this.entries.truncate(upToSequence);
+            this.entries.truncate(upToSequence);
         }
 
         Iterator<Entry> iterator() {

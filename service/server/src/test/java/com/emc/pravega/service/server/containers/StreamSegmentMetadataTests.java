@@ -19,16 +19,13 @@
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.service.contracts.AppendContext;
-import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.testcommon.AssertExtensions;
-
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.UUID;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for StreamSegmentMetadata class.
@@ -86,6 +83,8 @@ public class StreamSegmentMetadataTests {
         baseMetadata.markDeleted();
         baseMetadata.markSealed();
         baseMetadata.markMerged();
+        baseMetadata.setLastKnownRequestTime(1545895);
+        baseMetadata.setLastKnownSequenceNumber(89466);
 
         // Normal metadata copy.
         StreamSegmentMetadata newMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
@@ -109,12 +108,14 @@ public class StreamSegmentMetadataTests {
                 ex -> ex instanceof IllegalArgumentException);
     }
 
-    private static void assertEquals(String message, SegmentMetadata expected, SegmentMetadata actual) {
+    private static void assertEquals(String message, StreamSegmentMetadata expected, StreamSegmentMetadata actual) {
         Assert.assertEquals(message + " StorageLength differs.", expected.getStorageLength(), actual.getStorageLength());
         Assert.assertEquals(message + " DurableLogLength differs.", expected.getDurableLogLength(), actual.getDurableLogLength());
         Assert.assertEquals(message + " isDeleted differs.", expected.isDeleted(), actual.isDeleted());
         Assert.assertEquals(message + " isSealed differs.", expected.isSealed(), actual.isSealed());
         Assert.assertEquals(message + " isMerged differs.", expected.isMerged(), actual.isMerged());
+        Assert.assertEquals(message + " getLastKnownRequestTime differs.", expected.getLastKnownRequestTime(), actual.getLastKnownRequestTime());
+        Assert.assertEquals(message + " getLastKnownSequenceNumber differs.", expected.getLastKnownSequenceNumber(), actual.getLastKnownSequenceNumber());
         AssertExtensions.assertContainsSameElements(message + " KnownClientIds differ.", expected.getKnownClientIds(), actual.getKnownClientIds());
         for (UUID clientId : expected.getKnownClientIds()) {
             AppendContext expectedContext = expected.getLastAppendContext(clientId);

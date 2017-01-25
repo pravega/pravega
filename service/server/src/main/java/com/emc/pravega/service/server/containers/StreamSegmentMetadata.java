@@ -24,18 +24,20 @@ import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.UUID;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Metadata for a particular Stream Segment.
  */
 @Slf4j
+@ThreadSafe
 public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     //region Members
 
@@ -44,14 +46,26 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private final long streamSegmentId;
     private final long parentStreamSegmentId;
     private final int containerId;
+    @GuardedBy("this")
     private final AbstractMap<UUID, AppendContext> lastCommittedAppends;
+    @GuardedBy("this")
     private long storageLength;
+    @GuardedBy("this")
     private long durableLogLength;
+    @GuardedBy("this")
     private boolean sealed;
+    @GuardedBy("this")
     private boolean sealedInStorage;
+    @GuardedBy("this")
     private boolean deleted;
+    @GuardedBy("this")
     private boolean merged;
+    @GuardedBy("this")
     private Date lastModified;
+    @GuardedBy("this")
+    private long lastKnownRequestTime;
+    @GuardedBy("this")
+    private long lastKnownSequenceNumber;
 
     //endregion
 
@@ -96,6 +110,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.durableLogLength = -1;
         this.lastCommittedAppends = new HashMap<>();
         this.lastModified = new Date(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
+        this.lastKnownRequestTime = 0;
+        this.lastKnownSequenceNumber = 0;
     }
 
     //endregion
@@ -108,22 +124,22 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public boolean isSealed() {
+    public synchronized boolean isSealed() {
         return this.sealed;
     }
 
     @Override
-    public boolean isDeleted() {
+    public synchronized boolean isDeleted() {
         return this.deleted;
     }
 
     @Override
-    public long getLength() {
+    public synchronized long getLength() {
         return this.durableLogLength; // ReadableLength is essentially DurableLogLength.
     }
 
     @Override
-    public Date getLastModified() {
+    public synchronized Date getLastModified() {
         return this.lastModified;
     }
 
@@ -147,32 +163,32 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public boolean isMerged() {
+    public synchronized boolean isMerged() {
         return this.merged;
     }
 
     @Override
-    public boolean isSealedInStorage() {
+    public synchronized boolean isSealedInStorage() {
         return this.sealedInStorage;
     }
 
     @Override
-    public long getStorageLength() {
+    public synchronized long getStorageLength() {
         return this.storageLength;
     }
 
     @Override
-    public long getDurableLogLength() {
+    public synchronized long getDurableLogLength() {
         return this.durableLogLength;
     }
 
     @Override
-    public AppendContext getLastAppendContext(UUID clientId) {
+    public synchronized AppendContext getLastAppendContext(UUID clientId) {
         return this.lastCommittedAppends.getOrDefault(clientId, null);
     }
 
     @Override
-    public Collection<UUID> getKnownClientIds() {
+    public synchronized Collection<UUID> getKnownClientIds() {
         return this.lastCommittedAppends.keySet();
     }
 
@@ -194,7 +210,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     //region UpdateableSegmentMetadata Implementation
 
     @Override
-    public void setStorageLength(long value) {
+    public synchronized void setStorageLength(long value) {
         Exceptions.checkArgument(value >= 0, "value", "Storage Length must be a non-negative number.");
         Exceptions.checkArgument(value >= this.storageLength, "value", "New Storage Length cannot be smaller than the previous one.");
 
@@ -203,7 +219,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void setDurableLogLength(long value) {
+    public synchronized void setDurableLogLength(long value) {
         Exceptions.checkArgument(value >= 0, "value", "Durable Log Length must be a non-negative number.");
         Exceptions.checkArgument(value >= this.durableLogLength, "value", "New Durable Log Length cannot be smaller than the previous one.");
 
@@ -212,26 +228,26 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void markSealed() {
+    public synchronized void markSealed() {
         log.trace("{}: Sealed = true.", this.traceObjectId);
         this.sealed = true;
     }
 
     @Override
-    public void markSealedInStorage() {
+    public synchronized void markSealedInStorage() {
         Preconditions.checkState(this.sealed, "Cannot mark SealedInStorage if not Sealed in DurableLog.");
         log.trace("{}: SealedInStorage = true.", this.traceObjectId);
         this.sealedInStorage = true;
     }
 
     @Override
-    public void markDeleted() {
+    public synchronized void markDeleted() {
         log.trace("{}: Deleted = true.", this.traceObjectId);
         this.deleted = true;
     }
 
     @Override
-    public void markMerged() {
+    public synchronized void markMerged() {
         Preconditions.checkState(this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a non-Transaction StreamSegment.");
 
         log.trace("{}: Merged = true.", this.traceObjectId);
@@ -239,18 +255,18 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void setLastModified(Date date) {
+    public synchronized void setLastModified(Date date) {
         this.lastModified = date;
         log.trace("{}: LastModified = {}.", this.lastModified);
     }
 
     @Override
-    public void recordAppendContext(AppendContext appendContext) {
+    public synchronized void recordAppendContext(AppendContext appendContext) {
         this.lastCommittedAppends.put(appendContext.getClientId(), appendContext);
     }
 
     @Override
-    public void copyFrom(SegmentMetadata base) {
+    public synchronized void copyFrom(SegmentMetadata base) {
         Exceptions.checkArgument(this.getId() == base.getId(), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentId).");
         Exceptions.checkArgument(this.getName().equals(base.getName()), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentName).");
         Exceptions.checkArgument(this.getParentId() == base.getParentId(), "base", "Given SegmentMetadata has a different parent StreamSegment than this one.");
@@ -277,6 +293,41 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         if (base.isDeleted()) {
             markDeleted();
         }
+
+        if (base instanceof StreamSegmentMetadata) {
+            StreamSegmentMetadata ssm = (StreamSegmentMetadata) base;
+            setLastKnownRequestTime(ssm.getLastKnownRequestTime());
+            setLastKnownSequenceNumber(ssm.getLastKnownSequenceNumber());
+        }
+    }
+
+    @Override
+    public synchronized void setLastKnownSequenceNumber(long value) {
+        this.lastKnownSequenceNumber = Math.max(value, this.lastKnownSequenceNumber);
+    }
+
+    /**
+     * Gets a value representing the Sequence Number of the last Operation that referenced this Segment.
+     */
+    public synchronized long getLastKnownSequenceNumber() {
+        return this.lastKnownSequenceNumber;
+    }
+
+    /**
+     * Sets a value representing the last time this Segment was referenced in the ContainerMetadata.
+     *
+     * @param value The value. This is only valid within the context of the ContainerMetadata that owns this object.
+     */
+    public synchronized void setLastKnownRequestTime(long value) {
+        this.lastKnownRequestTime = Math.max(value, this.lastKnownRequestTime);
+    }
+
+    /**
+     * Gets a value representing the last time this Segment was referenced in the ContainerMetadata.
+     * The time returned is only valid within the context of the ContainerMetadata that owns this object.
+     */
+    public synchronized long getLastKnownRequestTime() {
+        return this.lastKnownRequestTime;
     }
 
     //endregion

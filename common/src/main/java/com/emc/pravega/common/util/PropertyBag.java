@@ -18,6 +18,7 @@
 
 package com.emc.pravega.common.util;
 
+import java.util.Map;
 import java.util.Properties;
 
 /**
@@ -45,5 +46,14 @@ public class PropertyBag extends Properties {
     public PropertyBag with(String key, Object value) {
         setProperty(key, value.toString());
         return this;
+    }
+
+    public PropertyBag duplicate() {
+        PropertyBag result = new PropertyBag();
+        for (Map.Entry<Object, Object> e : this.entrySet()) {
+            setProperty((String) e.getKey(), (String) e.getValue());
+        }
+
+        return result;
     }
 }
