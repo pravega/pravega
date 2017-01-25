@@ -49,6 +49,7 @@ import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
+
 import java.time.Duration;
 import java.util.Date;
 import java.util.Map;
@@ -60,6 +61,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -144,14 +146,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         }
     }
 
-    private void stopCleanupTask() {
-        ScheduledFuture<?> cleanupTask = this.cleanupTask;
-        if (cleanupTask != null && !cleanupTask.isDone()) {
-            cleanupTask.cancel(true);
-            this.cleanupTask = null;
-        }
-    }
-
     //endregion
 
     //region AbstractService Implementation
@@ -192,25 +186,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
             this.notifyStopped();
         });
-    }
-
-    private void metadataCleanup() {
-        if (this.closed) {
-            this.cleanupTask.cancel(true);
-            return;
-        }
-
-        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "metadataCleanup");
-
-        // Evict segments from the metadata.
-        Map<Long, String> evictedSegments = this.metadata.cleanup(this.config.getSegmentMetadataExpiration());
-
-        if (evictedSegments.size() > 0) {
-            // Clean up those segments from the Read Index.
-            this.readIndex.cleanup(evictedSegments.keySet());
-        }
-
-        LoggerHelpers.traceLeave(log, this.traceObjectId, "metadataCleanup", traceId, evictedSegments.size());
     }
 
     //endregion
@@ -394,6 +369,33 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     //region Helpers
 
+    private void metadataCleanup() {
+        if (this.closed) {
+            this.cleanupTask.cancel(true);
+            return;
+        }
+
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "metadataCleanup");
+
+        // Evict segments from the metadata.
+        Map<Long, String> evictedSegments = this.metadata.cleanup(this.config.getSegmentMetadataExpiration());
+
+        if (evictedSegments.size() > 0) {
+            // Clean up those segments from the Read Index.
+            this.readIndex.cleanup(evictedSegments.keySet());
+        }
+
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "metadataCleanup", traceId, evictedSegments.size());
+    }
+
+    private void stopCleanupTask() {
+        ScheduledFuture<?> cleanupTask = this.cleanupTask;
+        if (cleanupTask != null && !cleanupTask.isDone()) {
+            cleanupTask.cancel(true);
+            this.cleanupTask = null;
+        }
+    }
+
     private void ensureRunning() {
         Exceptions.checkNotClosed(this.closed, this);
         if (state() != State.RUNNING) {
@@ -407,7 +409,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     private Consumer<Throwable> createComponentFailedHandler(String componentName) {
         return cause -> {
-            log.warn("{}: DurableLog failed with exception {}", this.traceObjectId, cause);
+            log.warn("{}: {} failed with exception {}.", this.traceObjectId, componentName, cause);
             if (state() != State.STARTING) {
                 // We cannot stop the service while we're starting it.
                 stopAsync().awaitTerminated();
