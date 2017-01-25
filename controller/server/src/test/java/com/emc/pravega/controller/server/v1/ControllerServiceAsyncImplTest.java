@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
@@ -86,8 +87,8 @@ public class ControllerServiceAsyncImplTest {
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =
                 new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
 
-        this.controllerService = new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks);
+        this.controllerService = new ControllerServiceAsyncImpl(new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks));
     }
 
     @Test
