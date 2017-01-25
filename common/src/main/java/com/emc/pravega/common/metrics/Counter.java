@@ -50,4 +50,11 @@ public interface Counter {
      * @return the long
      */
     public long get();
+
+    /**
+     * Gets name.
+     *
+     * @return the name
+     */
+    public String getName();
 }

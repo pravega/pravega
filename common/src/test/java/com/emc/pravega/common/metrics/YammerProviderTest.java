@@ -18,9 +18,10 @@ package com.emc.pravega.common.metrics;
 
 import com.emc.pravega.common.Timer;
 import org.junit.Test;
-import static org.junit.Assert.assertEquals;
 
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * The type Yammer provider test.
@@ -70,7 +71,7 @@ public class YammerProviderTest {
         statsLogger.registerGauge("testGauge", value::get);
         for (int i = 1; i < 10; i++) {
             value.set(i);
-            assertEquals(i, MetricsProvider.getMetrics().getGauges().get("testGauge").getValue());
+            assertEquals(i, MetricsProvider.getYammerMetrics().getGauges().get("testGauge").getValue());
         }
     }
 }

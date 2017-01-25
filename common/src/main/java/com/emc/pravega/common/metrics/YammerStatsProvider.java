@@ -21,19 +21,16 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.ScheduledReporter;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
-import static com.codahale.metrics.MetricRegistry.name;
-
-import com.readytalk.metrics.StatsDReporter;
-
-import java.util.List;
-import java.util.ArrayList;
-import java.util.concurrent.TimeUnit;
-import java.io.File;
 import com.google.common.base.Strings;
-
-import lombok.extern.slf4j.Slf4j;
+import com.readytalk.metrics.StatsDReporter;
 import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
+
 import javax.annotation.concurrent.GuardedBy;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class YammerStatsProvider implements StatsProvider {
@@ -44,7 +41,7 @@ public class YammerStatsProvider implements StatsProvider {
     @Synchronized
     void init() {
         if (metrics == null) {
-            metrics = MetricsProvider.getMetrics();
+            metrics = MetricsProvider.getYammerMetrics();
             metrics.registerAll(new MemoryUsageGaugeSet());
             metrics.registerAll(new GarbageCollectorMetricSet());
         }
@@ -109,5 +106,11 @@ public class YammerStatsProvider implements StatsProvider {
     public StatsLogger createStatsLogger(String name) {
         init();
         return new YammerStatsLogger(getMetrics(), name);
+    }
+
+    @Override
+    public DynamicLogger createDynamicLogger() {
+        init();
+        return new YammerDynamicLogger(metrics, new YammerStatsLogger(getMetrics(), "DYNAMIC"));
     }
 }

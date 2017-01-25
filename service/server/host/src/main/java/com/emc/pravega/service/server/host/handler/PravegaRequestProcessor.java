@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.host.handler;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.metrics.Counter;
+import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.OpStatsLogger;
 import com.emc.pravega.common.metrics.StatsLogger;
@@ -59,6 +60,8 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
 import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -67,7 +70,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import lombok.extern.slf4j.Slf4j;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Cache;
@@ -109,9 +112,20 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Timer timer = new Timer();
         final String segment = readSegment.getSegment();
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
+
+        // create an example of dynamic counter
+        DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
+        Counter readSegmentEvent = dynamicLogger.createCounter(segment);
+
+        // create an example of dynamic gauge
+        AtomicLong offset = new AtomicLong();
+        dynamicLogger.registerGauge(segment, offset::get);
+        offset.set(readSegment.getOffset());
+
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {
             Metrics.READ_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
+            readSegmentEvent.inc();
             handleReadResult(readSegment, t);
             return null;
         }).exceptionally((Throwable t) -> {

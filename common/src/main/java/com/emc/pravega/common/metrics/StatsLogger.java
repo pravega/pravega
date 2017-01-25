@@ -27,7 +27,7 @@ public interface StatsLogger {
      * Gets op stats logger.
      *
      * @param name Stats Name
-     * @return Get the logger for an OpStat described by the <i>name</i>.
+     * @return Create and register the logger for an OpStat described by the <i>name</i>.
      */
     public OpStatsLogger createStats(String name);
 
@@ -35,7 +35,7 @@ public interface StatsLogger {
      * Gets counter.
      *
      * @param name Stats Name
-     * @return Get the logger for a simple stat described by the <i>name</i>
+     * @return Create and register counter described by the <i>name</i>
      */
     public Counter createCounter(String name);
 
@@ -47,7 +47,7 @@ public interface StatsLogger {
      * @param name  the name of gauge
      * @param value the supplier to provide value through get()
      */
-    public <T extends Number> void registerGauge(String name, Supplier<T> value);
+    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value);
 
     /**
      * Provide the stats logger under scope <i>scope</i>.

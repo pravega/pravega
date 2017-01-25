@@ -16,13 +16,13 @@
  */
 package com.emc.pravega.common.metrics;
 
-import com.codahale.metrics.Timer;
-import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Timer;
 import com.google.common.base.Preconditions;
 
-import static com.codahale.metrics.MetricRegistry.name;
 import java.util.function.Supplier;
+
+import static com.codahale.metrics.MetricRegistry.name;
 
 public class YammerStatsLogger implements StatsLogger {
     protected final String basename;
@@ -43,9 +43,11 @@ public class YammerStatsLogger implements StatsLogger {
 
     private static class CounterImpl implements Counter {
         private final com.codahale.metrics.Counter counter;
+        private final String name;
 
-        CounterImpl(com.codahale.metrics.Counter c) {
+        CounterImpl(com.codahale.metrics.Counter c, String name) {
              counter = c;
+             this.name = name;
         }
 
         @Override
@@ -73,25 +75,46 @@ public class YammerStatsLogger implements StatsLogger {
         public void add(long delta) {
             counter.inc(delta);
         }
+
+        @Override
+        public String getName() {
+            return name;
+        }
     }
 
     @Override
     public Counter createCounter(String statName) {
         final com.codahale.metrics.Counter c = metrics.counter(name(basename, statName));
-        return new CounterImpl(c);
+        return new CounterImpl(c, name(basename, statName));
+    }
+
+    private static class GaugeImpl implements Gauge {
+        private final com.codahale.metrics.Gauge gauge;
+        private final String name;
+
+        GaugeImpl(com.codahale.metrics.Gauge gauge, String name) {
+            this.gauge = gauge;
+            this.name = name;
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
     }
 
     @Override
-    public <T extends Number> void registerGauge(final String statName, Supplier<T> value) {
+    public <T extends Number> Gauge registerGauge(final String statName, Supplier<T> value) {
         String metricName = name(basename, statName);
         metrics.remove(metricName);
-        Gauge gauge = new Gauge<T>() {
+        com.codahale.metrics.Gauge gauge = new com.codahale.metrics.Gauge<T>() {
             @Override
             public T getValue() {
                 return value.get();
             }
         };
         metrics.register(metricName, gauge);
+        return new GaugeImpl(gauge, metricName);
     }
 
     @Override

@@ -25,14 +25,18 @@ public class MetricsProvider {
     private static final StatsProvider NULLPROVIDER = new NullStatsProvider();
     private static final StatsProvider YAMMERPROVIDER = new YammerStatsProvider();
 
+    // Dynamic logger to store
+    private static final DynamicLogger YAMMERDYNAMICLOGGER = YAMMERPROVIDER.createDynamicLogger();
+    private static final DynamicLogger NULLDYNAMICLOGGER = NULLPROVIDER.createDynamicLogger();
+
     private MetricsProvider() {
     }
 
-    public static MetricRegistry getMetrics() {
+    public static MetricRegistry getYammerMetrics() {
         return YAMMERMETRICS;
     }
 
-    public static StatsProvider getProvider() {
+    public static StatsProvider getYammerProvider() {
         return YAMMERPROVIDER;
     }
 
@@ -44,5 +48,12 @@ public class MetricsProvider {
         return  MetricsConfig.enableStatistics() ?
                 YAMMERPROVIDER.createStatsLogger(loggerName) :
                 NULLPROVIDER.createStatsLogger(loggerName);
+    }
+
+    // TODO: zhaijia, here we should create this class not implements statsLogger, and only report
+    public static DynamicLogger getDynamicLogger() {
+        return  MetricsConfig.enableStatistics() ?
+                YAMMERDYNAMICLOGGER :
+                NULLDYNAMICLOGGER;
     }
 }

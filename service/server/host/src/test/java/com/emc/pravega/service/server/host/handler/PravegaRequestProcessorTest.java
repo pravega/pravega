@@ -18,6 +18,9 @@
 package com.emc.pravega.service.server.host.handler;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.metrics.Counter;
+import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.OpStatsData;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
@@ -43,6 +46,7 @@ import com.emc.pravega.service.server.store.StreamSegmentService;
 import com.emc.pravega.testcommon.InlineExecutor;
 import lombok.Cleanup;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
@@ -56,19 +60,18 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import com.emc.pravega.common.metrics.Counter;
-import com.emc.pravega.common.metrics.OpStatsData;
-
+@Slf4j
 public class PravegaRequestProcessorTest {
 
     @Data
@@ -162,6 +165,14 @@ public class PravegaRequestProcessorTest {
         // Have read all the bytes in data[], so readBytes count equals to data.length.
         Counter readBytes = PravegaRequestProcessor.Metrics.READ_BYTES;
         assertEquals(data.length, readBytes.get());
+
+        // Test dynamic counter in readSegment, it should be with name "DYNAMIC.testReadSegment.Counter"
+        com.codahale.metrics.Counter dynamicCounter = MetricsProvider.getYammerMetrics().
+                getCounters().get("DYNAMIC.testReadSegment.Counter");
+        assertNotEquals(0, dynamicCounter.getCount());
+
+        // Test dynamic gauge in readSegment, it should be with name "DYNAMIC.testReadSegment.Gauge"
+        assertNotNull(MetricsProvider.getYammerMetrics().getGauges().get("DYNAMIC.testReadSegment.Gauge"));
     }
 
     @Test(timeout = 20000)

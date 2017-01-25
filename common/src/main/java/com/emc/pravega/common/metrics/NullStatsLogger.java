@@ -85,9 +85,18 @@ public class NullStatsLogger implements StatsLogger {
         public long get() {
             return 0L;
         }
+
+        @Override
+        public String getName() {
+            return "";
+        }
     }
 
     static NullCounter nullCounter = new NullCounter();
+
+    static String nullName = "";
+
+    static NullGauge nullGauge = new NullGauge();
 
     @Override
     public OpStatsLogger createStats(String name) {
@@ -99,9 +108,15 @@ public class NullStatsLogger implements StatsLogger {
         return nullCounter;
     }
 
+    static class NullGauge implements Gauge {
+        public String getName() {
+            return nullName;
+        }
+    }
+
     @Override
-    public <T extends Number> void registerGauge(String name, Supplier<T> value){
-        // nop
+    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value) {
+        return nullGauge;
     }
 
     @Override
