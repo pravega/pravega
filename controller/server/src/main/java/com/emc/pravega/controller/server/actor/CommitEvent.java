@@ -15,22 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.cluster;
+package com.emc.pravega.controller.server.actor;
 
+import com.emc.pravega.controller.actor.StreamEvent;
+import com.emc.pravega.stream.Serializer;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NonNull;
-import lombok.ToString;
+import org.apache.commons.lang.NotImplementedException;
 
-import java.io.Serializable;
+import java.util.UUID;
 
-@AllArgsConstructor
 @Data
-@ToString(includeFieldNames = true)
-@EqualsAndHashCode
-public class Host implements Serializable {
-    @NonNull
-    private final String ipAddr;
-    private final int port;
+@AllArgsConstructor
+public class CommitEvent implements StreamEvent {
+    private final String scope;
+    private final String stream;
+    private final UUID txid;
+
+    public byte[] getBytes() {
+        throw new NotImplementedException();
+    }
+
+    public static Serializer<CommitEvent> getSerializer() {
+        throw new NotImplementedException();
+    }
 }

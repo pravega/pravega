@@ -17,6 +17,9 @@
  */
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.controller.server.LocalController;
+import com.emc.pravega.controller.server.actor.ControllerActors;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
@@ -57,11 +60,13 @@ public class ControllerServiceAsyncImplTest {
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
     private final ControllerServiceAsyncImpl controllerService;
+    private final ControllerActors controllerActors;
 
     private final TestingServer zkServer;
 
 
     public ControllerServiceAsyncImplTest() throws Exception {
+        String hostId = "host";
         zkServer = new TestingServer();
         zkServer.start();
 
@@ -84,10 +89,25 @@ public class ControllerServiceAsyncImplTest {
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, "host");
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
+                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor,
+                        null, hostId);
 
         this.controllerService = new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks);
+
+        //region Setup Actors
+        LocalController localController =
+                new LocalController(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+
+        // todo: find a better way to avoid circular dependency
+        // between streamTransactionMetadataTasks and ControllerActors
+        controllerActors = new ControllerActors(new Host(hostId, 9090), "testCluster", zkClient, localController,
+                streamStore, hostStore);
+
+        // todo: uncomment following line
+        // controllerActors.initialize();
+        //endregion
+
     }
 
     @Test

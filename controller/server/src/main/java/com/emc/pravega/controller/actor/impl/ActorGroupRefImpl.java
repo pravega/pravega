@@ -15,22 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.cluster;
+package com.emc.pravega.controller.actor.impl;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NonNull;
-import lombok.ToString;
+import com.emc.pravega.controller.actor.ActorGroupRef;
+import com.emc.pravega.controller.actor.ActorSystem;
+import org.apache.commons.lang.NotImplementedException;
 
-import java.io.Serializable;
+public class ActorGroupRefImpl implements ActorGroupRef {
 
-@AllArgsConstructor
-@Data
-@ToString(includeFieldNames = true)
-@EqualsAndHashCode
-public class Host implements Serializable {
-    @NonNull
-    private final String ipAddr;
-    private final int port;
+    private final ActorSystem actorSystem;
+    private final String stream;
+
+    // package local constructor
+    ActorGroupRefImpl(ActorSystem actorSystem, String stream) {
+        this.actorSystem = actorSystem;
+        this.stream = stream;
+    }
+
+    public void sendEvent(byte[] event) {
+        // send an event to the stream
+        throw new NotImplementedException();
+    }
 }

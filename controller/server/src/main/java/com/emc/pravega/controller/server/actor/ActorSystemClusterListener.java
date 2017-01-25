@@ -15,22 +15,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.cluster;
+package com.emc.pravega.controller.server.actor;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NonNull;
-import lombok.ToString;
+import com.emc.pravega.common.cluster.ClusterListener;
+import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.controller.actor.ActorSystem;
+import lombok.extern.slf4j.Slf4j;
 
-import java.io.Serializable;
+@Slf4j
+public class ActorSystemClusterListener implements ClusterListener {
 
-@AllArgsConstructor
-@Data
-@ToString(includeFieldNames = true)
-@EqualsAndHashCode
-public class Host implements Serializable {
-    @NonNull
-    private final String ipAddr;
-    private final int port;
+    private final ActorSystem actorSystem;
+
+    ActorSystemClusterListener(ActorSystem actorSystem) {
+        this.actorSystem = actorSystem;
+    }
+
+    @Override
+    public void onEvent(EventType type, Host host) {
+        log.debug(String.format("Cluster event %s received for host %s", type, host));
+        if (type == EventType.HOST_REMOVED) {
+            actorSystem.notifyHostFailure(host);
+        }
+    }
 }

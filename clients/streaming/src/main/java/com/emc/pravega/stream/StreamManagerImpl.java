@@ -19,6 +19,7 @@ package com.emc.pravega.stream;
 
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.ControllerImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
@@ -36,11 +37,16 @@ public class StreamManagerImpl implements StreamManager {
 
     private final String scope;
     private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
-    private final ControllerImpl controller;
+    private final Controller controller;
 
     public StreamManagerImpl(String scope, URI controllerUri) {
         this.scope = scope;
         this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
+    }
+
+    public StreamManagerImpl(String scope, Controller controller) {
+        this.scope = scope;
+        this.controller = controller;
     }
 
     @Override

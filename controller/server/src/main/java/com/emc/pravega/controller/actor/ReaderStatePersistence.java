@@ -15,22 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.cluster;
+package com.emc.pravega.controller.actor;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NonNull;
-import lombok.ToString;
+import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.stream.Position;
 
-import java.io.Serializable;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
-@AllArgsConstructor
-@Data
-@ToString(includeFieldNames = true)
-@EqualsAndHashCode
-public class Host implements Serializable {
-    @NonNull
-    private final String ipAddr;
-    private final int port;
+public interface ReaderStatePersistence {
+
+    CompletableFuture<Void> setPosition(final String readerGroup, final String readerId, final Position position);
+
+    CompletableFuture<Map<String, Position>> getPositions(final String readerGroup, final Host host);
+
+    CompletableFuture<List<String>> getReaderIds(final String readerGroup, final Host host);
+
+    CompletableFuture<Void> setReaderIds(final String readerGroup, final Host host, List<String> readerIds);
 }

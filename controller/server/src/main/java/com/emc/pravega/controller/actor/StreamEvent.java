@@ -15,22 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.cluster;
+package com.emc.pravega.controller.actor;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NonNull;
-import lombok.ToString;
+/**
+ * Interface that all controller events need to implement.
+ */
+public interface StreamEvent {
 
-import java.io.Serializable;
-
-@AllArgsConstructor
-@Data
-@ToString(includeFieldNames = true)
-@EqualsAndHashCode
-public class Host implements Serializable {
-    @NonNull
-    private final String ipAddr;
-    private final int port;
 }

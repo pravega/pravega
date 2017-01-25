@@ -22,8 +22,10 @@ import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
+import com.emc.pravega.controller.server.actor.ControllerActors;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
@@ -55,6 +57,8 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 @Slf4j
 public class Main {
+
+    public static ControllerActors controllerActors;
 
     public static void main(String[] args) {
         String hostId;
@@ -97,12 +101,33 @@ public class Main {
             monitor.startAsync();
         }
 
-        //2. Start the RPC server.
-        log.info("Starting RPC server");
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId);
+                hostStore, taskMetadataStore, executor, () -> Main.controllerActors, hostId);
+
+        //2. set up Actors
+        //region Setup Actors
+        LocalController localController =
+                new LocalController(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+
+        Host host = new Host(hostId, Config.SERVER_PORT);
+        String controllerClusterName = "pravega-controller-cluster";
+
+        // todo: find a better way to avoid circular dependency
+        // between streamTransactionMetadataTasks and ControllerActors
+        controllerActors = new ControllerActors(host,
+                controllerClusterName,
+                ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient(),
+                localController,
+                streamStore,
+                hostStore);
+
+        controllerActors.initialize();
+        //endregion
+
+        //3. Start the RPC server.
+        log.info("Starting RPC server");
         RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks));
 

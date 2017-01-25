@@ -15,22 +15,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.cluster;
+package com.emc.pravega.controller.actor;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NonNull;
-import lombok.ToString;
+/**
+ * Configuration for creating ActorGroup.
+ */
+public interface ActorGroupConfig {
 
-import java.io.Serializable;
+    /**
+     * Gets name of stream which supplies events for Actors in the ActorGroup.
+     * @return Stream name.
+     */
+    String getStreamName();
 
-@AllArgsConstructor
-@Data
-@ToString(includeFieldNames = true)
-@EqualsAndHashCode
-public class Host implements Serializable {
-    @NonNull
-    private final String ipAddr;
-    private final int port;
+    /**
+     * Gets name of ReaderGroup to which Actors in the ActorGroup belong.
+     * @return ReaderGroup name.
+     */
+    String getReaderGroupName();
+
+    /**
+     * Gets the initial number of Actors in the ActorGroup.
+     * @return Initial number of Actors.
+     */
+    int getActorCount();
+
+    /**
+     * Gets the frequency of persistence of Position objects by Actors in the ActorGroup.
+     * @return Frequency of persistence of Position objects.
+     */
+    int getCheckpointFrequency();
 }

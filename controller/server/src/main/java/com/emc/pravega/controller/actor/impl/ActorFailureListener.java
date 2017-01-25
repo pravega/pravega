@@ -15,22 +15,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.cluster;
+package com.emc.pravega.controller.actor.impl;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NonNull;
-import lombok.ToString;
+import com.emc.pravega.controller.actor.StreamEvent;
+import com.google.common.util.concurrent.Service;
+import lombok.extern.log4j.Log4j;
 
-import java.io.Serializable;
+@Log4j
+public class ActorFailureListener<T extends StreamEvent> extends Service.Listener {
 
-@AllArgsConstructor
-@Data
-@ToString(includeFieldNames = true)
-@EqualsAndHashCode
-public class Host implements Serializable {
-    @NonNull
-    private final String ipAddr;
-    private final int port;
+    private final Actor<T> actor;
+
+    public ActorFailureListener(Actor<T> actor) {
+        this.actor = actor;
+    }
+
+    public void failed(Service.State from, Throwable failure) {
+        log.warn("Actor " + actor + " failed with exception from state " + from, failure);
+
+        // Default policy: if the actor failed while processing messages, i.e., from running state, then restart it.
+        if (from == Service.State.RUNNING) {
+            actor.restartAsync();
+        }
+    }
 }
