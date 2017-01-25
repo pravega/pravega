@@ -33,7 +33,7 @@ import javax.annotation.concurrent.NotThreadSafe;
  * @param <V> The type of the IndexEntries.
  */
 @NotThreadSafe
-public class RedBlackTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, V> {
+public class RedBlackTreeIndex<K, V extends SortedIndex.IndexEntry<K>> implements SortedIndex<K, V> {
     // region Members
 
     private final TreeMap<K, V> map;

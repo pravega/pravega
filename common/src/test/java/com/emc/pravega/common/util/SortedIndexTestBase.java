@@ -40,6 +40,16 @@ abstract class SortedIndexTestBase {
     //region Test Targets
 
     /**
+     * Unit tests for the AvlTreeIndex class.
+     */
+    public static class AvlTreeIndexTests extends SortedIndexTestBase {
+        @Override
+        protected SortedIndex<Integer, TestEntry> createIndex(Comparator<Integer> comparator) {
+            return new AvlTreeIndex<>(comparator);
+        }
+    }
+
+    /**
      * Unit tests for the RedBlackTreeIndex class.
      */
     public static class RedBlackTreeIndexTests extends SortedIndexTestBase {
@@ -321,7 +331,7 @@ abstract class SortedIndexTestBase {
 
     //region TestEntry
 
-    private static class TestEntry implements IndexEntry<Integer> {
+    private static class TestEntry implements SortedIndex.IndexEntry<Integer> {
         private static final AtomicLong ID_GENERATOR = new AtomicLong();
         // Note: do not implement equals() or hash() for this class - the tests rely on object equality, not key equality.
         private final int key;

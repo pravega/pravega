@@ -34,7 +34,7 @@ import java.util.function.Consumer;
  * @param <K> The type of the Key.
  * @param <V> The type of the IndexEntries.
  */
-public interface SortedIndex<K, V extends IndexEntry<K>> {
+public interface SortedIndex<K, V extends SortedIndex.IndexEntry<K>> {
     /**
      * Clears the contents of the Index.
      */
@@ -106,4 +106,17 @@ public interface SortedIndex<K, V extends IndexEntry<K>> {
      * @throws java.util.ConcurrentModificationException If the Index is modified while this method is executing.
      */
     void forEach(Consumer<V> consumer);
+
+    /**
+     * Defines a generic entry into an Index.
+     *
+     * @param <K> The Type of the key.
+     */
+    public interface IndexEntry<K> {
+        /**
+         * Gets a value representing the key of the entry. The Key should not change for the lifetime of the entry and
+         * should be very cheap to return (as it is used very frequently).
+         */
+        K key();
+    }
 }
