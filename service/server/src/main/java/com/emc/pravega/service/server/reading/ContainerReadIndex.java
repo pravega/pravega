@@ -115,7 +115,7 @@ public class ContainerReadIndex implements ReadIndex {
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
-            closeAllIndices();
+            closeAllIndices(false); // Do not individually clear the cache; we are wiping it anyway when closing it.
             this.cache.close();
             log.info("{}: Closed.", this.traceObjectId);
         }
@@ -157,7 +157,8 @@ public class ContainerReadIndex implements ReadIndex {
         StreamSegmentReadIndex targetIndex = getReadIndex(targetStreamSegmentId, true);
         targetIndex.completeMerge(sourceStreamSegmentId);
         synchronized (this.lock) {
-            closeIndex(sourceStreamSegmentId);
+            // Do not clear the Cache after merger - we are reusing the cache entries from the source index in the target one.
+            closeIndex(sourceStreamSegmentId, false);
         }
     }
 
@@ -209,7 +210,7 @@ public class ContainerReadIndex implements ReadIndex {
     public void clear() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(isRecoveryMode(), "Read Index is not in recovery mode. Cannot clear ReadIndex.");
-        closeAllIndices();
+        closeAllIndices(true);
         log.info("{}: Cleared.", this.traceObjectId);
     }
 
@@ -228,7 +229,7 @@ public class ContainerReadIndex implements ReadIndex {
                 SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
                 boolean wasRemoved = false;
                 if (segmentMetadata == null || segmentMetadata.isDeleted()) {
-                    wasRemoved = closeIndex(streamSegmentId);
+                    wasRemoved = closeIndex(streamSegmentId, true);
                 }
 
                 if (wasRemoved) {
@@ -336,20 +337,20 @@ public class ContainerReadIndex implements ReadIndex {
     }
 
     @GuardedBy("lock")
-    private boolean closeIndex(long streamSegmentId) {
+    private boolean closeIndex(long streamSegmentId, boolean cleanCache) {
         StreamSegmentReadIndex index = this.readIndices.remove(streamSegmentId);
         if (index != null) {
             this.cacheManager.unregister(index);
-            index.close();
+            index.close(cleanCache);
         }
 
         return index != null;
     }
 
-    private void closeAllIndices() {
+    private void closeAllIndices(boolean cleanCache) {
         synchronized (this.lock) {
-            val indices = new ArrayList<Long>(this.readIndices.keySet());
-            indices.forEach(this::closeIndex);
+            val segmentIds = new ArrayList<Long>(this.readIndices.keySet());
+            segmentIds.forEach(segmentId -> closeIndex(segmentId, cleanCache));
             this.readIndices.clear();
         }
     }
