@@ -16,13 +16,14 @@
  */
 package com.emc.pravega.common.metrics;
 
-import com.codahale.metrics.Timer;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Timer;
 import com.google.common.base.Preconditions;
 
-import static com.codahale.metrics.MetricRegistry.name;
 import java.util.function.Supplier;
+
+import static com.codahale.metrics.MetricRegistry.name;
 
 public class YammerStatsLogger implements StatsLogger {
     protected final String basename;
@@ -79,6 +80,55 @@ public class YammerStatsLogger implements StatsLogger {
     public Counter createCounter(String statName) {
         final com.codahale.metrics.Counter c = metrics.counter(name(basename, statName));
         return new CounterImpl(c);
+    }
+
+    private static class MeterImpl implements Meter {
+        private final com.codahale.metrics.Meter meter;
+
+        MeterImpl(com.codahale.metrics.Meter meter) {
+            this.meter = meter;
+        }
+
+        @Override
+        public void mark() {
+            meter.mark();
+        }
+
+        @Override
+        public void mark(long n) {
+            meter.mark(n);
+        }
+
+        @Override
+        public long getCount() {
+            return meter.getCount();
+        }
+
+        @Override
+        public double getFifteenMinuteRate() {
+            return meter.getFifteenMinuteRate();
+        }
+
+        @Override
+        public double getFiveMinuteRate() {
+            return meter.getFiveMinuteRate();
+        }
+
+        @Override
+        public double getMeanRate() {
+            return meter.getMeanRate();
+        }
+
+        @Override
+        public double getOneMinuteRate() {
+            return meter.getOneMinuteRate();
+        }
+    }
+
+    @Override
+    public Meter createMeter(String statName) {
+        final com.codahale.metrics.Meter meter = metrics.meter(name(basename, statName));
+        return new MeterImpl(meter);
     }
 
     @Override

@@ -18,9 +18,10 @@ package com.emc.pravega.common.metrics;
 
 import com.emc.pravega.common.Timer;
 import org.junit.Test;
-import static org.junit.Assert.assertEquals;
 
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * The type Yammer provider test.
@@ -59,6 +60,19 @@ public class YammerProviderTest {
         Counter testCounter = statsLogger.createCounter("testCounter");
         testCounter.add(17);
         assertEquals(17, testCounter.get());
+    }
+
+    /**
+     * Test Meter registered and  worked well with StatsLogger.
+     */
+    @Test
+    public void testMeter() {
+        Meter testMeter = statsLogger.createMeter("testMeter");
+        testMeter.mark();
+        testMeter.mark();
+        assertEquals(2, testMeter.getCount());
+        testMeter.mark(27);
+        assertEquals(29, testMeter.getCount());
     }
 
     /**

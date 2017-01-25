@@ -58,7 +58,7 @@ public class NullStatsLogger implements StatsLogger {
         }
     }
 
-    static NullOpStatsLogger nullOpStatsLogger = new NullOpStatsLogger();
+    private static NullOpStatsLogger nullOpStatsLogger = new NullOpStatsLogger();
 
     static class NullCounter implements Counter {
         @Override
@@ -87,7 +87,46 @@ public class NullStatsLogger implements StatsLogger {
         }
     }
 
-    static NullCounter nullCounter = new NullCounter();
+    private static NullCounter nullCounter = new NullCounter();
+
+    static class NullMeter implements Meter {
+        @Override
+        public void mark() {
+            // nop
+        }
+
+        @Override
+        public void mark(long n) {
+            // nop
+        }
+
+        @Override
+        public long getCount() {
+            return 0L;
+        }
+
+        @Override
+        public double getFifteenMinuteRate() {
+            return 0;
+        }
+
+        @Override
+        public double getFiveMinuteRate() {
+            return 0;
+        }
+
+        @Override
+        public double getMeanRate() {
+            return 0;
+        }
+
+        @Override
+        public double getOneMinuteRate() {
+            return 0;
+        }
+    }
+
+    private static NullMeter nullMeter = new NullMeter();
 
     @Override
     public OpStatsLogger createStats(String name) {
@@ -97,6 +136,11 @@ public class NullStatsLogger implements StatsLogger {
     @Override
     public Counter createCounter(String name) {
         return nullCounter;
+    }
+
+    @Override
+    public Meter createMeter(String name) {
+        return nullMeter;
     }
 
     @Override
