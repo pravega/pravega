@@ -39,7 +39,7 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
 
     private final ControllerService controllerService;
 
-    public ControllerServiceAsyncImpl(ControllerService controllerService) {
+    public ControllerServiceAsyncImpl(final ControllerService controllerService) {
         this.controllerService = controllerService;
     }
 
