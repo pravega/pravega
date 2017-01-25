@@ -24,6 +24,7 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.testcommon.Async;
 
+import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Iterator;
@@ -42,6 +43,19 @@ public class SynchronizerTest {
     private static class RevisionedImpl implements Revisioned {
         private final String scopedStreamName;
         private final Revision revision;
+    }
+    
+    @Data
+    private static class NormalUpdate implements Update<RevisionedImpl>, InitialUpdate<RevisionedImpl>, Serializable {
+        @Override
+        public RevisionedImpl create(String scopedStreamName, Revision revision) {
+            return new RevisionedImpl(scopedStreamName, revision);
+        }
+
+        @Override
+        public RevisionedImpl applyTo(RevisionedImpl oldState, Revision newRevision) {
+            return new RevisionedImpl(oldState.getScopedStreamName(), newRevision);
+        }
     }
 
     @Data
@@ -105,6 +119,11 @@ public class SynchronizerTest {
             throw new NotImplementedException();
         }
 
+        @Override
+        public Revision getCurrentRevision() {
+            return new RevisionImpl(segment, visableLength, visableLength);
+        }
+
     }
 
     @Test(timeout = 20000)
@@ -148,4 +167,5 @@ public class SynchronizerTest {
         RevisionedImpl state3 = sync.getState();
         assertEquals(new RevisionImpl(segment, 4, 4), state3.getRevision());
     }
+
 }

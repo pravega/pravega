@@ -88,11 +88,11 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
             SynchronizerConfig config) {
         return impl.createRevisionedStreamClient(streamName, serializer, config);
     }
-
+    
     @Override
     public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
-    StateSynchronizer<StateT> createStateSynchronizer(String streamName,
-            Serializer<UpdateT> updateSerializer,
+    StateSynchronizer<StateT> createStateSynchronizer(String streamName, 
+            Serializer<UpdateT> updateSerializer, 
             Serializer<InitT> initialSerializer,
             SynchronizerConfig config) {
         return impl.createStateSynchronizer(streamName, updateSerializer, initialSerializer, config);
@@ -103,7 +103,7 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
     }
 
     public Position getInitialPosition(String stream) {
-        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
+        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L));
     }
 
     @Override
