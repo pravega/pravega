@@ -34,8 +34,8 @@ import org.junit.Test;
  */
 abstract class SortedIndexTestBase {
     private static final int ITEM_COUNT = 100 * 1000;
-    private static final Comparator<Integer> KEY_COMPARATOR = Integer::compare;
-    private static final Comparator<Integer> KEY_REVERSE_COMPARATOR = (n1, n2) -> -Integer.compare(n1, n2);
+    private static final Comparator<Long> KEY_COMPARATOR = Long::compare;
+    private static final Comparator<Long> KEY_REVERSE_COMPARATOR = (n1, n2) -> -Long.compare(n1, n2);
 
     //region Test Targets
 
@@ -44,8 +44,8 @@ abstract class SortedIndexTestBase {
      */
     public static class AvlTreeIndexTests extends SortedIndexTestBase {
         @Override
-        protected SortedIndex<Integer, TestEntry> createIndex(Comparator<Integer> comparator) {
-            return new AvlTreeIndex<>(comparator);
+        protected SortedIndex<TestEntry> createIndex() {
+            return new AvlTreeIndex<>();
         }
     }
 
@@ -54,8 +54,8 @@ abstract class SortedIndexTestBase {
      */
     public static class RedBlackTreeIndexTests extends SortedIndexTestBase {
         @Override
-        protected SortedIndex<Integer, TestEntry> createIndex(Comparator<Integer> comparator) {
-            return new RedBlackTreeIndex<>(comparator);
+        protected SortedIndex<TestEntry> createIndex() {
+            return new RedBlackTreeIndex<>();
         }
     }
 
@@ -125,11 +125,11 @@ abstract class SortedIndexTestBase {
 
         // Remove the items, in order.
         keys.sort(KEY_COMPARATOR);
-        val keysToRemove = new LinkedList<Integer>(keys);
+        val keysToRemove = new LinkedList<Long>(keys);
         int expectedSize = index.size();
         while (keysToRemove.size() > 0) {
             // Remove either the first or the last key - this helps test getFirst/getLast properly.
-            int key = expectedSize % 2 == 0 ? keysToRemove.removeLast() : keysToRemove.removeFirst();
+            long key = expectedSize % 2 == 0 ? keysToRemove.removeLast() : keysToRemove.removeFirst();
             val entry = index.get(key);
             val removedEntry = index.remove(key);
             expectedSize--;
@@ -142,8 +142,8 @@ abstract class SortedIndexTestBase {
                 Assert.assertNull("Unexpected value from getFirst() when index is empty.", index.getFirst());
                 Assert.assertNull("Unexpected value from getLast() when index is empty.", index.getLast());
             } else {
-                Assert.assertEquals("Unexpected value from getFirst() after removing key " + key, keysToRemove.getFirst(), index.getFirst().key());
-                Assert.assertEquals("Unexpected value from getLast() after removing key " + key, keysToRemove.getLast(), index.getLast().key());
+                Assert.assertEquals("Unexpected value from getFirst() after removing key " + key, (long) keysToRemove.getFirst(), index.getFirst().key());
+                Assert.assertEquals("Unexpected value from getLast() after removing key " + key, (long) keysToRemove.getLast(), index.getLast().key());
             }
         }
     }
@@ -164,7 +164,7 @@ abstract class SortedIndexTestBase {
         Assert.assertNull("Unexpected return value for getFirst() on empty index.", index.getFirst());
         Assert.assertNull("Unexpected return value for getLast() on empty index.", index.getLast());
 
-        for (int key : keys) {
+        for (long key : keys) {
             Assert.assertNull("Unexpected value for get() on empty index.", index.get(key));
             Assert.assertNull("Unexpected value for getCeiling() on empty index.", index.getCeiling(key));
         }
@@ -184,8 +184,8 @@ abstract class SortedIndexTestBase {
         validKeys.sort(KEY_COMPARATOR);
 
         val validKeysIterator = validKeys.iterator();
-        Integer expectedValue = -1;
-        for (int testKey = 0; testKey < maxKey; testKey++) {
+        Long expectedValue = -1L;
+        for (long testKey = 0; testKey < maxKey; testKey++) {
             // Since both testKey and validKeysIterator increase with natural ordering, finding the next expected value
             // is a straightforward call to the iterator next() method.
             while (expectedValue != null && testKey > expectedValue) {
@@ -197,7 +197,7 @@ abstract class SortedIndexTestBase {
             }
 
             val ceilingEntry = index.getCeiling(testKey);
-            Integer actualValue = ceilingEntry != null ? ceilingEntry.key() : null;
+            Long actualValue = ceilingEntry != null ? ceilingEntry.key() : null;
             Assert.assertEquals("Unexpected value for getCeiling for key " + testKey, expectedValue, actualValue);
         }
     }
@@ -216,8 +216,8 @@ abstract class SortedIndexTestBase {
         validKeys.sort(KEY_REVERSE_COMPARATOR);
 
         val validKeysIterator = validKeys.iterator();
-        Integer expectedValue = Integer.MAX_VALUE;
-        for (int testKey = maxKey; testKey >= 0; testKey--) {
+        Long expectedValue = (long) Integer.MAX_VALUE;
+        for (long testKey = maxKey; testKey >= 0; testKey--) {
             // Since both testKey and validKeysIterator increase with natural ordering, finding the next expected value
             // is a straightforward call to the iterator next() method.
             while (expectedValue != null && testKey < expectedValue) {
@@ -229,7 +229,7 @@ abstract class SortedIndexTestBase {
             }
 
             val ceilingEntry = index.getFloor(testKey);
-            Integer actualValue = ceilingEntry != null ? ceilingEntry.key() : null;
+            Long actualValue = ceilingEntry != null ? ceilingEntry.key() : null;
             Assert.assertEquals("Unexpected value for getCeiling for key " + testKey, expectedValue, actualValue);
         }
     }
@@ -244,7 +244,7 @@ abstract class SortedIndexTestBase {
         val validKeys = populate(index);
 
         // Extract the keys using forEach - they should be ordered naturally.
-        val actualKeys = new ArrayList<Integer>();
+        val actualKeys = new ArrayList<Long>();
         index.forEach(e -> actualKeys.add(e.key()));
 
         // Order the inserted keys using the same comparator we used for the index.
@@ -284,8 +284,8 @@ abstract class SortedIndexTestBase {
         }
 
         // Remove + get.
-        for (int key = 0; key < ITEM_COUNT; key++) {
-            int removedKey = index.remove(key).key();
+        for (long key = 0; key < ITEM_COUNT; key++) {
+            long removedKey = index.remove(key).key();
             Assert.assertEquals("Unexpected value from remove(). ", key, removedKey);
             Assert.assertNull("Unexpected value from get() for removed key " + key, index.get(key));
             if (key == ITEM_COUNT - 1) {
@@ -300,22 +300,18 @@ abstract class SortedIndexTestBase {
 
     //region Helpers
 
-    private SortedIndex<Integer, TestEntry> createIndex() {
-        return createIndex(KEY_COMPARATOR);
-    }
+    abstract SortedIndex<TestEntry> createIndex();
 
-    protected abstract SortedIndex<Integer, TestEntry> createIndex(Comparator<Integer> comparator);
-
-    private ArrayList<Integer> populate(SortedIndex<Integer, TestEntry> index) {
+    private ArrayList<Long> populate(SortedIndex<TestEntry> index) {
         return populate(index, ITEM_COUNT, Integer.MAX_VALUE);
     }
 
-    private ArrayList<Integer> populate(SortedIndex<Integer, TestEntry> index, int itemCount, int maxKey) {
+    private ArrayList<Long> populate(SortedIndex<TestEntry> index, int itemCount, int maxKey) {
         Random rnd = new Random(0);
-        val keys = new ArrayList<Integer>();
+        val keys = new ArrayList<Long>();
         for (int i = 0; i < itemCount; i++) {
             // Generate a unique key.
-            int key;
+            long key;
             do {
                 key = rnd.nextInt(maxKey);
             } while (index.get(key) != null);
@@ -331,19 +327,19 @@ abstract class SortedIndexTestBase {
 
     //region TestEntry
 
-    private static class TestEntry implements SortedIndex.IndexEntry<Integer> {
+    private static class TestEntry implements SortedIndex.IndexEntry {
         private static final AtomicLong ID_GENERATOR = new AtomicLong();
         // Note: do not implement equals() or hash() for this class - the tests rely on object equality, not key equality.
-        private final int key;
+        private final long key;
         private final long id;
 
-        TestEntry(int key) {
+        TestEntry(long key) {
             this.key = key;
             this.id = ID_GENERATOR.incrementAndGet();
         }
 
         @Override
-        public Integer key() {
+        public long key() {
             return this.key;
         }
 

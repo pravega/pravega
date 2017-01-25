@@ -19,7 +19,6 @@
 package com.emc.pravega.common.util;
 
 import com.google.common.base.Preconditions;
-import java.util.Comparator;
 import java.util.ConcurrentModificationException;
 import java.util.Stack;
 import java.util.function.Consumer;
@@ -31,15 +30,13 @@ import lombok.val;
  * <p>
  * Note: This class is not thread-safe and requires external synchronization when in a multi-threaded environment.
  *
- * @param <K> The type of the Key.
  * @param <V> The type of the IndexEntries.
  */
 @NotThreadSafe
-public class AvlTreeIndex<K, V extends SortedIndex.IndexEntry<K>> implements SortedIndex<K, V> {
+public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedIndex<V> {
     //region Members
 
     private static final int MAX_IMBALANCE = 1;
-    private final Comparator<K> comparator;
     private transient Node<V> root;
     private transient int size;
     private transient int modCount;
@@ -51,12 +48,8 @@ public class AvlTreeIndex<K, V extends SortedIndex.IndexEntry<K>> implements Sor
 
     /**
      * Creates a new instance of the AvlTreeIndex class.
-     *
-     * @param comparator A Key comparator to use as orderer within the index.
      */
-    public AvlTreeIndex(Comparator<K> comparator) {
-        Preconditions.checkNotNull(comparator, "comparator");
-        this.comparator = comparator;
+    public AvlTreeIndex() {
         this.root = null;
         this.size = 0;
         this.modCount = 0;
@@ -80,7 +73,6 @@ public class AvlTreeIndex<K, V extends SortedIndex.IndexEntry<K>> implements Sor
     @Override
     public V put(V item) {
         Preconditions.checkNotNull(item, "item");
-        Preconditions.checkNotNull(item.key(), "item.key()");
 
         val result = insert(item, this.root);
         this.root = result.node;
@@ -89,12 +81,12 @@ public class AvlTreeIndex<K, V extends SortedIndex.IndexEntry<K>> implements Sor
             this.last = item;
             this.first = item;
         } else {
-            if (this.first != null && this.comparator.compare(this.first.key(), item.key()) > 0) {
+            if (this.first != null && (this.first.key() > item.key())) {
                 // The freshly inserted item is smaller than the previous smallest item, so update it.
                 this.first = item;
             }
 
-            if (this.last != null && this.comparator.compare(this.last.key(), item.key()) < 0) {
+            if (this.last != null && (this.last.key() < item.key())) {
                 // The freshly inserted item is larger than the previous largest item, so update it.
                 this.last = item;
             }
@@ -104,18 +96,16 @@ public class AvlTreeIndex<K, V extends SortedIndex.IndexEntry<K>> implements Sor
     }
 
     @Override
-    public V remove(K key) {
-        Preconditions.checkNotNull(key, "key");
-
+    public V remove(long key) {
         val result = delete(key, this.root);
         this.root = result.node;
         if (result.updatedItem != null) {
-            if (this.first != null && this.comparator.compare(key, this.first.key()) >= 0) {
+            if (this.first != null && (key >= this.first.key())) {
                 // We have removed the smallest item; clear its cached value.
                 this.first = null;
             }
 
-            if (this.last != null && this.comparator.compare(key, this.last.key()) <= 0) {
+            if (this.last != null && (key <= this.last.key())) {
                 // We have removed the largest item; clear its cached value.
                 this.last = null;
             }
@@ -130,14 +120,13 @@ public class AvlTreeIndex<K, V extends SortedIndex.IndexEntry<K>> implements Sor
     }
 
     @Override
-    public V get(K key) {
-        // No need to check key != null, since we do not risk corrupting the tree with input is not valid.
+    public V get(long key) {
         Node<V> node = this.root;
         while (node != null) {
-            int compareResult = this.comparator.compare(key, node.item.key());
-            if (compareResult < 0) {
+            long itemKey = node.item.key();
+            if (key < itemKey) {
                 node = node.left;
-            } else if (compareResult > 0) {
+            } else if (key > itemKey) {
                 node = node.right;
             } else {
                 return node.item;
@@ -148,15 +137,14 @@ public class AvlTreeIndex<K, V extends SortedIndex.IndexEntry<K>> implements Sor
     }
 
     @Override
-    public V getCeiling(K key) {
-        // No need to check key != null, since we do not risk corrupting the tree with input is not valid.
+    public V getCeiling(long key) {
         Node<V> node = this.root;
         Node<V> lastLeftChildParent = null;
         V result = null;
         while (node != null && result == null) {
             // Compare the key to the current node's item.
-            int compareResult = this.comparator.compare(key, node.item.key());
-            if (compareResult < 0) {
+            long itemKey = node.item.key();
+            if (key < itemKey) {
                 // Sought key is smaller than the current node's item.
                 if (node.left == null) {
                     // No more nodes to the left, so this is the smallest item with a key greater than the given one.
@@ -166,7 +154,7 @@ public class AvlTreeIndex<K, V extends SortedIndex.IndexEntry<K>> implements Sor
                     lastLeftChildParent = node;
                     node = node.left;
                 }
-            } else if (compareResult > 0) {
+            } else if (key > itemKey) {
                 // Sought key is greater than the current node's item.
                 if (node.right != null) {
                     // Search again to the right (where we'll have a larger key).
@@ -193,15 +181,14 @@ public class AvlTreeIndex<K, V extends SortedIndex.IndexEntry<K>> implements Sor
     }
 
     @Override
-    public V getFloor(K key) {
-        // No need to check key != null, since we do not risk corrupting the tree with input is not valid.
+    public V getFloor(long key) {
         Node<V> node = this.root;
         Node<V> lastRightChildParent = null;
         V result = null;
         while (node != null && result == null) {
             // Compare the key to the current node's item.
-            int compareResult = this.comparator.compare(key, node.item.key());
-            if (compareResult > 0) {
+            long itemKey = node.item.key();
+            if (key > itemKey) {
                 // Sought key is larger than the current node's item.
                 if (node.right == null) {
                     // No more nodes to the right, so this is the largest item with a key smaller than the given one.
@@ -211,7 +198,7 @@ public class AvlTreeIndex<K, V extends SortedIndex.IndexEntry<K>> implements Sor
                     lastRightChildParent = node;
                     node = node.right;
                 }
-            } else if (compareResult < 0) {
+            } else if (key < itemKey) {
                 // Sought key is smaller than the current node's item.
                 if (node.left != null) {
                     // Search again to the left (where we'll have a smaller key).
@@ -304,12 +291,13 @@ public class AvlTreeIndex<K, V extends SortedIndex.IndexEntry<K>> implements Sor
             this.size++;
             this.modCount++;
         } else {
-            int compareResult = this.comparator.compare(item.key(), node.item.key());
-            if (compareResult < 0) {
+            long itemKey = item.key();
+            long nodeKey = node.item.key();
+            if (itemKey < nodeKey) {
                 // New item is smaller than the current node's item; move to the left child.
                 result = insert(item, node.left);
                 node.left = result.node;
-            } else if (compareResult > 0) {
+            } else if (itemKey > nodeKey) {
                 // New item is larger than the current node's item; move to the right child.
                 result = insert(item, node.right);
                 node.right = result.node;
@@ -334,18 +322,18 @@ public class AvlTreeIndex<K, V extends SortedIndex.IndexEntry<K>> implements Sor
      * @param node The node at the root of the subtree.
      * @return The new root of the subtree.
      */
-    private UpdateResult<V> delete(K key, Node<V> node) {
+    private UpdateResult<V> delete(long key, Node<V> node) {
         UpdateResult<V> result;
         if (node == null) {
             // Item not found.
             result = new UpdateResult<>();
         } else {
-            int compareResult = this.comparator.compare(key, node.item.key());
-            if (compareResult < 0) {
+            long itemKey = node.item.key();
+            if (key < itemKey) {
                 // Given key is smaller than the current node's item key; proceed to the node's left child.
                 result = delete(key, node.left);
                 node.left = result.node;
-            } else if (compareResult > 0) {
+            } else if (key > itemKey) {
                 // Given key is larger than the current node's item key; proceed to the node's right child.
                 result = delete(key, node.right);
                 node.right = result.node;
@@ -392,7 +380,7 @@ public class AvlTreeIndex<K, V extends SortedIndex.IndexEntry<K>> implements Sor
                 node.left = rotateRight(node.left);
             }
 
-            node = rotateLeft(node);
+            return rotateLeft(node);
         } else if (-imbalance > MAX_IMBALANCE) {
             // Right subtree has higher height than left subtree.
             if (getHeight(node.right.right) < getHeight(node.right.left)) {
@@ -400,13 +388,12 @@ public class AvlTreeIndex<K, V extends SortedIndex.IndexEntry<K>> implements Sor
                 node.right = rotateLeft(node.right);
             }
 
-            node = rotateRight(node);
+            return rotateRight(node);
         } else {
             // No rotation needed, just update current node's height, as an update may have changed it.
             node.height = calculateHeight(getHeight(node.left), getHeight(node.right));
+            return node;
         }
-
-        return node;
     }
 
     /**

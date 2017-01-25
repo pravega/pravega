@@ -50,8 +50,8 @@ public class Playground {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.INFO);
         //context.reset();
-        //populateIndex();
-        compareTrees();
+        populateIndex();
+        //compareTrees();
     }
 
     private static void populateIndex() throws Exception {
@@ -133,15 +133,15 @@ public class Playground {
         for (int i = 0; i < retryCount; i++) {
             System.out.print("RB: ");
             System.gc();
-            testIndex(new RedBlackTreeIndex<>(Integer::compare), count);
+            testIndex(new RedBlackTreeIndex<>(), count);
             System.out.print("AVL:");
             System.gc();
-            testIndex(new AvlTreeIndex<>(Integer::compare), count);
+            testIndex(new AvlTreeIndex<>(), count);
             System.out.println();
         }
     }
 
-    private static void testIndex(SortedIndex<Integer, TestEntry> index, int count) {
+    private static void testIndex(SortedIndex<TestEntry> index, int count) {
         long testInsertElapsed = measure(() -> insert(index, 0, count));
         long testReadElapsed = measure(() -> readExact(index, 0, count));
         long testReadCeilingElapsed = measure(() -> readCeiling(index, 0, count));
@@ -149,28 +149,28 @@ public class Playground {
         System.out.println(String.format("Insert = %sms, Read = %sms, Ceiling = %sms, Last = %sms", testInsertElapsed, testReadElapsed, testReadCeilingElapsed, testLastElapsed));
     }
 
-    private static void insert(SortedIndex<Integer, TestEntry> rbt, int start, int count) {
+    private static void insert(SortedIndex<TestEntry> rbt, int start, int count) {
         int max = start + count;
         for (int i = start; i < max; i++) {
             rbt.put(new TestEntry(i));
         }
     }
 
-    private static void readExact(SortedIndex<Integer, TestEntry> rbt, int start, int count) {
+    private static void readExact(SortedIndex<TestEntry> rbt, int start, int count) {
         int max = start + count;
         for (int i = start; i < max; i++) {
             rbt.get(i);
         }
     }
 
-    private static void readCeiling(SortedIndex<Integer, TestEntry> rbt, int start, int count) {
+    private static void readCeiling(SortedIndex<TestEntry> rbt, int start, int count) {
         int max = start + count;
         for (int i = start; i < max; i++) {
             rbt.getCeiling(i);
         }
     }
 
-    private static void readLast(SortedIndex<Integer, TestEntry> rbt, int count) {
+    private static void readLast(SortedIndex<TestEntry> rbt, int count) {
         for (int i = 0; i < count; i++) {
             rbt.getLast();
         }
@@ -182,7 +182,7 @@ public class Playground {
         return (int) ((System.nanoTime() - rbtStart) / 1000 / 1000);
     }
 
-    static class TestEntry implements SortedIndex.IndexEntry<Integer> {
+    static class TestEntry implements SortedIndex.IndexEntry {
         final int key;
 
         TestEntry(int key) {
@@ -190,7 +190,7 @@ public class Playground {
         }
 
         @Override
-        public Integer key() {
+        public long key() {
             return this.key;
         }
 
