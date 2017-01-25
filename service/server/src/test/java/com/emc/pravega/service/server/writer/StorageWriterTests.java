@@ -483,8 +483,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         metadataCheckpoint(context);
         context.dataSource.waitFullyAcked().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        Assert.assertEquals("Unexpected number of segments had their metadata requested.", 2, requestedSegmentIds.size());
-        Assert.assertTrue("Unexpected segments had their metadata requested.",
+        Assert.assertTrue("The deleted segments did not have their metadata requested.",
                 requestedSegmentIds.contains(segment2.getId()) && requestedSegmentIds.contains(segment3.getId()));
     }
 
