@@ -223,13 +223,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         return this.metadata.getDurableLogLength();
     }
 
-    /**
-     * Gets a pointer to the SegmentMetadata for this ReadIndex.
-     */
-    SegmentMetadata getMetadata() {
-        return this.metadata;
-    }
-
     private CacheKey getCacheKey(ReadIndexEntry entry) {
         if (entry instanceof MergedIndexEntry) {
             MergedIndexEntry me = (MergedIndexEntry) entry;

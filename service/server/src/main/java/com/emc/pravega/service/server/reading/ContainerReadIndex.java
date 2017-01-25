@@ -164,7 +164,6 @@ public class ContainerReadIndex implements ReadIndex {
 
         StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
         Exceptions.checkArgument(!index.isMerged(), "streamSegmentId", "StreamSegment is merged. Cannot access it anymore.");
-        reportUsed(index);
         return index.read(offset, maxLength, timeout);
     }
 
@@ -341,17 +340,6 @@ public class ContainerReadIndex implements ReadIndex {
             }
 
             return index != null;
-        }
-    }
-
-    private void reportUsed(StreamSegmentReadIndex index) {
-        ContainerMetadata m;
-        synchronized (this.lock) {
-            m = this.metadata;
-        }
-
-        if (m != null) {
-            m.getStreamSegmentId(index.getMetadata().getName(), true);
         }
     }
 
