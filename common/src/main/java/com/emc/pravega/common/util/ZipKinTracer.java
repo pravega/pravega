@@ -38,7 +38,6 @@ public class ZipKinTracer implements AutoCloseable {
     private AsyncReporter<Span> reporter;
 
 
-
     private ZipKinTracer() {
         reporter = AsyncReporter.builder(OkHttpSender.builder().
                 endpoint(zipkinEndpoint).encoding(Encoding.JSON).build()).build();
@@ -55,17 +54,21 @@ public class ZipKinTracer implements AutoCloseable {
         ZipKinTracer.zipkinEndpoint = zipkinEndpoint;
     }
 
+    public static boolean getEnable() {
+        return enabled;
+    }
+
     public void traceStartAppend(Append append) {
-       if ( enabled ) {
-           log.trace("Tracing append {}", append.getEventNumber());
-           Span span = Span.builder().name("rpc").
-                   id(0).
-                   traceId(Math.abs(append.getConnectionId().hashCode() << 32) + append.getEventNumber()).
-                   debug(true).
-                   addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "cs",
-                           Endpoint.create("producer", 1000))).build();
-           reporter.report(span);
-       }
+        if (enabled) {
+            log.trace("Tracing append {}", append.getEventNumber());
+            Span span = Span.builder().name("rpc").
+                    id(0).
+                    traceId(Math.abs(append.getConnectionId().hashCode() << 32) + append.getEventNumber()).
+                    debug(true).
+                    addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "cs",
+                            Endpoint.create("producer", 1000))).build();
+            reporter.report(span);
+        }
     }
 
     public void traceAppendAcked(Append append) {
@@ -143,5 +146,26 @@ public class ZipKinTracer implements AutoCloseable {
 
     public static void enableZipkin(boolean zipkinEnabled) {
        enabled = zipkinEnabled;
+    }
+
+    public void traceDLActions(long startTimeMillis, long sequence) {
+        if ( enabled ) {
+            Span span = Span.builder().name("distribtedlog").
+                    id(0).
+                    traceId(sequence).
+                    debug(true).
+                    addAnnotation(Annotation.create(startTimeMillis * 1000, "ls",
+                            Endpoint.create("distributedlog", 1000))).build();
+            reporter.report(span);
+
+            span = Span.builder().name("distribtedlog").
+                    id(0).
+                    traceId(sequence).
+                    debug(true).
+                    addAnnotation(Annotation.create(System.currentTimeMillis() * 1000, "lr",
+                            Endpoint.create("distributedlog", 1000))).build();
+            reporter.report(span);
+
+        }
     }
 }
