@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
@@ -152,7 +151,7 @@ public interface Controller {
      * If a segment has not been sealed, it may not have successors now even though it might in the
      * future. The successors to a sealed segment are always known and returned.
      * 
-     * @param The segment whose successors should be looked up.
+     * @param segment The segment whose successors should be looked up.
      * @return A mapping from Successor to the list of all of the Successor's predecessors
      */
     CompletableFuture<Map<Segment, List<Integer>>> getSegmentsImmediatlyFollowing(final Segment segment);

@@ -109,7 +109,8 @@ public interface StreamMetadataStore {
      * @param segmentNumber the segment number
      * @return segments that immediately follow the specified segment and the segments they follow.
      */
-    public CompletableFuture<Map<Integer,List<Integer>>> getSuccessors(final String streamName, final int segmentNumber);
+    public CompletableFuture<Map<Integer, List<Integer>>> getSuccessors(final String streamName,
+            final int segmentNumber);
 
     /**
      * Scales in or out the currently set of active segments of a stream.

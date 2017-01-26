@@ -95,7 +95,7 @@ public class StreamManagerImpl implements StreamManager {
                 new JavaSerializer<>(),
                 new JavaSerializer<>(),
                 clientFactory);
-        List<CompletableFuture<Map<Segment,Long>>> futures = new ArrayList<>(streams.size());
+        List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streams.size());
         for (String stream : streams) {
             CompletableFuture<List<PositionInternal>> future = controller.getPositions(new StreamImpl(scope, stream), 0, 1);
             futures.add(future.thenApply(list -> list.stream()

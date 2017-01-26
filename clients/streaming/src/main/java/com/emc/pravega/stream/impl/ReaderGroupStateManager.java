@@ -259,7 +259,7 @@ public class ReaderGroupStateManager {
         int numReaders = state.getNumberOfReaders();
         return Math.max(Math.max(
                                  1,
-                                 Math.round((numSegments / (float) numReaders)) - segmentsOwned),
+                                 Math.round(numSegments / (float) numReaders) - segmentsOwned),
                                  unassignedSegments / numReaders);
     }
 

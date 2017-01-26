@@ -117,7 +117,7 @@ public interface StreamManager extends AutoCloseable {
     /**
      * Deletes the provided stream. No more events may be written or read.
      * Resources used by the stream will be freed.
-     * @param toDelete The stream to be deleted.
+     * @param toDelete The name of the stream to be deleted.
      */
-    void deleteStream(String streamName);
+    void deleteStream(String toDelete);
 }

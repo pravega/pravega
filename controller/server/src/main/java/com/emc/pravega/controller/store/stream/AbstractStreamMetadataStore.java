@@ -105,7 +105,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         final Stream stream = getStream(name);
         return stream.getState().thenCompose(state -> {
             if (State.SEALED.equals(state)) {
-                return CompletableFuture.completedFuture(Collections.<Integer> emptyList());
+                return CompletableFuture.completedFuture(Collections.<Integer>emptyList());
             } else {
                 return stream.getActiveSegments();
             }

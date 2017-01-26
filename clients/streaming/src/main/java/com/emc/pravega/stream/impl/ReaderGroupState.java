@@ -55,7 +55,7 @@ class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     private final Map<Segment, Long> unassignedSegments;
 
-    ReaderGroupState (String scopedSynchronizerStream, Revision revision, Map<Segment, Long> segmentsToOffsets) {
+    ReaderGroupState(String scopedSynchronizerStream, Revision revision, Map<Segment, Long> segmentsToOffsets) {
         Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
         Preconditions.checkNotNull(revision);
         Exceptions.checkNotNullOrEmpty(segmentsToOffsets.entrySet(), "segmentsToOffsets");
@@ -313,7 +313,7 @@ class ReaderGroupState implements Revisioned {
                 requiredToComplete.remove(segmentCompleted.getSegmentNumber());
             }
             val iter = state.futureSegments.entrySet().iterator();
-            while(iter.hasNext()) {
+            while (iter.hasNext()) {
                 Entry<Segment, Set<Integer>> entry = iter.next();
                 if (entry.getValue().isEmpty()) {
                     state.unassignedSegments.put(entry.getKey(), 0L);

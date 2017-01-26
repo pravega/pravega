@@ -156,7 +156,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
         }).thenCompose(candidates -> {
             Segment segment = (Segment) futures[0].getNow(null);
             return findOverlapping(segment, candidates);
-        }).thenApply(list -> list.stream().map(e-> e.getNumber()).collect(Collectors.toList()));
+        }).thenApply(list -> list.stream().map(e -> e.getNumber()).collect(Collectors.toList()));
     }
 
     private CompletableFuture<List<Segment>> findOverlapping(Segment segment, List<Integer> candidates) {
