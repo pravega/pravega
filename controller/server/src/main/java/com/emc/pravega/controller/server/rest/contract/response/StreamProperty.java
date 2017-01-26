@@ -15,19 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server.rest.contract.request;
+package com.emc.pravega.controller.server.rest.contract.response;
 
 import com.emc.pravega.controller.server.rest.contract.common.RetentionPolicyCommon;
 import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommon;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.Setter;
+
+import java.io.Serializable;
 
 /**
- * Conforms to updateStreamConfig REST API request object.
+ * REST representation of properties of a stream.
  */
-@Getter
 @AllArgsConstructor
-public class UpdateStreamRequest {
-    private final ScalingPolicyCommon scalingPolicy;
-    private final RetentionPolicyCommon retentionPolicy;
+@Getter
+@Setter
+public class StreamProperty implements Serializable {
+    private String scope;
+    private String streamName;
+    private ScalingPolicyCommon scalingPolicy;
+    private RetentionPolicyCommon retentionPolicy;
 }

@@ -17,14 +17,10 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
-import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxnId;
-import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
-import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.ModelHelper;
 
 import lombok.extern.slf4j.Slf4j;
@@ -43,11 +39,8 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
 
     private final ControllerService controllerService;
 
-    public ControllerServiceAsyncImpl(final StreamMetadataStore streamStore,
-                                      final HostControllerStore hostStore,
-                                      final StreamMetadataTasks streamMetadataTasks,
-                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
-        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+    public ControllerServiceAsyncImpl(final ControllerService controllerService) {
+        this.controllerService = controllerService;
     }
 
     @Override
