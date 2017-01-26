@@ -15,27 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server.rest.test;
 
-import com.emc.pravega.controller.server.rest.resources.PingImpl;
-import org.glassfish.jersey.server.ResourceConfig;
-import org.glassfish.jersey.test.JerseyTest;
-import org.junit.Test;
+package com.emc.pravega.common.util;
 
-import javax.ws.rs.core.Application;
-
-import static org.junit.Assert.assertEquals;
-
-public class PingTest extends JerseyTest {
-
-    @Override
-    protected Application configure() {
-        return new ResourceConfig(PingImpl.class);
-    }
-
-    @Test
-    public void test() {
-        final String hello = target("/v1/ping").request().get(String.class);
-        assertEquals("true", hello);
-    }
+/**
+ * Defines a generic entry into an Index.
+ *
+ * @param <K> The Type of the key.
+ */
+public interface IndexEntry<K> {
+    /**
+     * Gets a value representing the key of the entry. The Key should not change for the lifetime of the entry and
+     * should be very cheap to return (as it is used very frequently).
+     */
+    K key();
 }

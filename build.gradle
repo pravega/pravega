@@ -20,7 +20,6 @@ buildscript {
 import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
 import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
 
-
 allprojects {
     apply plugin: 'java'
     apply plugin: 'idea'
@@ -40,10 +39,9 @@ allprojects {
         exclude  "**/impl/**";
     }
 
-    ext {
-        pravegaVersion = "0.0-PRERELEASE"
+    docker {
+        url = dockerUrl
     }
-
     repositories {
         // Use 'jcenter' for resolving your dependencies.
         // You can declare any Maven/Ivy/file repository here.
@@ -122,11 +120,11 @@ project('common') {
         // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-jvm
         compile group: 'io.dropwizard.metrics', name: 'metrics-jvm', version: '3.1.0'
 
-    jar {
-        from project.sourceSets.main.output
-        from project(":testcommon").sourceSets.main.output
+        jar {
+            from project.sourceSets.main.output
+            from project(":testcommon").sourceSets.main.output
+        }
     }
-}
     publishing {
         publications {
             maven(MavenPublication) {
@@ -272,7 +270,7 @@ project('service:server:host') {
         dependsOn 'distTar','distZip'
         dockerFile = file(dockerFilePravegaHost)
         inputDir = file(dockerDirPravegaHost)
-        tag = 'abhijeet78/pravega:host'
+        tag = "${pravegaHostBaseTag}:${pravegaVersion}"
     }
     task pushPravegaHostImage(type: DockerPushImage) {
         dependsOn buildPravegaHostImage
@@ -425,7 +423,7 @@ project('controller:server') {
         dependsOn 'distTar','distZip'
         dockerFile = file(dockerFilePravegaController)
         inputDir = file(dockerDirPravegaController)
-        tag = 'abhijeet78/pravega:controller'
+        tag = "${pravegaControllerBaseTag}:${pravegaVersion}"
     }
 
     task pushPravegaControllerImage(type: DockerPushImage) {

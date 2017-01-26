@@ -20,14 +20,11 @@ package com.emc.pravega.controller.server.rest.contract.common;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-import javax.ws.rs.Consumes;
-import javax.ws.rs.Produces;
-import javax.ws.rs.core.MediaType;
-
+/**
+ * REST representation of scaling policy of a stream.
+ */
 @Getter
 @AllArgsConstructor
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
 public class ScalingPolicyCommon {
 
     public enum Type {
