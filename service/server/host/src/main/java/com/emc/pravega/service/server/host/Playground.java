@@ -50,8 +50,8 @@ public class Playground {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.INFO);
         //context.reset();
-        populateIndex();
-        //compareTrees();
+        //populateIndex();
+        compareTrees();
     }
 
     private static void populateIndex() throws Exception {

@@ -37,7 +37,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
     //region Members
 
     private static final int MAX_IMBALANCE = 1;
-    private transient Node<V> root;
+    private transient Node root;
     private transient int size;
     private transient int modCount;
     private transient V first;
@@ -121,7 +121,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
 
     @Override
     public V get(long key) {
-        Node<V> node = this.root;
+        Node node = this.root;
         while (node != null) {
             long itemKey = node.item.key();
             if (key < itemKey) {
@@ -138,8 +138,8 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
 
     @Override
     public V getCeiling(long key) {
-        Node<V> node = this.root;
-        Node<V> lastLeftChildParent = null;
+        Node node = this.root;
+        Node lastLeftChildParent = null;
         V result = null;
         while (node != null && result == null) {
             // Compare the key to the current node's item.
@@ -182,8 +182,8 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
 
     @Override
     public V getFloor(long key) {
-        Node<V> node = this.root;
-        Node<V> lastRightChildParent = null;
+        Node node = this.root;
+        Node lastRightChildParent = null;
         V result = null;
         while (node != null && result == null) {
             // Compare the key to the current node's item.
@@ -251,8 +251,8 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
     @Override
     public void forEach(Consumer<V> consumer) {
         Preconditions.checkNotNull(consumer, "consumer");
-        Stack<Node<V>> stack = new Stack<>();
-        Node<V> node = this.root;
+        Stack<Node> stack = new Stack<>();
+        Node node = this.root;
         final int originalModCount = this.modCount;
         while (!stack.empty() || node != null) {
             if (originalModCount != this.modCount) {
@@ -265,7 +265,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
                 node = node.left;
             } else {
                 // If no left child, next item is at the top of the stack; get it and follow its right child.
-                Node<V> nextNode = stack.pop();
+                Node nextNode = stack.pop();
                 consumer.accept(nextNode.item);
                 node = nextNode.right;
             }
@@ -282,12 +282,12 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
      * @param node The node at the root of the current subtree.
      * @return The new root of the subtree.
      */
-    private UpdateResult<V> insert(V item, Node<V> node) {
-        UpdateResult<V> result;
+    private UpdateResult insert(V item, Node node) {
+        UpdateResult result;
         if (node == null) {
             // This is the right location for the item, but there's no node. Create one.
-            result = new UpdateResult<>();
-            result.node = new Node<>(item);
+            result = new UpdateResult();
+            result.node = new Node(item);
             this.size++;
             this.modCount++;
         } else {
@@ -303,7 +303,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
                 node.right = result.node;
             } else {
                 // Node already exists. Save the existing node's item and return it.
-                result = new UpdateResult<>();
+                result = new UpdateResult();
                 result.updatedItem = node.item;
                 node.item = item;
             }
@@ -322,11 +322,11 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
      * @param node The node at the root of the subtree.
      * @return The new root of the subtree.
      */
-    private UpdateResult<V> delete(long key, Node<V> node) {
-        UpdateResult<V> result;
+    private UpdateResult delete(long key, Node node) {
+        UpdateResult result;
         if (node == null) {
             // Item not found.
-            result = new UpdateResult<>();
+            result = new UpdateResult();
         } else {
             long itemKey = node.item.key();
             if (key < itemKey) {
@@ -339,7 +339,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
                 node.right = result.node;
             } else {
                 // Found the node. Remember it's item.
-                result = new UpdateResult<>();
+                result = new UpdateResult();
                 result.updatedItem = node.item;
                 if (node.left != null && node.right != null) {
                     // The node has two children. Replace the node's item with its in-order successor, and then remove
@@ -367,7 +367,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
      * @param node The root node of the subtree.
      * @return The new root node of the subtree.
      */
-    private Node<V> balance(Node<V> node) {
+    private Node balance(Node node) {
         if (node == null) {
             return null;
         }
@@ -401,8 +401,8 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
      * * The Left Child's right node is the Given Node
      * * The Given Node's Left Child is the Left Child's original Right Child.
      */
-    private Node<V> rotateLeft(Node<V> node) {
-        Node<V> leftChild = node.left;
+    private Node rotateLeft(Node node) {
+        Node leftChild = node.left;
         node.left = leftChild.right;
         leftChild.right = node;
         node.height = calculateHeight(getHeight(node.left), getHeight(node.right));
@@ -415,8 +415,8 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
      * * The Right Child's left node is the Given Node
      * * The Given Node's Right child is the Right Child's original Left Child.
      */
-    private Node<V> rotateRight(Node<V> node) {
-        Node<V> rightChild = node.right;
+    private Node rotateRight(Node node) {
+        Node rightChild = node.right;
         node.right = rightChild.left;
         rightChild.left = node;
         node.height = calculateHeight(getHeight(node.left), getHeight(node.right));
@@ -429,7 +429,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
      *
      * @param node The root node of the subtree.
      */
-    private Node<V> findSmallest(Node<V> node) {
+    private Node findSmallest(Node node) {
         if (node == null) {
             return null;
         }
@@ -446,7 +446,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
      *
      * @param node The root node of the subtree.
      */
-    private Node<V> findLargest(Node<V> node) {
+    private Node findLargest(Node node) {
         if (node == null) {
             return null;
         }
@@ -461,7 +461,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
     /**
      * Gets the current height of a node, or -1 if null.
      */
-    private byte getHeight(Node<V> node) {
+    private byte getHeight(Node node) {
         return node == null ? -1 : node.height;
     }
 
@@ -476,13 +476,13 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
     /**
      * Tree node.
      */
-    private static class Node<T> {
-        T item;
-        Node<T> left;
-        Node<T> right;
+    private class Node {
+        V item;
+        Node left;
+        Node right;
         byte height;
 
-        Node(T item) {
+        Node(V item) {
             this.item = item;
         }
 
@@ -495,9 +495,9 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
     /**
      * Intermediate result that is used to return both a node and an item.
      */
-    private static class UpdateResult<T> {
-        Node<T> node;
-        T updatedItem;
+    private class UpdateResult {
+        Node node;
+        V updatedItem;
     }
 
     //endregion
