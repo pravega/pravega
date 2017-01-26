@@ -154,7 +154,6 @@ public class TurbineHeatSensor {
             consumeStats.printTotal();
         }
         ZipKinTracer.getTracer().close();
-        Thread.sleep(10000);
         System.exit(0);
     }
 
