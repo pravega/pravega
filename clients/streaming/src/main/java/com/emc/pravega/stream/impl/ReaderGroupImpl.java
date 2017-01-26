@@ -27,6 +27,7 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateInit;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
+import com.google.common.annotations.VisibleForTesting;
 
 import java.util.List;
 import java.util.Map;
@@ -46,6 +47,11 @@ public class ReaderGroupImpl implements ReaderGroup {
     private final Serializer<ReaderGroupStateUpdate> updateSerializer;
     private final ClientFactory clientFactory;
 
+    /**
+     * Called by the StreamManager to provide the initial segments the stream should use.
+     * @param segments The initial segments mapped to the offset within them
+     */
+    @VisibleForTesting
     public void initalizeGroup(Map<Segment, Long> segments) {
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(groupName,
                                                                                                  updateSerializer,

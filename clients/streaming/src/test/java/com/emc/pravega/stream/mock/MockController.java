@@ -161,7 +161,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> dropTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<Void> abortTransaction(Stream stream, UUID txId) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -225,7 +225,7 @@ public class MockController implements Controller {
     }
     
     @Override
-    public CompletableFuture<Map<Segment, List<Integer>>> getSegmentsImmediatlyFollowing(Segment segment) {
+    public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(Segment segment) {
         return CompletableFuture.completedFuture(Collections.emptyMap());
     }
 

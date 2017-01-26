@@ -107,14 +107,14 @@ public interface Controller {
     CompletableFuture<Void> commitTransaction(final Stream stream, final UUID txId);
 
     /**
-     * Drops a transaction. No events written to it may be read, and no further events may be
+     * Aborts a transaction. No events written to it may be read, and no further events may be
      * written. Will fail with {@link TxnFailedException} if the transaction has already been
      * committed or aborted.
      * 
      * @param stream stream name
      * @param txId transaction id
      */
-    CompletableFuture<Void> dropTransaction(final Stream stream, final UUID txId);
+    CompletableFuture<Void> abortTransaction(final Stream stream, final UUID txId);
 
     /**
      * Returns the status of the specified transaction.
@@ -128,8 +128,8 @@ public interface Controller {
     // Controller Apis that are called by readers
 
     /**
-     * Returns list of position objects by distributing available segments at the given timestamp
-     * into requested number of position objects.
+     * Given a timestamp and a number of readers, returns a position object for each reader that collectively
+     * include all of the segments that exist at that time in the stream.
      *
      * @param stream name
      * @param timestamp timestamp for getting position objects
@@ -139,30 +139,37 @@ public interface Controller {
     CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count);
 
     /**
-     * Returns a Map containing each of the segments that are successors to the segment requested
-     * mapped to each of their predecessors.
+     * Returns a Map containing each of the segments that are successors to the segment requested mapped to a
+     * list of their predecessors.
      * 
-     * In the event of a scale up the segments each contain a subset of the keyspace of segment
-     * provided and map to the provided segment.
+     * In the event of a scale up the newly created segments contain a subset of the keyspace of the original
+     * segment and their only predecessor is the segment that was split. Example: If there are two segments A
+     * and B. A scaling event split A into two new segments C and D. The successors of A are C and D. So
+     * calling this method with A would return {C -> A, D -> A}
      * 
-     * In the event of a scale down there would be one entry that contained a superset of the
-     * keyspace of the segment provided and map to multiple segments.
+     * In the event of a scale down there would be one segment the succeeds multiple. So it would contain the
+     * union of the keyspace of its predecessors. So calling with that segment would map to multiple segments.
+     * Example: If there are two segments A and B. A and B are merged into a segment C. The successor of A is
+     * C. so calling this method with A would return {C -> {A, B}}
      * 
-     * If a segment has not been sealed, it may not have successors now even though it might in the
-     * future. The successors to a sealed segment are always known and returned.
+     * If a segment has not been sealed, it may not have successors now even though it might in the future.
+     * The successors to a sealed segment are always known and returned. Example: If there is only one segment
+     * A and it is not sealed, and no scaling events have occurred calling this with a would return an empty
+     * map.
      * 
      * @param segment The segment whose successors should be looked up.
      * @return A mapping from Successor to the list of all of the Successor's predecessors
      */
-    CompletableFuture<Map<Segment, List<Integer>>> getSegmentsImmediatlyFollowing(final Segment segment);
+    CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(final Segment segment);
 
     // Controller Apis that are called by writers and readers
 
     /**
      * Given a segment return the endpoint that currently is the owner of that segment.
      * <p>
-     * The result of this function can be cached until the endpoint is unreachable or indicates it
-     * is no longer the owner.
+     * This is called when a reader or a writer needs to determine which host/server it needs to contact to
+     * read and write, respectively. The result of this function can be cached until the endpoint is
+     * unreachable or indicates it is no longer the owner.
      *
      * @param qualifiedSegmentName The name of the segment. Usually obtained from
      *        {@link Segment#getScopedName()}.

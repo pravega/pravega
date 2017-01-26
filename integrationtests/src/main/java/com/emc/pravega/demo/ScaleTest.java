@@ -119,7 +119,7 @@ public class ScaleTest {
             return;
         }
 
-        CompletableFuture<Void> statusFuture = controller.dropTransaction(stream, txId);
+        CompletableFuture<Void> statusFuture = controller.abortTransaction(stream, txId);
         statusFuture.get();
 
         // Test 4: try scale operation after transaction is dropped

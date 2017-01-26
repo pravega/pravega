@@ -154,7 +154,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Map<Segment, List<Integer>>> getSegmentsImmediatlyFollowing(Segment segment) {
+    public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(Segment segment) {
         log.trace("Invoke ConsumerService.Client.getSegmentsImmediatlyFollowing() for segment: {} ", segment);
         final SegmentId transformed = ModelHelper.decode(segment);
         final ThriftAsyncCallback<ControllerService.AsyncClient.getSegmentsImmediatlyFollowing_call> callback = new ThriftAsyncCallback<>();
@@ -240,7 +240,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> dropTransaction(final Stream stream, final UUID txId) {
+    public CompletableFuture<Void> abortTransaction(final Stream stream, final UUID txId) {
         log.trace("Invoke AdminService.Client.dropTransaction() with stream: {}, txUd: {}", stream, txId);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.dropTransaction_call> callback = new ThriftAsyncCallback<>();

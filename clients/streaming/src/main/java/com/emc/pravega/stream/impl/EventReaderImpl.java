@@ -64,7 +64,7 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
             boolean rebalance = false;
             do { // Loop handles retry on end of segment
                 rebalance |= releaseSegmentsIfNeeded();
-                rebalance |= aquireSegmentsIfNeeded();
+                rebalance |= acquireSegmentsIfNeeded();
                 SegmentReader<Type> segment = orderer.nextSegment(readers);
                 segmentId = segment.getSegmentId();
                 offset = segment.getOffset();
@@ -97,7 +97,7 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
         return false;
     }
 
-    private boolean aquireSegmentsIfNeeded() {
+    private boolean acquireSegmentsIfNeeded() {
         Map<Segment, Long> newSegments = groupState.aquireNewSegmentsIfNeeded(getLag());
         if (newSegments == null || newSegments.isEmpty()) {
             return false;

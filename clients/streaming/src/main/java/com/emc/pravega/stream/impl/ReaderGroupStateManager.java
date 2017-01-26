@@ -116,7 +116,7 @@ public class ReaderGroupStateManager {
      * Handles a segment being completed by calling the controller to gather all successors to the completed segment.
      */
     void handleEndOfSegment(Segment segmentCompleted) {
-        val successors = getAndHandleExceptions(controller.getSegmentsImmediatlyFollowing(segmentCompleted),
+        val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted),
                                                 RuntimeException::new);
         sync.updateState(state -> {
             return Collections.singletonList(new SegmentCompleted(readerId, segmentCompleted, successors));

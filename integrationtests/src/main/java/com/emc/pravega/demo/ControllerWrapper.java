@@ -154,7 +154,7 @@ public class ControllerWrapper implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> dropTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<Void> abortTransaction(Stream stream, UUID txId) {
         return FutureHelpers.toVoidExpecting(controller.dropTransaction(stream.getScope(),
                                                                         stream.getStreamName(),
                                                                         ModelHelper.decode(txId)),
@@ -181,7 +181,7 @@ public class ControllerWrapper implements Controller {
     }
 
     @Override
-    public CompletableFuture<Map<Segment, List<Integer>>> getSegmentsImmediatlyFollowing(final Segment segment) {
+    public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(final Segment segment) {
         return controller.getSegmentsImmediatlyFollowing(ModelHelper.decode(segment)).thenApply(successors -> {
             Map<Segment, List<Integer>> result = new HashMap<>();
             for (Entry<SegmentId, List<Integer>> successor : successors.entrySet()) {
