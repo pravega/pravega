@@ -438,8 +438,10 @@ public final class FutureHelpers {
      * exception from the supplier will be thrown. If the given future fails, the returned future
      * will fail with the same exception.
      * 
-     * @param T The value expected
+     * @param <T> The type of the value expected
+     * @param <E> The type of the exception to be throw if the value is not found.
      * @param future the CompletableFuture to attach to.
+     * @param expectedValue The value expected
      * @param exceptionConstructor Constructor for an exception in the event there is not a match.
      * @return A void completable future.
      */

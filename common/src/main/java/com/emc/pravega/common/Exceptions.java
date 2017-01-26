@@ -100,6 +100,7 @@ public final class Exceptions {
      * Throws a NullPointerException if the arg argument is null. Throws an IllegalArgumentException if the Collections arg
      * argument has a size of zero.
      *
+     * @param <T>     The type of elements in the provided collection.
      * @param arg     The argument to check.
      * @param argName The name of the argument (to be included in the exception message).
      * @throws NullPointerException     If arg is null.

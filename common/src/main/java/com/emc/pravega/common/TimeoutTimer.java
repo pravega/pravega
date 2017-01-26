@@ -69,7 +69,9 @@ public class TimeoutTimer {
     /**
      * Reset the timeout so that the original amount of time is remaining. While it is safe to call
      * this concurrently with {@link #getRemaining()}, the value returned by {@link #getRemaining()}
-     * may be wrong. A synchronized block is NOT required to avoid this. 
+     * may be wrong. A synchronized block is NOT required to avoid this.
+     * 
+     * @param timeout The duration from now which should be placed on the timer.
      */
     public void reset(Duration timeout) {
         this.initialNanos = getNanos.get();
