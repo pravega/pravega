@@ -24,7 +24,21 @@ import java.util.function.Supplier;
  */
 public interface DynamicLogger {
 
+    /**
+     * Create counter counter.
+     *
+     * @param name Counter Name
+     * @return Create and register counter described by the <i>name</i>
+     */
     public Counter createCounter(String name);
 
-    public <T extends Number> Gauge registerGauge(final String statName, Supplier<T> value);
+    /**
+     * Register gauge.
+     * <i>value</i> is usually get of Number: AtomicInteger::get, AtomicLong::get
+     *
+     * @param <T>   the type of value
+     * @param name  the name of gauge
+     * @param value the supplier to provide value through get()
+     */
+    public <T extends Number> Gauge registerGauge(final String name, Supplier<T> value);
 }

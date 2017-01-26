@@ -44,13 +44,6 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.server.store.StreamSegmentService;
 import com.emc.pravega.testcommon.InlineExecutor;
-import lombok.Cleanup;
-import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Test;
-import org.mockito.InOrder;
-import org.mockito.Mockito;
-
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -59,6 +52,13 @@ import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import lombok.Cleanup;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Test;
+import org.mockito.InOrder;
+import org.mockito.Mockito;
+
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -167,12 +167,12 @@ public class PravegaRequestProcessorTest {
         assertEquals(data.length, readBytes.get());
 
         // Test dynamic counter in readSegment, it should be with name "DYNAMIC.testReadSegment.Counter"
-        com.codahale.metrics.Counter dynamicCounter = MetricsProvider.getYammerMetrics().
-                getCounters().get("DYNAMIC.testReadSegment.Counter");
+        com.codahale.metrics.Counter dynamicCounter = MetricsProvider.YAMMERMETRICS.
+                getCounters().get("DYNAMIC.readSegment.testReadSegment.Counter");
         assertNotEquals(0, dynamicCounter.getCount());
 
         // Test dynamic gauge in readSegment, it should be with name "DYNAMIC.testReadSegment.Gauge"
-        assertNotNull(MetricsProvider.getYammerMetrics().getGauges().get("DYNAMIC.testReadSegment.Gauge"));
+        assertNotNull(MetricsProvider.YAMMERMETRICS.getGauges().get("DYNAMIC.readSegment.testReadSegment.Gauge"));
     }
 
     @Test(timeout = 20000)

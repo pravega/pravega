@@ -18,9 +18,8 @@
 package com.emc.pravega.common.metrics;
 
 /**
- * A gauge is a value that has only one value at a specific point in time.
- * Here we just provide a wrapper, which will keep the name.
+ * Defines a Gauge, which will wrap a gauge instance and its name.
  */
 public interface Gauge {
-    public String getName();
+    String getName();
 }

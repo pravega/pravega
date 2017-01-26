@@ -19,29 +19,20 @@ package com.emc.pravega.common.metrics;
 import com.codahale.metrics.MetricRegistry;
 
 public class MetricsProvider {
-    private static MetricsProvider instance  = new MetricsProvider();
-
-    private static final MetricRegistry YAMMERMETRICS = new MetricRegistry();
+    public static final MetricRegistry YAMMERMETRICS = new MetricRegistry();
     private static final StatsProvider NULLPROVIDER = new NullStatsProvider();
     private static final StatsProvider YAMMERPROVIDER = new YammerStatsProvider();
+    private static final MetricsProvider INSTANCE  = new MetricsProvider();
 
-    // Dynamic logger to store
+    // Dynamic logger
     private static final DynamicLogger YAMMERDYNAMICLOGGER = YAMMERPROVIDER.createDynamicLogger();
     private static final DynamicLogger NULLDYNAMICLOGGER = NULLPROVIDER.createDynamicLogger();
 
     private MetricsProvider() {
     }
 
-    public static MetricRegistry getYammerMetrics() {
-        return YAMMERMETRICS;
-    }
-
-    public static StatsProvider getYammerProvider() {
-        return YAMMERPROVIDER;
-    }
-
-    public static StatsProvider getNullProvider() {
-        return NULLPROVIDER;
+    public static StatsProvider getMetricsProvider() {
+        return  MetricsConfig.enableStatistics() ? YAMMERPROVIDER : NULLPROVIDER;
     }
 
     public static StatsLogger createStatsLogger(String loggerName) {
@@ -50,7 +41,6 @@ public class MetricsProvider {
                 NULLPROVIDER.createStatsLogger(loggerName);
     }
 
-    // TODO: zhaijia, here we should create this class not implements statsLogger, and only report
     public static DynamicLogger getDynamicLogger() {
         return  MetricsConfig.enableStatistics() ?
                 YAMMERDYNAMICLOGGER :

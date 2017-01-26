@@ -60,8 +60,6 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -70,7 +68,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicLong;
+import lombok.extern.slf4j.Slf4j;
+
 
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Cache;
@@ -113,14 +112,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final String segment = readSegment.getSegment();
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
 
-        // create an example of dynamic counter
+        // A dynamic counter records counter of calling readSegment for a segment
         DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
-        Counter readSegmentEvent = dynamicLogger.createCounter(segment);
+        Counter readSegmentEvent = dynamicLogger.createCounter("readSegment." + segment);
 
-        // create an example of dynamic gauge
-        AtomicLong offset = new AtomicLong();
-        dynamicLogger.registerGauge(segment, offset::get);
-        offset.set(readSegment.getOffset());
+        // A dynamic gauge records read offset of each readSegment for a segment
+        dynamicLogger.registerGauge("readSegment." + segment, readSegment::getOffset);
 
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {

@@ -24,11 +24,11 @@ public class NullDynamicLogger implements DynamicLogger {
 
     @Override
     public Counter createCounter(String name) {
-        return NullStatsLogger.nullCounter;
+        return NullStatsLogger.NULLCOUNTER;
     }
 
     @Override
     public <T extends Number> Gauge registerGauge(final String statName, Supplier<T> value) {
-        return NullStatsLogger.nullGauge;
+        return NullStatsLogger.NULLGAUGE;
     }
 }

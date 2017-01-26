@@ -19,23 +19,23 @@ package com.emc.pravega.common.metrics;
 import java.util.function.Supplier;
 
 /**
- * A simple interface that exposes just 2 kind of methods. One to get the logger for an Op stat
- * and another to get the logger for a simple stat(Counter and Gauge)
+ * A simple interface provides create and register Counter/Gauge/OpStatsLogger,
+ * and create logger of new scope.
  */
 public interface StatsLogger {
     /**
-     * Gets op stats logger.
+     * Create op stats logger.
      *
      * @param name Stats Name
-     * @return Create and register the logger for an OpStat described by the <i>name</i>.
+     * @return logger for an OpStat described by the <i>name</i>.
      */
     public OpStatsLogger createStats(String name);
 
     /**
-     * Gets counter.
+     * Create counter.
      *
      * @param name Stats Name
-     * @return Create and register counter described by the <i>name</i>
+     * @return counter described by the <i>name</i>
      */
     public Counter createCounter(String name);
 
@@ -50,7 +50,7 @@ public interface StatsLogger {
     public <T extends Number> Gauge registerGauge(String name, Supplier<T> value);
 
     /**
-     * Provide the stats logger under scope <i>scope</i>.
+     * Create the stats logger under scope <i>scope</i>.
      *
      * @param scope scope name.
      * @return stats logger under scope <i>scope</i>.

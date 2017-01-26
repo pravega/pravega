@@ -25,36 +25,32 @@ public interface Counter {
     /**
      * Clear this stat.
      */
-    public void clear();
+    void clear();
 
     /**
      * Increment the value associated with this stat.
      */
-    public void inc();
+    void inc();
 
     /**
      * Decrement the value associated with this stat.
      */
-    public void dec();
+    void dec();
 
     /**
      * Add delta to the value associated with this stat.
      *
      * @param delta the delta
      */
-    public void add(long delta);
+    void add(long delta);
 
     /**
      * Get the value associated with this stat.
-     *
-     * @return the long
      */
-    public long get();
+    long get();
 
     /**
      * Gets name.
-     *
-     * @return the name
      */
-    public String getName();
+    String getName();
 }

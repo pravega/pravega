@@ -20,7 +20,6 @@ package com.emc.pravega.common.metrics;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
-
 import java.util.Properties;
 
 /**

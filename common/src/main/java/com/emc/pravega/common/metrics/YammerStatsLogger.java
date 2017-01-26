@@ -19,14 +19,14 @@ package com.emc.pravega.common.metrics;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
 import com.google.common.base.Preconditions;
-
 import java.util.function.Supplier;
+
 
 import static com.codahale.metrics.MetricRegistry.name;
 
 public class YammerStatsLogger implements StatsLogger {
     protected final String basename;
-    final MetricRegistry metrics;
+    private final MetricRegistry metrics;
 
     YammerStatsLogger(MetricRegistry metrics, String basename) {
         Preconditions.checkNotNull(metrics, "metrics");

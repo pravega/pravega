@@ -23,6 +23,11 @@ import java.util.function.Supplier;
 public class NullStatsLogger implements StatsLogger {
 
     public static final NullStatsLogger INSTANCE = new NullStatsLogger();
+    static final NullCounter NULLCOUNTER = new NullCounter();
+    static final NullGauge NULLGAUGE = new NullGauge();
+    private static final String NULLNAME = "";
+    private static final NullOpStatsLogger NULLOPSTATSLOGGER = new NullOpStatsLogger();
+
 
     static class NullOpStatsLogger implements OpStatsLogger {
         final OpStatsData nullOpStats = new OpStatsData(0, 0, 0, new EnumMap<OpStatsData.Percentile, Long>(OpStatsData.Percentile.class));
@@ -58,8 +63,6 @@ public class NullStatsLogger implements StatsLogger {
         }
     }
 
-    static NullOpStatsLogger nullOpStatsLogger = new NullOpStatsLogger();
-
     static class NullCounter implements Counter {
         @Override
         public void clear() {
@@ -92,31 +95,25 @@ public class NullStatsLogger implements StatsLogger {
         }
     }
 
-    static NullCounter nullCounter = new NullCounter();
-
-    static String nullName = "";
-
-    static NullGauge nullGauge = new NullGauge();
-
     @Override
     public OpStatsLogger createStats(String name) {
-        return nullOpStatsLogger;
+        return NULLOPSTATSLOGGER;
     }
 
     @Override
     public Counter createCounter(String name) {
-        return nullCounter;
+        return NULLCOUNTER;
     }
 
     static class NullGauge implements Gauge {
         public String getName() {
-            return nullName;
+            return NULLNAME;
         }
     }
 
     @Override
     public <T extends Number> Gauge registerGauge(String name, Supplier<T> value) {
-        return nullGauge;
+        return NULLGAUGE;
     }
 
     @Override

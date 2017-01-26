@@ -16,10 +16,9 @@
  */
 package com.emc.pravega.common.metrics;
 
-import com.codahale.metrics.Timer;
 import com.codahale.metrics.Snapshot;
+import com.codahale.metrics.Timer;
 import com.google.common.base.Preconditions;
-
 import java.time.Duration;
 import java.util.EnumMap;
 import java.util.concurrent.TimeUnit;

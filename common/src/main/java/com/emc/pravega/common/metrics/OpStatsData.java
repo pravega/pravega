@@ -17,7 +17,6 @@
 package com.emc.pravega.common.metrics;
 
 import com.google.common.base.Preconditions;
-
 import java.util.EnumMap;
 import java.util.EnumSet;
 

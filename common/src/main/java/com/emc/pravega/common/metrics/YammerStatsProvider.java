@@ -23,14 +23,13 @@ import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import com.google.common.base.Strings;
 import com.readytalk.metrics.StatsDReporter;
-import lombok.Synchronized;
-import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class YammerStatsProvider implements StatsProvider {
@@ -41,7 +40,7 @@ public class YammerStatsProvider implements StatsProvider {
     @Synchronized
     void init() {
         if (metrics == null) {
-            metrics = MetricsProvider.getYammerMetrics();
+            metrics = MetricsProvider.YAMMERMETRICS;
             metrics.registerAll(new MemoryUsageGaugeSet());
             metrics.registerAll(new GarbageCollectorMetricSet());
         }
