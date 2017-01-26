@@ -15,19 +15,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server.rest.contract.request;
+package com.emc.pravega.controller.rest.v1;
 
-import com.emc.pravega.controller.server.rest.contract.common.RetentionPolicyCommon;
-import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommon;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
+import com.emc.pravega.controller.server.rest.resources.PingImpl;
+import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.test.JerseyTest;
+import org.junit.Test;
+
+import javax.ws.rs.core.Application;
+import javax.ws.rs.core.Response;
+
+import static org.junit.Assert.assertEquals;
 
 /**
- * Conforms to updateStreamConfig REST API request object.
+ * Test for ping API.
  */
-@Getter
-@AllArgsConstructor
-public class UpdateStreamRequest {
-    private final ScalingPolicyCommon scalingPolicy;
-    private final RetentionPolicyCommon retentionPolicy;
+public class PingTest extends JerseyTest {
+
+    @Override
+    protected Application configure() {
+        return new ResourceConfig(PingImpl.class);
+    }
+
+    @Test
+    public void test() {
+        final Response hello = target("/ping").request().get(Response.class);
+        assertEquals(200, hello.getStatus());
+    }
 }

@@ -18,10 +18,9 @@
 
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.Operation;
-
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
@@ -65,12 +64,14 @@ interface WriterDataSource {
     void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId);
 
     /**
-     * Gets the contents of an Append operation from the Cache.
+     * Gets an InputStream representing uncommitted data in a Segment.
      *
-     * @param key The key to search by.
-     * @return The payload associated with the key, or null if no such entry exists.
+     * @param streamSegmentId The Id of the StreamSegment to fetch data for.
+     * @param startOffset     The offset where to begin fetching data from.
+     * @param length          The number of bytes to fetch.
+     * @return An InputStream with the requested data, of the requested length, or null if not available.
      */
-    byte[] getAppendData(CacheKey key);
+    InputStream getAppendData(long streamSegmentId, long startOffset, int length);
 
     /**
      * Gets a value indicating whether the given Operation Sequence Number is a valid Truncation Point, as set by

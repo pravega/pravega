@@ -5,7 +5,7 @@ MAINTAINER Abhijeet Jadhav  <Abhijeet.Jadhav@emc.com>
 RUN apt-get -q update \
     && apt-get -q install -y wget \
     && mkdir -p /opt \
-    && wget -q -O -  http://apache.claz.org/bookkeeper/bookkeeper-4.4.0/bookkeeper-server-4.4.0-bin.tar.gz | tar -xzf - -C /opt \
+    && wget -q -O -  http://www-us.apache.org/dist/bookkeeper/bookkeeper-4.4.0/bookkeeper-server-4.4.0-bin.tar.gz | tar -xzf - -C /opt \
     && mv /opt/bookkeeper-server-4.4.0 /opt/bookkeeper 
 
 WORKDIR /opt/bookkeeper

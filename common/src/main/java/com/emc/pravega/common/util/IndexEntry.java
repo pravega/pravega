@@ -16,13 +16,17 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.logs;
-
-import com.emc.pravega.common.util.TruncateableList;
-import com.emc.pravega.service.server.logs.operations.Operation;
+package com.emc.pravega.common.util;
 
 /**
- * In-Memory Operation Log.
+ * Defines a generic entry into an Index.
+ *
+ * @param <K> The Type of the key.
  */
-public class MemoryOperationLog extends TruncateableList<Operation> {
+public interface IndexEntry<K> {
+    /**
+     * Gets a value representing the key of the entry. The Key should not change for the lifetime of the entry and
+     * should be very cheap to return (as it is used very frequently).
+     */
+    K key();
 }

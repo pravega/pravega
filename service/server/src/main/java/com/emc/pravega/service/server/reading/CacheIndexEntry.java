@@ -21,36 +21,32 @@ package com.emc.pravega.service.server.reading;
 import com.google.common.base.Preconditions;
 
 /**
- * Read Index Entry that redirects to a different StreamSegment.
+ * Represents a ReadIndexEntry that points to an entry in the Cache.
  */
-class RedirectReadIndexEntry extends ReadIndexEntry {
-    private final StreamSegmentReadIndex redirectReadIndex;
+public class CacheIndexEntry extends ReadIndexEntry {
+    private final int length;
 
     /**
-     * Creates a new instance of the RedirectReadIndexEntry class.
+     * Creates a new instance of the ReadIndexEntry class.
      *
      * @param streamSegmentOffset The StreamSegment offset for this entry.
-     * @param length              The length of the redirected Read Index.
-     * @param redirectReadIndex   The StreamSegmentReadIndex to redirect to.
-     * @throws NullPointerException     If any of the arguments are null.
+     * @param length              The Length of this entry.
      * @throws IllegalArgumentException if the offset is a negative number.
+     * @throws IllegalArgumentException if the length is a negative number.
      */
-    RedirectReadIndexEntry(long streamSegmentOffset, long length, StreamSegmentReadIndex redirectReadIndex) {
-        super(streamSegmentOffset, length);
-
-        Preconditions.checkNotNull(redirectReadIndex, "redirectReadIndex");
-        this.redirectReadIndex = redirectReadIndex;
+    CacheIndexEntry(long streamSegmentOffset, int length) {
+        super(streamSegmentOffset);
+        Preconditions.checkArgument(length >= 0, "length", "length must be a non-negative number.");
+        this.length = length;
     }
 
-    /**
-     * Gets a reference to the StreamSegmentReadIndex that this entry redirects to.
-     */
-    StreamSegmentReadIndex getRedirectReadIndex() {
-        return this.redirectReadIndex;
+    @Override
+    long getLength() {
+        return this.length;
     }
 
     @Override
     boolean isDataEntry() {
-        return false;
+        return true;
     }
 }
