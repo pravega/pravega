@@ -309,6 +309,16 @@ project('integrationtests') {
     }
 }
 
+project('integrationtests:controller') {
+    apply plugin: 'application'
+    mainClassName = "com.emc.pravega.controller.stresstest.ControllerTests"
+    dependencies {
+        compile project(':clients:streaming')
+        compile project(':controller:server')
+        compile group: 'commons-cli', name: 'commons-cli', version: '1.2'
+    }
+}
+
 project('controller') {
     dependencies {
         testCompile project(':testcommon')
