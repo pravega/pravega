@@ -171,11 +171,9 @@ public class TurbineHeatSensor {
         options.addOption("stream", true, "Stream name");
         options.addOption("writeonly", true, "Just produce vs read after produce");
         options.addOption("blocking", true, "Block for each ack");
+        options.addOption("zipkin", true, "Enable zipkin trace");
 
         options.addOption("help", false, "Help message");
-
-        ZipKinTracer.enableZipkin(true);
-        ZipKinTracer.setZipkinEndpoint("http://10.249.250.151:9411/api/v1/spans");
 
         CommandLineParser parser = new BasicParser();
         try {
@@ -221,6 +219,14 @@ public class TurbineHeatSensor {
                 }
                 if (commandline.hasOption("blocking")) {
                     blocking = Boolean.parseBoolean(commandline.getOptionValue("blocking"));
+                }
+
+                if (commandline.hasOption("zipkin")) {
+                    boolean zipkin = Boolean.parseBoolean(commandline.getOptionValue("zipkin"));
+                    ZipKinTracer.enableZipkin(zipkin);
+                    if ( zipkin ) {
+                        ZipKinTracer.setZipkinEndpoint("http://10.249.250.151:9411/api/v1/spans");
+                    }
                 }
             }
         } catch (Exception nfe) {
