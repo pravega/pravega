@@ -52,6 +52,8 @@ import java.util.Random;
 
 import org.apache.commons.lang.NotImplementedException;
 
+import lombok.val;
+
 public class ClientFactoryImpl implements ClientFactory {
 
     private final String scope;
@@ -153,9 +155,7 @@ public class ClientFactoryImpl implements ClientFactory {
                     Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer,
                     SynchronizerConfig config) {
         Segment segment = new Segment(scope, streamName, 0);
-        UpdateOrInitSerializer<StateT, UpdateT, InitT> serializer = new UpdateOrInitSerializer<>(segment,
-                updateSerializer,
-                initialSerializer);
+        val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
         return new StateSynchronizerImpl<StateT>(segment,
                 createRevisionedStreamClient(streamName, serializer, config));
     }

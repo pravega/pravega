@@ -34,6 +34,7 @@ import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.NotImplementedException;
 import org.junit.Test;
@@ -100,7 +101,7 @@ public class SynchronizerTest {
                     UpdateOrInit<RevisionedImpl> value;
                     RevisionImpl revision = new RevisionImpl(segment, pos, pos);
                     if (pos == 0) {
-                        value = new UpdateOrInit<>(init, revision);
+                        value = new UpdateOrInit<>(init);
                     } else {
                         value = new UpdateOrInit<>(Collections.singletonList(updates[pos - 1]));
                     }
@@ -186,19 +187,33 @@ public class SynchronizerTest {
                                                                                        new JavaSerializer<>(),
                                                                                        new JavaSerializer<>(),
                                                                                        new SynchronizerConfig(null, null));
+        AtomicInteger callCount = new AtomicInteger(0);
         sync.initialize(new NormalUpdate());
         sync.updateState(state -> {
+            callCount.incrementAndGet();
             return Collections.singletonList(new NormalUpdate());
         });
+        assertEquals(1, callCount.get());
         sync.updateState(state -> {
+            callCount.incrementAndGet();
             return Collections.singletonList(new NormalUpdate());
         });
-        RevisionedImpl state = sync.getState();
-        sync.compact(state.revision, new NormalUpdate());
+        assertEquals(2, callCount.get());
+        sync.compact(state -> {
+            callCount.incrementAndGet();
+            return new NormalUpdate();
+        });
+        assertEquals(3, callCount.get());
         sync.updateState(s -> {
+            callCount.incrementAndGet();
             return Collections.singletonList(new NormalUpdate());
         });
-        sync.compact(state.revision, new NormalUpdate());
+        assertEquals(5, callCount.get());
+        sync.compact(state -> {
+            callCount.incrementAndGet();
+            return new NormalUpdate();
+        });
+        assertEquals(6, callCount.get());
     }
 
 }
