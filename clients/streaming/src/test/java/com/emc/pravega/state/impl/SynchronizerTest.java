@@ -19,9 +19,14 @@ import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.RevisionedStreamClient;
+import com.emc.pravega.state.StateSynchronizer;
+import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
+import com.emc.pravega.stream.mock.MockClientFactory;
+import com.emc.pravega.stream.mock.MockSegmentStreamFactory;
 import com.emc.pravega.testcommon.Async;
 
 import java.io.Serializable;
@@ -35,6 +40,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
+import lombok.Cleanup;
 import lombok.Data;
 
 public class SynchronizerTest {
@@ -151,7 +157,6 @@ public class SynchronizerTest {
         client.visableLength = 3;
         Async.testBlocking(() -> {
             sync.fetchUpdates();
-
         }, () -> updates[2].latch.release());
         RevisionedImpl state2 = sync.getState();
         assertEquals(new RevisionImpl(segment, 3, 3), state2.getRevision());
@@ -166,6 +171,34 @@ public class SynchronizerTest {
         });
         RevisionedImpl state3 = sync.getState();
         assertEquals(new RevisionImpl(segment, 4, 4), state3.getRevision());
+    }
+    
+    @Test(timeout = 20000)
+    public void testCompaction() throws EndOfSegmentException {
+        String streamName = "streamName";
+        String scope = "scope";
+        
+        MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+
+        StateSynchronizer<RevisionedImpl> sync = clientFactory.createStateSynchronizer(streamName,
+                                                                                       new JavaSerializer<>(),
+                                                                                       new JavaSerializer<>(),
+                                                                                       new SynchronizerConfig(null, null));
+        sync.initialize(new NormalUpdate());
+        sync.updateState(state -> {
+            return Collections.singletonList(new NormalUpdate());
+        });
+        sync.updateState(state -> {
+            return Collections.singletonList(new NormalUpdate());
+        });
+        RevisionedImpl state = sync.getState();
+        sync.compact(state.revision, new NormalUpdate());
+        sync.updateState(s -> {
+            return Collections.singletonList(new NormalUpdate());
+        });
+        sync.compact(state.revision, new NormalUpdate());
     }
 
 }

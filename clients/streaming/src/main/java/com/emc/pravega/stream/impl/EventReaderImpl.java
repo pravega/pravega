@@ -89,7 +89,7 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
         if (segment != null) {
             SegmentReader<Type> reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
             if (reader != null) {
-                groupState.releaseSegment(segment, reader.getOffset(), System.currentTimeMillis() - lastRead.getHighOrder());
+                groupState.releaseSegment(segment, reader.getOffset(), getLag());
                 readers.remove(reader);
                 return true;
             }
@@ -98,7 +98,7 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     private boolean aquireSegmentsIfNeeded() {
-        Map<Segment, Long> newSegments = groupState.aquireNewSegmentsIfNeeded(System.currentTimeMillis() - lastRead.getHighOrder());
+        Map<Segment, Long> newSegments = groupState.aquireNewSegmentsIfNeeded(getLag());
         if (newSegments == null || newSegments.isEmpty()) {
             return false;
         }
@@ -108,6 +108,13 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
             readers.add(new SegmentReaderImpl<>(newSegment.getKey(), in, deserializer));            
         }
         return true;
+    }
+
+    private long getLag() {
+        if (lastRead == null) {
+            return 0;
+        }
+        return System.currentTimeMillis() - lastRead.getHighOrder();
     }
     
     private void handleEndOfSegment(SegmentReader<Type> oldSegment) {

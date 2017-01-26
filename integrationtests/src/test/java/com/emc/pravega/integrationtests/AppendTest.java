@@ -52,6 +52,7 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.stream.mock.MockController;
+import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.TestUtils;
 
 import java.nio.ByteBuffer;
@@ -189,6 +190,7 @@ public class AppendTest {
 
     @Test
     public void appendThroughStreamingClient() throws InterruptedException {
+        String scope = "Scope";
         String endpoint = "localhost";
         String streamName = "abc";
         int port = TestUtils.randomPort();
@@ -197,9 +199,11 @@ public class AppendTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-
-        MockClientFactory clientFactory = new MockClientFactory("Scope", endpoint, port);
-        clientFactory.createStream(streamName, null);
+        @Cleanup
+        MockClientFactory clientFactory = new MockClientFactory(scope, endpoint, port);
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        streamManager.createStream(streamName, null);
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), new EventWriterConfig(null));
         producer.writeEvent("RoutingKey", testString);
         producer.flush();

@@ -6,11 +6,13 @@ import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateInit;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import lombok.Data;
@@ -27,6 +29,14 @@ public class ReaderGroupImpl implements ReaderGroup {
     private final Serializer<ReaderGroupStateUpdate> updateSerializer;
     private final ClientFactory clientFactory;
 
+    public void initalizeGroup(Map<Segment, Long> segments) {
+        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(groupName,
+                                                                                                 updateSerializer,
+                                                                                                 initSerializer,
+                                                                                                 synchronizerConfig);
+        ReaderGroupStateManager.initializeReadererGroup(synchronizer, segments);
+    }
+    
     @Override
     public void readerOffline(String readerId, Position lastPosition) {
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(groupName,

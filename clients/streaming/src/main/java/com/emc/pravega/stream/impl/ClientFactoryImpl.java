@@ -120,6 +120,7 @@ public class ClientFactoryImpl implements ClientFactory {
                 sync,
                 controller,
                 System::nanoTime);
+        stateManager.initializeReader();
         return new EventReaderImpl<T>(inFactory, s, stateManager, new RandomOrderer<>(), config);
     }
     

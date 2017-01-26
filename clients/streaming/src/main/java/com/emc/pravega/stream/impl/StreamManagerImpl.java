@@ -15,21 +15,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream;
+package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.state.SynchronizerConfig;
+import com.emc.pravega.stream.ReaderGroup;
+import com.emc.pravega.stream.ReaderGroupConfig;
+import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.ScalingPolicy.Type;
-import com.emc.pravega.stream.impl.ControllerImpl;
-import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.ReaderGroupImpl;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.StreamImpl;
+import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.StreamConfiguration;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang.NotImplementedException;
 
@@ -77,11 +82,33 @@ public class StreamManagerImpl implements StreamManager {
     
     @Override
     public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, List<String> streams) {
-        createStreamHelper(groupName, new StreamConfigurationImpl(scope, groupName, new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0, 1)));
+        createStreamHelper(groupName,
+                           new StreamConfigurationImpl(scope,
+                                   groupName,
+                                   new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0, 1)));
         SynchronizerConfig synchronizerConfig = new SynchronizerConfig(null, null);
-        return new ReaderGroupImpl(scope, groupName, streams, config, synchronizerConfig , new JavaSerializer<>(),  new JavaSerializer<>(), clientFactory);
+        ReaderGroupImpl result = new ReaderGroupImpl(scope,
+                groupName,
+                streams,
+                config,
+                synchronizerConfig,
+                new JavaSerializer<>(),
+                new JavaSerializer<>(),
+                clientFactory);
+        List<CompletableFuture<Map<Segment,Long>>> futures = new ArrayList<>(streams.size());
+        for (String stream : streams) {
+            CompletableFuture<List<PositionInternal>> future = controller.getPositions(new StreamImpl(scope, stream), 0, 1);
+            futures.add(future.thenApply(list -> list.stream()
+                                         .flatMap(pos -> pos.getOwnedSegmentsWithOffsets().entrySet().stream())
+                                         .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()))));
+        }
+        Map<Segment, Long> segments = FutureHelpers.getAndHandleExceptions(FutureHelpers.allOfWithResults(futures).thenApply(listOfMaps -> {
+            return listOfMaps.stream().flatMap(map -> map.entrySet().stream()).collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
+        }), RuntimeException::new);
+        result.initalizeGroup(segments);
+        return result;
     }
-    
+
     @Override
     public ReaderGroup updateReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames) {
         throw new NotImplementedException();

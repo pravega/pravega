@@ -22,7 +22,7 @@ import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamManagerImpl;
+import com.emc.pravega.stream.impl.StreamManagerImpl;
 
 import java.net.URI;
 import java.util.List;

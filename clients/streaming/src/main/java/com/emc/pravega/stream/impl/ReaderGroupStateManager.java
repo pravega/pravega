@@ -74,7 +74,7 @@ public class ReaderGroupStateManager {
         aquireTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
     }
     
-    void initializeReadererGroup(Map<Segment, Long> segments) {
+    static void initializeReadererGroup(StateSynchronizer<ReaderGroupState> sync, Map<Segment, Long> segments) {
         sync.initialize(new ReaderGroupState.ReaderGroupStateInit(segments));
     }
     
@@ -129,6 +129,9 @@ public class ReaderGroupStateManager {
      * this reader has not done so in a while, this returns the segment that should be released.
      */
     Segment findSegmentToReleaseIfRequired() {
+        if (!releaseTimer.hasRemaining()) {
+            sync.fetchUpdates();
+        }
         Segment segment = null;
         synchronized (decisionLock) {
             if (!releaseTimer.hasRemaining() && doesReaderOwnTooManySegments(sync.getState())) {
@@ -199,6 +202,9 @@ public class ReaderGroupStateManager {
      * @return A map from the new segment that was acquired to the offset to begin reading from within the segment.
      */
     Map<Segment, Long> aquireNewSegmentsIfNeeded(long timeLag) {
+        if (!aquireTimer.hasRemaining()) {
+            sync.fetchUpdates();
+        }
         if (shouldAquireSegment()) {
             return aquireSegment(timeLag);
         } else {

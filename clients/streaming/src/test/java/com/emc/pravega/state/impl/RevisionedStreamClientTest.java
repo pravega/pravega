@@ -10,14 +10,17 @@ import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.stream.mock.MockSegmentStreamFactory;
-import com.emc.pravega.stream.mock.MockStreamManager;
 
 import java.util.Iterator;
 import java.util.Map.Entry;
 
 import org.junit.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class RevisionedStreamClientTest {
     
@@ -29,7 +32,6 @@ public class RevisionedStreamClientTest {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
-        MockStreamManager streamManager = new MockStreamManager(scope, controller);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamFactory, streamFactory);
         
@@ -67,7 +69,6 @@ public class RevisionedStreamClientTest {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
-        MockStreamManager streamManager = new MockStreamManager(scope, controller);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamFactory, streamFactory);
         

@@ -21,19 +21,20 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.mock.MockClientFactory;
+import com.emc.pravega.stream.mock.MockStreamManager;
 
 import lombok.Cleanup;
 
 public class StartProducer {
 
     public static void main(String[] args) throws Exception {
-        MockClientFactory clientFactory = new MockClientFactory(StartLocalService.SCOPE,
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,
                                                                 "localhost",
                                                                 StartLocalService.PORT);
-        clientFactory.createStream(StartLocalService.STREAM_NAME, null);
+        streamManager.createStream(StartLocalService.STREAM_NAME, null);
         @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME,
+        EventStreamWriter<String> producer = streamManager.getClientFactory().createEventWriter(StartLocalService.STREAM_NAME,
                                                                 new JavaSerializer<>(),
                                                                 new EventWriterConfig(null));
         Transaction<String> transaction = producer.beginTxn(60000);

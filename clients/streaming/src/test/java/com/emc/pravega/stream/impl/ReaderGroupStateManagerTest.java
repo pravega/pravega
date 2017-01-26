@@ -42,10 +42,10 @@ public class ReaderGroupStateManagerTest {
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),
                                                                                                       config);
-        ReaderGroupStateManager stateManager = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(new Segment(scope, stream, 0), 1L);
-        stateManager.initializeReadererGroup(segments);
+        ReaderGroupStateManager.initializeReadererGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager stateManager = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
         stateManager.initializeReader();
         Segment toRelease = stateManager.findSegmentToReleaseIfRequired();
         assertNull(toRelease);
@@ -80,13 +80,12 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 1), 1L);
         segments.put(new Segment(scope, stream, 2), 2L);
         segments.put(new Segment(scope, stream, 3), 3L);
+        ReaderGroupStateManager.initializeReadererGroup(stateSynchronizer, segments);
         
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1", stateSynchronizer, controller, clock::get);
-        reader1.initializeReadererGroup(segments);
         reader1.initializeReader();
         
         ReaderGroupStateManager reader2 = new ReaderGroupStateManager("reader2", stateSynchronizer, controller, clock::get);
-        reader2.initializeReadererGroup(segments);
         reader2.initializeReader();
         
         Map<Segment, Long> segments1 = reader1.aquireNewSegmentsIfNeeded(0);
@@ -157,9 +156,9 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 3), 3L);
         segments.put(new Segment(scope, stream, 4), 4L);
         segments.put(new Segment(scope, stream, 5), 5L);
+        ReaderGroupStateManager.initializeReadererGroup(stateSynchronizer, segments);
         
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1", stateSynchronizer, controller, clock::get);
-        reader1.initializeReadererGroup(segments);
         reader1.initializeReader();
         Map<Segment, Long> segments1 = reader1.aquireNewSegmentsIfNeeded(0);
         assertEquals(6, segments1.size());
