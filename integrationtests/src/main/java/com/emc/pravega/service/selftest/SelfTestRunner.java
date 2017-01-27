@@ -76,7 +76,8 @@ public class SelfTestRunner {
         ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.toString(128 * 1024 * 1024));
         ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_MEMORY_READ_MIN_LENGTH, Integer.toString(128 * 1024));
 
-        ServiceBuilderConfig.set(p, ContainerConfig.COMPONENT_CODE, ContainerConfig.PROPERTY_SEGMENT_METADATA_EXPIRATION, Integer.toString(5));
+        ServiceBuilderConfig.set(p, ContainerConfig.COMPONENT_CODE, ContainerConfig.PROPERTY_SEGMENT_METADATA_EXPIRATION_SECONDS,
+                Integer.toString(ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS));
 
         // All component configs should have defaults built-in, so no need to override them here
         return new ServiceBuilderConfig(p);

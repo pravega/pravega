@@ -31,9 +31,9 @@ public class ContainerConfig extends ComponentConfig {
     //region Members
 
     public static final String COMPONENT_CODE = "containers";
-    public static final String PROPERTY_SEGMENT_METADATA_EXPIRATION = "segmentMetadataExpirationSeconds";
+    public static final String PROPERTY_SEGMENT_METADATA_EXPIRATION_SECONDS = "segmentMetadataExpirationSeconds";
 
-    private static final int MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS = 1; // Minimum possible value for segmentExpiration
+    public static final int MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS = 60; // Minimum possible value for segmentExpiration
     private static final int DEFAULT_SEGMENT_METADATA_EXPIRATION_SECONDS = 5 * 60; // 5 Minutes.
 
     /**
@@ -66,9 +66,9 @@ public class ContainerConfig extends ComponentConfig {
 
     @Override
     protected void refresh() throws ConfigurationException {
-        int segmentMetadataExpirationSeconds = getInt32Property(PROPERTY_SEGMENT_METADATA_EXPIRATION, DEFAULT_SEGMENT_METADATA_EXPIRATION_SECONDS);
+        int segmentMetadataExpirationSeconds = getInt32Property(PROPERTY_SEGMENT_METADATA_EXPIRATION_SECONDS, DEFAULT_SEGMENT_METADATA_EXPIRATION_SECONDS);
         if (segmentMetadataExpirationSeconds < MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS) {
-            throw new ConfigurationException(String.format("Property '%s' must be at least %s.", PROPERTY_SEGMENT_METADATA_EXPIRATION, MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS));
+            throw new ConfigurationException(String.format("Property '%s' must be at least %s.", PROPERTY_SEGMENT_METADATA_EXPIRATION_SECONDS, MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS));
         }
         this.segmentMetadataExpiration = Duration.ofSeconds(segmentMetadataExpirationSeconds);
     }

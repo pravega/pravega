@@ -85,7 +85,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
     private static final Duration TIMEOUT = Duration.ofSeconds(100);
     private static final ContainerConfig DEFAULT_CONFIG = ConfigHelpers.createContainerConfig(
-            PropertyBag.create().with(ContainerConfig.PROPERTY_SEGMENT_METADATA_EXPIRATION, 10 * 60));
+            PropertyBag.create().with(ContainerConfig.PROPERTY_SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60));
 
     // Create checkpoints every 100 operations or after 10MB have been written, but under no circumstance less frequently than 10 ops.
     private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = ConfigHelpers.createDurableLogConfig(
