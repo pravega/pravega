@@ -20,7 +20,6 @@ package com.emc.pravega.common.util;
 
 import com.google.common.base.Preconditions;
 import java.util.ConcurrentModificationException;
-import java.util.Stack;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.val;
@@ -76,6 +75,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
 
         val result = insert(item, this.root);
         this.root = result.node;
+
         if (this.size == 1) {
             // Only one item in the index; this is the highest and lowest at the same time.
             this.last = item;
@@ -251,7 +251,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
     @Override
     public void forEach(Consumer<V> consumer) {
         Preconditions.checkNotNull(consumer, "consumer");
-        Stack<Node> stack = new Stack<>();
+        TraversalStack stack = new TraversalStack(getHeight(this.root));
         Node node = this.root;
         final int originalModCount = this.modCount;
         while (!stack.empty() || node != null) {
@@ -498,6 +498,32 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
     private class UpdateResult {
         Node node;
         V updatedItem;
+    }
+
+    /**
+     * Array-backed fixed-size stack. This is faster than using java.util.Stack due to less overhead inherited from the Vector class.
+     */
+    private class TraversalStack {
+        private final Object[] nodes;
+        private int size;
+
+        TraversalStack(int size) {
+            this.nodes = new Object[size];
+            this.size = 0;
+        }
+
+        void push(Node node) {
+            this.nodes[this.size++] = node;
+        }
+
+        @SuppressWarnings("unchecked")
+        Node pop() {
+            return (Node) this.nodes[--this.size];
+        }
+
+        boolean empty() {
+            return this.size == 0;
+        }
     }
 
     //endregion
