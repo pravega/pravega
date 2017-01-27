@@ -211,11 +211,11 @@ project('service:server') {
 
 project('service:server:host') {
     apply plugin: 'application'
-    applicationDefaultJvmArgs = ["-server", "-Xms128m", "-Xmx512m", "-XX:+HeapDumpOnOutOfMemoryError",
+    applicationDefaultJvmArgs = ["-server", "-Xms1g", "-Xmx1g", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Xloggc:/tmp/logs/gc.log", "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps"]
     mainClassName = "com.emc.pravega.service.server.host.ServiceStarter"
 
-    applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError"]
+    //applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError"]
 
     dependencies {
         compile project(':common')
