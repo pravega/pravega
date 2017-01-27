@@ -43,8 +43,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @Slf4j
 public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements CheckpointedFunction, Serializable {
-    // The event serializer for pravega.
-    private final Serializer eventSerializer;
+    // The supplied event serializer.
+    private final SerializationSchema<T> serializationSchema;
 
     // The router used to partition events within a stream.
     private final PravegaEventRouter<T> eventRouter;
@@ -66,6 +66,9 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
     // The pravega writer client.
     private transient EventStreamWriter<T> pravegaWriter = null;
 
+    // The event serializer implementation for the pravega writer.
+    private transient Serializer eventSerializer = null;
+
     // Error which will be detected asynchronously and reported to flink.
     private transient AtomicReference<Throwable> writeError = null;
 
@@ -83,35 +86,16 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
      */
     public FlinkPravegaWriter(final URI controllerURI, final String scope, final String streamName,
             final SerializationSchema<T> serializationSchema, final PravegaEventRouter<T> router) {
-        this(controllerURI,
-             scope,
-             streamName,
-             new Serializer<T>() {
-                    @Override
-                    public ByteBuffer serialize(T event) {
-                        return ByteBuffer.wrap(serializationSchema.serialize(event));
-                    }
-
-                    @Override
-                    public T deserialize(ByteBuffer serializedValue) {
-                        return null;
-                    }
-                },
-             router);
-    }
-
-    private FlinkPravegaWriter(final URI controllerURI, final String scope, final String streamName,
-            final Serializer<T> eventSerializer, final PravegaEventRouter<T> router) {
         Preconditions.checkNotNull(controllerURI);
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(streamName);
-        Preconditions.checkNotNull(eventSerializer);
+        Preconditions.checkNotNull(serializationSchema);
         Preconditions.checkNotNull(router);
 
         this.controllerURI = controllerURI;
         this.scopeName = scope;
         this.streamName = streamName;
-        this.eventSerializer = eventSerializer;
+        this.serializationSchema = serializationSchema;
         this.eventRouter = router;
     }
 
@@ -122,12 +106,22 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
      */
     public void setPravegaWriterMode(PravegaWriterMode writerMode) {
         Preconditions.checkNotNull(writerMode);
-
         this.writerMode = writerMode;
     }
 
     @Override
     public void open(Configuration parameters) throws Exception {
+        this.eventSerializer = new Serializer<T>() {
+            @Override
+            public ByteBuffer serialize(T event) {
+                return ByteBuffer.wrap(serializationSchema.serialize(event));
+            }
+
+            @Override
+            public T deserialize(ByteBuffer serializedValue) {
+                return null;
+            }
+        };
         this.writeError = new AtomicReference<>(null);
         this.pendingWritesCount = new AtomicInteger(0);
         ClientFactory clientFactory = ClientFactory.withScope(this.scopeName, this.controllerURI);
@@ -135,8 +129,8 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
                 this.streamName,
                 this.eventSerializer,
                 new EventWriterConfig(null));
-        log.info("Initialized pravega writer for stream: {}/{} with controller URI: {}", this.scopeName, this.streamName,
-                 this.controllerURI);
+        log.info("Initialized pravega writer for stream: {}/{} with controller URI: {}", this.scopeName,
+                 this.streamName, this.controllerURI);
     }
 
     @Override

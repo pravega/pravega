@@ -29,7 +29,7 @@ import java.nio.ByteBuffer;
  *
  * @param <T> The type of event that this serializes.
  */
-public interface Serializer<T> extends Serializable {
+public interface Serializer<T> {
     /**
      * The maximum event size, in bytes.
      */
