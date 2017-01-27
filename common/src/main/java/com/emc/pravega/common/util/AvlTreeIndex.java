@@ -425,6 +425,17 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
     }
 
     /**
+     * Gets the current height of a node, or -1 if null.
+     */
+    private byte getHeight(Node node) {
+        return node == null ? -1 : node.height;
+    }
+
+    private byte calculateHeight(byte leftHeight, byte rightHeight) {
+        return (byte) ((leftHeight >= rightHeight ? leftHeight : rightHeight) + 1);
+    }
+
+    /**
      * Finds the smallest item in a subtree.
      *
      * @param node The root node of the subtree.
@@ -456,17 +467,6 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
         }
 
         return node;
-    }
-
-    /**
-     * Gets the current height of a node, or -1 if null.
-     */
-    private byte getHeight(Node node) {
-        return node == null ? -1 : node.height;
-    }
-
-    private byte calculateHeight(byte leftHeight, byte rightHeight) {
-        return (byte) ((leftHeight >= rightHeight ? leftHeight : rightHeight) + 1);
     }
 
     //endregion
@@ -507,8 +507,8 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
         private final Object[] nodes;
         private int size;
 
-        TraversalStack(int size) {
-            this.nodes = new Object[size];
+        TraversalStack(int maxSize) {
+            this.nodes = new Object[maxSize];
             this.size = 0;
         }
 

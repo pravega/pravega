@@ -132,19 +132,21 @@ public class Playground {
         int retryCount = 5;
         for (int i = 0; i < retryCount; i++) {
             System.out.print("RB: ");
-            System.gc();
             testIndex(new RedBlackTreeIndex<>(), count);
             System.out.print("AVL:");
-            System.gc();
             testIndex(new AvlTreeIndex<>(), count);
             System.out.println();
         }
     }
 
     private static void testIndex(SortedIndex<TestEntry> index, int count) {
+        System.gc();
         long testInsertElapsed = measure(() -> insert(index, 0, count));
+        System.gc();
         long testReadElapsed = measure(() -> readExact(index, 0, count));
+        System.gc();
         long testReadCeilingElapsed = measure(() -> readCeiling(index, 0, count));
+        System.gc();
         long testLastElapsed = measure(() -> readLast(index, count));
         System.out.println(String.format("Insert = %sms, Read = %sms, Ceiling = %sms, Last = %sms", testInsertElapsed, testReadElapsed, testReadCeilingElapsed, testLastElapsed));
     }
