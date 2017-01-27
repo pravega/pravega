@@ -22,6 +22,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamingException;
 import com.emc.pravega.service.server.DataCorruptionException;
@@ -39,8 +40,6 @@ import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import lombok.extern.slf4j.Slf4j;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -53,6 +52,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Represents an OperationLog that durably stores Log Operations it receives.
@@ -65,7 +65,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     private final String traceObjectId;
     private final DurableLogConfig config;
     private final LogItemFactory<Operation> operationFactory;
-    private final MemoryOperationLog inMemoryOperationLog;
+    private final SequencedItemList<Operation> inMemoryOperationLog;
     private final DurableDataLog durableDataLog;
     private final MemoryStateUpdater memoryStateUpdater;
     private final OperationProcessor operationProcessor;
@@ -104,7 +104,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.metadata = metadata;
         this.executor = executor;
         this.operationFactory = new OperationFactory();
-        this.inMemoryOperationLog = new MemoryOperationLog();
+        this.inMemoryOperationLog = new SequencedItemList<>();
         this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, cacheUpdater, this::triggerTailReads);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
         this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy);
@@ -236,7 +236,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                 .truncate(truncationFrameAddress, timer.getRemaining())
                 .thenRunAsync(() -> {
                     // Truncate InMemory Transaction Log.
-                    this.inMemoryOperationLog.truncate(e -> e.getSequenceNumber() <= actualTruncationSequenceNumber);
+                    this.inMemoryOperationLog.truncate(actualTruncationSequenceNumber);
 
                     // Remove old truncation markers.
                     this.metadata.removeTruncationMarkers(actualTruncationSequenceNumber);
@@ -247,7 +247,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     public CompletableFuture<Iterator<Operation>> read(long afterSequenceNumber, int maxCount, Duration timeout) {
         ensureRunning();
         log.debug("{}: Read (AfterSequenceNumber = {}, MaxCount = {}).", this.traceObjectId, afterSequenceNumber, maxCount);
-        Iterator<Operation> logReadResult = this.inMemoryOperationLog.read(e -> e.getSequenceNumber() > afterSequenceNumber, maxCount);
+        Iterator<Operation> logReadResult = this.inMemoryOperationLog.read(afterSequenceNumber, maxCount);
         if (logReadResult.hasNext()) {
             // Data is readily available.
             return CompletableFuture.completedFuture(logReadResult);
@@ -269,7 +269,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             if (result == null) {
                 // If we get here, it means that we have since received an operation (after the original call, but before
                 // entering the synchronized block above); re-issue the read and return the result.
-                logReadResult = this.inMemoryOperationLog.read(e -> e.getSequenceNumber() > afterSequenceNumber, maxCount);
+                logReadResult = this.inMemoryOperationLog.read(afterSequenceNumber, maxCount);
                 assert logReadResult.hasNext() : String.format("Unable to read anything after SeqNo %d, even though metadata indicates SeqNo == %d", afterSequenceNumber, metadataSeqNo);
                 result = CompletableFuture.completedFuture(logReadResult);
             }
@@ -467,7 +467,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             // Trigger all of them (no need to unregister them; the unregister handle is already wired up).
             for (TailRead tr : toTrigger) {
                 try {
-                    Iterator<Operation> logReadResult = this.inMemoryOperationLog.read(o -> o.getSequenceNumber() > tr.afterSequenceNumber, tr.maxCount);
+                    Iterator<Operation> logReadResult = this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount);
                     tr.future.complete(logReadResult);
                 } catch (Throwable ex) {
                     if (ExceptionHelpers.mustRethrow(ex)) {
