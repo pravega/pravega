@@ -148,6 +148,17 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
         processResult(controllerService.checkTransactionStatus(scope, stream, txid), resultHandler);
     }
 
+    @Override
+    public void createScope(String scope, AsyncMethodCallback resultHandler) throws TException {
+        log.debug("createScope called for scope "+scope);
+        processResult(controllerService.createScope(scope), resultHandler);
+    }
+
+    @Override
+    public void deleteScope(String scope, AsyncMethodCallback resultHandler) throws TException {
+
+    }
+
     private static <T> void processResult(final CompletableFuture<T> result, final AsyncMethodCallback resultHandler) {
         result.whenComplete(
                 (value, ex) -> {

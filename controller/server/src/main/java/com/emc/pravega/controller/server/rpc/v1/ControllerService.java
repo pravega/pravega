@@ -31,6 +31,7 @@ import com.emc.pravega.controller.stream.api.v1.TxnId;
 import com.emc.pravega.controller.stream.api.v1.TxnState;
 import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -283,10 +284,13 @@ public class ControllerService {
                 });
     }
 
-
     public CompletableFuture<TxnState> checkTransactionStatus(final String scope, final String stream, final TxnId
             txnId) {
         return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId))
                 .thenApply(ModelHelper::decode);
+    }
+
+    public CompletableFuture<CreateScopeStatus> createScope(final String scope) {
+        return streamMetadataTasks.createScope(scope);
     }
 }

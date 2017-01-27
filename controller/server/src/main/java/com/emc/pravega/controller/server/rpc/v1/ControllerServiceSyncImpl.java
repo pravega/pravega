@@ -31,6 +31,8 @@ import com.emc.pravega.controller.stream.api.v1.TxnId;
 import com.emc.pravega.controller.stream.api.v1.TxnState;
 import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.ModelHelper;
@@ -126,5 +128,15 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
     public TxnState checkTransactionStatus(final String scope, final String stream, final TxnId txnid) throws
             TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.checkTransactionStatus(scope, stream, txnid), RuntimeException::new);
+    }
+
+    @Override
+    public CreateScopeStatus createScope(String scope) throws TException {
+        return null;
+    }
+
+    @Override
+    public DeleteScopeStatus deleteScope(String scope) throws TException {
+        return null;
     }
 }

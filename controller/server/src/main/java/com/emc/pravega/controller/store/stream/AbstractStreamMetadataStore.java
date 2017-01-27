@@ -80,6 +80,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<Boolean> createScope(final String scope) {
+        // #TODO from here
+        return CompletableFuture.completedFuture(false);
+    }
+
+    @Override
     public CompletableFuture<Boolean> updateConfiguration(final String name,
                                                           final StreamConfiguration configuration) {
         return getStream(name).updateConfiguration(configuration);

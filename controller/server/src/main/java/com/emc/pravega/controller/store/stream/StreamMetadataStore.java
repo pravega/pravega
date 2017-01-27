@@ -46,12 +46,20 @@ public interface StreamMetadataStore {
                                             final long createTimestamp);
 
     /**
+     * Creates a new scope with the given name.
+     * @param scope     Scope name
+     * @return boolean whether the scope was created
+     */
+    CompletableFuture<Boolean> createScope(final String scope);
+
+    /**
      * Updates the configuration of an existing stream.
      *
      * @param name          stream name.
      * @param configuration new stream configuration
      * @return boolean indicating whether the stream was updated
      */
+
     CompletableFuture<Boolean> updateConfiguration(final String name, final StreamConfiguration configuration);
 
     /**

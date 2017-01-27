@@ -35,6 +35,7 @@ import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -103,6 +104,12 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 new Serializable[]{scope, stream, config},
                 () -> createStreamBody(scope, stream, config, createTimestamp));
     }
+
+    @Task(name = "createScope", version = "1.0", resource = "{scope}")
+    public CompletableFuture<CreateScopeStatus> createScope(String scope) {
+        return  null;
+    }
+
 
     /**
      * Update stream's configuration.
