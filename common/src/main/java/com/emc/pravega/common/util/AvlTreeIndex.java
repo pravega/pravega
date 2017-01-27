@@ -251,7 +251,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
     @Override
     public void forEach(Consumer<V> consumer) {
         Preconditions.checkNotNull(consumer, "consumer");
-        TraversalStack stack = new TraversalStack(getHeight(this.root));
+        TraversalStack stack = new TraversalStack(getHeight(this.root) + 1);
         Node node = this.root;
         final int originalModCount = this.modCount;
         while (!stack.empty() || node != null) {
