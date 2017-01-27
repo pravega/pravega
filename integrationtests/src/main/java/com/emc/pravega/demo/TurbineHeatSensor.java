@@ -277,15 +277,15 @@ public class TurbineHeatSensor {
             for (int i = 0; i < secondsToRun; i++) {
                 int currentEventsPerSec = 0;
 
-                long loopStartTime = System.nanoTime();
+                long loopStartTime = System.currentTimeMillis();
                 while ( currentEventsPerSec < eventsPerSec) {
                     currentEventsPerSec++;
 
                     // Construct event payload
-                    String val = System.nanoTime() + ", " + producerId + ", " + city + ", " + (int) (Math.random() * 200);
+                    String val = System.currentTimeMillis() + ", " + producerId + ", " + city + ", " + (int) (Math.random() * 200);
                     String payload = String.format("%-" + messageSize + "s", val);
                     // event ingestion
-                    long now = System.nanoTime();
+                    long now = System.currentTimeMillis();
                     retFuture = produceStats.runAndRecordTime(() -> {
                                     return (CompletableFuture<Void>) fn.apply(Integer.toString(producerId),
                                             payload);
@@ -302,13 +302,13 @@ public class TurbineHeatSensor {
                         }
 
                 }
-                long timeSpent = System.nanoTime() - loopStartTime;
+                long timeSpent = System.currentTimeMillis() - loopStartTime;
                 // wait for next event
                 try {
                     //There is no need for sleep for blocking calls.
                     if ( !blocking ) {
-                        if ( timeSpent < 1000000 ) {
-                            Thread.sleep((1000000 - timeSpent) / 1000 );
+                        if ( timeSpent < 1000) {
+                            Thread.sleep((1000 - timeSpent) / 1000 );
                         }
                     }
                 } catch (InterruptedException e) {

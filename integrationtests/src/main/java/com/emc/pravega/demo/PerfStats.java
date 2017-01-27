@@ -79,9 +79,9 @@ class PerfStats {
     }
 
     private void printWindow() {
-        long elapsed = System.nanoTime() - windowStartTime;
-        double recsPerSec = 1000000000.0 * windowCount / (double) elapsed;
-        double mbPerSec = 1000000000.0 * this.windowBytes / (double) elapsed / (1024.0 * 1024.0);
+        long elapsed = System.currentTimeMillis() - windowStartTime;
+        double recsPerSec = 1000.0 * windowCount / (double) elapsed;
+        double mbPerSec = 1000.0 * this.windowBytes / (double) elapsed / (1024.0 * 1024.0);
         System.out.printf("%d records sent, %.1f records/sec (%.5f MB/sec), %.1f ms avg latency, %.1f max latency.\n",
                 windowCount,
                 recsPerSec,
@@ -92,7 +92,7 @@ class PerfStats {
 
     private void newWindow(long currentNumber) {
         this.windowStart = currentNumber;
-        this.windowStartTime = System.nanoTime();
+        this.windowStartTime = System.currentTimeMillis();
         this.windowCount = 0;
         this.windowMaxLatency = 0;
         this.windowTotalLatency = 0;
@@ -107,9 +107,9 @@ class PerfStats {
     }
 
     public synchronized void printTotal() {
-        long elapsed = System.nanoTime() - start;
-        double recsPerSec = 1000000000.0 * count / (double) elapsed;
-        double mbPerSec = 1000000000.0 * this.bytes / (double) elapsed / (1024.0 * 1024.0);
+        long elapsed = System.currentTimeMillis() - start;
+        double recsPerSec = 1000.0 * count / (double) elapsed;
+        double mbPerSec = 1000.0 * this.bytes / (double) elapsed / (1024.0 * 1024.0);
         long[] percs = percentiles(this.latencies, 0.5, 0.95, 0.99, 0.999);
         System.out.printf("%d records sent, %f records/sec (%.5f MB/sec), %.2f ms avg latency, %.2f ms max " +
                         "latency, %.2f ms 50th, %.2f ms 95th, %.2f ms 99th, %.2f ms 99.9th.\n",
@@ -136,11 +136,11 @@ class PerfStats {
     }
 
     public CompletableFuture<Void> runAndRecordTime(Supplier<CompletableFuture<Void>> fn,
-                                                    long startTimeNano,
+                                                    long startTime,
                                                     int length) {
         int iter = this.iteration++;
         return fn.get().thenAccept( (lmn) -> {
-            record(iter, (int) (System.nanoTime() - startTimeNano) / 1000, length,
+            record(iter, (int) (System.currentTimeMillis() - startTime) * 1000, length,
                     System.nanoTime());
         });
 
