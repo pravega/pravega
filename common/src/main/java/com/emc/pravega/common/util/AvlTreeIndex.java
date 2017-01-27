@@ -100,12 +100,12 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
         val result = delete(key, this.root);
         this.root = result.node;
         if (result.updatedItem != null) {
-            if (this.first != null && (key >= this.first.key())) {
+            if (this.first != null && (key >= this.first.key()) || this.size == 0) {
                 // We have removed the smallest item; clear its cached value.
                 this.first = null;
             }
 
-            if (this.last != null && (key <= this.last.key())) {
+            if (this.last != null && (key <= this.last.key()) || this.size == 0) {
                 // We have removed the largest item; clear its cached value.
                 this.last = null;
             }
@@ -226,26 +226,20 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
 
     @Override
     public V getFirst() {
-        if (this.size == 0) {
-            return null;
-        } else if (this.first != null) {
-            return this.first;
-        } else {
-            this.first = findSmallest(this.root).item;
-            return this.first;
+        if (this.first == null) {
+            this.first = findSmallest(this.root);
         }
+
+        return this.first;
     }
 
     @Override
     public V getLast() {
-        if (this.size == 0) {
-            return null;
-        } else if (this.last != null) {
-            return this.last;
-        } else {
-            this.last = findLargest(this.root).item;
-            return this.last;
+        if (this.last == null) {
+            this.last = findLargest(this.root);
         }
+
+        return this.last;
     }
 
     @Override
@@ -344,7 +338,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
                 if (node.left != null && node.right != null) {
                     // The node has two children. Replace the node's item with its in-order successor, and then remove
                     // that successor's node.
-                    node.item = findSmallest(node.right).item;
+                    node.item = findSmallest(node.right);
                     node.right = delete(node.item.key(), node.right).node;
                 } else {
                     // The node has just one child. Replace it with that child.
@@ -440,7 +434,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
      *
      * @param node The root node of the subtree.
      */
-    private Node findSmallest(Node node) {
+    private V findSmallest(Node node) {
         if (node == null) {
             return null;
         }
@@ -449,7 +443,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
             node = node.left;
         }
 
-        return node;
+        return node.item;
     }
 
     /**
@@ -457,7 +451,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
      *
      * @param node The root node of the subtree.
      */
-    private Node findLargest(Node node) {
+    private V findLargest(Node node) {
         if (node == null) {
             return null;
         }
@@ -466,7 +460,7 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
             node = node.right;
         }
 
-        return node;
+        return node.item;
     }
 
     //endregion
