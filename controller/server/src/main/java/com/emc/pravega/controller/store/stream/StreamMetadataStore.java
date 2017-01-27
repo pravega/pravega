@@ -59,7 +59,6 @@ public interface StreamMetadataStore {
      * @param configuration new stream configuration
      * @return boolean indicating whether the stream was updated
      */
-
     CompletableFuture<Boolean> updateConfiguration(final String name, final StreamConfiguration configuration);
 
     /**

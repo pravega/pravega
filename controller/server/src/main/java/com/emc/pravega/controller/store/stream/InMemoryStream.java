@@ -74,6 +74,11 @@ class InMemoryStream implements Stream {
     }
 
     @Override
+    public CompletableFuture<Boolean> createScope(String scope) {
+        return null;
+    }
+
+    @Override
     public String getName() {
         return this.name;
     }

@@ -42,6 +42,9 @@ interface Stream {
      */
     CompletableFuture<Boolean> create(final StreamConfiguration configuration, final long createTimestamp);
 
+    CompletableFuture<Boolean> createScope(final String scope);
+
+
     /**
      * Updates the configuration of an existing stream.
      *

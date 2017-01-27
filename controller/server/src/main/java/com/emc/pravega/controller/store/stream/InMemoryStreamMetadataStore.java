@@ -57,6 +57,12 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    public synchronized CompletableFuture<Boolean> createScope(String scope) {
+
+        return CompletableFuture.completedFuture(false);
+    }
+
+    @Override
     public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
         throw new NotImplementedException();
     }

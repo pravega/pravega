@@ -83,6 +83,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenApply(x -> true);
     }
 
+    @Override
+    public CompletableFuture<Boolean> createScope(final String scope) {
+        return CompletableFuture.completedFuture(false);
+    }
+
     /**
      * Update configuration at configurationPath.
      *
