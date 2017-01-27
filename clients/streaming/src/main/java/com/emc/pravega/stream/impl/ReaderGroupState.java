@@ -305,9 +305,10 @@ class ReaderGroupState implements Revisioned {
                         readerId + " asked to complete a segment that was not assigned to it " + segmentCompleted);
             }
             for (Entry<Segment, List<Integer>> entry : successorsMappedToTheirPredecessors.entrySet()) {
-                Set<Integer> requiredToComplete = state.futureSegments.getOrDefault(entry.getKey(), new HashSet<>());
-                requiredToComplete.addAll(entry.getValue());
-                state.futureSegments.put(entry.getKey(), requiredToComplete);
+                if (!state.futureSegments.containsKey(entry.getKey())) {
+                    Set<Integer> requiredToComplete = new HashSet<>(entry.getValue());
+                    state.futureSegments.put(entry.getKey(), requiredToComplete);
+                }
             }
             for (Set<Integer> requiredToComplete : state.futureSegments.values()) {
                 requiredToComplete.remove(segmentCompleted.getSegmentNumber());

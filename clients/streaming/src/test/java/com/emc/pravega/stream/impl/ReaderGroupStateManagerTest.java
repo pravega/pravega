@@ -25,9 +25,11 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.stream.mock.MockSegmentStreamFactory;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,6 +92,58 @@ public class ReaderGroupStateManagerTest {
         assertTrue(newSegments.isEmpty());
     }
 
+    @Test
+    public void testSegmentMerge() {
+        String scope = "scope";
+        String stream = "stream";
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
+        Segment initialSegmentA = new Segment(scope, stream, 0);
+        Segment initialSegmentB = new Segment(scope, stream, 1);
+        Segment successor = new Segment(scope, stream, 2);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory) {
+            @Override
+            public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(Segment segment) {
+                if (segment.getSegmentNumber() == 0) {
+                    assertEquals(initialSegmentA, segment);
+                    return completedFuture(Collections.singletonMap(successor, ImmutableList.of(0, 1)));
+                } else {
+                    assertEquals(initialSegmentB, segment);
+                    return completedFuture(Collections.singletonMap(successor, ImmutableList.of(0, 1)));
+                }
+            }
+        };
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamFactory, streamFactory);
+        SynchronizerConfig config = new SynchronizerConfig(null, null);
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
+                                                                                                      new JavaSerializer<>(),
+                                                                                                      new JavaSerializer<>(),
+                                                                                                      config);
+        Map<Segment, Long> segments = new HashMap<>();
+        segments.put(initialSegmentA, 1L);
+        segments.put(initialSegmentB, 2L);
+        ReaderGroupStateManager.initializeReadererGroup(stateSynchronizer, segments);
+        val readerState = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
+        readerState.initializeReader();
+        Map<Segment, Long> newSegments = readerState.aquireNewSegmentsIfNeeded(0);
+        assertEquals(2, newSegments.size());
+        assertEquals(Long.valueOf(1), newSegments.get(initialSegmentA));
+        assertEquals(Long.valueOf(2), newSegments.get(initialSegmentB));
+        
+        readerState.handleEndOfSegment(initialSegmentA);
+        newSegments = readerState.aquireNewSegmentsIfNeeded(0);
+        assertTrue(newSegments.isEmpty());
+        
+        readerState.handleEndOfSegment(initialSegmentB);
+        newSegments = readerState.aquireNewSegmentsIfNeeded(0);
+        assertEquals(1, newSegments.size());
+        assertEquals(Long.valueOf(0), newSegments.get(successor));
+        
+        newSegments = readerState.aquireNewSegmentsIfNeeded(0);
+        assertTrue(newSegments.isEmpty());
+    }
+    
     @Test
     public void testAddReader() {
         String scope = "scope";
