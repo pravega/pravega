@@ -63,4 +63,9 @@ public interface SegmentInputStream extends AutoCloseable {
      */
     @Override
     public abstract void close();
+    
+    /**
+     * Returns true if the data can be read from the local buffer without blocking the caller.
+     */
+    public boolean canReadWithoutBlocking();
 }

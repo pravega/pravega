@@ -110,7 +110,7 @@ public class MockStreamManager implements StreamManager {
                 clientFactory);
         Map<Segment, Long> segments = streamNames.stream()
                 .collect(Collectors.toMap((String name) -> new Segment(scope, name, 0), name -> Long.valueOf(0)));
-        result.initalizeGroup(segments);
+        result.initializeGroup(segments);
         return result;
     }
 

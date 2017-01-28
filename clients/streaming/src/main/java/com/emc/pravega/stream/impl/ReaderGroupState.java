@@ -249,7 +249,7 @@ class ReaderGroupState implements Revisioned {
      * Acquire a currently unassigned segment.
      */
     @RequiredArgsConstructor
-    static class AquireSegment extends ReaderGroupStateUpdate {
+    static class AcquireSegment extends ReaderGroupStateUpdate {
         private final String readerId;
         private final Segment segment;
 

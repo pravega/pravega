@@ -196,8 +196,8 @@ public class ControllerService {
                 });
     }
 
-    public CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final TxnId txnId) {
-        return streamTransactionMetadataTasks.dropTx(scope, stream, ModelHelper.encode(txnId))
+    public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final TxnId txnId) {
+        return streamTransactionMetadataTasks.abortTx(scope, stream, ModelHelper.encode(txnId))
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user

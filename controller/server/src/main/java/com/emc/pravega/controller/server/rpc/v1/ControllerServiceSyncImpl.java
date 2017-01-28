@@ -118,8 +118,8 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
     }
 
     @Override
-    public TxnStatus dropTransaction(final String scope, final String stream, final TxnId txnid) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.dropTransaction(scope, stream, txnid), RuntimeException::new);
+    public TxnStatus abortTransaction(final String scope, final String stream, final TxnId txnid) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.abortTransaction(scope, stream, txnid), RuntimeException::new);
     }
 
     @Override

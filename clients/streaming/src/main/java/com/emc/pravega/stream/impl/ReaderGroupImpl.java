@@ -52,12 +52,12 @@ public class ReaderGroupImpl implements ReaderGroup {
      * @param segments The initial segments mapped to the offset within them
      */
     @VisibleForTesting
-    public void initalizeGroup(Map<Segment, Long> segments) {
+    public void initializeGroup(Map<Segment, Long> segments) {
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(groupName,
                                                                                                  updateSerializer,
                                                                                                  initSerializer,
                                                                                                  synchronizerConfig);
-        ReaderGroupStateManager.initializeReadererGroup(synchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(synchronizer, segments);
     }
     
     @Override

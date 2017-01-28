@@ -38,6 +38,9 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang.NotImplementedException;
 
+import static com.emc.pravega.common.concurrent.FutureHelpers.allOfWithResults;
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+
 /**
  * A stream manager. Used to bootstrap the client.
  */
@@ -102,10 +105,12 @@ public class StreamManagerImpl implements StreamManager {
                                          .flatMap(pos -> pos.getOwnedSegmentsWithOffsets().entrySet().stream())
                                          .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()))));
         }
-        Map<Segment, Long> segments = FutureHelpers.getAndHandleExceptions(FutureHelpers.allOfWithResults(futures).thenApply(listOfMaps -> {
-            return listOfMaps.stream().flatMap(map -> map.entrySet().stream()).collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
+        Map<Segment, Long> segments = getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
+            return listOfMaps.stream()
+                             .flatMap(map -> map.entrySet().stream())
+                             .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
         }), RuntimeException::new);
-        result.initalizeGroup(segments);
+        result.initializeGroup(segments);
         return result;
     }
 

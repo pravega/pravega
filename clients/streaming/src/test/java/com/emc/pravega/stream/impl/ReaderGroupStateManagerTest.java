@@ -75,20 +75,20 @@ public class ReaderGroupStateManagerTest {
                                                                                                       config);
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(initialSegment, 1L);
-        ReaderGroupStateManager.initializeReadererGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, segments);
         val readerState = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
         readerState.initializeReader();
-        Map<Segment, Long> newSegments = readerState.aquireNewSegmentsIfNeeded(0);
+        Map<Segment, Long> newSegments = readerState.acquireNewSegmentsIfNeeded(0);
         assertEquals(1, newSegments.size());
         assertEquals(Long.valueOf(1), newSegments.get(initialSegment));
         
         readerState.handleEndOfSegment(initialSegment);
-        newSegments = readerState.aquireNewSegmentsIfNeeded(0);
+        newSegments = readerState.acquireNewSegmentsIfNeeded(0);
         assertEquals(2, newSegments.size());
         assertEquals(Long.valueOf(0), newSegments.get(successorA));
         assertEquals(Long.valueOf(0), newSegments.get(successorB));
         
-        newSegments = readerState.aquireNewSegmentsIfNeeded(0);
+        newSegments = readerState.acquireNewSegmentsIfNeeded(0);
         assertTrue(newSegments.isEmpty());
     }
 
@@ -123,24 +123,24 @@ public class ReaderGroupStateManagerTest {
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(initialSegmentA, 1L);
         segments.put(initialSegmentB, 2L);
-        ReaderGroupStateManager.initializeReadererGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, segments);
         val readerState = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
         readerState.initializeReader();
-        Map<Segment, Long> newSegments = readerState.aquireNewSegmentsIfNeeded(0);
+        Map<Segment, Long> newSegments = readerState.acquireNewSegmentsIfNeeded(0);
         assertEquals(2, newSegments.size());
         assertEquals(Long.valueOf(1), newSegments.get(initialSegmentA));
         assertEquals(Long.valueOf(2), newSegments.get(initialSegmentB));
         
         readerState.handleEndOfSegment(initialSegmentA);
-        newSegments = readerState.aquireNewSegmentsIfNeeded(0);
+        newSegments = readerState.acquireNewSegmentsIfNeeded(0);
         assertTrue(newSegments.isEmpty());
         
         readerState.handleEndOfSegment(initialSegmentB);
-        newSegments = readerState.aquireNewSegmentsIfNeeded(0);
+        newSegments = readerState.acquireNewSegmentsIfNeeded(0);
         assertEquals(1, newSegments.size());
         assertEquals(Long.valueOf(0), newSegments.get(successor));
         
-        newSegments = readerState.aquireNewSegmentsIfNeeded(0);
+        newSegments = readerState.acquireNewSegmentsIfNeeded(0);
         assertTrue(newSegments.isEmpty());
     }
     
@@ -161,7 +161,7 @@ public class ReaderGroupStateManagerTest {
                                                                                                       config);
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(new Segment(scope, stream, 0), 1L);
-        ReaderGroupStateManager.initializeReadererGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, segments);
         ReaderGroupStateManager readerState = new ReaderGroupStateManager("testReader",
                 stateSynchronizer,
                 controller,
@@ -169,7 +169,7 @@ public class ReaderGroupStateManagerTest {
         readerState.initializeReader();
         Segment toRelease = readerState.findSegmentToReleaseIfRequired();
         assertNull(toRelease);
-        Map<Segment, Long> newSegments = readerState.aquireNewSegmentsIfNeeded(0);
+        Map<Segment, Long> newSegments = readerState.acquireNewSegmentsIfNeeded(0);
         assertFalse(newSegments.isEmpty());
         assertEquals(1, newSegments.size());
         assertTrue(newSegments.containsKey(new Segment(scope, stream, 0)));
@@ -197,7 +197,7 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 1), 1L);
         segments.put(new Segment(scope, stream, 2), 2L);
         segments.put(new Segment(scope, stream, 3), 3L);
-        ReaderGroupStateManager.initializeReadererGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, segments);
 
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1",
                 stateSynchronizer,
@@ -211,16 +211,16 @@ public class ReaderGroupStateManagerTest {
                 clock::get);
         reader2.initializeReader();
 
-        Map<Segment, Long> segments1 = reader1.aquireNewSegmentsIfNeeded(0);
+        Map<Segment, Long> segments1 = reader1.acquireNewSegmentsIfNeeded(0);
         assertFalse(segments1.isEmpty());
         assertEquals(2, segments1.size());
-        assertTrue(reader1.aquireNewSegmentsIfNeeded(0).isEmpty());
+        assertTrue(reader1.acquireNewSegmentsIfNeeded(0).isEmpty());
         assertNull(reader1.findSegmentToReleaseIfRequired());
 
-        Map<Segment, Long> segments2 = reader2.aquireNewSegmentsIfNeeded(0);
+        Map<Segment, Long> segments2 = reader2.acquireNewSegmentsIfNeeded(0);
         assertFalse(segments2.isEmpty());
         assertEquals(2, segments2.size());
-        assertTrue(reader2.aquireNewSegmentsIfNeeded(0).isEmpty());
+        assertTrue(reader2.acquireNewSegmentsIfNeeded(0).isEmpty());
         assertNull(reader2.findSegmentToReleaseIfRequired());
 
         assertTrue(Sets.intersection(segments1.keySet(), segments2.keySet()).isEmpty());
@@ -231,25 +231,25 @@ public class ReaderGroupStateManagerTest {
 
         clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
 
-        assertTrue(reader1.aquireNewSegmentsIfNeeded(0).isEmpty());
+        assertTrue(reader1.acquireNewSegmentsIfNeeded(0).isEmpty());
         assertNull(reader1.findSegmentToReleaseIfRequired());
-        assertTrue(reader2.aquireNewSegmentsIfNeeded(0).isEmpty());
+        assertTrue(reader2.acquireNewSegmentsIfNeeded(0).isEmpty());
         assertNull(reader2.findSegmentToReleaseIfRequired());
 
         reader1.readerShutdown(new PositionImpl(segments1));
 
-        Map<Segment, Long> segmentsRecovered = reader2.aquireNewSegmentsIfNeeded(0);
+        Map<Segment, Long> segmentsRecovered = reader2.acquireNewSegmentsIfNeeded(0);
         assertFalse(segmentsRecovered.isEmpty());
         assertEquals(2, segmentsRecovered.size());
         assertEquals(segments1, segmentsRecovered);
-        assertTrue(reader2.aquireNewSegmentsIfNeeded(0).isEmpty());
+        assertTrue(reader2.acquireNewSegmentsIfNeeded(0).isEmpty());
         assertNull(reader2.findSegmentToReleaseIfRequired());
 
         segments2.putAll(segmentsRecovered);
         reader2.readerShutdown(new PositionImpl(segments2));
 
         reader1.initializeReader();
-        segments1 = reader1.aquireNewSegmentsIfNeeded(0);
+        segments1 = reader1.acquireNewSegmentsIfNeeded(0);
         assertEquals(4, segments1.size());
         assertEquals(segments2, segments1);
     }
@@ -276,14 +276,14 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 3), 3L);
         segments.put(new Segment(scope, stream, 4), 4L);
         segments.put(new Segment(scope, stream, 5), 5L);
-        ReaderGroupStateManager.initializeReadererGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, segments);
 
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1",
                 stateSynchronizer,
                 controller,
                 clock::get);
         reader1.initializeReader();
-        Map<Segment, Long> segments1 = reader1.aquireNewSegmentsIfNeeded(0);
+        Map<Segment, Long> segments1 = reader1.acquireNewSegmentsIfNeeded(0);
         assertEquals(6, segments1.size());
 
         ReaderGroupStateManager reader2 = new ReaderGroupStateManager("reader2",
@@ -291,7 +291,7 @@ public class ReaderGroupStateManagerTest {
                 controller,
                 clock::get);
         reader2.initializeReader();
-        assertTrue(reader2.aquireNewSegmentsIfNeeded(0).isEmpty());
+        assertTrue(reader2.acquireNewSegmentsIfNeeded(0).isEmpty());
 
         assertNull(reader1.findSegmentToReleaseIfRequired());
 
@@ -320,7 +320,7 @@ public class ReaderGroupStateManagerTest {
 
         assertNull(reader1.findSegmentToReleaseIfRequired());
 
-        Map<Segment, Long> segments2 = reader2.aquireNewSegmentsIfNeeded(0);
+        Map<Segment, Long> segments2 = reader2.acquireNewSegmentsIfNeeded(0);
         assertEquals(3, segments2.size());
 
         ReaderGroupStateManager reader3 = new ReaderGroupStateManager("reader3",
@@ -328,7 +328,7 @@ public class ReaderGroupStateManagerTest {
                 controller,
                 clock::get);
         reader3.initializeReader();
-        assertTrue(reader3.aquireNewSegmentsIfNeeded(0).isEmpty());
+        assertTrue(reader3.acquireNewSegmentsIfNeeded(0).isEmpty());
 
         assertNotNull(reader1.findSegmentToReleaseIfRequired());
         reader1.releaseSegment(new Segment(scope, stream, 0), 0, 0);
@@ -338,12 +338,12 @@ public class ReaderGroupStateManagerTest {
         reader2.releaseSegment(new Segment(scope, stream, 3), 3, 0);
         assertNull(reader2.findSegmentToReleaseIfRequired());
 
-        Map<Segment, Long> segments3 = reader3.aquireNewSegmentsIfNeeded(0);
+        Map<Segment, Long> segments3 = reader3.acquireNewSegmentsIfNeeded(0);
         assertEquals(2, segments3.size());
 
         clock.addAndGet(ReaderGroupStateManager.UPDATE_TIME.toNanos());
 
-        assertTrue(reader3.aquireNewSegmentsIfNeeded(0).isEmpty());
+        assertTrue(reader3.acquireNewSegmentsIfNeeded(0).isEmpty());
         assertNull(reader1.findSegmentToReleaseIfRequired());
         assertNull(reader2.findSegmentToReleaseIfRequired());
         assertNull(reader3.findSegmentToReleaseIfRequired());

@@ -58,20 +58,20 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
     @Override
     public EventRead<Type> readNextEvent(long timeout) {
         synchronized (readers) {
-            Segment segmentId;
+            Segment segment;
             long offset;
             Type result;
             boolean rebalance = false;
             do { // Loop handles retry on end of segment
                 rebalance |= releaseSegmentsIfNeeded();
                 rebalance |= acquireSegmentsIfNeeded();
-                SegmentReader<Type> segment = orderer.nextSegment(readers);
-                segmentId = segment.getSegmentId();
-                offset = segment.getOffset();
+                SegmentReader<Type> segmentReader = orderer.nextSegment(readers);
+                segment = segmentReader.getSegmentId();
+                offset = segmentReader.getOffset();
                 try {
-                    result = segment.getNextEvent(timeout);
+                    result = segmentReader.getNextEvent(timeout);
                 } catch (EndOfSegmentException e) {
-                    handleEndOfSegment(segment);
+                    handleEndOfSegment(segmentReader);
                     result = null;
                     rebalance = true;
                 }
@@ -79,8 +79,8 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
             Map<Segment, Long> positions = readers.stream()
                     .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
             Position position = new PositionImpl(positions);
-            lastRead = Sequence.create(segmentId.getSegmentNumber(), offset);
-            return new EventReadImpl<>(lastRead, result, position, segmentId, offset, rebalance);
+            lastRead = Sequence.create(segment.getSegmentNumber(), offset);
+            return new EventReadImpl<>(lastRead, result, position, segment, offset, rebalance);
         }
     }
 
@@ -98,7 +98,7 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     private boolean acquireSegmentsIfNeeded() {
-        Map<Segment, Long> newSegments = groupState.aquireNewSegmentsIfNeeded(getLag());
+        Map<Segment, Long> newSegments = groupState.acquireNewSegmentsIfNeeded(getLag());
         if (newSegments == null || newSegments.isEmpty()) {
             return false;
         }

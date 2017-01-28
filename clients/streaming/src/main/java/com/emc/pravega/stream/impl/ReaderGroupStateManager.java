@@ -22,7 +22,7 @@ import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.ReaderGroupState.AddReader;
-import com.emc.pravega.stream.impl.ReaderGroupState.AquireSegment;
+import com.emc.pravega.stream.impl.ReaderGroupState.AcquireSegment;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReleaseSegment;
 import com.emc.pravega.stream.impl.ReaderGroupState.RemoveReader;
@@ -57,7 +57,7 @@ public class ReaderGroupStateManager {
     private final StateSynchronizer<ReaderGroupState> sync;
     private final Controller controller;
     private final TimeoutTimer releaseTimer;
-    private final TimeoutTimer aquireTimer;
+    private final TimeoutTimer acquireTimer;
 
     ReaderGroupStateManager(String readerId, StateSynchronizer<ReaderGroupState> sync, Controller controller, Supplier<Long> nanoClock) {
         Preconditions.checkNotNull(readerId);
@@ -71,10 +71,10 @@ public class ReaderGroupStateManager {
             nanoClock = System::nanoTime;
         }
         releaseTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
-        aquireTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
+        acquireTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
     }
     
-    static void initializeReadererGroup(StateSynchronizer<ReaderGroupState> sync, Map<Segment, Long> segments) {
+    static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync, Map<Segment, Long> segments) {
         sync.initialize(new ReaderGroupState.ReaderGroupStateInit(segments));
     }
     
@@ -86,7 +86,7 @@ public class ReaderGroupStateManager {
                 return null;
             }
         });
-        aquireTimer.zero();
+        acquireTimer.zero();
     }
     
     /**
@@ -121,11 +121,11 @@ public class ReaderGroupStateManager {
         sync.updateState(state -> {
             return Collections.singletonList(new SegmentCompleted(readerId, segmentCompleted, successors));
         });
-        aquireTimer.zero();
+        acquireTimer.zero();
     }
 
     /**
-     * If a segment should be released because there is inequity in the distribution of segments and
+     * If a segment should be released because the distribution of segments is imbalanced and
      * this reader has not done so in a while, this returns the segment that should be released.
      */
     Segment findSegmentToReleaseIfRequired() {
@@ -144,7 +144,6 @@ public class ReaderGroupStateManager {
         return segment;
     }
     
-
     /**
      * Returns true if this reader owns multiple segments and has more than a full segment more than
      * the reader with the least assigned to it.
@@ -172,6 +171,7 @@ public class ReaderGroupStateManager {
 
     /**
      * Releases a segment to another reader. This reader should no longer read from the segment. 
+     * 
      * @param segment The segment to be released
      * @param lastOffset The offset from which the new owner should start reading from.
      * @param timeLag How far the reader is from the tail of the stream in time.
@@ -201,55 +201,55 @@ public class ReaderGroupStateManager {
      * If there are unassigned segments and this host has not acquired one in a while, acquires them.
      * @return A map from the new segment that was acquired to the offset to begin reading from within the segment.
      */
-    Map<Segment, Long> aquireNewSegmentsIfNeeded(long timeLag) {
-        if (!aquireTimer.hasRemaining()) {
+    Map<Segment, Long> acquireNewSegmentsIfNeeded(long timeLag) {
+        if (!acquireTimer.hasRemaining()) {
             sync.fetchUpdates();
         }
-        if (shouldAquireSegment()) {
-            return aquireSegment(timeLag);
+        if (shouldAcquireSegment()) {
+            return acquireSegment(timeLag);
         } else {
             return Collections.emptyMap();
         }
     }
     
-    private boolean shouldAquireSegment() {
+    private boolean shouldAcquireSegment() {
         synchronized (decisionLock) {
-            if (aquireTimer.hasRemaining()) {
+            if (acquireTimer.hasRemaining()) {
                 return false;
             }
             if (sync.getState().getNumberOfUnassignedSegments() == 0) {
                 return false;
             }
-            aquireTimer.reset(UPDATE_TIME);
+            acquireTimer.reset(UPDATE_TIME);
             return true;
         }
     }
 
-    private Map<Segment, Long> aquireSegment(long timeLag) {
+    private Map<Segment, Long> acquireSegment(long timeLag) {
         AtomicReference<Map<Segment, Long>> result = new AtomicReference<>();
         sync.updateState(state -> {
-            int toAquire = caluclateNumSegmentsToAquire(state);
-            if (toAquire == 0) {
+            int toAcquire = calculateNumSegmentsToAcquire(state);
+            if (toAcquire == 0) {
                 return null;
             }
             Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
-            Map<Segment, Long> aquired = new HashMap<>(toAquire);
-            List<ReaderGroupStateUpdate> updates = new ArrayList<>(toAquire);
+            Map<Segment, Long> aquired = new HashMap<>(toAcquire);
+            List<ReaderGroupStateUpdate> updates = new ArrayList<>(toAcquire);
             Iterator<Entry<Segment, Long>> iter = unassignedSegments.entrySet().iterator();
-            for (int i = 0; i < toAquire; i++) {
+            for (int i = 0; i < toAcquire; i++) {
                 Entry<Segment, Long> segment = iter.next();
                 aquired.put(segment.getKey(), segment.getValue());
-                updates.add(new AquireSegment(readerId, segment.getKey()));
+                updates.add(new AcquireSegment(readerId, segment.getKey()));
             }
             updates.add(new UpdateDistanceToTail(readerId, Math.max(ASSUMED_LAG_MILLIS, timeLag)));
             result.set(aquired);
             return updates;
         });
-        aquireTimer.reset(calculateAquireTime(sync.getState()));
+        acquireTimer.reset(calculateAcquireTime(sync.getState()));
         return result.get();
     }
     
-    private int caluclateNumSegmentsToAquire(ReaderGroupState state) {
+    private int calculateNumSegmentsToAcquire(ReaderGroupState state) {
         int unassignedSegments = state.getNumberOfUnassignedSegments();
         if (unassignedSegments == 0) {
             return 0;
@@ -263,7 +263,7 @@ public class ReaderGroupStateManager {
                                  unassignedSegments / numReaders);
     }
 
-    private Duration calculateAquireTime(ReaderGroupState state) {
+    private Duration calculateAcquireTime(ReaderGroupState state) {
         return TIME_UNIT.multipliedBy(state.getNumberOfReaders() - state.getRanking(readerId));
     }
 }

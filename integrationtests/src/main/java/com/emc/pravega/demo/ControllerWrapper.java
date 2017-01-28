@@ -155,7 +155,7 @@ public class ControllerWrapper implements Controller {
 
     @Override
     public CompletableFuture<Void> abortTransaction(Stream stream, UUID txId) {
-        return FutureHelpers.toVoidExpecting(controller.dropTransaction(stream.getScope(),
+        return FutureHelpers.toVoidExpecting(controller.abortTransaction(stream.getScope(),
                                                                         stream.getStreamName(),
                                                                         ModelHelper.decode(txId)),
                                              TxnStatus.SUCCESS,

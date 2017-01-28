@@ -129,12 +129,12 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
     }
 
     @Override
-    public void dropTransaction(final String scope,
+    public void abortTransaction(final String scope,
                                 final String stream,
                                 final TxnId txid,
                                 final AsyncMethodCallback resultHandler) throws TException {
-        log.debug("dropTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
-        processResult(controllerService.dropTransaction(scope, stream, txid), resultHandler);
+        log.debug("abortTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
+        processResult(controllerService.abortTransaction(scope, stream, txid), resultHandler);
     }
 
     @Override

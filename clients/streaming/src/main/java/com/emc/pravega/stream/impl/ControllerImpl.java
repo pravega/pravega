@@ -241,11 +241,11 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Void> abortTransaction(final Stream stream, final UUID txId) {
-        log.trace("Invoke AdminService.Client.dropTransaction() with stream: {}, txUd: {}", stream, txId);
+        log.trace("Invoke AdminService.Client.abortTransaction() with stream: {}, txUd: {}", stream, txId);
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.dropTransaction_call> callback = new ThriftAsyncCallback<>();
+        final ThriftAsyncCallback<ControllerService.AsyncClient.abortTransaction_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.dropTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), callback);
+            client.abortTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), callback);
             return null;
         });
         return FutureHelpers.toVoidExpecting(callback.getResult()

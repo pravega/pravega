@@ -157,7 +157,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final UUID txId) {
+    public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final UUID txId) {
         return getStream(stream).abortTransaction(txId);
     }
 

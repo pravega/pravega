@@ -174,7 +174,7 @@ public interface StreamMetadataStore {
      * @param txId   transaction id
      * @return
      */
-    CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final UUID txId);
+    CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final UUID txId);
 
     /**
      * Returns a boolean indicating whether any transaction is active on the specified stream.

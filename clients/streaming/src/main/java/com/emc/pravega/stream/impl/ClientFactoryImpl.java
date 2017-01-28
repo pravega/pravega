@@ -127,11 +127,18 @@ public class ClientFactoryImpl implements ClientFactory {
     }
     
     private static class RandomOrderer<T> implements Orderer<T> {
-        Random rand = new Random();
+        private final Random rand = new Random();
 
         @Override
         public SegmentReader<T> nextSegment(List<SegmentReader<T>> segments) {
-            return segments.get(rand.nextInt(segments.size()));
+            SegmentReader<T> result = null;
+            for (int retries = 0; retries < 3; retries++) {
+                result = segments.get(rand.nextInt(segments.size()));
+                if (result.canReadWithoutBlocking()) {
+                    break;
+                }
+            }
+            return result;
         }
     }
 

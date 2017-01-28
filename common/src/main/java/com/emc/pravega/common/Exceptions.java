@@ -108,7 +108,7 @@ public final class Exceptions {
      */
     public static <T> void checkNotNullOrEmpty(Collection<T> arg, String argName) throws NullPointerException, IllegalArgumentException {
         Preconditions.checkNotNull(arg, argName);
-        checkArgument(!arg.isEmpty(), argName, "Cannot be an empty string.");
+        checkArgument(!arg.isEmpty(), argName, "Cannot be an empty collection.");
     }
 
     /**
