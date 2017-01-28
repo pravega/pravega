@@ -112,17 +112,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final String segment = readSegment.getSegment();
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
 
-        // A dynamic counter records counter of calling readSegment for a segment
+        // A dynamic logger
         DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
-        Counter readSegmentEvent = dynamicLogger.createCounter("readSegment." + segment);
 
         // A dynamic gauge records read offset of each readSegment for a segment
-        dynamicLogger.registerGauge("readSegment." + segment, readSegment::getOffset);
+        dynamicLogger.reportGaugeValue("readSegment." + segment, readSegment.getOffset());
 
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {
             Metrics.READ_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
-            readSegmentEvent.inc();
+            dynamicLogger.incCounterValue("readSegment." + segment, 1);
             handleReadResult(readSegment, t);
             return null;
         }).exceptionally((Throwable t) -> {

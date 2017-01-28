@@ -25,7 +25,6 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -71,31 +70,45 @@ public class YammerDynamicLogger implements DynamicLogger {
     }
 
     @Override
-    public Counter createCounter(String name) {
+    public void incCounterValue(String name, long delta) {
         Exceptions.checkNotNullOrEmpty(name, "name");
+        Preconditions.checkNotNull(delta);
         String counterName = name + ".Counter";
         Counter counter = countersCache.getIfPresent(counterName);
         if (null == counter) {
             Counter newCounter = underlying.createCounter(counterName);
             countersCache.put(counterName, newCounter);
             log.debug("Created Counter: {}.", newCounter.getName());
-            return newCounter;
+            newCounter.add(delta);
+            return;
         }
-        return counter;
+        counter.add(delta);
     }
 
     @Override
-    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value) {
+    public <T extends Number> void reportGaugeValue(String name, T value) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(value);
+        Gauge newGauge = null;
         String gaugeName = name + ".Gauge";
-        Gauge gauge = gaugesCache.getIfPresent(gaugeName);
-        if (null == gauge) {
-            Gauge newGauge = underlying.registerGauge(gaugeName, value);
-            gaugesCache.put(gaugeName, newGauge);
-            log.debug("Registered Gauge: {}.", newGauge.getName());
-            return newGauge;
+        if (value instanceof Float) {
+            newGauge = underlying.registerGauge(gaugeName, value::floatValue);
+        } else if (value instanceof Double) {
+            newGauge = underlying.registerGauge(gaugeName, value::doubleValue);
+        } else if (value instanceof Byte) {
+            newGauge = underlying.registerGauge(gaugeName, value::byteValue);
+        } else if (value instanceof Short) {
+            newGauge = underlying.registerGauge(gaugeName, value::shortValue);
+        } else if (value instanceof Integer) {
+            newGauge = underlying.registerGauge(gaugeName, value::intValue);
+        } else if (value instanceof Long) {
+            newGauge = underlying.registerGauge(gaugeName, value::longValue);
         }
-        return gauge;
+
+        if (null == newGauge) {
+            log.error("Unsupported Number type: {}.", value.getClass().getName());
+        } else {
+            gaugesCache.put(gaugeName, newGauge);
+        }
     }
 }

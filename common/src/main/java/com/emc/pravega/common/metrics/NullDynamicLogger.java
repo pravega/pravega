@@ -17,18 +17,16 @@
  */
 package com.emc.pravega.common.metrics;
 
-import java.util.function.Supplier;
-
 public class NullDynamicLogger implements DynamicLogger {
     public static final NullDynamicLogger INSTANCE = new NullDynamicLogger();
 
     @Override
-    public Counter createCounter(String name) {
-        return NullStatsLogger.NULLCOUNTER;
+    public void incCounterValue(String name, long delta) {
+        // nop
     }
 
     @Override
-    public <T extends Number> Gauge registerGauge(final String statName, Supplier<T> value) {
-        return NullStatsLogger.NULLGAUGE;
+    public <T extends Number> void reportGaugeValue(String name, T value) {
+        // nop
     }
 }

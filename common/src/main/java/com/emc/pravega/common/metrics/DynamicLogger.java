@@ -17,28 +17,25 @@
  */
 package com.emc.pravega.common.metrics;
 
-import java.util.function.Supplier;
-
 /**
  * A simple interface that only exposes simple type metrics: Counter/Gauge.
  */
 public interface DynamicLogger {
 
     /**
-     * Create counter counter.
+     * Increase Counter with value <i>delta</i> .
      *
-     * @param name Counter Name
-     * @return Create and register counter described by the <i>name</i>
+     * @param name  the name of Counter
+     * @param delta the delta to be added
      */
-    public Counter createCounter(String name);
+    public void incCounterValue(String name, long delta);
 
     /**
-     * Register gauge.
-     * <i>value</i> is usually get of Number: AtomicInteger::get, AtomicLong::get
+     * Report gauge value.
      *
      * @param <T>   the type of value
      * @param name  the name of gauge
-     * @param value the supplier to provide value through get()
+     * @param value the value to be reported
      */
-    public <T extends Number> Gauge registerGauge(final String name, Supplier<T> value);
+    public <T extends Number> void reportGaugeValue(String name, T value);
 }
