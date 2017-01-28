@@ -178,6 +178,9 @@ class ReaderGroupState implements Revisioned {
         abstract void update(ReaderGroupState state);
     }
     
+    /**
+     * Adds a reader to the reader group. (No segments are initially assigned to it)
+     */
     @RequiredArgsConstructor
     static class AddReader extends ReaderGroupStateUpdate {
         private final String readerId;
@@ -195,6 +198,9 @@ class ReaderGroupState implements Revisioned {
         }
     }
     
+    /**
+     * Remove a reader from reader group, releasing all segments it owned.
+     */
     @RequiredArgsConstructor
     static class RemoveReader extends ReaderGroupStateUpdate {
         private final String readerId;

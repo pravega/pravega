@@ -46,6 +46,25 @@ import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExcept
 
 import lombok.val;
 
+/**
+ * Manages the state of the reader group on behalf of a reader.
+ * 
+ * {@link #initializeReader()} must be called upon reader startup before any other methods.
+ * 
+ * {@link #readerShutdown(PositionInternal)} should be called when the reader is shutting down. After this
+ * method is called no other methods should be called on this class.
+ * 
+ * This class updates makes transitions using the {@link ReaderGroupState} object. If there are available
+ * segments a reader can acquire them by calling {@link #acquireNewSegmentsIfNeeded(long)}.
+ * 
+ * To balance load across multiple readers a reader can release segments so that other readers can acquire
+ * them by calling {@link #releaseSegment(Segment, long, long)}. A reader can tell if calling this method is
+ * needed by calling {@link #findSegmentToReleaseIfRequired()}
+ * 
+ * Finally when a segment is sealed it may have one or more successors. So when a reader comes to the end of a
+ * segment it should call {@link #handleEndOfSegment(Segment)} so that it can continue reading from the
+ * successor to that segment.
+ */
 public class ReaderGroupStateManager {
     
     static final Duration TIME_UNIT = Duration.ofMillis(1000);
@@ -78,6 +97,9 @@ public class ReaderGroupStateManager {
         sync.initialize(new ReaderGroupState.ReaderGroupStateInit(segments));
     }
     
+    /**
+     * Add this reader to the reader group so that it is able to acquire segments
+     */
     void initializeReader() {
         sync.updateState(state -> {
             if (state.getSegments(readerId) == null) {
@@ -97,6 +119,10 @@ public class ReaderGroupStateManager {
         readerShutdown(readerId, lastPosition, sync);
     }
     
+    /**
+     * Shuts down a reader, releasing all of its segments. The reader should cease all operations.
+     * @param lastPosition The last position the reader successfully read from.
+     */
     static void readerShutdown(String readerId, PositionInternal lastPosition, StateSynchronizer<ReaderGroupState> sync) {
         sync.updateState(state -> {
             Set<Segment> segments = state.getSegments(readerId);

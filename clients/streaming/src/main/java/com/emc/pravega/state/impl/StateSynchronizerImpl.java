@@ -77,11 +77,11 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
         }
     }
 
-    private void applyUpdates(RevisionImpl readRevision, List<? extends Update<StateT>> updates) {
+    private void applyUpdates(Revision readRevision, List<? extends Update<StateT>> updates) {
         int i = 0;
         for (Update<StateT> update : updates) {
             StateT state = getState();
-            RevisionImpl newRevision = new RevisionImpl(segment, readRevision.getOffsetInSegment(), i++);
+            RevisionImpl newRevision = new RevisionImpl(segment, readRevision.asImpl().getOffsetInSegment(), i++);
             if (newRevision.compareTo(state.getRevision()) > 0) {
                 updateCurrentState(update.applyTo(state, newRevision));
             }
@@ -137,6 +137,9 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             if (newRevision == null) {
                 fetchUpdates();
             } else {
+                if (!toWrite.isInit()) {
+                    applyUpdates(newRevision, toWrite.getUpdates());
+                }
                 break;
             }
         }

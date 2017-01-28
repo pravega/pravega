@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -45,13 +46,15 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
     @GuardedBy("readers")
     private Sequence lastRead;
     private final ReaderGroupStateManager groupState;
+    private final Supplier<Long> clock;
 
     EventReaderImpl(SegmentInputStreamFactory inputStreamFactory, Serializer<Type> deserializer, ReaderGroupStateManager groupState,
-            Orderer<Type> orderer, ReaderConfig config) {
+            Orderer<Type> orderer, Supplier<Long> clock, ReaderConfig config) {
         this.deserializer = deserializer;
         this.inputStreamFactory = inputStreamFactory;
         this.groupState = groupState;
         this.orderer = orderer;
+        this.clock = clock;
         this.config = config;
     }
 
@@ -114,7 +117,7 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
         if (lastRead == null) {
             return 0;
         }
-        return System.currentTimeMillis() - lastRead.getHighOrder();
+        return clock.get() - lastRead.getHighOrder();
     }
     
     private void handleEndOfSegment(SegmentReader<Type> oldSegment) {

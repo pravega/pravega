@@ -123,9 +123,14 @@ public class ClientFactoryImpl implements ClientFactory {
                 controller,
                 System::nanoTime);
         stateManager.initializeReader();
-        return new EventReaderImpl<T>(inFactory, s, stateManager, new RandomOrderer<>(), config);
+        return new EventReaderImpl<T>(inFactory,
+                                      s,
+                                      stateManager,
+                                      new RandomOrderer<>(),
+                                      System::currentTimeMillis,
+                                      config);
     }
-    
+
     private static class RandomOrderer<T> implements Orderer<T> {
         private final Random rand = new Random();
 
