@@ -155,20 +155,15 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
                     node = node.left;
                 }
             } else if (key > itemKey) {
-                // Sought key is greater than the current node's item.
-                if (node.right != null) {
-                    // Search again to the right (where we'll have a larger key).
-                    node = node.right;
-                } else if (lastLeftChildParent != null) {
+                // Sought key is greater than the current node's item key; search again to the right (if we can).
+                node = node.right;
+                if (node == null && lastLeftChildParent != null) {
                     // There are no more nodes to the right - this is the node with the largest item in the Tree.
                     // If we had a pointer back to the parent, we would have to walk up the tree path as long as we
                     // have a parent and the current node is a right child, then return the parent of that node.
                     // In other words, if there exists a result, it is the parent of the last node that was selected as a
                     // left child, which is conveniently stored in lastLeftChildParent.
                     result = lastLeftChildParent.item;
-                } else {
-                    // Nothing could be found.
-                    return null;
                 }
             } else {
                 // Exact match; return it.
@@ -199,20 +194,15 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
                     node = node.right;
                 }
             } else if (key < itemKey) {
-                // Sought key is smaller than the current node's item.
-                if (node.left != null) {
-                    // Search again to the left (where we'll have a smaller key).
-                    node = node.left;
-                } else if (lastRightChildParent != null) {
+                // Sought key is smaller than the current node's item key; search again to the left (if we can).
+                node = node.left;
+                if (node == null && lastRightChildParent != null) {
                     // There are no more nodes to the left - this is the node with the smallest item in the Tree.
                     // If we had a pointer back to the parent, we would have to walk up the tree path as long as we
                     // have a parent and the current node is a left child, then return the parent of that node.
                     // In other words, if there exists a result, it is the parent of the last node that was selected as a
                     // right child, which is conveniently stored in lastRightChildParent.
                     result = lastRightChildParent.item;
-                } else {
-                    // Nothing could be found.
-                    return null;
                 }
             } else {
                 // Exact match; return it.
