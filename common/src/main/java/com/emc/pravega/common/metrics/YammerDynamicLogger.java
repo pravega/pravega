@@ -29,8 +29,8 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class YammerDynamicLogger implements DynamicLogger {
-    private static final long CACHESIZE = 1000000L;
-    private static final long TTLSECONDS = 120L;
+    private static final long CACHESIZE = MetricsConfig.getDynamicCacheSize();
+    private static final long TTLSECONDS = MetricsConfig.getDynamicTTLSeconds();
 
     protected final MetricRegistry metrics;
     protected final StatsLogger underlying;
