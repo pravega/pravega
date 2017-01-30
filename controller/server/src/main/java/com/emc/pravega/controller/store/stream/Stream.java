@@ -23,6 +23,7 @@ import com.emc.pravega.stream.impl.TxnStatus;
 
 import java.util.AbstractMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -112,6 +113,13 @@ interface Stream {
                                            final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                            final long scaleTimestamp);
 
+
+    CompletableFuture<Void> setMarker(String scope, String stream, int segmentNumber, long timestamp);
+
+    CompletableFuture<Optional<Long>> getMarker(String scope, String stream, int segmentNumber);
+
+    CompletableFuture<Void> removeMarker(String scope, String stream, int segmentNumber);
+
     /**
      * Method to start new transaction creation
      * @return
@@ -161,4 +169,5 @@ interface Stream {
      * This allows us reuse of stream object without having to recreate a new stream object for each new operation
      */
     void refresh();
+
 }

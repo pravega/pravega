@@ -21,6 +21,7 @@ import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.stream.StreamConfiguration;
 import org.apache.commons.lang.NotImplementedException;
 
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,5 +60,10 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
         throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<Void> checkpoint(String readerId, String readerGroup, ByteBuffer serialize) {
+        return CompletableFuture.completedFuture(null);
     }
 }

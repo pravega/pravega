@@ -21,9 +21,13 @@ import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.annotations.VisibleForTesting;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
+import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -31,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * ZK stream metadata store.
  */
+@Slf4j
 public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private static final long INITIAL_DELAY = 1;
     private static final long PERIOD = 1;
@@ -65,14 +70,13 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                                 try {
                                     ZKStream.deletePath(x.getKey(), true);
                                 } catch (Exception e) {
-                                    // TODO: log and ignore
+                                    log.warn("Error gc'ing completed transaction", e);
                                 }
                             }
                         });
             } catch (Exception e) {
-                // TODO: log!
+                log.warn("Error getting completed transactions for GC", e);
             }
-            // find completed transactions to be gc'd
         }, INITIAL_DELAY, PERIOD, TimeUnit.HOURS);
     }
 
@@ -84,5 +88,15 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
         return ZKStream.getAllActiveTx();
+    }
+
+    @Override
+    public CompletableFuture<Void> checkpoint(final String readerId, final String readerGroup, final ByteBuffer checkpoint) {
+        return ZKStream.checkpoint(readerId, readerGroup, checkpoint);
+    }
+
+    @Override
+    public CompletableFuture<Optional<ByteBuffer>> readCheckpoint(String readerId, String readerGroup) {
+        return ZKStream.readCheckpoint(readerId, readerGroup);
     }
 }

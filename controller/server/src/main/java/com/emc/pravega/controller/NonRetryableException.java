@@ -15,37 +15,40 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package com.emc.pravega.controller.store.stream;
-
-import com.emc.pravega.controller.NonRetryableException;
+package com.emc.pravega.controller;
 
 /**
- * Exception thrown when an attempt is made to create stream with duplicate name.
+ * Lock failed exception.
  */
-public class StreamAlreadyExistsException extends NonRetryableException {
-    /**
-     *
-     */
+public class NonRetryableException extends RuntimeException {
     private static final long serialVersionUID = 1L;
-    private static final String FORMAT_STRING = "Stream %s already exists.";
 
     /**
-     * Creates a new instance of StreamAlreadyExistsException class.
+     * Creates a new instance of NonRetryableException class.
      *
-     * @param name duplicate stream name
+     * @param reason reason for failure
      */
-    public StreamAlreadyExistsException(final String name) {
-        super(String.format(FORMAT_STRING, name));
+    public NonRetryableException(final String reason) {
+        super(reason);
     }
 
     /**
-     * Creates a new instance of StreamAlreadyExistsException class.
+     * Creates a new instance of NonRetryableException class.
      *
-     * @param name  duplicate stream name
+     * @param cause reason for failure
+     */
+    public NonRetryableException(final Throwable cause) {
+        super(cause);
+    }
+
+
+    /**
+     * Creates a new instance of NonRetryableException class.
+     *
+     * @param reason  resource on which lock failed
      * @param cause error cause
      */
-    public StreamAlreadyExistsException(final String name, final Throwable cause) {
-        super(String.format(FORMAT_STRING, name), cause);
+    public NonRetryableException(final String reason, final Throwable cause) {
+        super(reason, cause);
     }
 }

@@ -17,10 +17,12 @@
  */
 package com.emc.pravega.controller.store.task;
 
+import com.emc.pravega.controller.RetryableException;
+
 /**
  * Unlock failed exception.
  */
-public class UnlockFailedException extends RuntimeException {
+public class UnlockFailedException extends RetryableException {
     private static final long serialVersionUID = 1L;
     private static final String FORMAT_STRING = "Failed unlocking resource %s.";
 

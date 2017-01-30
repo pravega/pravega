@@ -658,6 +658,9 @@ public final class WireCommands {
     public static final class CreateSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
         final String segment;
+        final boolean autoScale;
+        final long desiredRate;
+        final boolean rateInBytes;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -667,11 +670,18 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeUTF(segment);
+            out.writeBoolean(autoScale);
+            out.writeLong(desiredRate);
+            out.writeBoolean(rateInBytes);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
-            return new CreateSegment(segment);
+            boolean autoScale = in.readBoolean();
+            long desiredRate = in.readLong();
+            boolean rateInBytes = in.readBoolean();
+
+            return new CreateSegment(segment, autoScale, desiredRate, rateInBytes);
         }
     }
 

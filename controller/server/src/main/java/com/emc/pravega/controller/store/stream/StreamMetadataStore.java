@@ -21,11 +21,14 @@ import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 
+import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 
 /**
  * Stream Metadata.
@@ -192,4 +195,14 @@ public interface StreamMetadataStore {
      * @return
      */
     CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx();
+
+    CompletableFuture<Void> setMarker(String scope, String stream, int segmentNumber, long timestamp);
+
+    CompletableFuture<Optional<Long>> getMarker(String scope, String stream, int number);
+
+    CompletableFuture<Void> removeMarker(String scope, String stream, int number);
+
+    CompletableFuture<Void> checkpoint(String readerId, String readerGroup, ByteBuffer serialize);
+
+    CompletableFuture<Optional<ByteBuffer>> readCheckpoint(String readerId, String readerGroup);
 }

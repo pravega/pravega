@@ -24,6 +24,10 @@ import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
+import com.emc.pravega.controller.requesthandler.RequestReader;
+import com.emc.pravega.controller.requesthandler.ScaleRequestHandler;
+import com.emc.pravega.controller.requests.RequestStreamConstants;
+import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
@@ -47,6 +51,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -120,5 +125,11 @@ public class Main {
         // 4. start REST server
         log.info("Starting Pravega REST Service");
         RESTServer.start();
+
+        final ScaleRequestHandler handler = new ScaleRequestHandler(streamMetadataTasks, streamStore);
+        // TODO: read from configuration
+        final RequestReader<ScaleRequest, ScaleRequestHandler> reader = new RequestReader<>("readerId",
+                RequestStreamConstants.READER_GROUP, null, streamStore, handler);
+        CompletableFuture.runAsync(reader);
     }
 }

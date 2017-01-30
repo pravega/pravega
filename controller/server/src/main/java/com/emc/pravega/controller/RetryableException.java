@@ -15,35 +15,48 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package com.emc.pravega.controller.store.stream;
-
-import com.emc.pravega.controller.NonRetryableException;
+package com.emc.pravega.controller;
 
 /**
- * Exception thrown when a stream with a given name is not found in the metadata.
+ * Retryable exception.
  */
-public class TransactionNotFoundException extends NonRetryableException {
-
+public class RetryableException extends RuntimeException {
     private static final long serialVersionUID = 1L;
-    private static final String FORMAT_STRING = "Transaction %s not found.";
 
     /**
-     * Creates a new instance of StreamNotFoundException class.
+     * Creates a new instance of RetryableException class.
      *
-     * @param name missing stream name
+     * @param reason reason for failure
      */
-    public TransactionNotFoundException(final String name) {
-        super(String.format(FORMAT_STRING, name));
+    public RetryableException(final String reason) {
+        super(reason);
     }
 
     /**
-     * Creates a new instance of StreamNotFoundException class.
+     * Creates a new instance of RetryableException class.
      *
-     * @param name  missing stream name
+     * @param cause reason for failure
+     */
+    public RetryableException(final Throwable cause) {
+        super(cause);
+    }
+
+    /**
+     * Creates a new instance of RetryableException class.
+     *
+     * @param reason  reason for failure
      * @param cause error cause
      */
-    public TransactionNotFoundException(final String name, final Throwable cause) {
-        super(String.format(FORMAT_STRING, name), cause);
+    public RetryableException(final String reason, final Throwable cause) {
+        super(reason, cause);
+    }
+
+    /**
+     * Check if the exception is a subclass of retryable.
+     * @param e
+     * @return
+     */
+    public static boolean isRetryable(Throwable e) {
+        return e.getClass().isAssignableFrom(RetryableException.class);
     }
 }

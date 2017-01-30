@@ -15,37 +15,41 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.NonRetryableException;
+import com.emc.pravega.controller.RetryableException;
 
 /**
- * Exception thrown when an attempt is made to create stream with duplicate name.
+ * Retryable exception.
  */
-public class StreamAlreadyExistsException extends NonRetryableException {
-    /**
-     *
-     */
+public class ConnectionException extends RetryableException {
     private static final long serialVersionUID = 1L;
-    private static final String FORMAT_STRING = "Stream %s already exists.";
 
     /**
-     * Creates a new instance of StreamAlreadyExistsException class.
+     * Creates a new instance of ConnectionException class.
      *
-     * @param name duplicate stream name
+     * @param reason reason for failure
      */
-    public StreamAlreadyExistsException(final String name) {
-        super(String.format(FORMAT_STRING, name));
+    public ConnectionException(final String reason) {
+        super(reason);
     }
 
     /**
-     * Creates a new instance of StreamAlreadyExistsException class.
+     * Creates a new instance of ConnectionException class.
      *
-     * @param name  duplicate stream name
-     * @param cause error cause
+     * @param cause reason for failure
      */
-    public StreamAlreadyExistsException(final String name, final Throwable cause) {
-        super(String.format(FORMAT_STRING, name), cause);
+    public ConnectionException(final Throwable cause) {
+        super(cause);
+    }
+
+    /**
+     * Creates a new instance of ConnectionException class.
+     *
+     * @param reason reason for failure
+     * @param cause  error cause
+     */
+    public ConnectionException(final String reason, final Throwable cause) {
+        super(reason, cause);
     }
 }

@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
@@ -28,9 +29,11 @@ import com.emc.pravega.controller.store.stream.tables.Scale;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
+import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.curator.utils.ZKPaths;
 
 import java.util.AbstractMap;
 import java.util.List;
@@ -38,6 +41,9 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -145,7 +151,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
         futures[2] = getHistoryTable();
 
         return CompletableFuture.allOf(futures).thenCompose(x -> {
-
             try {
                 final Segment segment = (Segment) futures[0].get();
                 final Data<T> indexTable = (Data<T>) futures[1].get();
@@ -158,7 +163,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                 .map(this::getSegment)
                                 .collect(Collectors.toList()))
                         .thenApply(successorCandidates -> new ImmutablePair<>(segment, successorCandidates));
-            } catch (Exception e) {
+            } catch (InterruptedException | ExecutionException e) {
                 throw new RuntimeException(e);
             }
         }).thenApply(x -> TableHelper.getOverlaps(x.getKey(), x.getValue()));
@@ -191,7 +196,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                 .map(this::getSegment)
                                 .collect(Collectors.toList()))
                         .thenApply(predecessorCandidates -> new ImmutablePair<>(segment, predecessorCandidates));
-            } catch (Exception e) {
+            } catch (InterruptedException | ExecutionException e) {
                 throw new RuntimeException(e);
             }
         }).thenApply(x -> TableHelper.getOverlaps(x.getKey(), x.getValue()));
@@ -274,10 +279,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             (ex != null && ex instanceof DataNotFoundException)) {
                         return TxnStatus.UNKNOWN;
                     } else if (ex != null) {
-                        throw new RuntimeException(ex);
-                    } else {
-                        return ActiveTxRecord.parse(ok.getData()).getTxnStatus();
+                        failureHandler().accept(ex);
                     }
+                    return ActiveTxRecord.parse(ok.getData()).getTxnStatus();
                 });
 
         return activeTx
@@ -289,10 +293,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                             (ex != null && ex instanceof DataNotFoundException)) {
                                         return TxnStatus.UNKNOWN;
                                     } else if (ex != null) {
-                                        throw new RuntimeException(ex);
-                                    } else {
-                                        return CompletedTxRecord.parse(ok.getData()).getCompletionStatus();
+                                        failureHandler().accept(ex);
                                     }
+                                    return CompletedTxRecord.parse(ok.getData()).getCompletionStatus();
                                 });
                     } else {
                         return CompletableFuture.completedFuture(x);
@@ -366,6 +369,30 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(x -> createCompletedTxEntry(txId, TxnStatus.ABORTED, System.currentTimeMillis())
                         .thenCompose(y -> removeActiveTxEntry(txId))
                         .thenApply(y -> TxnStatus.ABORTED));
+    }
+
+    @Override
+    public CompletableFuture<Void> setMarker(String scope, String stream, int segmentNumber, long timestamp) {
+        return getMarkerData(scope, stream, segmentNumber)
+                .thenAccept(x -> {
+                    if(x.isPresent()) {
+                        final Data<T> data = new Data<>(Utilities.toByteArray(timestamp), x.get().getVersion());
+                        updateMarkerData(scope, stream, segmentNumber, data);
+                    } else {
+                        createMarkerData(scope, stream, segmentNumber, timestamp);
+                    }
+                });
+    }
+
+    @Override
+    public CompletableFuture<Optional<Long>> getMarker(String scope, String stream, int segmentNumber) {
+        return getMarkerData(scope, stream, segmentNumber)
+                .thenApply(x -> x.map(y -> Utilities.toLong(y.getData())));
+    }
+
+    @Override
+    public CompletableFuture<Void> removeMarker(String scope, String stream, int segmentNumber) {
+        return removeMarkerData(scope, stream, segmentNumber);
     }
 
     private CompletionStage<List<Segment>> getSegments(final int count,
@@ -519,6 +546,16 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenApply(segmentTableChunk -> new ImmutablePair<>(latestChunkNumber, segmentTableChunk));
     }
 
+    protected Consumer<Throwable> failureHandler() {
+        return (e) -> {
+            if (RetryableException.isRetryable(e)) {
+                throw (RetryableException) e;
+            } else {
+                throw new RuntimeException(e);
+            }
+        };
+    }
+
     abstract CompletableFuture<Void> checkStreamExists(final Create create) throws StreamAlreadyExistsException;
 
     abstract CompletableFuture<Void> storeCreationTime(final Create create);
@@ -572,4 +609,13 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Void> removeActiveTxEntry(final UUID txId);
 
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp);
+
+    abstract CompletableFuture<Void> createMarkerData(String scope, String stream, int segmentNumber, long timestamp);
+
+    abstract CompletableFuture<Void> updateMarkerData(String scope, String stream, int segmentNumber, Data<T> data);
+
+    abstract CompletableFuture<Void> removeMarkerData(String scope, String stream, int segmentNumber);
+
+    abstract CompletableFuture<Optional<Data<T>>> getMarkerData(String scope, String stream, int segmentNumber);
+
 }

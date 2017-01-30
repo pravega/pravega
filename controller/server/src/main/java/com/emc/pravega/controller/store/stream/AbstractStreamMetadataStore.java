@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -34,6 +35,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -64,6 +66,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                 try {
                                     return newStream(name);
                                 } catch (Exception e) {
+                                    if (RetryableException.isRetryable(e)) {
+                                        throw (RetryableException) e;
+                                    }
                                     throw new RuntimeException(e);
                                 }
                             }
@@ -187,6 +192,21 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream) {
         return getStream(stream).isTransactionOngoing();
+    }
+
+    @Override
+    public CompletableFuture<Void> setMarker(final String scope, final String stream, final int segmentNumber, final long timestamp) {
+        return getStream(stream).setMarker(scope, stream, segmentNumber, timestamp);
+    }
+
+    @Override
+    public CompletableFuture<Optional<Long>> getMarker(final String scope, final String stream, final int number) {
+        return getStream(stream).getMarker(scope, stream, number);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeMarker(final String scope, final String stream, final int number) {
+        return getStream(stream).removeMarker(scope, stream, number);
     }
 
     private Stream getStream(final String name) {

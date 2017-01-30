@@ -249,7 +249,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
-        CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), TIMEOUT);
+        // TODO: shivesh -- pass policy along with segment
+        CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment, TIMEOUT);
         future.thenApply((Void v) -> {
             Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
             connection.send(new SegmentCreated(createStreamsSegment.getSegment()));

@@ -16,7 +16,7 @@ enum ScaleStreamStatus {
     SUCCESS,
     FAILURE,
     PRECONDITION_FAILED,
-    UPDATE_CONFLICT
+    TXN_CONFLICT
 }
 
 enum TxnStatus {

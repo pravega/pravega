@@ -15,37 +15,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.controller.store.task;
 
-package com.emc.pravega.controller.store.stream;
-
-import com.emc.pravega.controller.NonRetryableException;
+import com.emc.pravega.controller.RetryableException;
 
 /**
- * Exception thrown when an attempt is made to create stream with duplicate name.
+ * Conflict exception.
  */
-public class StreamAlreadyExistsException extends NonRetryableException {
-    /**
-     *
-     */
+public class ConflictingTaskException extends RetryableException {
     private static final long serialVersionUID = 1L;
-    private static final String FORMAT_STRING = "Stream %s already exists.";
+    private static final String FORMAT_STRING = "Conflicting task exception for resource %s.";
 
     /**
-     * Creates a new instance of StreamAlreadyExistsException class.
+     * Creates a new instance of ConflictingTaskException class.
      *
-     * @param name duplicate stream name
+     * @param name resource on which lock failed
      */
-    public StreamAlreadyExistsException(final String name) {
+    public ConflictingTaskException(final String name) {
         super(String.format(FORMAT_STRING, name));
     }
 
     /**
-     * Creates a new instance of StreamAlreadyExistsException class.
+     * Creates a new instance of ConflictingTaskException class.
      *
-     * @param name  duplicate stream name
+     * @param name  resource on which conflicting task
      * @param cause error cause
      */
-    public StreamAlreadyExistsException(final String name, final Throwable cause) {
+    public ConflictingTaskException(final String name, final Throwable cause) {
         super(String.format(FORMAT_STRING, name), cause);
     }
 }

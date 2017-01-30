@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.store.stream.tables.Cache;
@@ -38,11 +39,13 @@ import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
 
+import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -72,6 +75,10 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
     private static final String COMPLETED_TX_PATH = COMPLETED_TX_ROOT_PATH + "/%s";
 
+    private static final String MARKER_PATH = STREAM_PATH + "/markers";
+
+    private static final String CHECKPOINT_PATH = "/checkpoint";
+
     private static CuratorFramework client;
 
     private final String creationPath;
@@ -83,6 +90,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String indexPath;
     private final String activeTxPath;
     private final String completedTxPath;
+
+    private final String markerPath;
+
     private final Cache<Integer> cache;
 
     public ZKStream(final String name) {
@@ -97,6 +107,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         indexPath = String.format(INDEX_PATH, name);
         activeTxPath = String.format(ACTIVE_TX_PATH, name);
         completedTxPath = String.format(COMPLETED_TX_PATH, name);
+        markerPath = String.format(MARKER_PATH, name);
 
         cache = new Cache<>(ZKStream::getData);
     }
@@ -206,6 +217,46 @@ class ZKStream extends PersistentStreamBase<Integer> {
         final String segmentChunkPath = String.format(segmentChunkPathTemplate, chunkFileName);
         return createZNodeIfNotExist(segmentChunkPath, segmentTable)
                 .thenApply(x -> cache.invalidateCache(segmentChunkPath));
+    }
+
+    @Override
+    public CompletableFuture<Void> createMarkerData(String scope, String stream, int segmentNumber, long timestamp) {
+        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
+
+        return createZNodeIfNotExist(path, Utilities.toByteArray(timestamp));
+    }
+
+    @Override
+    public CompletableFuture<Void> updateMarkerData(String scope, String stream, int segmentNumber, Data<Integer> data) {
+        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
+
+        return setData(path, data);
+    }
+
+    @Override
+    public CompletableFuture<Optional<Data<Integer>>> getMarkerData(String scope, String stream, int segmentNumber) {
+        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
+        return cache.getCachedData(path)
+                .handle((res, ex) -> {
+                    if (ex != null) {
+                        if (ex instanceof DataNotFoundException) {
+                            return Optional.empty();
+                        } else if (RetryableException.isRetryable(ex)) {
+                            throw (RetryableException) ex;
+                        } else {
+                            throw new RuntimeException(ex);
+                        }
+                    } else {
+                        return Optional.of(res);
+                    }
+                });
+    }
+
+    @Override
+    public CompletableFuture<Void> removeMarkerData(String scope, String stream, int segmentNumber) {
+        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
+
+        return deletePath(path, false);
     }
 
     @Override
@@ -335,6 +386,37 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return ZKPaths.makePath(completedTxPath, txId);
     }
 
+    static CompletableFuture<Void> checkpoint(String readerId, String readerGroup, ByteBuffer checkpoint) {
+        String path = ZKPaths.makePath(CHECKPOINT_PATH, readerGroup, readerId);
+        return checkExists(path)
+                .thenApply(x -> {
+                    if(x) {
+                        setData(path, new Data<>(checkpoint.array(), null));
+                    } else {
+                        createZNodeIfNotExist(path, checkpoint.array());
+                    }
+                    return null;
+                });
+    }
+
+    static CompletableFuture<Optional<ByteBuffer>> readCheckpoint(String readerId, String readerGroup) {
+        String path = ZKPaths.makePath(CHECKPOINT_PATH, readerGroup, readerId);
+        return getData(path)
+                .handle((res, ex) -> {
+                    if (ex != null) {
+                        if (ex instanceof DataNotFoundException) {
+                            return Optional.empty();
+                        } else if (RetryableException.isRetryable(ex)) {
+                            throw (RetryableException) ex;
+                        } else {
+                            throw new RuntimeException(ex);
+                        }
+                    } else {
+                        return Optional.of(ByteBuffer.wrap(res.getData()));
+                    }
+                });
+    }
+
     static CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
         return getAllTransactionData(ACTIVE_TX_ROOT_PATH)
                 .thenApply(x -> x.entrySet().stream()
@@ -365,6 +447,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
             } catch (KeeperException.NoNodeException e) {
                 // already deleted, ignore
                 return null;
+            } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
+                throw new ConnectionException(e);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -375,6 +459,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
                     client.delete().forPath(container);
                 } catch (KeeperException.NotEmptyException | KeeperException.NoNodeException e) {
                     // log and ignore;
+                } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
+                    throw new ConnectionException(e);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -390,6 +476,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         try {
                             Stat stat = new Stat();
                             return new Data<>(client.getData().storingStatIn(stat).forPath(path), stat.getVersion());
+                        } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
+                            throw new ConnectionException(e);
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
@@ -410,6 +498,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 return client.getChildren().forPath(path);
             } catch (KeeperException.NoNodeException nne) {
                 return Collections.emptyList();
+            } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
+                throw new ConnectionException(e);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -430,62 +520,65 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     private static CompletableFuture<Void> setData(final String path, final Data<Integer> data) {
         return checkExists(path)
-                .thenApply(x -> {
+                .thenAccept(x -> {
                     if (x) {
                         try {
                             if (data.getVersion() == null) {
-                                return client.setData().forPath(path, data.getData());
+                                client.setData().forPath(path, data.getData());
                             } else {
-                                return client.setData().withVersion(data.getVersion()).forPath(path, data.getData());
+                                client.setData().withVersion(data.getVersion()).forPath(path, data.getData());
                             }
                         } catch (KeeperException.BadVersionException e) {
                             throw new WriteConflictException(path);
+                        } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
+                            throw new ConnectionException(e);
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
                     } else {
                         //path does not exist indicates Stream is not present
                         log.error("Failed to write data. path {}", path);
-                        throw new StreamNotFoundException(extractStreamName(path));
+                        throw new DataNotFoundException(extractStreamName(path));
                     }
-                }) // load into cache after writing the data
-                .thenApply(x -> null);
+                });
     }
 
     private static String extractStreamName(final String path) {
         Preconditions.checkNotNull(path, "path");
         String[] result = path.split("/");
-            if (result.length > 2) {
-                return result[2];
-            } else {
-                return path;
-            }
+        if (result.length > 2) {
+            return result[2];
+        } else {
+            return path;
+        }
     }
 
     private static CompletableFuture<Void> createZNodeIfNotExist(final String path, final byte[] data) {
-        return CompletableFuture.supplyAsync(() -> {
+        return CompletableFuture.runAsync(() -> {
             try {
-                return client.create().creatingParentsIfNeeded().forPath(path, data);
+                client.create().creatingParentsIfNeeded().forPath(path, data);
             } catch (KeeperException.NodeExistsException e) {
                 // ignore
-                return null;
+            } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
+                throw new ConnectionException(e);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        }).thenApply(x -> null);
+        });
     }
 
     private static CompletableFuture<Void> createZNodeIfNotExist(final String path) {
-        return CompletableFuture.supplyAsync(() -> {
+        return CompletableFuture.runAsync(() -> {
             try {
-                return client.create().creatingParentsIfNeeded().forPath(path);
+                client.create().creatingParentsIfNeeded().forPath(path);
             } catch (KeeperException.NodeExistsException e) {
                 // ignore
-                return null;
+            } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
+                throw new ConnectionException(e);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        }).thenApply(x -> null);
+        });
     }
 
     private static CompletableFuture<Boolean> checkExists(final String path) {
@@ -493,6 +586,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 () -> {
                     try {
                         return client.checkExists().forPath(path);
+                    } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
+                        throw new ConnectionException(e);
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
