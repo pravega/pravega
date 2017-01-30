@@ -100,7 +100,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         Reply cmd = (Reply) msg;
-        log.debug(connectionName + " processing reply: {}", cmd);
+        log.trace(connectionName + " processing reply: {}", cmd);
         cmd.process(processor);
     }
 
