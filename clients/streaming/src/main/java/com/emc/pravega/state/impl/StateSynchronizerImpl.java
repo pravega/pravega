@@ -90,7 +90,10 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Override
     public void updateState(Function<StateT, List<? extends Update<StateT>>> updateGenerator) {
-        conditionallyWrite(state -> new UpdateOrInit<>(updateGenerator.apply(state)));
+        conditionallyWrite(state -> {
+            List<? extends Update<StateT>> update = updateGenerator.apply(state);
+            return (update == null || update.isEmpty()) ? null : new UpdateOrInit<>(update);
+        });
     }
 
     @Override
@@ -115,7 +118,10 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Override
     public void compact(Function<StateT, InitialUpdate<StateT>> compactor) {
-        conditionallyWrite(state -> new UpdateOrInit<>(compactor.apply(state)));
+        conditionallyWrite(state -> {
+            InitialUpdate<StateT> init = compactor.apply(state);
+            return init == null ? null : new UpdateOrInit<>(init);
+        });
     }
     
     private void conditionallyWrite(Function<StateT, UpdateOrInit<StateT>> generator) {

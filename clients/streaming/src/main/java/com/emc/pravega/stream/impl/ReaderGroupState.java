@@ -41,6 +41,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 import lombok.val;
 
+/**
+ * This class encapsulates the state machine of a reader group. The class represents the full state, and each
+ * of the nested classes are state transitions that can occur.
+ */
 class ReaderGroupState implements Revisioned {
 
     private final String scopedSynchronizerStream;
@@ -159,6 +163,9 @@ class ReaderGroupState implements Revisioned {
         }
     }
     
+    /**
+     * Abstract class from which all state updates extend.
+     */
     static abstract class ReaderGroupStateUpdate implements Update<ReaderGroupState>, Serializable {
         @Override
         public ReaderGroupState applyTo(ReaderGroupState oldState, Revision newRevision) {
