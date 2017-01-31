@@ -50,8 +50,8 @@ public interface EventRead<T> {
     Sequence getEventSequence();
 
     /**
+     * Returns the event that is wrapped in this EventRead    
      * @return the event itself.
-     *
      */
     T getEvent();
 
@@ -76,7 +76,7 @@ public interface EventRead<T> {
     Long getOffsetInSegment();
 
     /**
-     * @return a boolean indicating if a rebalance of which events are being routed to which readers
+     * Returns a boolean indicating if a rebalance of which events are being routed to which readers
      * is about to or needs to occur.
      * 
      * For a reader that is part of a {@link ReaderGroup} this means the next call to
@@ -93,6 +93,7 @@ public interface EventRead<T> {
      * the positions of its readers and recreate new readers from the resulting positions.
      * 
      * It is the goal of the implementation to not set this to true unless it is required.
+     * @return boolean whether a rebalance is being routed 
      */
     boolean isRoutingRebalance();
 }
