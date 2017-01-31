@@ -45,7 +45,6 @@ public interface SegmentContainerRegistry extends AutoCloseable {
      * @param containerId The Id of the SegmentContainer.
      * @return The requested SegmentContainer, or null if no such container is started.
      * @throws ContainerNotFoundException If no container with the given Id is registered.
-     * @return segment container with given Id.
      */
     SegmentContainer getContainer(int containerId) throws ContainerNotFoundException;
 
