@@ -37,7 +37,7 @@ allprojects {
 
     javadoc {
         failOnError = false
-        exclude  "**/impl/**";
+        exclude "**/impl/**";
     }
 
     ext {
@@ -224,7 +224,7 @@ project('service:server:host') {
         testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
     }
     task buildPravegaHostImage(type: DockerBuildImage) {
-        dependsOn 'distTar','distZip'
+        dependsOn 'distTar', 'distZip'
         dockerFile = file(dockerFilePravegaHost)
         inputDir = file(dockerDirPravegaHost)
         tag = 'abhijeet78/pravega:host'
@@ -315,7 +315,7 @@ project('controller') {
 
 project('controller:contract') {
 
-    task compileThrift(type: Exec)  {
+    task compileThrift(type: Exec) {
         doFirst {
             println "Using Docker [Image: thrift:0.9.3] to compile thrift files"
         }
@@ -387,7 +387,7 @@ project('controller:server') {
     }
 
     task buildPravegaControllerImage(type: DockerBuildImage) {
-        dependsOn 'distTar','distZip'
+        dependsOn 'distTar', 'distZip'
         dockerFile = file(dockerFilePravegaController)
         inputDir = file(dockerDirPravegaController)
         tag = 'abhijeet78/pravega:controller'
@@ -419,6 +419,7 @@ project('systemtests:tests') {
     }
 
     jar { //create a fat jar
+        archiveName = "test-collection.jar"
         from {
             (configurations.runtime).collect {
                 it.isDirectory() ? it : zipTree(it)
@@ -426,10 +427,20 @@ project('systemtests:tests') {
         }
         from sourceSets.test.output
     }
+
     //This is  used to invoke systemTests
     task systemTest(type: Test) {
         testClassesDir = sourceSets.test.output.classesDir
         classpath = sourceSets.test.runtimeClasspath
+
+        systemProperty "test_collection_jar_path", "$jar.archivePath.path"
+        systemProperty "execType", System.getProperty("execType")
+        systemProperty "masterIP", System.getProperty("masterIP")
+        /*if (System.getProperty("execType") == null || System.getProperty("masterIP") == null) {
+            System.err.println("System Test usage:\n" +
+                    "./gradlew -DexecType=Execution_Type -DmasterIP=Mesos_Master/Marathon_IP systemTest")
+            throw new GradleException("Error occurred")
+        }*/
     }
 }
 

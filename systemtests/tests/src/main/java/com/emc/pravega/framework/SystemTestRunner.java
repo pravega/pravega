@@ -62,10 +62,12 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
             EachTestNotifier eachNotifier = new EachTestNotifier(notifier, description);
             eachNotifier.fireTestStarted();
             Method m = method.getMethod();
-            if (getTestClass().getAnnotation(MarathonDistributed.class) != null) {
+            String executionType = System.getProperties().getProperty("execType");
+
+            if (executionType.equals("MarathonDistributed")) {
                 log.info("Execute Test in a distributed fashion by triggering multiple marathon jobs");
                 //TODO: Write a distributed Test invoker.
-            } else if (getTestClass().getAnnotation(MarathonSequential.class) != null) {
+            } else if (executionType.equals("MarathonSequential")) {
                 log.info("Execute test using marathon one by one.");
                 //TODO: Invoke the method using marathon sequentially.
                 invokeTestLocally(eachNotifier, m);

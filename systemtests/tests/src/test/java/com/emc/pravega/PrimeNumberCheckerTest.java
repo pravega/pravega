@@ -18,7 +18,6 @@
 package com.emc.pravega;
 
 import com.emc.pravega.framework.Environment;
-import com.emc.pravega.framework.MarathonSequential;
 import com.emc.pravega.framework.SystemTestRunner;
 import org.junit.After;
 import org.junit.Before;
@@ -35,7 +34,6 @@ import static org.junit.Assert.assertTrue;
 //@FreshSetup -- this is used to indicate the Setup needs to be created afresh.
 
 @RunWith(SystemTestRunner.class)
-@MarathonSequential
 public class PrimeNumberCheckerTest {
     private PrimeNumberChecker primeNumberChecker = new PrimeNumberChecker();
 
