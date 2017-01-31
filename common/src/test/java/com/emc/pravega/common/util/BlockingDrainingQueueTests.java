@@ -18,24 +18,23 @@
 
 package com.emc.pravega.common.util;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.testcommon.AssertExtensions;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
-
-import com.emc.pravega.testcommon.Async;
-
-import lombok.val;
 
 /**
  * Unit tests for BlockingDrainingQueue class.
  */
 public class BlockingDrainingQueueTests {
     private static final int TIMEOUT_MILLIS = 10 * 1000;
+
+    // TODO: write more thorough tests, including for concurrent calls to takeAllEntries.
 
     /**
      * Tests the basic ability to queue and dequeue items.
@@ -46,7 +45,7 @@ public class BlockingDrainingQueueTests {
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
         for (int i = 0; i < itemCount; i++) {
             queue.add(i);
-            List<Integer> entries = queue.takeAllEntries();
+            List<Integer> entries = queue.takeAllEntries().get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
             Assert.assertEquals("Unexpected number of items polled.", 1, entries.size());
             int value = entries.get(0);
             Assert.assertEquals("Unexpected value polled from queue.", i, value);
@@ -60,58 +59,40 @@ public class BlockingDrainingQueueTests {
     public void testBlockingDequeue() throws Exception {
         final int valueToQueue = 1234;
 
-        AtomicReference<List<Integer>> result = new AtomicReference<>();
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
-        CompletableFuture<Void> resultSet = new CompletableFuture<>();
-        val completionFuture = CompletableFuture.runAsync(() -> {
-            try {
-                result.set(queue.takeAllEntries());
-                resultSet.complete(null);
-            } catch (InterruptedException ex) {
-                resultSet.completeExceptionally(ex);
-            }
-        });
+        val dequeueFuture = queue.takeAllEntries();
 
         // Verify the queue hasn't returned before we actually set the result.
-        Assert.assertNull("Queue unblocked before result was set.", result.get());
+        Assert.assertFalse("Queue unblocked before result was set.", dequeueFuture.isDone());
 
         // Queue the value
         queue.add(valueToQueue);
 
         // Wait for the completion future to finish. This will also pop any other exceptions that we did not anticipate.
-        completionFuture.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-        resultSet.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        dequeueFuture.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
 
         // Verify result.
-        Assert.assertNotNull("Queue did not unblock after adding a value.", result.get());
-        Assert.assertEquals("Unexpected number of items polled.", 1, result.get().size());
-        int value = result.get().get(0);
+        Assert.assertTrue("Queue did not unblock after adding a value.", FutureHelpers.isSuccessful(dequeueFuture));
+        List<Integer> result = dequeueFuture.join();
+        Assert.assertEquals("Unexpected number of items polled.", 1, result.size());
+        int value = result.get(0);
         Assert.assertEquals("Unexpected value polled from queue.", valueToQueue, value);
     }
 
     /**
-     * Tests the ability of the queue to cancel a polling request if it is closed..
+     * Tests the ability of the queue to cancel a polling request if it is closed.
      */
     @Test
     public void testClose() throws Exception {
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
-        AtomicReference<List<Integer>> queueContents = new AtomicReference<>();
-        AtomicBoolean wasInterupted = new AtomicBoolean(false);
-
-        List<Integer> result = Async.testBlocking(() -> {
-            try {
-                return queue.takeAllEntries();
-            } catch (InterruptedException e) {
-                wasInterupted.set(true);
-                return null;
-            }
-        }, () -> {
-            queueContents.set(queue.close());
-        });
+        CompletableFuture<List<Integer>> result = queue.takeAllEntries();
+        List<Integer> queueContents = queue.close();
 
         // Verify result.
-        Assert.assertTrue("Future was not cancelled with the correct exception.", wasInterupted.get());
-        Assert.assertNull("Queue returned an item even if it got closed.", result);
-        Assert.assertEquals("Queue.close() returned an item even though it was empty.", 0, queueContents.get().size());
+        AssertExtensions.assertThrows(
+                "Future was not cancelled with the correct exception.",
+                () -> result.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
+                ex -> ex instanceof CancellationException);
+        Assert.assertEquals("Queue.close() returned an item even though it was empty.", 0, queueContents.size());
     }
 }

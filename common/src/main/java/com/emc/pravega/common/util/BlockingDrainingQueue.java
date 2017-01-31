@@ -18,25 +18,29 @@
 
 package com.emc.pravega.common.util;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
-
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.ObjectClosedException;
+import com.google.common.base.Preconditions;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Represents a thread-safe queue that dequeues all elements at once. Blocks the Dequeue if empty until new elements arrive.
  *
  * @param <T> The type of the items in the queue.
  */
+@ThreadSafe
 public class BlockingDrainingQueue<T> {
     //region Members
 
-    private final ReentrantLock lock;
-    private final Condition notEmpty;
+    @GuardedBy("contents")
     private final ArrayList<T> contents;
+    @GuardedBy("contents")
+    private CompletableFuture<List<T>> pendingRequest;
+    @GuardedBy("contents")
     private boolean closed;
 
     ///endregion
@@ -47,8 +51,6 @@ public class BlockingDrainingQueue<T> {
      * Creates a new instance of the BlockingDrainingQueue class.
      */
     public BlockingDrainingQueue() {
-        this.lock = new ReentrantLock();
-        this.notEmpty = lock.newCondition();
         this.contents = new ArrayList<>();
     }
 
@@ -63,18 +65,22 @@ public class BlockingDrainingQueue<T> {
      * returned both here and via takeAllItems().
      */
     public List<T> close() {
-        lock.lock();
-        try {
+        CompletableFuture<List<T>> pendingRequest = null;
+        List<T> result = null;
+        synchronized (this.contents) {
             if (!this.closed) {
                 this.closed = true;
-                this.notEmpty.signal();
-                return swapContents();
+                pendingRequest = this.pendingRequest;
+                this.pendingRequest = null;
+                result = fetchContents();
             }
-        } finally {
-            lock.unlock();
         }
 
-        return new ArrayList<>();
+        if (pendingRequest != null) {
+            pendingRequest.cancel(true);
+        }
+
+        return result != null ? result : new ArrayList<>();
     }
 
     /**
@@ -84,13 +90,20 @@ public class BlockingDrainingQueue<T> {
      * @throws ObjectClosedException If the Queue is closed.
      */
     public void add(T item) {
-        this.lock.lock();
-        try {
+        CompletableFuture<List<T>> pendingRequest;
+        List<T> result = null;
+        synchronized (this.contents) {
             Exceptions.checkNotClosed(this.closed, this);
             this.contents.add(item);
-            this.notEmpty.signal();
-        } finally {
-            this.lock.unlock();
+            pendingRequest = this.pendingRequest;
+            this.pendingRequest = null;
+            if (pendingRequest != null) {
+                result = fetchContents();
+            }
+        }
+
+        if (pendingRequest != null) {
+            pendingRequest.complete(result);
         }
     }
 
@@ -101,27 +114,21 @@ public class BlockingDrainingQueue<T> {
      * @return All the items currently in the queue.
      * @throws ObjectClosedException If the Queue is closed.
      * @throws IllegalStateException If another call to takeAllEntries is in progress.
-     * @throws InterruptedException  If the call is waiting for an empty queue to become non-empty and the queue is closed
-     *                               while waiting.
      */
-    public List<T> takeAllEntries() throws InterruptedException {
-        this.lock.lock();
-        try {
-            Exceptions.checkNotClosed(this.closed, this);
-            while (this.contents.isEmpty()) {
-                this.notEmpty.await();
-                if (this.closed) {
-                    throw new InterruptedException();
-                }
+    public CompletableFuture<List<T>> takeAllEntries() {
+        synchronized (this.contents) {
+            Preconditions.checkState(this.pendingRequest == null, "Cannot have more than one concurrent pending takeAllEntries request.");
+            if (this.contents.size() > 0) {
+                return CompletableFuture.completedFuture(fetchContents());
+            } else {
+                this.pendingRequest = new CompletableFuture<>();
+                return this.pendingRequest;
             }
-
-            return swapContents();
-        } finally {
-            this.lock.unlock();
         }
     }
 
-    private List<T> swapContents() {
+    @GuardedBy("contents")
+    private List<T> fetchContents() {
         List<T> result = new ArrayList<>(this.contents);
         this.contents.clear();
         return result;

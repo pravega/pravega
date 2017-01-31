@@ -18,42 +18,43 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.ObjectClosedException;
+import com.emc.pravega.common.concurrent.AbstractThreadPoolService;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.BlockingDrainingQueue;
 import com.emc.pravega.service.server.Container;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.IllegalContainerStateException;
-import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.CompletableOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractExecutionThreadService;
-import lombok.extern.slf4j.Slf4j;
-
+import java.time.Duration;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ScheduledExecutorService;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Single-thread Processor for Operations. Queues all incoming entries in a BlockingDrainingQueue, then picks them all
  * at once, generates DataFrames from them and commits them to the DataFrameLog, one by one, in sequence.
  */
 @Slf4j
-class OperationProcessor extends AbstractExecutionThreadService implements Container {
+class OperationProcessor extends AbstractThreadPoolService implements Container {
     //region Members
 
-    private final String traceObjectId;
+    private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
+
     private final OperationMetadataUpdater metadataUpdater;
     private final MemoryStateUpdater stateUpdater;
     private final DurableDataLog durableDataLog;
     private final BlockingDrainingQueue<CompletableOperation> operationQueue;
     private final MetadataCheckpointPolicy checkpointPolicy;
-    private final AtomicBoolean closed;
 
     //endregion
 
@@ -66,76 +67,46 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
      * @param stateUpdater     A MemoryStateUpdater that is used to update in-memory structures upon successful Operation committal.
      * @param durableDataLog   The DataFrameLog to write DataFrames to.
      * @param checkpointPolicy The Checkpoint Policy for Metadata.
+     * @param executor         An Executor to use for async operations.
      * @throws NullPointerException If any of the arguments are null.
      */
-    OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy) {
-        Preconditions.checkNotNull(metadata, "metadata");
+    OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy, ScheduledExecutorService executor) {
+        super(String.format("OperationProcessor[%d]", metadata.getContainerId()), executor);
+
+        // No need to check metadata or executor != null as the super() call above takes care of that.
         Preconditions.checkNotNull(stateUpdater, "stateUpdater");
         Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         Preconditions.checkNotNull(checkpointPolicy, "checkpointPolicy");
 
-        this.traceObjectId = String.format("OperationProcessor[%d]", metadata.getContainerId());
         this.metadataUpdater = new OperationMetadataUpdater(metadata);
         this.stateUpdater = stateUpdater;
         this.durableDataLog = durableDataLog;
         this.checkpointPolicy = checkpointPolicy;
         this.operationQueue = new BlockingDrainingQueue<>();
-        this.closed = new AtomicBoolean();
     }
 
     //endregion
 
-    //region AutoCloseable implementation
+    //region AbstractThreadPoolService Implementation
 
     @Override
-    public void close() {
-        if (!this.closed.get()) {
-            stopAsync();
-            ServiceShutdownListener.awaitShutdown(this, false);
-            log.info("{}: Closed.", this.traceObjectId);
-            this.closed.set(true);
-        }
-    }
-
-    //endregion
-
-    //region AbstractExecutionThreadService Implementation
-
-    @Override
-    protected void run() throws Exception {
-        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "run");
-        Throwable closingException = null;
-        try {
-            while (isRunning()) {
-                runOnce();
-            }
-        } catch (InterruptedException ex) {
-            closingException = ex;
-            if (state() != State.STOPPING) {
-                // We only expect InterruptedException if we are in the process of Stopping. All others are indicative
-                // of some failure.
-                throw ex;
-            }
-        } catch (DataCorruptionException ex) {
-            closingException = ex;
-            throw ex;
-        } finally {
-            closeQueue(closingException);
-        }
-
-        LoggerHelpers.traceLeave(log, this.traceObjectId, "run", traceId);
+    protected Duration getShutdownTimeout() {
+        return SHUTDOWN_TIMEOUT;
     }
 
     @Override
-    protected void triggerShutdown() {
-        // We are being told (externally) to stop. We need to first stop the queue, which will prevent any new items
-        // from being processed, as well as stopping the main worker thread.
+    protected CompletableFuture<Void> doRun() {
+        return FutureHelpers.loop(
+                this::isRunning,
+                this::runOnce,
+                this.executor);
+    }
+
+    @Override
+    protected void doStop() {
+        // We need to first stop the queue, which will prevent any new items from being processed.
         closeQueue(null);
-    }
-
-    @Override
-    protected String serviceName() {
-        return String.format("operation-processor-%d", this.metadataUpdater.getContainerId());
+        super.doStop();
     }
 
     //endregion
@@ -188,12 +159,29 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
      * <li> Creates a DataFrameBuilder and starts appending items to it.
      * <li> As the DataFrameBuilder acknowledges DataFrames being published, acknowledge the corresponding Operations as well.
      * </ol>
-     *
-     * @throws InterruptedException    If the current thread has been interrupted (externally).
-     * @throws DataCorruptionException If an invalid state of the Log or Metadata has been detected (which usually indicates corruption).
      */
-    private void runOnce() throws DataCorruptionException, InterruptedException {
-        List<CompletableOperation> operations = this.operationQueue.takeAllEntries();
+    private CompletableFuture<Void> runOnce() {
+        return this.operationQueue
+                .takeAllEntries()
+                .thenAcceptAsync(this::processOperations, this.executor)
+                .exceptionally(this::iterationErrorHandler);
+    }
+
+    private Void iterationErrorHandler(Throwable ex) {
+        ex = ExceptionHelpers.getRealException(ex);
+        closeQueue(ex);
+        if (!(ex instanceof CancellationException)) {
+            // CancellationException means we are already stopping, so no need to do anything else. For all other cases,
+            // record the failure and then stop the OperationProcessor.
+            setStopException(ex);
+            stopAsync();
+        }
+
+        return null;
+    }
+
+    @SneakyThrows(DataCorruptionException.class)
+    private void processOperations(List<CompletableOperation> operations) {
         log.debug("{}: RunOnce (OperationCount = {}).", this.traceObjectId, operations.size());
         int currentIndex = 0;
         while (currentIndex < operations.size()) {
