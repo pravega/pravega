@@ -17,13 +17,14 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 
 import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -33,20 +34,31 @@ import java.util.concurrent.CompletionStage;
 /**
  * Stream Metadata.
  */
-//TODO: Add scope to most methods.
 public interface StreamMetadataStore {
+
+    /**
+     * Method to create an operation context. A context ensures that multiple calls to store for the same data are avoided
+     * within the same operation. All api signatures are changed to accept context. If context is supplied, the data will be
+     * looked up within the context and, upon a cache miss, will be fetched from the external store and cached within the context.
+     * Once an operation completes, the context is discarded.
+     *
+     * @param scope
+     * @param name
+     * @return
+     */
+    StreamContext createContext(final String scope, final String name);
 
     /**
      * Creates a new stream with the given name and configuration.
      *
-     * @param name          stream name.
-     * @param configuration stream configuration.
+     * @param name            stream name.
+     * @param configuration   stream configuration.
      * @param createTimestamp stream creation timestamp.
      * @return boolean indicating whether the stream was created
      */
-    CompletableFuture<Boolean> createStream(final String name,
+    CompletableFuture<Boolean> createStream(final String scope, final String name,
                                             final StreamConfiguration configuration,
-                                            final long createTimestamp);
+                                            final long createTimestamp, final StreamContext context);
 
     /**
      * Updates the configuration of an existing stream.
@@ -55,7 +67,7 @@ public interface StreamMetadataStore {
      * @param configuration new stream configuration
      * @return boolean indicating whether the stream was updated
      */
-    CompletableFuture<Boolean> updateConfiguration(final String name, final StreamConfiguration configuration);
+    CompletableFuture<Boolean> updateConfiguration(final String scope, final String name, final StreamConfiguration configuration, final StreamContext context);
 
     /**
      * Fetches the current stream configuration.
@@ -63,29 +75,32 @@ public interface StreamMetadataStore {
      * @param name stream name.
      * @return current stream configuration.
      */
-    CompletableFuture<StreamConfiguration> getConfiguration(final String name);
+    CompletableFuture<StreamConfiguration> getConfiguration(final String scope, final String name, final StreamContext context);
 
     /**
      * Set the stream state to sealed.
+     *
      * @param name stream name.
      * @return boolean indicating whether the stream was updated.
      */
-    CompletableFuture<Boolean> setSealed(final String name);
+    CompletableFuture<Boolean> setSealed(final String scope, final String name, final StreamContext context);
 
     /**
      * Get the stream sealed status.
+     *
      * @param name stream name.
      * @return boolean indicating whether the stream is sealed.
      */
-    CompletableFuture<Boolean> isSealed(final String name);
+    CompletableFuture<Boolean> isSealed(final String scope, final String name, final StreamContext context);
 
     /**
      * Get Segment.
-     *  @param name   stream name.
+     *
+     * @param name   stream name.
      * @param number segment number.
      * @return segment at given number.
      */
-    CompletableFuture<Segment> getSegment(final String name, final int number);
+    CompletableFuture<Segment> getSegment(final String scope, final String name, final int number, final StreamContext context);
 
     /**
      * Get active segments.
@@ -93,7 +108,7 @@ public interface StreamMetadataStore {
      * @param name stream name.
      * @return currently active segments
      */
-    CompletableFuture<List<Segment>> getActiveSegments(final String name);
+    CompletableFuture<List<Segment>> getActiveSegments(final String scope, final String name, final StreamContext context);
 
     /**
      * Get active segments at given timestamp.
@@ -102,7 +117,7 @@ public interface StreamMetadataStore {
      * @param timestamp point in time.
      * @return the list of segments active at timestamp.
      */
-    CompletableFuture<SegmentFutures> getActiveSegments(final String name, final long timestamp);
+    CompletableFuture<SegmentFutures> getActiveSegments(final String scope, final String name, final long timestamp, final StreamContext context);
 
     /**
      * Get next segments.
@@ -112,9 +127,9 @@ public interface StreamMetadataStore {
      * @param currentSegments   current consumer positions.
      * @return new consumer positions including new (current or future) segments that can be read from.
      */
-    CompletableFuture<List<SegmentFutures>> getNextSegments(final String name,
+    CompletableFuture<List<SegmentFutures>> getNextSegments(final String scope, final String name,
                                                             final Set<Integer> completedSegments,
-                                                            final List<SegmentFutures> currentSegments);
+                                                            final List<SegmentFutures> currentSegments, final StreamContext context);
 
     /**
      * Scales in or out the currently set of active segments of a stream.
@@ -126,10 +141,10 @@ public interface StreamMetadataStore {
      *                       all new segments shall have it as their start time.
      * @return the list of newly created segments
      */
-    CompletableFuture<List<Segment>> scale(final String name,
+    CompletableFuture<List<Segment>> scale(final String scope, final String name,
                                            final List<Integer> sealedSegments,
                                            final List<SimpleEntry<Double, Double>> newRanges,
-                                           final long scaleTimestamp);
+                                           final long scaleTimestamp, final StreamContext context);
 
     /**
      * Method to create a new transaction on a stream.
@@ -138,7 +153,7 @@ public interface StreamMetadataStore {
      * @param stream stream
      * @return new Transaction Id
      */
-    CompletableFuture<UUID> createTransaction(final String scope, final String stream);
+    CompletableFuture<UUID> createTransaction(final String scope, final String stream, final StreamContext context);
 
     /**
      * Get transaction status from the stream store.
@@ -148,7 +163,7 @@ public interface StreamMetadataStore {
      * @param txId   transaction id
      * @return
      */
-    CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId);
+    CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId, final StreamContext context);
 
     /**
      * Update stream store to mark transaction as committed.
@@ -158,7 +173,7 @@ public interface StreamMetadataStore {
      * @param txId   transaction id
      * @return
      */
-    CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId);
+    CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId, final StreamContext context);
 
     /**
      * Update stream store to mark transaction as sealed.
@@ -168,7 +183,7 @@ public interface StreamMetadataStore {
      * @param txId   transaction id
      * @return
      */
-    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId);
+    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId, final StreamContext context);
 
     /**
      * Update stream store to mark the transaction as aborted.
@@ -178,31 +193,82 @@ public interface StreamMetadataStore {
      * @param txId   transaction id
      * @return
      */
-    CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final UUID txId);
+    CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final UUID txId, final StreamContext context);
 
     /**
      * Returns a boolean indicating whether any transaction is active on the specified stream.
+     *
      * @param scope  scope.
      * @param stream stream.
      * @return boolean indicating whether any transaction is active on the specified stream.
      */
-    CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream);
+    CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream, final StreamContext context);
 
     /**
-     * Returns all active transactions for all streams.
-     * This is used for periodically identifying timedout transactions which can be aborted
+     * Api to block new transactions from being created for the specified duration.
+     * This is useful in scenarios where a scale operation may end up waiting indefinitely because there are always one or more on-going transactions.
      *
-     * @return
+     * @param scope   scope.
+     * @param stream  stream.
+     * @param context context in which this operation is taking place.
+     * @return Completable Future
      */
-    CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx();
+    CompletableFuture<Void> blockTransactions(final String scope, final String stream, final StreamContext context);
 
-    CompletableFuture<Void> setMarker(String scope, String stream, int segmentNumber, long timestamp);
+    CompletableFuture<Void> unblockTransactions(String scope, String stream, StreamContext context);
 
-    CompletableFuture<Optional<Long>> getMarker(String scope, String stream, int number);
+    /**
+     * Api to mark a segment as cold.
+     *
+     * @param scope         scope for stream
+     * @param stream        name of stream
+     * @param segmentNumber segment number
+     * @param timestamp     time at which request for marking a segment cold was generated.
+     * @param context       context in which this operation is taking place.
+     * @return Completable future
+     */
+    CompletableFuture<Void> setMarker(final String scope, final String stream, final int segmentNumber, final long timestamp, final StreamContext context);
 
-    CompletableFuture<Void> removeMarker(String scope, String stream, int number);
+    /**
+     * Api to return if a cold marker is set.
+     *
+     * @param scope   scope for stream
+     * @param stream  name of stream
+     * @param number  segment nunmber
+     * @param context context in which this operation is taking place.
+     * @return Completable future Optional of marker's creation time.
+     */
+    CompletableFuture<Optional<Long>> getMarker(final String scope, final String stream, final int number, final StreamContext context);
 
-    CompletableFuture<Void> checkpoint(String readerId, String readerGroup, ByteBuffer serialize);
+    /**
+     * Api to clear marker.
+     *
+     * @param scope   scope for stream
+     * @param stream  name of stream
+     * @param number  segment nunmber
+     * @param context context in which this operation is taking place.
+     * @return Completable Future
+     */
+    CompletableFuture<Void> removeMarker(final String scope, final String stream, final int number, final StreamContext context);
 
-    CompletableFuture<Optional<ByteBuffer>> readCheckpoint(String readerId, String readerGroup);
+    /**
+     * Api to store checkpoint for controller in the persistent store.
+     *
+     * @param id        id to uniquely identify the controller instance
+     * @param group     group to which controller instance belongs to
+     * @param serialize Serialized checkpoint data
+     * @return Completable Future
+     */
+    CompletableFuture<Void> checkpoint(final String id, final String group, final ByteBuffer serialize);
+
+    /**
+     * Api to retrieve checkpointed data.
+     *
+     * @param id    id to uniquely identify the controller instance
+     * @param group group to which controller instance belongs to
+     * @return Completable future of serialized checkpointed data
+     */
+    CompletableFuture<Optional<ByteBuffer>> readCheckpoint(final String id, final String group);
+
+    CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns(String scope, String stream, StreamContext context);
 }

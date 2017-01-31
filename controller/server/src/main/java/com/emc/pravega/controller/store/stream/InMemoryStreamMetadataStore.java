@@ -17,14 +17,12 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.stream.StreamConfiguration;
-import org.apache.commons.lang.NotImplementedException;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -35,7 +33,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     private final Map<String, InMemoryStream> streams = new HashMap<>();
 
     @Override
-    synchronized Stream newStream(String name) {
+    synchronized Stream newStream(String scope, String name) {
         if (streams.containsKey(name)) {
             return streams.get(name);
         } else {
@@ -44,7 +42,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public synchronized CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration, long timeStamp) {
+    public synchronized CompletableFuture<Boolean> createStream(String scope, String name, StreamConfiguration configuration, long timeStamp, StreamContext context) {
         if (!streams.containsKey(name)) {
             InMemoryStream stream = new InMemoryStream(name);
             stream.create(configuration, timeStamp);
@@ -58,12 +56,12 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
-        throw new NotImplementedException();
+    public CompletableFuture<Void> checkpoint(String id, String group, ByteBuffer serialize) {
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public CompletableFuture<Void> checkpoint(String readerId, String readerGroup, ByteBuffer serialize) {
-        return CompletableFuture.completedFuture(null);
+    public CompletableFuture<Optional<ByteBuffer>> readCheckpoint(String id, String group) {
+        return null;
     }
 }

@@ -78,4 +78,23 @@ public final class Config {
     //REST server configuration
     public static final String REST_SERVER_IP = CONFIG.getString("config.controller.server.rest.serverIp");
     public static final int REST_SERVER_PORT = CONFIG.getInt("config.controller.server.rest.serverPort");
+
+    // Transaction related configuration
+    public static final long TXN_TIMEOUT = CONFIG.getLong("config.controller.server.transactions.timeout");
+
+    // Request Stream Configuration
+    public static final String SCALE_STREAM_SCOPE = CONFIG.getString("config.controller.contract.requestStream.scope");
+    public static final String SCALE_STREAM_NAME = CONFIG.getString("config.controller.contract.requestStream.name");
+
+    public static final String TXN_TIMER_STREAM_SCOPE = CONFIG.getString("config.controller.server.txntimer.scope");
+    public static final String TXN_TIMER_STREAM_NAME = CONFIG.getString("config.controller.server.txntimer.name");
+
+    // Request Stream readerGroup
+    public static final String SCALE_READER_GROUP = CONFIG.getString("config.controller.server.scale.readerGroup.name");
+    public static final String SCALE_READER_ID = CONFIG.getString("config.controller.server.scale.readerGroup.readerId");
+
+    // Txn reader group
+    public static final String TXN_READER_GROUP = CONFIG.getString("config.controller.server.txn.readerGroup.name");
+    public static final String TXN_READER_ID = CONFIG.getString("config.controller.server.txn.readerGroup.readerId");
+
 }

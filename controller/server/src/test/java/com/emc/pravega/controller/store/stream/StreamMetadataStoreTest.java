@@ -56,26 +56,28 @@ public class StreamMetadataStoreTest {
 
     @Test
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
+        StreamContext context1 = store.createContext(scope, stream1);
+        StreamContext context2 = store.createContext(scope, stream2);
 
         // region createStream
-        store.createStream(stream1, configuration1, System.currentTimeMillis());
-        store.createStream(stream2, configuration2, System.currentTimeMillis());
+        store.createStream(scope, stream1, configuration1, System.currentTimeMillis(), context1);
+        store.createStream(scope, stream2, configuration2, System.currentTimeMillis(), context2);
 
-        assertEquals(stream1, store.getConfiguration(stream1).get().getName());
+        assertEquals(stream1, store.getConfiguration(scope, stream1, context1).get().getName());
         // endregion
 
         // region checkSegments
-        List<Segment> segments = store.getActiveSegments(stream1).get();
+        List<Segment> segments = store.getActiveSegments(scope, stream1, context1).get();
         assertEquals(2, segments.size());
 
-        SegmentFutures segmentFutures = store.getActiveSegments(stream1, 10).get();
+        SegmentFutures segmentFutures = store.getActiveSegments(scope, stream1, 10, context1).get();
         assertEquals(2, segmentFutures.getCurrent().size());
         assertEquals(0, segmentFutures.getFutures().size());
 
-        segments = store.getActiveSegments(stream2).get();
+        segments = store.getActiveSegments(scope, stream2, context2).get();
         assertEquals(3, segments.size());
 
-        segmentFutures = store.getActiveSegments(stream2, 10).get();
+        segmentFutures = store.getActiveSegments(scope, stream2, 10, context2).get();
         assertEquals(3, segmentFutures.getCurrent().size());
         assertEquals(0, segmentFutures.getFutures().size());
 
@@ -84,28 +86,28 @@ public class StreamMetadataStoreTest {
         // region scaleSegments
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
-        store.scale(stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20);
+        store.scale(scope, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20, context1);
 
-        segments = store.getActiveSegments(stream1).get();
+        segments = store.getActiveSegments(scope, stream1, context1).get();
         assertEquals(3, segments.size());
 
-        segmentFutures = store.getActiveSegments(stream1, 30).get();
+        segmentFutures = store.getActiveSegments(scope, stream1, 30, context1).get();
         assertEquals(3, segmentFutures.getCurrent().size());
         assertEquals(0, segmentFutures.getFutures().size());
 
-        segmentFutures = store.getActiveSegments(stream1, 10).get();
+        segmentFutures = store.getActiveSegments(scope, stream1, 10, context1).get();
         assertEquals(2, segmentFutures.getCurrent().size());
         assertEquals(2, segmentFutures.getFutures().size());
 
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
-        store.scale(stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20);
+        store.scale(scope, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20, context2);
 
-        segments = store.getActiveSegments(stream1).get();
+        segments = store.getActiveSegments(scope, stream1, context1).get();
         assertEquals(3, segments.size());
 
-        segmentFutures = store.getActiveSegments(stream2, 10).get();
+        segmentFutures = store.getActiveSegments(scope, stream2, 10, context2).get();
         assertEquals(3, segmentFutures.getCurrent().size());
         assertEquals(1, segmentFutures.getFutures().size());
 
@@ -114,23 +116,23 @@ public class StreamMetadataStoreTest {
         // region getNextPosition
 
         SegmentFutures updatedPosition = new SegmentFutures(Arrays.asList(0, 5), Collections.emptyMap());
-        List<SegmentFutures> futuresList = store.getNextSegments(stream2, new HashSet<>(Arrays.asList(1, 2)),
-                Collections.singletonList(updatedPosition)).get();
+        List<SegmentFutures> futuresList = store.getNextSegments(scope, stream2, new HashSet<>(Arrays.asList(1, 2)),
+                Collections.singletonList(updatedPosition), context2).get();
         assertEquals(1, futuresList.size());
         assertEquals(3, futuresList.get(0).getCurrent().size());
         assertEquals(1, futuresList.get(0).getFutures().size());
         assertTrue(futuresList.get(0).getCurrent().contains(4));
 
         updatedPosition = new SegmentFutures(Arrays.asList(0, 1, 5), Collections.emptyMap());
-        futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(2)),
-                Collections.singletonList(updatedPosition)).get();
+        futuresList = store.getNextSegments(scope, stream2, new HashSet<>(Collections.singletonList(2)),
+                Collections.singletonList(updatedPosition), context2).get();
         assertEquals(1, futuresList.size());
         assertEquals(3, futuresList.get(0).getCurrent().size());
         assertEquals(1, futuresList.get(0).getFutures().size());
 
         updatedPosition = new SegmentFutures(Arrays.asList(0, 4, 5), Collections.emptyMap());
-        futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(1)),
-                Collections.singletonList(updatedPosition)).get();
+        futuresList = store.getNextSegments(scope, stream2, new HashSet<>(Collections.singletonList(1)),
+                Collections.singletonList(updatedPosition), context2).get();
         assertEquals(1, futuresList.size());
         assertEquals(3, futuresList.get(0).getCurrent().size());
         assertEquals(1, futuresList.get(0).getFutures().size());
@@ -139,22 +141,22 @@ public class StreamMetadataStoreTest {
 
         // region seal stream
 
-        assertFalse(store.isSealed(stream2).get());
-        assertNotEquals(0, store.getActiveSegments(stream2).get().size());
-        Boolean sealOperationStatus = store.setSealed(stream2).get();
+        assertFalse(store.isSealed(scope, stream2, context2).get());
+        assertNotEquals(0, store.getActiveSegments(scope, stream2, context2).get().size());
+        Boolean sealOperationStatus = store.setSealed(scope, stream2, context2).get();
         assertTrue(sealOperationStatus);
-        assertTrue(store.isSealed(stream2).get());
-        assertEquals(0, store.getActiveSegments(stream2).get().size());
+        assertTrue(store.isSealed(scope, stream2, context2).get());
+        assertEquals(0, store.getActiveSegments(scope, stream2, context2).get().size());
 
         //Sealing an already seal stream should return success.
-        Boolean sealOperationStatus1 = store.setSealed(stream2).get();
+        Boolean sealOperationStatus1 = store.setSealed(scope, stream2, context2).get();
         assertTrue(sealOperationStatus1);
-        assertTrue(store.isSealed(stream2).get());
-        assertEquals(0, store.getActiveSegments(stream2).get().size());
+        assertTrue(store.isSealed(scope, stream2, context2).get());
+        assertEquals(0, store.getActiveSegments(scope, stream2, context2).get().size());
 
         // seal a non-existent stream.
         try {
-            store.setSealed("streamNonExistent").get();
+            store.setSealed(scope, "streamNonExistent", null).get();
         } catch (Exception e) {
             assertEquals(StreamNotFoundException.class, e.getCause().getCause().getClass());
         }

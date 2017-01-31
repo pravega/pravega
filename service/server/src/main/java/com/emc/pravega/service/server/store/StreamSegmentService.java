@@ -25,6 +25,7 @@ import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ContainerNotFoundException;
 import com.emc.pravega.service.contracts.ReadResult;
+import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.SegmentContainer;
@@ -108,11 +109,12 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> createStreamSegment(SegmentInfo segmentInfo, Duration timeout) {
+        String streamSegmentName = segmentInfo.getStreamSegmentName();
         long traceId = LoggerHelpers.traceEnter(log, "createStreamSegment", streamSegmentName, timeout);
         return withCompletion(
                 () -> getContainer(streamSegmentName)
-                        .thenCompose(container -> container.createStreamSegment(streamSegmentName, timeout)),
+                        .thenCompose(container -> container.createStreamSegment(segmentInfo, timeout)),
                 r -> traceLeave(log, "createStreamSegment", traceId, r));
     }
 

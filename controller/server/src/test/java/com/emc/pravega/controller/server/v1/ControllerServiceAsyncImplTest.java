@@ -84,7 +84,7 @@ public class ControllerServiceAsyncImplTest {
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, "host");
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
+                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host", txTimeOutProcessor);
 
         this.controllerService = new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks);

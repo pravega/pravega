@@ -15,26 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.requests;
 
-import lombok.Data;
+package com.emc.pravega.controller.store.stream;
 
-@Data
-public class ScaleRequest implements ControllerRequest {
-    private final String scope;
-    private final String stream;
-    private final int segmentNumber;
-    private final boolean up;
-    private final long timestamp;
-    private final int numOfSplits;
+import com.emc.pravega.controller.RetryableException;
 
-    @Override
-    public RequestType getType() {
-        return RequestType.ScaleRequest;
-    }
+/**
+ * Exception thrown when scale has blocked creation of new transactions.
+ */
+public class TransactionBlockedException extends RetryableException {
 
-    @Override
-    public String getKey() {
-        return String.format("%s/%s", scope, stream);
+    private static final long serialVersionUID = 1L;
+
+    /**
+     * Creates a new instance of TransactionBlockedException class.
+     *
+     * @param value value
+     */
+    public TransactionBlockedException(final String value) {
+        super(value);
     }
 }

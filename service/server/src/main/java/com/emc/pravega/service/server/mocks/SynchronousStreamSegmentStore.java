@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.mocks;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
+import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 
@@ -69,8 +70,8 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
-        CompletableFuture<Void> result = impl.createStreamSegment(streamSegmentName, timeout);
+    public CompletableFuture<Void> createStreamSegment(SegmentInfo segmentInfo, Duration timeout) {
+        CompletableFuture<Void> result = impl.createStreamSegment(segmentInfo, timeout);
         FutureHelpers.await(result);
         return result;
     }

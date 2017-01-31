@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
+import com.emc.pravega.controller.store.stream.StreamContext;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -110,20 +111,20 @@ public class TaskTest {
         final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
 
         // region createStream
-        streamStore.createStream(stream1, configuration1, System.currentTimeMillis());
-        streamStore.createStream(stream2, configuration2, System.currentTimeMillis());
+        streamStore.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null);
+        streamStore.createStream(SCOPE, stream2, configuration2, System.currentTimeMillis(), null);
         // endregion
 
         // region scaleSegments
 
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20);
+        streamStore.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20, null);
 
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.5);
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20);
+        streamStore.scale(SCOPE, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20, null);
         // endregion
     }
 
@@ -136,13 +137,13 @@ public class TaskTest {
     @Test
     public void testMethods() throws InterruptedException, ExecutionException {
         try {
-            streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis()).join();
+            streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), Optional.empty()).join();
         } catch (CompletionException e) {
             assertTrue(e.getCause() instanceof StreamAlreadyExistsException);
         }
 
         CreateStreamStatus result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
-                System.currentTimeMillis()).join();
+                System.currentTimeMillis(), Optional.empty()).join();
         assertEquals(result, CreateStreamStatus.SUCCESS);
     }
 
@@ -180,7 +181,7 @@ public class TaskTest {
         assertFalse(child.isPresent());
 
         // ensure that the stream streamSweeper is created
-        StreamConfiguration config = streamStore.getConfiguration(stream).get();
+        StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream, null).get();
         assertTrue(config.getName().equals(configuration.getName()));
         assertTrue(config.getScope().equals(configuration.getScope()));
         assertTrue(config.getScalingPolicy().equals(configuration.getScalingPolicy()));
@@ -247,10 +248,10 @@ public class TaskTest {
         assertFalse(child.isPresent());
 
         // ensure that the stream streamSweeper is created
-        StreamConfiguration config = streamStore.getConfiguration(stream1).get();
+        StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream1, null).get();
         assertTrue(config.getName().equals(stream1));
 
-        config = streamStore.getConfiguration(stream2).get();
+        config = streamStore.getConfiguration(SCOPE, stream2, null).get();
         assertTrue(config.getName().equals(stream2));
 
     }

@@ -53,6 +53,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private boolean merged;
     private Date lastModified;
 
+    private boolean autoScale;
+    private long targetRate;
+    private boolean rateInBytes;
+
+
     //endregion
 
     //region Constructor
@@ -174,6 +179,21 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public Collection<UUID> getKnownClientIds() {
         return this.lastCommittedAppends.keySet();
+    }
+
+    @Override
+    public boolean isAutoScale() {
+        return autoScale;
+    }
+
+    @Override
+    public long getTargetRate() {
+        return targetRate;
+    }
+
+    @Override
+    public boolean isRateInBytes() {
+        return rateInBytes;
     }
 
     @Override

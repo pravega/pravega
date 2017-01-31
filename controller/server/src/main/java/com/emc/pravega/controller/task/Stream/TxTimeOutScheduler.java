@@ -15,16 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.stream.tables;
-
-import lombok.Data;
+package com.emc.pravega.controller.task.Stream;
 
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
-@Data
-public class ActiveTxRecordWithStream {
-    private final String scope;
-    private final String stream;
-    private final UUID txid;
-    private final ActiveTxRecord txRecord;
+public interface TxTimeOutScheduler {
+
+    CompletableFuture<Void> scheduleTimeOut(String scope, String stream, UUID txid, long timeoutPeriod);
 }

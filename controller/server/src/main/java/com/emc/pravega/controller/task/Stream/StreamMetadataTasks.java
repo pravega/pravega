@@ -26,9 +26,9 @@ import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.Segment;
+import com.emc.pravega.controller.store.stream.StreamContext;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.store.stream.StreamNotFoundException;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
@@ -42,7 +42,6 @@ import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.annotations.VisibleForTesting;
@@ -51,10 +50,12 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.Serializable;
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -70,9 +71,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class StreamMetadataTasks extends TaskBase implements Cloneable {
     private static final long RETRY_INITIAL_DELAY = 100;
-    private static final int RETRY_MULTIPLIER = 10;
+    private static final int RETRY_MULTIPLIER = 2;
     private static final int RETRY_MAX_ATTEMPTS = 100;
-    private static final long RETRY_MAX_DELAY = 100000;
+    private static final long RETRY_MAX_DELAY = Duration.ofSeconds(10).toMillis();
 
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
@@ -104,11 +105,11 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
      * @return creation status.
      */
     @Task(name = "createStream", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
+    public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp, Optional<StreamContext> contextOpt) {
         return execute(
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream, config},
-                () -> createStreamBody(scope, stream, config, createTimestamp));
+                () -> createStreamBody(scope, stream, config, createTimestamp, contextOpt));
     }
 
     /**
@@ -120,26 +121,11 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
      * @return update status.
      */
     @Task(name = "updateConfig", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<UpdateStreamStatus> alterStream(String scope, String stream, StreamConfiguration config) {
+    public CompletableFuture<UpdateStreamStatus> alterStream(String scope, String stream, StreamConfiguration config, Optional<StreamContext> contextOpt) {
         return execute(
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream, config},
-                () -> updateStreamConfigBody(scope, stream, config));
-    }
-
-    /**
-     * Seal a stream.
-     *
-     * @param scope  scope.
-     * @param stream stream name.
-     * @return update status.
-     */
-    @Task(name = "sealStream", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String stream) {
-        return execute(
-                new Resource(scope, stream),
-                new Serializable[]{scope, stream},
-                () -> sealStreamBody(scope, stream));
+                () -> updateStreamConfigBody(scope, stream, config, contextOpt));
     }
 
     /**
@@ -153,20 +139,37 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
      * @return returns the newly created segments.
      */
     @Task(name = "scaleStream", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<ScaleResponse> scale(String scope, String stream, ArrayList<Integer> sealedSegments, ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
+    public CompletableFuture<ScaleResponse> scale(String scope, String stream, ArrayList<Integer> sealedSegments, ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp, Optional<StreamContext> contextOpt) {
         return execute(
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream, sealedSegments, newRanges, scaleTimestamp},
-                () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp));
+                () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp, contextOpt));
     }
 
-    private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
-        return this.streamMetadataStore.createStream(stream, config, timestamp)
+    /**
+     * Seal a stream.
+     *
+     * @param scope  scope.
+     * @param stream stream name.
+     * @return update status.
+     */
+    @Task(name = "sealStream", version = "1.0", resource = "{scope}/{stream}")
+    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String stream, Optional<StreamContext> contextOpt) {
+        return execute(
+                new Resource(scope, stream),
+                new Serializable[]{scope, stream},
+                () -> sealStreamBody(scope, stream, contextOpt));
+    }
+
+    private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp, Optional<StreamContext> contextOpt) {
+        final StreamContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
+
+        return this.streamMetadataStore.createStream(scope, stream, config, timestamp, context)
                 .thenCompose(x -> {
                     if (x) {
-                        return this.streamMetadataStore.getActiveSegments(stream)
+                        return this.streamMetadataStore.getActiveSegments(scope, stream, context)
                                 .thenApply(activeSegments ->
-                                        notifyNewSegments(config.getScope(), stream, activeSegments))
+                                        notifyNewSegments(config.getScope(), stream, activeSegments, context))
                                 .thenApply(y -> CreateStreamStatus.SUCCESS);
                     } else {
                         return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
@@ -186,8 +189,10 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 });
     }
 
-    public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream, StreamConfiguration config) {
-        return streamMetadataStore.updateConfiguration(stream, config)
+    public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream, StreamConfiguration config, Optional<StreamContext> contextOpt) {
+        final StreamContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
+
+        return streamMetadataStore.updateConfiguration(scope, stream, config, context)
                 .handle((result, ex) -> {
                     if (ex != null) {
                         return handleUpdateStreamError(ex);
@@ -197,8 +202,10 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 });
     }
 
-    public CompletableFuture<UpdateStreamStatus> sealStreamBody(String scope, String stream) {
-        return streamMetadataStore.getActiveSegments(stream)
+    public CompletableFuture<UpdateStreamStatus> sealStreamBody(String scope, String stream, Optional<StreamContext> contextOpt) {
+        final StreamContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
+
+        return streamMetadataStore.getActiveSegments(scope, stream, context)
                 .thenCompose(activeSegments -> {
                     if (activeSegments.isEmpty()) { //if active segments are empty then the stream is sealed.
                         //Do not update the state if the stream is already sealed.
@@ -207,7 +214,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                         List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
                                 collect(Collectors.toList());
                         return notifySealedSegments(scope, stream, segmentsToBeSealed)
-                                .thenCompose(v -> streamMetadataStore.setSealed(stream))
+                                .thenCompose(v -> streamMetadataStore.setSealed(scope, stream, context))
                                 .handle((result, ex) -> {
                                     if (ex != null) {
                                         return handleUpdateStreamError(ex);
@@ -220,7 +227,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     @VisibleForTesting
-    CompletableFuture<ScaleResponse> scaleBody(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
+    CompletableFuture<ScaleResponse> scaleBody(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp, Optional<StreamContext> contextOpt) {
         // Abort scaling operation in the following error scenarios
         // 1. if the active segments in the stream have ts greater than scaleTimestamp -- ScaleStreamStatus.PRECONDITION_FAILED
         // 2. if active segments having creation timestamp as scaleTimestamp have different key ranges than the ones specified in newRanges (todo) -- ScaleStreamStatus.CONFLICT
@@ -238,9 +245,11 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         // So we need to retry and complete all steps.
         // However, after sufficient retries, if we are still not able to complete all steps in scale task,
         // we should stop retrying indefinitely and notify administrator.
+        final StreamContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
+
         CompletableFuture<Pair<Boolean, Boolean>> checkValidity =
-                streamMetadataStore.getActiveSegments(stream)
-                        .thenCompose(activeSegments -> streamMetadataStore.isTransactionOngoing(scope, stream)
+                streamMetadataStore.getActiveSegments(scope, stream, context)
+                        .thenCompose(activeSegments -> streamMetadataStore.isTransactionOngoing(scope, stream, context)
                                 .thenApply(active -> new ImmutablePair<>(!active, !(
                                         // Case: some segment to be sealed is not an active segment
                                         sealedSegments.stream().anyMatch(x ->
@@ -262,9 +271,9 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                     if (result.getLeft() && result.getRight()) {
                         return notifySealedSegments(scope, stream, sealedSegments)
                                 .thenCompose(results ->
-                                        scaleMetadataUpdate(stream, sealedSegments, newRanges, scaleTimestamp))
+                                        scaleMetadataUpdate(scope, stream, sealedSegments, newRanges, scaleTimestamp, context))
                                 .thenApply((List<Segment> newSegments) -> {
-                                    notifyNewSegments(scope, stream, newSegments);
+                                    notifyNewSegments(scope, stream, newSegments, context);
                                     ScaleResponse response = new ScaleResponse();
                                     response.setStatus(ScaleStreamStatus.SUCCESS);
                                     response.setSegments(
@@ -288,14 +297,14 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         );
     }
 
-    private CompletableFuture<List<Segment>> scaleMetadataUpdate(final String name,
+    private CompletableFuture<List<Segment>> scaleMetadataUpdate(final String scope, final String name,
                                                                  final List<Integer> sealedSegments,
                                                                  final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                                                 final long scaleTimestamp) {
+                                                                 final long scaleTimestamp, StreamContext context) {
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                 .retryingOn(RetryableException.class)
                 .throwingOn(NonRetryableException.class)
-                .runAsync(() -> streamMetadataStore.scale(name, sealedSegments, newRanges, scaleTimestamp), executor);
+                .runAsync(() -> streamMetadataStore.scale(scope, name, sealedSegments, newRanges, scaleTimestamp, context), executor);
     }
 
     private SegmentRange convert(String scope, String stream, com.emc.pravega.controller.store.stream.Segment segment) {
@@ -303,7 +312,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 new SegmentId(scope, stream, segment.getNumber()), segment.getKeyStart(), segment.getKeyEnd());
     }
 
-    private CompletableFuture<List<Boolean>> notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers) {
+    private CompletableFuture<List<Boolean>> notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers, StreamContext context) {
         return FutureCollectionHelper.sequence(segmentNumbers
                 .stream()
                 .parallel()
@@ -312,7 +321,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                                 .retryingOn(RetryableException.class)
                                 .throwingOn(RuntimeException.class)
                                 .runAsync(() ->
-                                        streamMetadataStore.getConfiguration(stream)
+                                        streamMetadataStore.getConfiguration(scope, stream, context)
                                                 .thenApply(configuration ->
                                                         new ImmutablePair<>(SegmentHelper.getSegmentUri(scope, stream, segment.getNumber(), hostControllerStore), configuration))
                                                 .thenCompose(pair ->

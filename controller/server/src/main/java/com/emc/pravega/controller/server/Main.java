@@ -26,8 +26,10 @@ import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.requesthandler.RequestReader;
 import com.emc.pravega.controller.requesthandler.ScaleRequestHandler;
-import com.emc.pravega.controller.requests.RequestStreamConstants;
+import com.emc.pravega.controller.requesthandler.TransactionTimer;
+import com.emc.pravega.controller.requesthandler.TxTimeoutStreamScheduler;
 import com.emc.pravega.controller.requests.ScaleRequest;
+import com.emc.pravega.controller.requests.TxTimeoutRequest;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
@@ -102,12 +104,14 @@ public class Main {
             monitor.startAsync();
         }
 
+        TxTimeoutStreamScheduler scheduler = new TxTimeoutStreamScheduler();
+
         //2. Start the RPC server.
         log.info("Starting RPC server");
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId);
+                hostStore, taskMetadataStore, executor, hostId, scheduler);
         RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks));
 
@@ -126,10 +130,19 @@ public class Main {
         log.info("Starting Pravega REST Service");
         RESTServer.start();
 
-        final ScaleRequestHandler handler = new ScaleRequestHandler(streamMetadataTasks, streamStore);
+        final ScaleRequestHandler handler = new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks);
         // TODO: read from configuration
-        final RequestReader<ScaleRequest, ScaleRequestHandler> reader = new RequestReader<>("readerId",
-                RequestStreamConstants.READER_GROUP, null, streamStore, handler);
+        final RequestReader<ScaleRequest, ScaleRequestHandler> reader = new RequestReader<>(
+                Config.SCALE_STREAM_NAME,
+                Config.SCALE_READER_ID,
+                Config.SCALE_READER_GROUP, null, streamStore, handler);
         CompletableFuture.runAsync(reader);
+
+        final TransactionTimer txnHandler = new TransactionTimer(streamTransactionMetadataTasks);
+        final RequestReader<TxTimeoutRequest, TransactionTimer> txnreader = new RequestReader<>(
+                Config.TXN_TIMER_STREAM_NAME,
+                Config.TXN_READER_ID,
+                Config.TXN_READER_GROUP, null, streamStore, txnHandler);
+        CompletableFuture.runAsync(txnreader);
     }
 }

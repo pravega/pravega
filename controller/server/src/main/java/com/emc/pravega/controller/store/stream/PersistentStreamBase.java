@@ -33,26 +33,31 @@ import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.curator.utils.ZKPaths;
 
 import java.util.AbstractMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public abstract class PersistentStreamBase<T> implements Stream {
+    private final String scope;
     private final String name;
 
-
-    protected PersistentStreamBase(final String name) {
+    protected PersistentStreamBase(String scope, final String name) {
+        this.scope = scope;
         this.name = name;
+    }
+
+    @Override
+    public String getScope() {
+        return this.scope;
     }
 
     @Override
@@ -267,7 +272,13 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<UUID> createTransaction() {
         final UUID txId = UUID.randomUUID();
-        return createNewTransaction(txId, System.currentTimeMillis()).thenApply(x -> txId);
+        return isBlocked().thenCompose(x -> {
+            if (!x) {
+                return createNewTransaction(txId, System.currentTimeMillis()).thenApply(y -> txId);
+            } else {
+                throw new TransactionBlockedException(String.format("Transaction Creation disallowed temporarily for stream %s/%s", scope, name));
+            }
+        });
     }
 
     @Override
@@ -372,27 +383,40 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<Void> setMarker(String scope, String stream, int segmentNumber, long timestamp) {
-        return getMarkerData(scope, stream, segmentNumber)
+    public CompletableFuture<Boolean> isTransactionOngoing() {
+        return areTxnsOngoing();
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns() {
+        return getCurrentTxns()
+                .thenApply(x -> x.entrySet().stream()
+                        .collect(Collectors.toMap(k -> UUID.fromString(k.getKey()),
+                                v -> ActiveTxRecord.parse(v.getValue().getData()))));
+    }
+
+    @Override
+    public CompletableFuture<Void> setMarker(int segmentNumber, long timestamp) {
+        return getMarkerData(segmentNumber)
                 .thenAccept(x -> {
-                    if(x.isPresent()) {
+                    if (x.isPresent()) {
                         final Data<T> data = new Data<>(Utilities.toByteArray(timestamp), x.get().getVersion());
-                        updateMarkerData(scope, stream, segmentNumber, data);
+                        updateMarkerData(segmentNumber, data);
                     } else {
-                        createMarkerData(scope, stream, segmentNumber, timestamp);
+                        createMarkerData(segmentNumber, timestamp);
                     }
                 });
     }
 
     @Override
-    public CompletableFuture<Optional<Long>> getMarker(String scope, String stream, int segmentNumber) {
-        return getMarkerData(scope, stream, segmentNumber)
+    public CompletableFuture<Optional<Long>> getMarker(int segmentNumber) {
+        return getMarkerData(segmentNumber)
                 .thenApply(x -> x.map(y -> Utilities.toLong(y.getData())));
     }
 
     @Override
-    public CompletableFuture<Void> removeMarker(String scope, String stream, int segmentNumber) {
-        return removeMarkerData(scope, stream, segmentNumber);
+    public CompletableFuture<Void> removeMarker(int segmentNumber) {
+        return removeMarkerData(segmentNumber);
     }
 
     private CompletionStage<List<Segment>> getSegments(final int count,
@@ -403,6 +427,16 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .map(this::getSegment)
                 .collect(Collectors.<CompletableFuture<Segment>>toList());
         return FutureCollectionHelper.sequence(segments);
+    }
+
+    @Override
+    public CompletableFuture<Void> blockTransactions() {
+        return setBlockFlag();
+    }
+
+    @Override
+    public CompletableFuture<Void> unblockTransactions() {
+        return unsetBlockFlag();
     }
 
     /**
@@ -610,12 +644,21 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp);
 
-    abstract CompletableFuture<Void> createMarkerData(String scope, String stream, int segmentNumber, long timestamp);
+    abstract CompletableFuture<Void> createMarkerData(int segmentNumber, long timestamp);
 
-    abstract CompletableFuture<Void> updateMarkerData(String scope, String stream, int segmentNumber, Data<T> data);
+    abstract CompletableFuture<Void> updateMarkerData(int segmentNumber, Data<T> data);
 
-    abstract CompletableFuture<Void> removeMarkerData(String scope, String stream, int segmentNumber);
+    abstract CompletableFuture<Void> removeMarkerData(int segmentNumber);
 
-    abstract CompletableFuture<Optional<Data<T>>> getMarkerData(String scope, String stream, int segmentNumber);
+    abstract CompletableFuture<Optional<Data<T>>> getMarkerData(int segmentNumber);
 
+    abstract CompletableFuture<Void> setBlockFlag();
+
+    abstract CompletableFuture<Void> unsetBlockFlag();
+
+    abstract CompletableFuture<Boolean> isBlocked();
+
+    abstract CompletableFuture<Boolean> areTxnsOngoing();
+
+    abstract CompletableFuture<Map<String, Data<T>>> getCurrentTxns();
 }

@@ -1,17 +1,37 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.emc.pravega.controller.requesthandler;
 
 import com.emc.pravega.common.concurrent.FutureCollectionHelper;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.NonRetryableException;
 import com.emc.pravega.controller.RetryableException;
-import com.emc.pravega.controller.requests.RequestStreamConstants;
+import com.emc.pravega.controller.defaults.Defaults;
 import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.controller.store.stream.Segment;
+import com.emc.pravega.controller.store.stream.StreamContext;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.task.ConflictingTaskException;
 import com.emc.pravega.controller.store.task.LockFailedException;
 import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.base.Preconditions;
@@ -19,6 +39,7 @@ import com.google.common.collect.Lists;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,28 +52,27 @@ import java.util.stream.Collectors;
 public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
 
     private static final long RETRY_INITIAL_DELAY = 100;
-    private static final int RETRY_MULTIPLIER = 10;
+    private static final int RETRY_MULTIPLIER = 2;
     private static final int RETRY_MAX_ATTEMPTS = 100;
-    private static final long RETRY_MAX_DELAY = 100000;
+    private static final long RETRY_MAX_DELAY = Duration.ofSeconds(10).toMillis();
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
+    private final StreamTransactionMetadataTasks streamTxMetadataTasks;
 
-    public ScaleRequestHandler(StreamMetadataTasks streamMetadataTasks,
-                               StreamMetadataStore streamMetadataStore) {
+    public ScaleRequestHandler(final StreamMetadataTasks streamMetadataTasks,
+                               final StreamMetadataStore streamMetadataStore,
+                               final StreamTransactionMetadataTasks streamTxMetadataTasks) {
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(streamMetadataTasks);
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamMetadataStore = streamMetadataStore;
+        this.streamTxMetadataTasks = streamTxMetadataTasks;
+
     }
 
     @Override
-    public String getKey(ScaleRequest request) {
-        return String.format("%s/%s", request.getScope(), request.getStream());
-    }
-
-    @Override
-    public CompletableFuture<Void> process(ScaleRequest request, ScheduledExecutorService executor) {
+    public CompletableFuture<Void> process(final ScaleRequest request, final ScheduledExecutorService executor) {
         if (!isValid(request.getTimestamp())) {
             // request no longer valid. Ignore.
             // log, because a request was fetched from the stream after its validity expired.
@@ -62,6 +82,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
             log.debug(String.format("Scale Request for stream %s/%s expired", request.getScope(), request.getStream()));
             return CompletableFuture.completedFuture(null);
         }
+        final StreamContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
         final CompletableFuture<Void> result = new CompletableFuture<>();
 
@@ -91,13 +112,14 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                 .retryingOn(RetryableException.class)
                 .throwingOn(NonRetryableException.class)
                 .runAsync(() -> {
-                    final CompletableFuture<ScalingPolicy> policyFuture = streamMetadataStore.getConfiguration(request.getStream())
+                    final CompletableFuture<ScalingPolicy> policyFuture = streamMetadataStore
+                            .getConfiguration(request.getScope(), request.getStream(), context)
                             .thenApply(StreamConfiguration::getScalingPolicy);
 
                     if (request.isUp()) {
-                        return policyFuture.thenCompose(policy -> processScaleUp(request, policy));
+                        return policyFuture.thenCompose(policy -> processScaleUp(request, policy, context));
                     } else {
-                        return policyFuture.thenCompose(policy -> processScaleDown(request, policy));
+                        return policyFuture.thenCompose(policy -> processScaleDown(request, policy, context));
                     }
                 }, executor);
 
@@ -111,11 +133,11 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
      * @return true if validity period has not elapsed since timestamp, else false.
      */
     private boolean isValid(long timestamp) {
-        return timestamp > System.currentTimeMillis() - RequestStreamConstants.VALIDITY_PERIOD;
+        return timestamp > System.currentTimeMillis() - Defaults.REQUEST_VALIDITY_PERIOD;
     }
 
-    private CompletableFuture<Void> processScaleUp(ScaleRequest request, ScalingPolicy policy) {
-        return streamMetadataStore.getSegment(request.getStream(), request.getSegmentNumber())
+    private CompletableFuture<Void> processScaleUp(final ScaleRequest request, final ScalingPolicy policy, final StreamContext context) {
+        return streamMetadataStore.getSegment(request.getScope(), request.getStream(), request.getSegmentNumber(), context)
                 .thenCompose(segment -> {
                     if (!policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
                         double delta = (segment.getKeyEnd() - segment.getKeyStart()) / request.getNumOfSplits();
@@ -125,20 +147,21 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                             simpleEntries.add(new AbstractMap.SimpleEntry<>(segment.getKeyStart() + delta * i,
                                     segment.getKeyStart() + (delta * (i + 1))));
                         }
-                        return executeScaleTask(request, Lists.newArrayList(request.getSegmentNumber()), simpleEntries);
+                        return executeScaleTask(request, Lists.newArrayList(request.getSegmentNumber()), simpleEntries, context);
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
                 });
     }
 
-    private CompletableFuture<Void> processScaleDown(final ScaleRequest request, final ScalingPolicy policy) {
+    private CompletableFuture<Void> processScaleDown(final ScaleRequest request, final ScalingPolicy policy, final StreamContext context) {
         if (!policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
             return streamMetadataStore.setMarker(request.getScope(),
                     request.getStream(),
                     request.getSegmentNumber(),
-                    request.getTimestamp())
-                    .thenCompose(x -> streamMetadataStore.getActiveSegments(request.getStream()))
+                    request.getTimestamp(),
+                    context)
+                    .thenCompose(x -> streamMetadataStore.getActiveSegments(request.getScope(), request.getStream(), context))
                     .thenApply(activeSegments -> {
                         assert (activeSegments != null);
                         final Optional<Segment> currentOpt = activeSegments.stream()
@@ -164,7 +187,8 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                             return FutureCollectionHelper.filter(candidates,
                                     candidate -> streamMetadataStore.getMarker(request.getScope(),
                                             request.getStream(),
-                                            candidate.getNumber())
+                                            candidate.getNumber(),
+                                            context)
                                             .thenApply(x -> x.isPresent() && isValid(x.get())))
                                     .thenApply(segments -> {
                                         if (maxScaleDownFactor == 1 && segments.size() == 3) {
@@ -183,7 +207,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                             final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
                             final ArrayList<Integer> segments = new ArrayList<>();
                             toMerge.forEach(segment -> segments.add(segment.getNumber()));
-                            return executeScaleTask(request, segments, simpleEntries);
+                            return executeScaleTask(request, segments, simpleEntries, context);
                         } else {
                             return CompletableFuture.completedFuture(null);
                         }
@@ -199,75 +223,136 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
      * @param request   incoming request from request stream.
      * @param segments  segments to seal
      * @param newRanges new ranges for segments to create
+     * @param context
      * @return CompletableFuture
      */
-    private CompletableFuture<Void> executeScaleTask(ScaleRequest request, ArrayList<Integer> segments, ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges) {
-        return streamMetadataTasks.scale(request.getScope(),
-                request.getStream(),
-                segments,
-                newRanges,
-                System.currentTimeMillis())
-                .handle((result, e) -> {
-                    if (e != null) {
-                        if (e instanceof LockFailedException) {
-                            // lock failure, throw an exception here,
-                            // and that will result in several retries exhausting which the request will be put back
-                            // into request stream.
-                            // Note: We do not want to put the request back in the request stream very quickly either as it
-                            // can lead to flooding of request stream with duplicate messages for this request. This is
-                            // particularly bad during controller instance failover recovery and can also impact other
-                            // requests.
-                            throw (LockFailedException) e;
-                        } else {
-                            // We could be here because of two reasons:
-                            // 1. Its a non-retryable Exception
-                            // 2. Its a retryable Exception
-                            //
-                            // Non-retryable: We cant retry the task. We should just fail.
-                            // Note: scale operation may have partially completed whereby we maybe in inconsistent state.
-                            // If we are here scale task failed at some intermediate step with a RuntimeException or a known
-                            // non-retryable exception.
-                            // RuntimeExceptions are thrown when we dont understand the error that has occurred.
-                            // Non-retryable Exceptions are thrown when we know definitely that the error will reoccur
-                            // even if we retry the operation.
+    private CompletableFuture<Void> executeScaleTask(final ScaleRequest request, final ArrayList<Integer> segments,
+                                                     final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                     final StreamContext context) {
+        return streamMetadataStore.blockTransactions(request.getScope(), request.getStream(), context)
+                .thenCompose(x -> streamMetadataTasks.scale(request.getScope(),
+                        request.getStream(),
+                        segments,
+                        newRanges,
+                        System.currentTimeMillis(),
+                        Optional.of(context))
+                        .whenComplete((result, e) -> {
+                            if (e != null) {
+                                if (e instanceof LockFailedException) {
+                                    // lock failure, throw an exception here,
+                                    // and that will result in several retries exhausting which the request will be put back
+                                    // into request stream.
+                                    // Note: We do not want to put the request back in the request stream very quickly either as it
+                                    // can lead to flooding of request stream with duplicate messages for this request. This is
+                                    // particularly bad during controller instance failover recovery and can also impact other
+                                    // requests.
+                                    blockAndSweep(request, context);
+                                    throw (LockFailedException) e;
+                                } else {
+                                    // We could be here because of two reasons:
+                                    // 1. Its a non-retryable Exception
+                                    // 2. Its a retryable Exception
+                                    //
+                                    // Non-retryable: We cant retry the task. We should just fail.
+                                    // Note: scale operation may have partially completed whereby we maybe in inconsistent state.
+                                    // If we are here scale task failed at some intermediate step with a RuntimeException or a known
+                                    // non-retryable exception.
+                                    // RuntimeExceptions are thrown when we dont understand the error that has occurred.
+                                    // Non-retryable Exceptions are thrown when we know definitely that the error will reoccur
+                                    // even if we retry the operation.
 
-                            // Retryable:
-                            //
-                            // Scale operation is partially complete, but since this is a retryable, we would have
-                            // retried the failing step prescribed number of times and all our retries would have exhausted.
-                            // Ideally we would want to keep retrying indefinitely as eventually this should succeed.
-                            // But that will lead to wasting compute cycles and stalling checkpoint. We could be hitting this
-                            // because of complete cluster failure/ store failure/ network failure OR code bug.
-                            // We should notify the administrator about the failure and let them fix it.
-                            // Ideally we want to complete a scale task once started and hence have large number of retries.
-                            //
-                            // We also DO NOT want scale task being retried by putting it back into Request stream as
-                            // that will result in a new scale task being created while this one has not
-                            // finished. Idempotency of steps, esp pre-condition check is based on the "scaleTimestamp".
-                            // So new request will simply fail at precondition if in previous iteration metadata store
-                            // had been updated.
-                            // So as far as processing here is concerned, we will throw non-retryable exception and stop processing.
-                            //
-                            // Note: a stream's metadata may be in inconsistent state because we were not able to complete the scale task.
-                            // An admin needs to be notified. Also, we need to prevent other scale operations on this stream until the
-                            // inconsistency is resolved/fixed.
-                            // TODO: have a mechanism to prevent any scale operations on this stream until potential inconsistency is taken care of.
-                            // Ideally we should do the above before releasing the lock. So this mechanism should be built as part of task framework.
-                            // As 'thing-do-on-task-failure-before-releasing-lock'
-                            throw new NonRetryableException(e);
-                        }
-                    } else if (result.getStatus().equals(ScaleStreamStatus.TXN_CONFLICT)) {
-                        // transactions were running, throw a retryable exception.
-                        throw new ConflictingTaskException(request.getStream());
+                                    // Retryable:
+                                    //
+                                    // Scale operation is partially complete, but since this is a retryable, we would have
+                                    // retried the failing step prescribed number of times and all our retries would have exhausted.
+                                    // Note: with current defaults, we would have attempted operation about 100 times with up to 10 sec gaps
+                                    // This translates to approximately 10 minutes of retrying. No need to keep retrying.
+                                    //
+                                    // Ideally we would want to keep retrying indefinitely as eventually this should succeed.
+                                    // But that will lead to wasting compute cycles and stalling checkpoint for other requests.
+                                    // We could be hitting this error case because of complete cluster failure/ store failure/ network failure
+                                    // OR code bug leading to repeated failures or cascading failures.
+                                    // We should notify the administrator about the partial completion of scale and let them fix it.
+                                    // Ideally we want to complete a scale task once started and hence have large number of retries.
+                                    //
+                                    // We also DO NOT want scale task being retried by putting it back into Request stream as
+                                    // that will result in a new scale task being created while this one has not
+                                    // finished. Idempotency of steps, esp pre-condition check is based on the "scaleTimestamp".
+                                    // So new request will simply fail at precondition if in previous iteration metadata store
+                                    // had been updated.
+                                    // So as far as processing here is concerned, we will throw non-retryable exception and stop processing.
+                                    //
+                                    // Note: a stream's metadata may be in inconsistent state because we were not able to complete the scale task.
+                                    // An admin needs to be notified. Also, we need to prevent other scale operations on this stream until the
+                                    // inconsistency is resolved/fixed.
+                                    // TODO: have a mechanism to prevent any scale operations on this stream until potential inconsistency is taken care of.
+                                    // Ideally we should do the above before releasing the lock. So this mechanism should be built as part of task framework.
+                                    // As 'thing-do-on-task-failure-before-releasing-lock'
+                                    throw new NonRetryableException(e);
+                                }
+                            } else if (result.getStatus().equals(ScaleStreamStatus.TXN_CONFLICT)) {
+                                // transactions were running, throw a retryable exception.
+                                throw new ConflictingTaskException(request.getStream());
+                            } else {
+                                // completed - either successfully or with pre-condition-failure. Clear markers on all scaled segments.
+                                clearMarkers(request.getScope(), request.getStream(), segments, context);
+                            }
+                        }))
+                .handle((res, ex) -> {
+                    // if it is retryable exception, do not unblock creation of txn and let scale be attempted again.
+                    // However, if its either completed successfully or failed with non-retryable, we need to unblock
+                    // creation of transactions.
+                    if (ex != null && RetryableException.isRetryable(ex)) {
+                        throw (RetryableException) ex;
                     } else {
-                        // completed - either successfully or with pre-condition-failure. Clear the marker if any.
-                        clearMarkers(request.getScope(), request.getStream(), segments);
+                        if (ex != null) {
+                            return ex;
+                        } else {
+                            return null;
+                        }
+                    }
+                })
+                .thenCompose(ex -> streamMetadataStore.unblockTransactions(request.getScope(), request.getStream(), context)
+                        .handle((res, e) -> {
+                            if (ex != null) {
+                                throw new RuntimeException(ex);
+                            }
+
+                            if (RetryableException.isRetryable(e)) {
+                                throw (RetryableException) e;
+                            }
+                            return null;
+                        }));
+    }
+
+    /**
+     * Block creation of new transactions for limited period while scale will attempt to acquire lock.
+     * It may still not be able to acquire the lock immediately as there could be ongoing transactions.
+     * But by blocking creation of new transactions, it increase probability of scale to be processed
+     * after existing transactions complete. Note there could be existing transactions that may have timed out
+     * but their timed clean up may not have been scheduled successfully. Note: in such cases, we do not notify the
+     * writer about txnid but metadata entry may still be lying around.
+     * This is a good opportunity to find and clean such txns that can potentially block scale operation.
+     *
+     * @param request scale request
+     * @param context stream store context
+     */
+    private CompletableFuture<Void> blockAndSweep(ScaleRequest request, StreamContext context) {
+        return streamMetadataStore.blockTransactions(request.getScope(), request.getStream(), context)
+                .thenCompose(x -> streamMetadataStore.getActiveTxns(request.getScope(), request.getStream(), context))
+                .thenCompose(x -> FutureCollectionHelper.sequence(x.entrySet().stream().filter(y ->
+                        System.currentTimeMillis() - y.getValue().getTxCreationTimestamp() > Config.TXN_TIMEOUT)
+                        .map(z -> streamTxMetadataTasks.dropTx(request.getScope(), request.getStream(), z.getKey(), Optional.empty()))
+                        .collect(Collectors.toList())))
+                .handle((res, ex) -> {
+                    if(ex!= null) {
+                        throw new RetryableException(ex);
                     }
                     return null;
                 });
     }
 
-    private CompletableFuture<List<Void>> clearMarkers(String scope, String stream, ArrayList<Integer> segments) {
-        return FutureCollectionHelper.sequence(segments.stream().parallel().map(x -> streamMetadataStore.removeMarker(scope, stream, x)).collect(Collectors.toList()));
+    private CompletableFuture<List<Void>> clearMarkers(final String scope, final String stream, final ArrayList<Integer> segments, final StreamContext context) {
+        return FutureCollectionHelper.sequence(segments.stream().parallel().map(x -> streamMetadataStore.removeMarker(scope, stream, x, context)).collect(Collectors.toList()));
     }
 }

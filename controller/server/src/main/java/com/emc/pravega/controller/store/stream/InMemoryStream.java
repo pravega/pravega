@@ -27,13 +27,17 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
 /**
  * Stream properties
+ *
+ * This class is no longer consistent and mostly not Implemented. Deprecating it.
  */
+@Deprecated
 class InMemoryStream implements Stream {
     private final String name;
     private StreamConfiguration configuration;
@@ -71,6 +75,11 @@ class InMemoryStream implements Stream {
                         }
                 );
         return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public String getScope() {
+        return null;
     }
 
     @Override
@@ -194,6 +203,31 @@ class InMemoryStream implements Stream {
         }
 
         return CompletableFuture.completedFuture(newSegments);
+    }
+
+    @Override
+    public CompletableFuture<Void> setMarker(int segmentNumber, long timestamp) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<Optional<Long>> getMarker(int segmentNumber) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<Void> removeMarker(int segmentNumber) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<Void> blockTransactions() {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> unblockTransactions() {
+        return null;
     }
 
     @Override

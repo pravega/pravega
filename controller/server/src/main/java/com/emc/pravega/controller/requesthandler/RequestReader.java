@@ -1,3 +1,20 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.emc.pravega.controller.requesthandler;
 
 import com.emc.pravega.ClientFactory;
@@ -5,8 +22,8 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.NonRetryableException;
 import com.emc.pravega.controller.RetryableException;
+import com.emc.pravega.controller.defaults.Defaults;
 import com.emc.pravega.controller.requests.ControllerRequest;
-import com.emc.pravega.controller.requests.RequestStreamConstants;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.EventRead;
@@ -49,7 +66,8 @@ public class RequestReader<Request extends ControllerRequest, Handler extends Re
     private AtomicBoolean stop = new AtomicBoolean(false);
     private final Handler requestHandler;
 
-    public RequestReader(final String readerId,
+    public RequestReader(final String requestStream,
+                         final String readerId,
                          final String readerGroup,
                          final Position start,
                          final StreamMetadataStore streamMetadataStore,
@@ -67,22 +85,22 @@ public class RequestReader<Request extends ControllerRequest, Handler extends Re
         completed = new ConcurrentSkipListSet<>(positionComparator);
 
         // controller is localhost.
-        ClientFactory clientFactory = new ClientFactoryImpl(RequestStreamConstants.SCOPE, URI.create(String.format("tcp://localhost:%d", Config.SERVER_PORT)));
+        ClientFactory clientFactory = new ClientFactoryImpl(Defaults.SCOPE, URI.create(String.format("tcp://localhost:%d", Config.SERVER_PORT)));
 
         // TODO: create reader in a group instead of a standalone reader.
         // read request stream name from configuration
         // read reader group name from configuration
         // read reader id from configuration
-        writer = clientFactory.createEventWriter(RequestStreamConstants.REQUEST_STREAM,
+        writer = clientFactory.createEventWriter(requestStream,
                 new JavaSerializer<>(),
                 new EventWriterConfig(null));
 
-        reader = clientFactory.createReader(RequestStreamConstants.REQUEST_STREAM,
+        reader = clientFactory.createReader(requestStream,
                 new JavaSerializer<>(),
                 new ReaderConfig(),
                 start);
 
-//        reader = clientFactory.createReader(RequestStreamConstants.READER_GROUP,
+//        reader = clientFactory.createReader(Defaults.READER_GROUP,
 //                "1",
 //                new JavaSerializer<>(),
 //                new ReaderConfig());
@@ -113,7 +131,7 @@ public class RequestReader<Request extends ControllerRequest, Handler extends Re
                         .whenComplete((r, e) -> {
                             if (e != null) {
                                 if (RetryableException.isRetryable(e)) {
-                                    putBack(requestHandler.getKey(request), request);
+                                    putBack(request.getKey(), request);
                                 }
                             }
                             complete(event);
@@ -132,15 +150,17 @@ public class RequestReader<Request extends ControllerRequest, Handler extends Re
     /**
      * This method puts the request back into the request stream.
      * If processing of a request could not be done because of retryable exceptions,
-     * we will put it back into the request stream. This frees up compute cycles and ensures that checkpointing is not stalled
+     * We will put it back into the request stream. This frees up compute cycles and ensures that checkpointing is not stalled
      * on completion of some task.
      * <p>
-     * If we fail in trying to write to request stream, we will retry few times and then drop it. This is because we do not want to
-     * hold on to this thread.
-     * Since we have a request relayed after a 'mute' delay, so it is not fatal. And we should not stall and wait here as
-     * we would a) waste compute cycles b) stall checkpointing
+     * If we fail in trying to write to request stream, should we ignore or retry indefinitely?
+     *
+     * Example: For scale operations: we have a request relayed after a 'mute' delay, so it is not fatal.
      * In the interest of not stalling checkpointing for long, we should fail fast and put the request back in the queue
      * for it to be retried asynchronously after a delay as we move our checkpoint ahead.
+     *
+     * For tx.timeout operations: if we fail to put the request back in the stream, the txn will never timeout.
+     *
      *
      * @param request request which has to be put back in the request stream.
      */
@@ -191,5 +211,4 @@ public class RequestReader<Request extends ControllerRequest, Handler extends Re
                                     }
                                 }));
     }
-
 }

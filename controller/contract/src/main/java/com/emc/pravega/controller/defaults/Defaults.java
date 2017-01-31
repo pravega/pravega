@@ -15,26 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.requests;
+package com.emc.pravega.controller.defaults;
 
-import lombok.Data;
+import java.time.Duration;
 
-@Data
-public class ScaleRequest implements ControllerRequest {
-    private final String scope;
-    private final String stream;
-    private final int segmentNumber;
-    private final boolean up;
-    private final long timestamp;
-    private final int numOfSplits;
+public class Defaults {
+    public static final String SCOPE = "pravega";
+    public static final String REQUEST_STREAM = "request";
+    public static final String READER_GROUP = "controllers";
 
-    @Override
-    public RequestType getType() {
-        return RequestType.ScaleRequest;
-    }
-
-    @Override
-    public String getKey() {
-        return String.format("%s/%s", scope, stream);
-    }
+    public static final long REQUEST_VALIDITY_PERIOD = Duration.ofMinutes(10).toMillis();
+    public static final long TXN_TIMEOUT = Duration.ofMinutes(1).toMillis();
 }

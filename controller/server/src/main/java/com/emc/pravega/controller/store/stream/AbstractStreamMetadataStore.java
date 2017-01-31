@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.RetryableException;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -56,7 +57,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     protected AbstractStreamMetadataStore() {
         cache = CacheBuilder.newBuilder()
-                .maximumSize(1000)
+                .maximumSize(100000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .build(
@@ -64,7 +65,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                             @ParametersAreNonnullByDefault
                             public Stream load(String name) {
                                 try {
-                                    return newStream(name);
+                                    // TODO: add scope
+                                    return newStream(null, name);
                                 } catch (Exception e) {
                                     if (RetryableException.isRetryable(e)) {
                                         throw (RetryableException) e;
@@ -75,44 +77,50 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         });
     }
 
-    abstract Stream newStream(final String name);
+    abstract Stream newStream(final String scope, final String name);
+
 
     @Override
-    public CompletableFuture<Boolean> createStream(final String name,
+    public StreamContext createContext(final String scope, final String stream) {
+        return getStream(scope, stream, null);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> createStream(final String scope, final String name,
                                                    final StreamConfiguration configuration,
-                                                   final long createTimestamp) {
-        return getStream(name).create(configuration, createTimestamp);
+                                                   final long createTimestamp, final StreamContext context) {
+        return getStream(scope, name, context).create(configuration, createTimestamp);
     }
 
     @Override
-    public CompletableFuture<Boolean> updateConfiguration(final String name,
-                                                          final StreamConfiguration configuration) {
-        return getStream(name).updateConfiguration(configuration);
+    public CompletableFuture<Boolean> updateConfiguration(final String scope, final String name,
+                                                          final StreamConfiguration configuration, final StreamContext context) {
+        return getStream(scope, name, context).updateConfiguration(configuration);
     }
 
     @Override
-    public CompletableFuture<StreamConfiguration> getConfiguration(final String name) {
-        return getStream(name).getConfiguration();
+    public CompletableFuture<StreamConfiguration> getConfiguration(final String scope, final String name, final StreamContext context) {
+        return getStream(scope, name, context).getConfiguration();
     }
 
     @Override
-    public CompletableFuture<Boolean> isSealed(final String name) {
-        return getStream(name).getState().thenApply(state -> state.equals(State.SEALED));
+    public CompletableFuture<Boolean> isSealed(final String scope, final String name, final StreamContext context) {
+        return getStream(scope, name, context).getState().thenApply(state -> state.equals(State.SEALED));
     }
 
     @Override
-    public CompletableFuture<Boolean> setSealed(final String name) {
-        return getStream(name).updateState(State.SEALED);
+    public CompletableFuture<Boolean> setSealed(final String scope, final String name, final StreamContext context) {
+        return getStream(scope, name, context).updateState(State.SEALED);
     }
 
     @Override
-    public CompletableFuture<Segment> getSegment(final String name, final int number) {
-        return getStream(name).getSegment(number);
+    public CompletableFuture<Segment> getSegment(final String scope, final String name, final int number, final StreamContext context) {
+        return getStream(scope, name, context).getSegment(number);
     }
 
     @Override
-    public CompletableFuture<List<Segment>> getActiveSegments(final String name) {
-        final Stream stream = getStream(name);
+    public CompletableFuture<List<Segment>> getActiveSegments(final String scope, final String name, final StreamContext context) {
+        final Stream stream = getStream(scope, name, context);
         return stream.getState()
                 .thenCompose(state ->
                         State.SEALED.equals(state) ? CompletableFuture.completedFuture(Collections.emptyList()) : stream
@@ -122,20 +130,20 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<SegmentFutures> getActiveSegments(final String name, final long timestamp) {
-        Stream stream = getStream(name);
+    public CompletableFuture<SegmentFutures> getActiveSegments(final String scope, final String name, final long timestamp, final StreamContext context) {
+        Stream stream = getStream(scope, name, context);
         CompletableFuture<List<Integer>> futureActiveSegments = stream.getActiveSegments(timestamp);
         return futureActiveSegments.thenCompose(activeSegments -> constructSegmentFutures(stream, activeSegments));
     }
 
     @Override
-    public CompletableFuture<List<SegmentFutures>> getNextSegments(final String name,
+    public CompletableFuture<List<SegmentFutures>> getNextSegments(final String scope, final String name,
                                                                    final Set<Integer> completedSegments,
-                                                                   final List<SegmentFutures> positions) {
+                                                                   final List<SegmentFutures> positions, final StreamContext context) {
         Preconditions.checkNotNull(positions);
         Preconditions.checkArgument(positions.size() > 0);
 
-        Stream stream = getStream(name);
+        Stream stream = getStream(scope, name, context);
 
         Set<Integer> current = new HashSet<>();
         positions.forEach(position ->
@@ -157,61 +165,83 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<List<Segment>> scale(final String name,
+    public CompletableFuture<List<Segment>> scale(final String scope, final String name,
                                                   final List<Integer> sealedSegments,
                                                   final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                                  final long scaleTimestamp) {
-        return getStream(name).scale(sealedSegments, newRanges, scaleTimestamp);
+                                                  final long scaleTimestamp, final StreamContext context) {
+        return getStream(scope, name, context).scale(sealedSegments, newRanges, scaleTimestamp);
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final String scope, final String stream) {
-        return getStream(stream).createTransaction();
+    public CompletableFuture<UUID> createTransaction(final String scope, final String stream, final StreamContext context) {
+        return getStream(scope, stream, context).createTransaction();
     }
 
     @Override
-    public CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId) {
-        return getStream(stream).checkTransactionStatus(txId);
+    public CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId, final StreamContext context) {
+        return getStream(scope, stream, context).checkTransactionStatus(txId);
     }
 
     @Override
-    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId) {
-        return getStream(stream).commitTransaction(txId);
+    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId, final StreamContext context) {
+        return getStream(scope, stream, context).commitTransaction(txId);
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId) {
-        return getStream(stream).sealTransaction(txId);
+    public CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId, final StreamContext context) {
+        return getStream(scope, stream, context).sealTransaction(txId);
     }
 
     @Override
-    public CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final UUID txId) {
-        return getStream(stream).abortTransaction(txId);
+    public CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final UUID txId, final StreamContext context) {
+        return getStream(scope, stream, context).abortTransaction(txId);
     }
 
     @Override
-    public CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream) {
-        return getStream(stream).isTransactionOngoing();
+    public CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream, final StreamContext context) {
+        return getStream(scope, stream, context).isTransactionOngoing();
     }
 
     @Override
-    public CompletableFuture<Void> setMarker(final String scope, final String stream, final int segmentNumber, final long timestamp) {
-        return getStream(stream).setMarker(scope, stream, segmentNumber, timestamp);
+    public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns(String scope, String stream, StreamContext context) {
+        return getStream(scope, stream, context).getActiveTxns();
     }
 
     @Override
-    public CompletableFuture<Optional<Long>> getMarker(final String scope, final String stream, final int number) {
-        return getStream(stream).getMarker(scope, stream, number);
+    public CompletableFuture<Void> blockTransactions(final String scope, final String stream, final StreamContext context) {
+        return getStream(scope, stream, context).blockTransactions();
     }
 
     @Override
-    public CompletableFuture<Void> removeMarker(final String scope, final String stream, final int number) {
-        return getStream(stream).removeMarker(scope, stream, number);
+    public CompletableFuture<Void> unblockTransactions(final String scope, final String stream, final StreamContext context) {
+        return getStream(scope, stream, context).unblockTransactions();
     }
 
-    private Stream getStream(final String name) {
-        Stream stream = cache.getUnchecked(name);
-        stream.refresh();
+    @Override
+    public CompletableFuture<Void> setMarker(final String scope, final String stream, final int segmentNumber, final long timestamp, final StreamContext context) {
+        return getStream(scope, stream, context).setMarker(segmentNumber, timestamp);
+    }
+
+    @Override
+    public CompletableFuture<Optional<Long>> getMarker(final String scope, final String stream, final int number, final StreamContext context) {
+        return getStream(scope, stream, context).getMarker(number);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeMarker(final String scope, final String stream, final int number, final StreamContext context) {
+        return getStream(scope, stream, context).removeMarker(number);
+    }
+
+    private Stream getStream(final String scope, final String name, final StreamContext context) {
+        Stream stream;
+        if (context != null) {
+            stream = (Stream) context;
+            assert (stream.getScope().equals(scope));
+            assert (stream.getName().equals(name));
+        } else {
+            stream = cache.getUnchecked(name);
+            stream.refresh();
+        }
         return stream;
     }
 
