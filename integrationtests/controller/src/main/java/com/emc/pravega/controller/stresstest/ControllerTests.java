@@ -3,7 +3,7 @@
  * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
  * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
+ * to you under the Apache License, Version 2.0 (the                                       +
  * "License"); you may not use this file except in compliance
  * with the License. You may obtain a copy of the License at
  * <p>
@@ -20,6 +20,7 @@ package com.emc.pravega.controller.stresstest;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ControllerImpl;
@@ -45,37 +46,114 @@ import java.util.concurrent.TimeUnit;
 public class ControllerTests {
 
     private static String controllerUri = "http://127.0.0.1:9090";
-    private static int createStreamCallCount = 50;
+    private static int createStreamCallCount = 25;
+    private static int alterStreamCallCount = 25;
     private static long starttime;
     private static long endtime;
     private static long timetaken;
-    private static ArrayList<CompletableFuture<CreateStreamStatus>> createStatusList = new ArrayList<CompletableFuture<CreateStreamStatus>>();
+    private static ArrayList<CompletableFuture<CreateStreamStatus>> createStatusList = new ArrayList<>();
+    private static ArrayList<CompletableFuture<UpdateStreamStatus>> alterStatusList = new ArrayList<>();
+
 
     public static void main(String[] args) throws Exception {
-
         parseCmdLine(args);
-        ExecutorService executor = Executors.newFixedThreadPool(createStreamCallCount);
-        System.out.println("\n calling create stream  " + createStreamCallCount + " times " + " the controller endpoint is" + controllerUri);
+        createStream();
+        alterStream();
+        System.exit(0);
+    }
+
+    private static void createStream() {
+        ExecutorService createExecutor = Executors.newFixedThreadPool(createStreamCallCount);
+        System.out.println("\n Calling create stream  " + createStreamCallCount + " times. " + " The controller endpoint is" + controllerUri);
         starttime = System.currentTimeMillis();
         for (int i = 0; i < createStreamCallCount; i++) {
             try {
                 ControllerImpl controller = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
                 Runnable runnable = new CreateStream(controller, i);
-                executor.execute(runnable);
+                createExecutor.execute(runnable);
             } catch (URISyntaxException uri) {
                 System.out.println(uri);
             }
         }
-        executor.shutdown();
-        executor.awaitTermination(1, TimeUnit.MINUTES);
+        createExecutor.shutdown();
+        try {
+            createExecutor.awaitTermination(1, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         endtime = System.currentTimeMillis();
         timetaken = endtime - starttime;
-        System.out.println("time taken for" + createStreamCallCount + "number of create stream calls =" + timetaken);
-        CompletableFuture<Void> all = FutureHelpers.allOf(createStatusList);
-        all.join();
+        System.out.println("time taken for" + createStreamCallCount + "create stream calls =" + timetaken);
+        CompletableFuture<Void> createAll = FutureHelpers.allOf(createStatusList);
+        createAll.join();
         createStatusList.forEach(createStreamStatusCompletableFuture -> {
             try {
                 System.out.println("get status of each create stream call" + createStreamStatusCompletableFuture.get());
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    private static void alterStream() {
+
+        ExecutorService alterExecutor = Executors.newFixedThreadPool(alterStreamCallCount);
+        String scope = "scope";
+        String streamName = "streamName";
+        StreamConfiguration config =
+                new StreamConfigurationImpl(scope,
+                        streamName,
+                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
+        ControllerImpl controller1 = null;
+        try {
+            controller1 = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
+        } catch (URISyntaxException e) {
+            e.printStackTrace();
+        }
+        CompletableFuture<CreateStreamStatus> createStream = controller1.createStream(config);
+        try {
+            System.out.println("create stream status" + createStream.get());
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        }
+        System.out.println("\n calling alter stream  " + alterStreamCallCount + " times " + " the controller endpoint is" + controllerUri);
+        starttime = System.currentTimeMillis();
+        for (int i = 0; i < alterStreamCallCount; i++) {
+            try {
+                ControllerImpl controller2 = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
+                Runnable runnable1 = new AlterStream(controller2, scope, streamName, i);
+                alterExecutor.execute(runnable1);
+            } catch (URISyntaxException uri) {
+                System.out.println(uri);
+            }
+        }
+
+        alterExecutor.shutdown();
+        try {
+            alterExecutor.awaitTermination(1, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        endtime = System.currentTimeMillis();
+        timetaken = endtime - starttime;
+        System.out.println("time taken for" + alterStreamCallCount + "alter stream calls =" + timetaken);
+        CompletableFuture<Void> alterAll = FutureHelpers.allOf(alterStatusList);
+        alterAll.join();
+        try {
+            System.out.println("contents" + alterAll.get());
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        }
+        System.out.println("is empty" + alterStatusList.isEmpty());
+        alterStatusList.forEach(alterStreamStatusCompletableFuture -> {
+            try {
+                System.out.println("get status of each alter stream call" + alterStreamStatusCompletableFuture.get());
             } catch (InterruptedException e) {
                 e.printStackTrace();
             } catch (ExecutionException e) {
@@ -89,6 +167,7 @@ public class ControllerTests {
         Options options = new Options();
         options.addOption("controller", true, "controller URI");
         options.addOption("createstream", true, "number of create stream calls");
+        options.addOption("alterstream", true, "number of alter stream calls");
         options.addOption("help", false, "Help message");
 
         CommandLineParser parser = new BasicParser();
@@ -106,6 +185,9 @@ public class ControllerTests {
                 if (commandline.hasOption("createstream")) {
                     createStreamCallCount = Integer.parseInt(commandline.getOptionValue("createstream"));
                 }
+                if (commandline.hasOption("alterstream")) {
+                    alterStreamCallCount = Integer.parseInt(commandline.getOptionValue("alterstream"));
+                }
             }
         } catch (Exception nfe) {
             System.out.println("Invalid arguments. Starting with default values");
@@ -118,9 +200,6 @@ public class ControllerTests {
 
         private ControllerImpl controller;
         private int i;
-        private long starttime;
-        private long endtime;
-        private long timetaken;
         private String scope;
         private String streamName;
 
@@ -137,14 +216,39 @@ public class ControllerTests {
                     new StreamConfigurationImpl(scope,
                             streamName,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
-            starttime = System.currentTimeMillis();
-            System.out.println("create stream config" + i + config);
+
             CompletableFuture<CreateStreamStatus> createStreamStatus = controller.createStream(config);
             createStatusList.add(createStreamStatus);
 
         }
     }
 
+    private static class AlterStream implements Runnable {
+
+        private ControllerImpl controller;
+        private int i;
+        private String scope;
+        private String streamName;
+
+        AlterStream(ControllerImpl controller, String scope, String streamName, int i) {
+            this.controller = controller;
+            this.i = i;
+            this.scope = scope;
+            this.streamName = streamName;
+        }
+
+
+        public void run() {
+            final StreamConfiguration config =
+                    new StreamConfigurationImpl(scope,
+                            streamName,
+                            new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2 + i + 1, 2));
+
+            CompletableFuture<UpdateStreamStatus> alterStreamStatus = controller.alterStream(config);
+            alterStatusList.add(alterStreamStatus);
+
+        }
+    }
 }
 
 
