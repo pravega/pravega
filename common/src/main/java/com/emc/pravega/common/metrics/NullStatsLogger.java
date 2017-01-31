@@ -91,7 +91,7 @@ public class NullStatsLogger implements StatsLogger {
 
         @Override
         public String getName() {
-            return "";
+            return NULLNAME;
         }
     }
 

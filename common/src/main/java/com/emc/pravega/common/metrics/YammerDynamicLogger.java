@@ -51,7 +51,7 @@ public class YammerDynamicLogger implements DynamicLogger {
                         Counter counter = removal.getValue();
                         Exceptions.checkNotNullOrEmpty(counter.getName(), "counter");
                         metrics.remove(counter.getName());
-                        log.debug("TTL expire, removed Counter: {}.", counter.getName());
+                        log.debug("TTL expired, removed Counter: {}.", counter.getName());
                     }
                 }).
                 build();
@@ -63,7 +63,7 @@ public class YammerDynamicLogger implements DynamicLogger {
                     public void onRemoval(RemovalNotification<String, Gauge> removal) {
                         Gauge gauge = removal.getValue();
                         metrics.remove(gauge.getName());
-                        log.debug("TTL expire, removed Gauge: {}.", gauge.getName());
+                        log.debug("TTL expired, removed Gauge: {}.", gauge.getName());
                     }
                 }).
                 build();

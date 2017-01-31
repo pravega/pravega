@@ -28,7 +28,7 @@ public interface DynamicLogger {
      * @param name  the name of Counter
      * @param delta the delta to be added
      */
-    public void incCounterValue(String name, long delta);
+    void incCounterValue(String name, long delta);
 
     /**
      * Report gauge value.
@@ -37,5 +37,5 @@ public interface DynamicLogger {
      * @param name  the name of gauge
      * @param value the value to be reported
      */
-    public <T extends Number> void reportGaugeValue(String name, T value);
+    <T extends Number> void reportGaugeValue(String name, T value);
 }
