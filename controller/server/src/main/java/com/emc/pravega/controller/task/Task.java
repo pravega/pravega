@@ -45,7 +45,7 @@ import java.lang.annotation.Target;
  * The method
  *
  * <pre>
- * @Task(name = "a", version="0.1")
+ * {@literal @}Task(name = "a", version="0.1")
  * CompletableFuture<T> method(Object... params) {
  *     body;
  * }
