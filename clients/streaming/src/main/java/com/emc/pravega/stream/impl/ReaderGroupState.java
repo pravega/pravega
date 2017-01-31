@@ -47,6 +47,7 @@ import lombok.val;
  */
 class ReaderGroupState implements Revisioned {
 
+    private static final long ASSUMED_LAG_MILLIS = 30000;
     private final String scopedSynchronizerStream;
     @GuardedBy("$lock")
     private Revision revision;
@@ -76,12 +77,17 @@ class ReaderGroupState implements Revisioned {
     Map<String, Double> getRelativeSizes() {
         long maxDistance = Long.MIN_VALUE;
         Map<String, Double> result = new HashMap<>();
+        for (Entry<String, Long> entry : distanceToTail.entrySet()) {
+            Set<Segment> segments = assignedSegments.get(entry.getKey());
+            if (segments != null && !segments.isEmpty()) {
+                maxDistance = Math.max(Math.max(ASSUMED_LAG_MILLIS, entry.getValue()), maxDistance);
+            }
+        }
         for (Entry<String, Set<Segment>> entry : assignedSegments.entrySet()) {
             if (entry.getValue().isEmpty()) {
                 result.put(entry.getKey(), 0.0);
             } else {
-                Long distance = distanceToTail.get(entry.getKey());
-                maxDistance = Long.max(distance, maxDistance);
+                Long distance = Math.max(ASSUMED_LAG_MILLIS, distanceToTail.get(entry.getKey()));
                 result.put(entry.getKey(), entry.getValue().size() * distance / (double) maxDistance);
             }
         }
@@ -293,7 +299,7 @@ class ReaderGroupState implements Revisioned {
          */
         @Override
         void update(ReaderGroupState state) {
-            state.distanceToTail.put(readerId, distanceToTail);
+            state.distanceToTail.put(readerId, Math.max(ASSUMED_LAG_MILLIS, distanceToTail));
         }
     }
     

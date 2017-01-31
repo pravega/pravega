@@ -69,7 +69,6 @@ public class ReaderGroupStateManager {
     
     static final Duration TIME_UNIT = Duration.ofMillis(1000);
     static final Duration UPDATE_TIME = Duration.ofMillis(30000);
-    static final long ASSUMED_LAG_MILLIS = 30000;
     private final Object decisionLock = new Object();
     private final HashHelper hashHelper;
     private final String readerId;
@@ -211,7 +210,7 @@ public class ReaderGroupStateManager {
             }
             List<ReaderGroupStateUpdate> result = new ArrayList<>(2);
             result.add(new ReleaseSegment(readerId, segment, lastOffset));
-            result.add(new UpdateDistanceToTail(readerId, Math.max(ASSUMED_LAG_MILLIS, timeLag)));
+            result.add(new UpdateDistanceToTail(readerId, timeLag));
             return result;
         });
         ReaderGroupState state = sync.getState();
@@ -259,16 +258,17 @@ public class ReaderGroupStateManager {
                 return null;
             }
             Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
-            Map<Segment, Long> aquired = new HashMap<>(toAcquire);
+            Map<Segment, Long> acquired = new HashMap<>(toAcquire);
             List<ReaderGroupStateUpdate> updates = new ArrayList<>(toAcquire);
             Iterator<Entry<Segment, Long>> iter = unassignedSegments.entrySet().iterator();
             for (int i = 0; i < toAcquire; i++) {
+                assert iter.hasNext();
                 Entry<Segment, Long> segment = iter.next();
-                aquired.put(segment.getKey(), segment.getValue());
+                acquired.put(segment.getKey(), segment.getValue());
                 updates.add(new AcquireSegment(readerId, segment.getKey()));
             }
-            updates.add(new UpdateDistanceToTail(readerId, Math.max(ASSUMED_LAG_MILLIS, timeLag)));
-            result.set(aquired);
+            updates.add(new UpdateDistanceToTail(readerId, timeLag));
+            result.set(acquired);
             return updates;
         });
         acquireTimer.reset(calculateAcquireTime(sync.getState()));
