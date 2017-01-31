@@ -57,6 +57,10 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private long targetRate;
     private boolean rateInBytes;
 
+    private long twoMinuteRate;
+    private long fiveMinuteRate;
+    private long tenMinuteRate;
+    private long twentyMinuteRate;
 
     //endregion
 
@@ -194,6 +198,26 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public boolean isRateInBytes() {
         return rateInBytes;
+    }
+
+    @Override
+    public long getTwoMinuteRate() {
+        return twoMinuteRate;
+    }
+
+    @Override
+    public long getFiveMinuteRate() {
+        return fiveMinuteRate;
+    }
+
+    @Override
+    public long getTenMinuteRate() {
+        return tenMinuteRate;
+    }
+
+    @Override
+    public long getTwentyMinuteRate() {
+        return twentyMinuteRate;
     }
 
     @Override

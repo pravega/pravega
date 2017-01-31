@@ -53,8 +53,8 @@ public class RetryableException extends RuntimeException {
 
     /**
      * Check if the exception is a subclass of retryable.
-     * @param e
-     * @return
+     * @param e exception thrown
+     * @return whether it can be assigned to Retryable
      */
     public static boolean isRetryable(Throwable e) {
         return e.getClass().isAssignableFrom(RetryableException.class);

@@ -42,6 +42,7 @@ import org.apache.curator.test.TestingServer;
 import org.apache.thrift.TException;
 import org.junit.Test;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -84,7 +85,8 @@ public class ControllerServiceAsyncImplTest {
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, "host");
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host", txTimeOutProcessor);
+                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host",
+                        (scope, stream, txid, timeoutPeriod) -> CompletableFuture.completedFuture(null));
 
         this.controllerService = new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks);

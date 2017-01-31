@@ -113,7 +113,7 @@ public class StreamSegmentMapper {
         // to get the same info about the StreamSegmentId.
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.storage
-                .create(segmentInfo, timer.getRemaining())
+                .create(segmentInfo.getStreamSegmentName(), timer.getRemaining())
                 .thenCompose(si -> getOrAssignStreamSegmentId(si.getName(), timer.getRemaining()))
                 .thenAccept(id -> LoggerHelpers.traceLeave(log, traceObjectId, "createNewStreamSegment", traceId, streamSegmentName, id));
     }

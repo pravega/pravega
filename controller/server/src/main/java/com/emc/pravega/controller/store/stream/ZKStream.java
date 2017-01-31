@@ -141,7 +141,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> storeCreationTime(final Create create) {
-        return createZNodeIfNotExist(creationPath, Utilities.toByteArray(create.getEventTime()));
+        return createZNodeIfNotExist(creationPath, Utilities.toByteArray(create.getEventTime()))
+                .thenAccept(x -> cache.invalidateCache(creationPath));
     }
 
     @Override
@@ -220,14 +221,16 @@ class ZKStream extends PersistentStreamBase<Integer> {
     public CompletableFuture<Void> createMarkerData(int segmentNumber, long timestamp) {
         final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
 
-        return createZNodeIfNotExist(path, Utilities.toByteArray(timestamp));
+        return createZNodeIfNotExist(path, Utilities.toByteArray(timestamp))
+                .thenAccept(x -> cache.invalidateCache(markerPath));
     }
 
     @Override
     CompletableFuture<Void> updateMarkerData(int segmentNumber, Data<Integer> data) {
         final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
 
-        return setData(path, data);
+        return setData(path, data)
+                .thenAccept(x -> cache.invalidateCache(path));
     }
 
     @Override
@@ -253,7 +256,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> removeMarkerData(int segmentNumber) {
         final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
 
-        return deletePath(path, false);
+        return deletePath(path, false)
+                .thenAccept(x -> cache.invalidateCache(path));
     }
 
     @Override
@@ -273,12 +277,14 @@ class ZKStream extends PersistentStreamBase<Integer> {
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
-                });
+                })
+                .thenAccept(x -> cache.invalidateCache(blockerPath));
     }
 
     @Override
     CompletableFuture<Void> unsetBlockFlag() {
-        return deletePath(blockerPath, false);
+        return deletePath(blockerPath, false)
+                .thenAccept(x -> cache.invalidateCache(blockerPath));
     }
 
     @Override
@@ -291,13 +297,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
-                }).thenApply(x -> {
-                    if (x == null || System.currentTimeMillis() - Utilities.toLong(x.getData()) > BLOCK_VALIDITY_PERIOD) {
-                        return false;
-                    } else {
-                        return true;
-                    }
-                });
+                }).thenApply(x -> !(x == null || System.currentTimeMillis() - Utilities.toLong(x.getData()) > BLOCK_VALIDITY_PERIOD));
     }
 
     @Override
@@ -352,7 +352,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return checkExists(activePath)
                 .thenCompose(x -> {
                     if (x) {
-                        return deletePath(activePath, true);
+                        return deletePath(activePath, true)
+                                .thenAccept(y -> cache.invalidateCache(activePath));
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }

@@ -23,7 +23,6 @@ import org.apache.commons.lang.ArrayUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.UUID;
 
 @Data
 public class ActiveTxRecord {

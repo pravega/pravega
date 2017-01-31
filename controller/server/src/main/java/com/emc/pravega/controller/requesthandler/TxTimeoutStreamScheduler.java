@@ -36,7 +36,7 @@ public class TxTimeoutStreamScheduler implements TxTimeOutScheduler {
 
     public TxTimeoutStreamScheduler() {
         // controller is localhost.
-        ClientFactory clientFactory = new ClientFactoryImpl(Config.TXN_TIMER_STREAM_SCOPE,
+        ClientFactory clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE,
                 URI.create(String.format("tcp://localhost:%d", Config.SERVER_PORT)));
 
         writer = clientFactory.createEventWriter(Config.TXN_TIMER_STREAM_NAME,

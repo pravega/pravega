@@ -22,6 +22,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.ExecutorServiceHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
+import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -152,7 +153,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     @Override
     public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.createStreamSegment(streamSegmentName, timeout);
+        return this.streamSegmentStore.createStreamSegment(SegmentInfo.createDefault(streamSegmentName), timeout);
     }
 
     @Override

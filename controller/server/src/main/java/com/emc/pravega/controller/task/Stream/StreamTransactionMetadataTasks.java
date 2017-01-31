@@ -20,11 +20,10 @@ package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.concurrent.FutureCollectionHelper;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.defaults.Defaults;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.stream.StreamContext;
+import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
@@ -83,13 +82,14 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     /**
      * Create transaction.
      *
-     * @param scope  stream scope.
-     * @param stream stream name.
+     * @param scope      stream scope.
+     * @param stream     stream name.
+     * @param contextOpt optional context
      * @return transaction id.
      */
     @Task(name = "createTransaction", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<UUID> createTx(final String scope, final String stream, final Optional<StreamContext> contextOpt) {
-        final StreamContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
+    public CompletableFuture<UUID> createTx(final String scope, final String stream, final Optional<OperationContext> contextOpt) {
+        final OperationContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
 
         return execute(
                 new Resource(scope, stream),
@@ -100,14 +100,15 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     /**
      * Drop transaction.
      *
-     * @param scope  stream scope.
-     * @param stream stream name.
-     * @param txId   transaction id.
+     * @param scope      stream scope.
+     * @param stream     stream name.
+     * @param txId       transaction id.
+     * @param contextOpt optional context
      * @return true/false.
      */
     @Task(name = "dropTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
-    public CompletableFuture<TxnStatus> dropTx(final String scope, final String stream, final UUID txId, final Optional<StreamContext> contextOpt) {
-        final StreamContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
+    public CompletableFuture<TxnStatus> dropTx(final String scope, final String stream, final UUID txId, final Optional<OperationContext> contextOpt) {
+        final OperationContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
 
         return execute(
                 new Resource(scope, stream, txId.toString()),
@@ -118,24 +119,25 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     /**
      * Commit transaction.
      *
-     * @param scope  stream scope.
-     * @param stream stream name.
-     * @param txId   transaction id.
+     * @param scope      stream scope.
+     * @param stream     stream name.
+     * @param txId       transaction id.
+     * @param contextOpt optional context
      * @return true/false.
      */
     @Task(name = "commitTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
-    public CompletableFuture<TxnStatus> commitTx(final String scope, final String stream, final UUID txId, final Optional<StreamContext> contextOpt) {
-        final StreamContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
+    public CompletableFuture<TxnStatus> commitTx(final String scope, final String stream, final UUID txId, final Optional<OperationContext> contextOpt) {
+        final OperationContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
         return execute(
                 new Resource(scope, stream, txId.toString()),
                 new Serializable[]{scope, stream, txId},
                 () -> commitTxBody(scope, stream, txId, context));
     }
 
-    private CompletableFuture<UUID> createTxBody(final String scope, final String stream, final StreamContext context) {
+    private CompletableFuture<UUID> createTxBody(final String scope, final String stream, final OperationContext context) {
         return streamMetadataStore.createTransaction(scope, stream, context)
                 .thenCompose(txId ->
-                        txTimeOutScheduler.scheduleTimeOut(scope, stream, txId, Config.TXN_TIMEOUT)
+                        txTimeOutScheduler.scheduleTimeOut(scope, stream, txId, Config.TXN_TIMEOUT_IN_SECONDS)
                                 .thenCompose(x ->
                                         streamMetadataStore.getActiveSegments(scope, stream, context)
                                                 .thenCompose(activeSegments ->
@@ -147,7 +149,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                                                 .thenApply(y -> txId)));
     }
 
-    private CompletableFuture<TxnStatus> dropTxBody(final String scope, final String stream, final UUID txid, final StreamContext context) {
+    private CompletableFuture<TxnStatus> dropTxBody(final String scope, final String stream, final UUID txid, final OperationContext context) {
         // notify hosts to abort transaction
         return streamMetadataStore.getActiveSegments(scope, stream, context)
                 .thenCompose(segments ->
@@ -159,7 +161,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 .thenCompose(x -> streamMetadataStore.dropTransaction(scope, stream, txid, context));
     }
 
-    private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid, final StreamContext context) {
+    private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid, final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, context)
                 .thenCompose(x ->
                         streamMetadataStore.getActiveSegments(scope, stream, context)

@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * In-memory stream store.
  */
+@Deprecated
 public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     private final Map<String, InMemoryStream> streams = new HashMap<>();
@@ -42,9 +43,9 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public synchronized CompletableFuture<Boolean> createStream(String scope, String name, StreamConfiguration configuration, long timeStamp, StreamContext context) {
+    public synchronized CompletableFuture<Boolean> createStream(String scope, String name, StreamConfiguration configuration, long timeStamp, OperationContext context) {
         if (!streams.containsKey(name)) {
-            InMemoryStream stream = new InMemoryStream(name);
+            InMemoryStream stream = new InMemoryStream(name, scope);
             stream.create(configuration, timeStamp);
             streams.put(name, stream);
             return CompletableFuture.completedFuture(true);

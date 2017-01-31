@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -88,7 +89,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         // Create some Segments and Transaction and verify they are properly created and registered.
         for (int i = 0; i < segmentCount; i++) {
             String name = getName(i);
-            context.mapper.createNewStreamSegment(name, TIMEOUT).join();
+            context.mapper.createNewStreamSegment(SegmentInfo.createDefault(name), TIMEOUT).join();
             assertStreamSegmentCreated(name, context);
 
             for (int j = 0; j < transactionsPerSegment; j++) {
@@ -116,7 +117,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new StreamSegmentExistsException("intentional"));
         AssertExtensions.assertThrows(
                 "createNewStreamSegment did not fail when Segment already exists.",
-                () -> context.mapper.createNewStreamSegment(segmentName, TIMEOUT),
+                () -> context.mapper.createNewStreamSegment(SegmentInfo.createDefault(segmentName), TIMEOUT),
                 ex -> ex instanceof StreamSegmentExistsException);
         Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (StreamSegmentExistsException).", ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName));
 
@@ -124,7 +125,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
         AssertExtensions.assertThrows(
                 "createNewStreamSegment did not fail when random exception was thrown.",
-                () -> context.mapper.createNewStreamSegment(segmentName, TIMEOUT),
+                () -> context.mapper.createNewStreamSegment(SegmentInfo.createDefault(segmentName), TIMEOUT),
                 ex -> ex instanceof IntentionalException);
         Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (IntentionalException).", ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName));
 
@@ -164,7 +165,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         // 6. When creating a new StreamSegment.
         AssertExtensions.assertThrows(
                 "createNewStreamSegment did not fail when OperationLog threw an exception.",
-                () -> context.mapper.createNewStreamSegment(segmentName + "foo", TIMEOUT),
+                () -> context.mapper.createNewStreamSegment(SegmentInfo.createDefault(segmentName + "foo"), TIMEOUT),
                 ex -> ex instanceof TimeoutException);
         Assert.assertEquals("Segment was registered in the metadata even if it failed to be processed by the OperationLog.", 1, context.metadata.getAllStreamSegmentIds().size());
         Assert.assertEquals("Segment was not created in Storage even if the failure was post-storage (in OperationLog processing).", 3, storageSegments.size());

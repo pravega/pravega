@@ -33,7 +33,7 @@ import java.util.concurrent.CompletableFuture;
  * Properties of a stream and operations that can be performed on it.
  * Identifier for a stream is its name.
  */
-interface Stream extends StreamContext {
+interface Stream extends OperationContext {
 
     String getScope();
 

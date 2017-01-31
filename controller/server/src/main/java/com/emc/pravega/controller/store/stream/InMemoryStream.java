@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -27,6 +28,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -40,6 +42,7 @@ import java.util.stream.IntStream;
 @Deprecated
 class InMemoryStream implements Stream {
     private final String name;
+    private final String scope;
     private StreamConfiguration configuration;
     private State state;
 
@@ -56,8 +59,9 @@ class InMemoryStream implements Stream {
      */
     private final List<Integer> currentSegments = new ArrayList<>();
 
-    InMemoryStream(String name) {
+    InMemoryStream(String name, String scope) {
         this.name = name;
+        this.scope = scope;
     }
 
     @Override
@@ -79,7 +83,7 @@ class InMemoryStream implements Stream {
 
     @Override
     public String getScope() {
-        return null;
+        return this.scope;
     }
 
     @Override
@@ -258,6 +262,11 @@ class InMemoryStream implements Stream {
     @Override
     public CompletableFuture<Boolean> isTransactionOngoing() {
         throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns() {
+        return null;
     }
 
     @Override

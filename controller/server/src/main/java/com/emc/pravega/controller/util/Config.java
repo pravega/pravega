@@ -22,6 +22,7 @@ import com.typesafe.config.ConfigResolveOptions;
 import com.typesafe.config.ConfigValue;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
 
@@ -80,21 +81,20 @@ public final class Config {
     public static final int REST_SERVER_PORT = CONFIG.getInt("config.controller.server.rest.serverPort");
 
     // Transaction related configuration
-    public static final long TXN_TIMEOUT = CONFIG.getLong("config.controller.server.transactions.timeout");
+    public static final long TXN_TIMEOUT_IN_SECONDS = Duration.ofSeconds(CONFIG.getLong("config.controller.server.transactions.timeoutInSeconds")).toMillis();
+
+    public static final String INTERNAL_SCOPE = CONFIG.getString("config.controller.server.internal.scope");
 
     // Request Stream Configuration
-    public static final String SCALE_STREAM_SCOPE = CONFIG.getString("config.controller.contract.requestStream.scope");
-    public static final String SCALE_STREAM_NAME = CONFIG.getString("config.controller.contract.requestStream.name");
-
-    public static final String TXN_TIMER_STREAM_SCOPE = CONFIG.getString("config.controller.server.txntimer.scope");
-    public static final String TXN_TIMER_STREAM_NAME = CONFIG.getString("config.controller.server.txntimer.name");
+    public static final String SCALE_STREAM_NAME = CONFIG.getString("config.controller.server.internal.scale.streamName");
+    public static final String TXN_TIMER_STREAM_NAME = CONFIG.getString("config.controller.server.internal.txn.streamName");
 
     // Request Stream readerGroup
-    public static final String SCALE_READER_GROUP = CONFIG.getString("config.controller.server.scale.readerGroup.name");
-    public static final String SCALE_READER_ID = CONFIG.getString("config.controller.server.scale.readerGroup.readerId");
+    public static final String SCALE_READER_GROUP = CONFIG.getString("config.controller.server.internal.scale.readerGroup.name");
+    public static final String SCALE_READER_ID = CONFIG.getString("config.controller.server.internal.scale.readerGroup.readerId");
 
     // Txn reader group
-    public static final String TXN_READER_GROUP = CONFIG.getString("config.controller.server.txn.readerGroup.name");
-    public static final String TXN_READER_ID = CONFIG.getString("config.controller.server.txn.readerGroup.readerId");
+    public static final String TXN_READER_GROUP = CONFIG.getString("config.controller.server.internal.txn.readerGroup.name");
+    public static final String TXN_READER_ID = CONFIG.getString("config.controller.server.internal.txn.readerGroup.readerId");
 
 }

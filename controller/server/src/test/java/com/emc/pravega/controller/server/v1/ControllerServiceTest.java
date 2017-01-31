@@ -22,7 +22,7 @@ import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.stream.StreamContext;
+import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
@@ -48,6 +48,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -83,7 +84,7 @@ public class ControllerServiceTest {
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, "host");
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, "host", txTimeOutProcessor);
+                hostStore, taskMetadataStore, executor, "host", (scope, stream, txid, timeoutPeriod) -> CompletableFuture.completedFuture(null));
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 
@@ -95,15 +96,14 @@ public class ControllerServiceTest {
         final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
         final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
 
-        StreamContext context1 = streamStore.createContext(SCOPE, stream1);
-        StreamContext context2 = streamStore.createContext(SCOPE, stream2);
-
         // region createStream
-        streamStore.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis());
-        streamStore.createStream(SCOPE, stream2, configuration2, System.currentTimeMillis());
+        streamStore.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null);
+        streamStore.createStream(SCOPE, stream2, configuration2, System.currentTimeMillis(), null);
         // endregion
 
         // region scaleSegments
+        OperationContext context1 = streamStore.createContext(SCOPE, stream1);
+        OperationContext context2 = streamStore.createContext(SCOPE, stream2);
 
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);

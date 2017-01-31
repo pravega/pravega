@@ -17,5 +17,5 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-public interface StreamContext {
+public interface OperationContext {
 }

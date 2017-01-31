@@ -21,7 +21,7 @@ import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.stream.StreamContext;
+import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
@@ -52,6 +52,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
@@ -83,7 +84,7 @@ public class StreamMetadataTasksTest {
                 .InMemory, executor);
         streamStorePartialMock = spy(streamStore); //create a partial mock.
         doReturn(CompletableFuture.completedFuture(false)).when(streamStorePartialMock).isTransactionOngoing(
-                anyString(), anyString(), null); //mock only isTransactionOngoing call.
+                anyString(), anyString(), any()); //mock only isTransactionOngoing call.
 
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(zkClient), executor);
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
@@ -95,6 +96,7 @@ public class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(true)).when(streamMetadataTasksPartialMock).notifySealedSegment(
                 anyString(), anyString(), anyInt()); //mock only the actual calls to Pravega.
 
+        TxTimeOutScheduler txTimeOutProcessor = (scope, stream, txid, timeoutPeriod) -> CompletableFuture.completedFuture(null);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStorePartialMock, hostStore, taskMetadataStore, executor, "host", txTimeOutProcessor);
         consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasksPartialMock,
@@ -120,7 +122,7 @@ public class StreamMetadataTasksTest {
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
 
         //seal a stream.
-        UpdateStreamStatus sealOperationResult = streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1, null).get();
+        UpdateStreamStatus sealOperationResult = streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1, Optional.empty()).get();
         assertEquals(UpdateStreamStatus.SUCCESS, sealOperationResult);
 
         //a sealed stream should have zero active/current segments
@@ -128,7 +130,7 @@ public class StreamMetadataTasksTest {
         assertTrue(streamStorePartialMock.isSealed(SCOPE, stream1, null).get());
 
         //reseal a sealed stream.
-        assertEquals(UpdateStreamStatus.SUCCESS, streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1, null).get());
+        assertEquals(UpdateStreamStatus.SUCCESS, streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1, Optional.empty()).get());
 
         //scale operation on the sealed stream.
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.2);
@@ -137,7 +139,7 @@ public class StreamMetadataTasksTest {
 
         ScaleResponse scaleOpResult = streamMetadataTasksPartialMock.scaleBody(SCOPE, stream1, Collections
                         .singletonList(0),
-                Arrays.asList(segment3, segment4, segment5), 30, Optional.<StreamContext>empty()).get();
+                Arrays.asList(segment3, segment4, segment5), 30, Optional.<OperationContext>empty()).get();
 
         //scaling operation fails once a stream is sealed.
         assertEquals(ScaleStreamStatus.PRECONDITION_FAILED, scaleOpResult.getStatus());

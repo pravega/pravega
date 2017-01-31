@@ -87,7 +87,7 @@ public class SegmentHelper {
         final boolean isRateInBytes;
         if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
             autoScale = false;
-            desiredRate = 0l;
+            desiredRate = 0L;
             isRateInBytes = false;
         } else {
             autoScale = true;
@@ -115,6 +115,7 @@ public class SegmentHelper {
      * @param scope         stream scope
      * @param stream        stream name
      * @param segmentNumber number of segment to be sealed
+     * @param uri           Pravega node uri
      * @param clientCF      connection factory
      * @return void
      */
@@ -123,8 +124,6 @@ public class SegmentHelper {
                                                          final int segmentNumber,
                                                          final NodeUri uri,
                                                          final ConnectionFactory clientCF) {
-//        final NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
-
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {

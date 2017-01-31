@@ -48,7 +48,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 public class ZkStreamTest {
-    private final String SCOPE = "scope";
+    private static final String SCOPE = "scope";
     private TestingServer zkTestServer;
     private CuratorFramework cli;
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
@@ -73,10 +73,10 @@ public class ZkStreamTest {
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test";
 
-        StreamContext context = store.createContext(SCOPE, streamName);
-
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
-        store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), context).get();
+        store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null).get();
+
+        OperationContext context = store.createContext(SCOPE, streamName);
 
         List<Segment> segments = store.getActiveSegments(SCOPE, streamName, context).get();
         assertEquals(segments.size(), 5);
@@ -175,7 +175,7 @@ public class ZkStreamTest {
         try {
             Boolean sealOperationStatus2 = store.setSealed(SCOPE, "nonExistentStream", null).get();
         } catch (Exception e) {
-            assertEquals(StreamNotFoundException.class, e.getCause().getClass());
+            assertEquals(DataNotFoundException.class, e.getCause().getClass());
         }
     }
 
@@ -186,10 +186,11 @@ public class ZkStreamTest {
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test2";
-        StreamContext context = store.createContext(SCOPE, streamName);
 
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
-        store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), context).get();
+        store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null).get();
+
+        OperationContext context = store.createContext(SCOPE, streamName);
 
         List<Segment> initial = store.getActiveSegments(SCOPE, streamName, context).get();
         assertEquals(initial.size(), 6);
@@ -232,10 +233,11 @@ public class ZkStreamTest {
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testTx";
-        StreamContext context = store.createContext(SCOPE, streamName);
 
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
-        store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), context).get();
+        store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null).get();
+
+        OperationContext context = store.createContext(SCOPE, streamName);
 
         UUID tx = store.createTransaction(SCOPE, streamName, context).get();
 

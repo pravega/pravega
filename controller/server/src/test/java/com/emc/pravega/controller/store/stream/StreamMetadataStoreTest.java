@@ -56,15 +56,16 @@ public class StreamMetadataStoreTest {
 
     @Test
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
-        StreamContext context1 = store.createContext(scope, stream1);
-        StreamContext context2 = store.createContext(scope, stream2);
 
         // region createStream
-        store.createStream(scope, stream1, configuration1, System.currentTimeMillis(), context1);
-        store.createStream(scope, stream2, configuration2, System.currentTimeMillis(), context2);
+        store.createStream(scope, stream1, configuration1, System.currentTimeMillis(), null);
+        store.createStream(scope, stream2, configuration2, System.currentTimeMillis(), null);
 
-        assertEquals(stream1, store.getConfiguration(scope, stream1, context1).get().getName());
+        assertEquals(stream1, store.getConfiguration(scope, stream1, null).get().getName());
         // endregion
+
+        OperationContext context1 = store.createContext(scope, stream1);
+        OperationContext context2 = store.createContext(scope, stream2);
 
         // region checkSegments
         List<Segment> segments = store.getActiveSegments(scope, stream1, context1).get();

@@ -21,10 +21,9 @@ import com.emc.pravega.common.concurrent.FutureCollectionHelper;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.NonRetryableException;
 import com.emc.pravega.controller.RetryableException;
-import com.emc.pravega.controller.defaults.Defaults;
 import com.emc.pravega.controller.requests.ScaleRequest;
+import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.Segment;
-import com.emc.pravega.controller.store.stream.StreamContext;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.task.ConflictingTaskException;
 import com.emc.pravega.controller.store.task.LockFailedException;
@@ -55,6 +54,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
     private static final int RETRY_MULTIPLIER = 2;
     private static final int RETRY_MAX_ATTEMPTS = 100;
     private static final long RETRY_MAX_DELAY = Duration.ofSeconds(10).toMillis();
+    private static final long REQUEST_VALIDITY_PERIOD = Duration.ofMinutes(10).toMillis();
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
@@ -82,7 +82,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
             log.debug(String.format("Scale Request for stream %s/%s expired", request.getScope(), request.getStream()));
             return CompletableFuture.completedFuture(null);
         }
-        final StreamContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
+        final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
         final CompletableFuture<Void> result = new CompletableFuture<>();
 
@@ -133,10 +133,10 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
      * @return true if validity period has not elapsed since timestamp, else false.
      */
     private boolean isValid(long timestamp) {
-        return timestamp > System.currentTimeMillis() - Defaults.REQUEST_VALIDITY_PERIOD;
+        return timestamp > System.currentTimeMillis() - REQUEST_VALIDITY_PERIOD;
     }
 
-    private CompletableFuture<Void> processScaleUp(final ScaleRequest request, final ScalingPolicy policy, final StreamContext context) {
+    private CompletableFuture<Void> processScaleUp(final ScaleRequest request, final ScalingPolicy policy, final OperationContext context) {
         return streamMetadataStore.getSegment(request.getScope(), request.getStream(), request.getSegmentNumber(), context)
                 .thenCompose(segment -> {
                     if (!policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
@@ -154,7 +154,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                 });
     }
 
-    private CompletableFuture<Void> processScaleDown(final ScaleRequest request, final ScalingPolicy policy, final StreamContext context) {
+    private CompletableFuture<Void> processScaleDown(final ScaleRequest request, final ScalingPolicy policy, final OperationContext context) {
         if (!policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
             return streamMetadataStore.setMarker(request.getScope(),
                     request.getStream(),
@@ -163,7 +163,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                     context)
                     .thenCompose(x -> streamMetadataStore.getActiveSegments(request.getScope(), request.getStream(), context))
                     .thenApply(activeSegments -> {
-                        assert (activeSegments != null);
+                        assert activeSegments != null;
                         final Optional<Segment> currentOpt = activeSegments.stream()
                                 .filter(y -> y.getNumber() == request.getSegmentNumber()).findAny();
                         if (!currentOpt.isPresent() || activeSegments.size() == policy.getMinNumSegments()) {
@@ -228,7 +228,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
      */
     private CompletableFuture<Void> executeScaleTask(final ScaleRequest request, final ArrayList<Integer> segments,
                                                      final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                                     final StreamContext context) {
+                                                     final OperationContext context) {
         return streamMetadataStore.blockTransactions(request.getScope(), request.getStream(), context)
                 .thenCompose(x -> streamMetadataTasks.scale(request.getScope(),
                         request.getStream(),
@@ -337,22 +337,22 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
      * @param request scale request
      * @param context stream store context
      */
-    private CompletableFuture<Void> blockAndSweep(ScaleRequest request, StreamContext context) {
+    private CompletableFuture<Void> blockAndSweep(ScaleRequest request, OperationContext context) {
         return streamMetadataStore.blockTransactions(request.getScope(), request.getStream(), context)
                 .thenCompose(x -> streamMetadataStore.getActiveTxns(request.getScope(), request.getStream(), context))
                 .thenCompose(x -> FutureCollectionHelper.sequence(x.entrySet().stream().filter(y ->
-                        System.currentTimeMillis() - y.getValue().getTxCreationTimestamp() > Config.TXN_TIMEOUT)
+                        System.currentTimeMillis() - y.getValue().getTxCreationTimestamp() > Config.TXN_TIMEOUT_IN_SECONDS)
                         .map(z -> streamTxMetadataTasks.dropTx(request.getScope(), request.getStream(), z.getKey(), Optional.empty()))
                         .collect(Collectors.toList())))
                 .handle((res, ex) -> {
-                    if(ex!= null) {
+                    if (ex != null) {
                         throw new RetryableException(ex);
                     }
                     return null;
                 });
     }
 
-    private CompletableFuture<List<Void>> clearMarkers(final String scope, final String stream, final ArrayList<Integer> segments, final StreamContext context) {
+    private CompletableFuture<List<Void>> clearMarkers(final String scope, final String stream, final ArrayList<Integer> segments, final OperationContext context) {
         return FutureCollectionHelper.sequence(segments.stream().parallel().map(x -> streamMetadataStore.removeMarker(scope, stream, x, context)).collect(Collectors.toList()));
     }
 }

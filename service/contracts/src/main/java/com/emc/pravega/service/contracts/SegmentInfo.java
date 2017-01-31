@@ -8,4 +8,8 @@ public class SegmentInfo {
     final boolean autoScale;
     final long desiredRate;
     final boolean rateInBytes;
+
+    public static SegmentInfo createDefault(String name) {
+        return new SegmentInfo(name, false, 0, false);
+    }
 }

@@ -22,7 +22,6 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.NonRetryableException;
 import com.emc.pravega.controller.RetryableException;
-import com.emc.pravega.controller.defaults.Defaults;
 import com.emc.pravega.controller.requests.ControllerRequest;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.util.Config;
@@ -50,28 +49,28 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @Slf4j
-public class RequestReader<Request extends ControllerRequest, Handler extends RequestHandler<Request>> implements Runnable {
+public class RequestReader<R extends ControllerRequest, H extends RequestHandler<R>> implements Runnable {
     private static final int CORE_POOL_SIZE = 1000;
     private final String readerId;
     private final String readerGroup;
     private final ConcurrentSkipListSet<Position> running;
     private final ConcurrentSkipListSet<Position> completed;
     private final AtomicReference<Position> checkpoint;
-    private final EventStreamWriter<Request> writer;
-    private final EventStreamReader<Request> reader;
+    private final EventStreamWriter<R> writer;
+    private final EventStreamReader<R> reader;
     private final PositionComparator positionComparator;
     private final JavaSerializer<Position> serializer;
     private final ScheduledExecutorService executor;
     private final StreamMetadataStore streamMetadataStore;
     private AtomicBoolean stop = new AtomicBoolean(false);
-    private final Handler requestHandler;
+    private final H requestHandler;
 
     public RequestReader(final String requestStream,
                          final String readerId,
                          final String readerGroup,
                          final Position start,
                          final StreamMetadataStore streamMetadataStore,
-                         final Handler requestHandler) {
+                         final H requestHandler) {
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(requestHandler);
 
@@ -85,7 +84,7 @@ public class RequestReader<Request extends ControllerRequest, Handler extends Re
         completed = new ConcurrentSkipListSet<>(positionComparator);
 
         // controller is localhost.
-        ClientFactory clientFactory = new ClientFactoryImpl(Defaults.SCOPE, URI.create(String.format("tcp://localhost:%d", Config.SERVER_PORT)));
+        ClientFactory clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, URI.create(String.format("tcp://localhost:%d", Config.SERVER_PORT)));
 
         // TODO: create reader in a group instead of a standalone reader.
         // read request stream name from configuration
@@ -100,10 +99,10 @@ public class RequestReader<Request extends ControllerRequest, Handler extends Re
                 new ReaderConfig(),
                 start);
 
-//        reader = clientFactory.createReader(Defaults.READER_GROUP,
-//                "1",
-//                new JavaSerializer<>(),
-//                new ReaderConfig());
+        //        reader = clientFactory.createReader(Defaults.READER_GROUP,
+        //                "1",
+        //                new JavaSerializer<>(),
+        //                new ReaderConfig());
 
         this.checkpoint = new AtomicReference<>();
         this.checkpoint.set(start);
@@ -124,8 +123,8 @@ public class RequestReader<Request extends ControllerRequest, Handler extends Re
     public void run() {
         while (!stop.get()) {
             try {
-                EventRead<Request> event = reader.readNextEvent(60000);
-                Request request = event.getEvent();
+                EventRead<R> event = reader.readNextEvent(60000);
+                R request = event.getEvent();
                 running.add(event.getPosition());
                 requestHandler.process(request, executor)
                         .whenComplete((r, e) -> {
@@ -154,18 +153,17 @@ public class RequestReader<Request extends ControllerRequest, Handler extends Re
      * on completion of some task.
      * <p>
      * If we fail in trying to write to request stream, should we ignore or retry indefinitely?
-     *
+     * <p>
      * Example: For scale operations: we have a request relayed after a 'mute' delay, so it is not fatal.
      * In the interest of not stalling checkpointing for long, we should fail fast and put the request back in the queue
      * for it to be retried asynchronously after a delay as we move our checkpoint ahead.
-     *
+     * <p>
      * For tx.timeout operations: if we fail to put the request back in the stream, the txn will never timeout.
-     *
      *
      * @param request request which has to be put back in the request stream.
      */
     @Synchronized
-    private void putBack(String key, Request request) {
+    private void putBack(String key, R request) {
         // TODO: retry on failure
         writer.writeEvent(key, request);
     }
@@ -182,7 +180,7 @@ public class RequestReader<Request extends ControllerRequest, Handler extends Re
      *
      * @param event event for which processing completed
      */
-    private void complete(EventRead<Request> event) {
+    private void complete(EventRead<R> event) {
         running.remove(event.getPosition());
         completed.add(event.getPosition());
         // find the lowest in running
