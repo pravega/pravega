@@ -50,7 +50,7 @@ public interface EventRead<T> {
     Sequence getEventSequence();
 
     /**
-     * Returns the event that is wrapped in this EventRead    
+     * Returns the event that is wrapped in this EventRead.    
      * @return the event itself.
      */
     T getEvent();
