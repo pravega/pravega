@@ -51,6 +51,7 @@ public interface StreamManager extends AutoCloseable {
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ReaderGroup.
      * @param streamNames The name of the streams the reader will read from.
+     * @return Newly created ReaderGroup object
      */
     ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames);
     
@@ -67,6 +68,7 @@ public interface StreamManager extends AutoCloseable {
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ReaderGroup.
      * @param streamNames The name of the streams the reader will read from.
+     * @return ReaderGroup with updated configuration
      */
     ReaderGroup updateReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames);
     
@@ -74,6 +76,7 @@ public interface StreamManager extends AutoCloseable {
      * Returns the requested reader group.
      * 
      * @param groupName The name of the group
+     * @return reader group with the given name
      */
     ReaderGroup getReaderGroup(String groupName);
     
@@ -120,6 +123,7 @@ public interface StreamManager extends AutoCloseable {
      * Returns the requested stream.
      *
      * @param streamName The name of the stream to get.
+     * @return stream with the given name
      */
     Stream getStream(String streamName);
     

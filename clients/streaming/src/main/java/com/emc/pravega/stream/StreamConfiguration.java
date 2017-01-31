@@ -44,6 +44,7 @@ public interface StreamConfiguration extends Serializable {
 
     /**
      * Returns the retention policy for this stream.
+     * @return The stream's retention policy
      */
     RetentionPolicy getRetentionPolicy();
 }

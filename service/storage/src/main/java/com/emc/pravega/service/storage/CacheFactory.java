@@ -26,6 +26,7 @@ public interface CacheFactory extends AutoCloseable {
      * Creates a new Cache with given id.
      *
      * @param id The Id of the Cache to create.
+     * @return cache instance with the given Id
      */
     Cache getCache(String id);
 

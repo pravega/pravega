@@ -21,7 +21,7 @@ package com.emc.pravega.service.storage;
 /**
  * Represents the base for an addressing scheme inside a DurableDataLog. This can be used for accurately locating where
  * DataFrames are stored inside a DurableDataLog.
- * <p/>
+ *
  * Subclasses would be specific to DurableDataLog implementations.
  */
 public abstract class LogAddress {
@@ -37,6 +37,7 @@ public abstract class LogAddress {
 
     /**
      * Gets a value indicating the Sequence of the address (location).
+     * @return sequence value of the address
      */
     public long getSequence() {
         return this.sequence;

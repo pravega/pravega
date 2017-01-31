@@ -26,6 +26,7 @@ public interface SegmentContainerFactory {
      * Creates a new instance of a SegmentContainer.
      *
      * @param containerId The Id of the container to create.
+     * @return segment container instance.
      */
     SegmentContainer createStreamSegmentContainer(int containerId);
 }

@@ -42,7 +42,7 @@ public class TableHelper {
      *
      * @param number       segment number
      * @param segmentTable segment table
-     * @return
+     * @return segment with given number in the segment table chunk
      */
     public static Segment getSegment(final int number, final byte[] segmentTable) {
 
@@ -62,7 +62,7 @@ public class TableHelper {
      * Helper method to determine segmentChunk information from segment number.
      *
      * @param segmentNumber segment number
-     * @return
+     * @return chunk number where the given segment resides
      */
     public static int getSegmentChunkNumber(final int segmentNumber) {
         return segmentNumber / SegmentRecord.SEGMENT_CHUNK_SIZE;
@@ -73,7 +73,7 @@ public class TableHelper {
      *
      * @param chunkNumber chunk number
      * @param chunkData   chunk data
-     * @return
+     * @return segment number which resides in the chunk data at chunk with given chunkNumber
      */
     public static int getNextSegmentNumber(final int chunkNumber, final byte[] chunkData) {
         return chunkNumber * SegmentRecord.SEGMENT_CHUNK_SIZE +
@@ -86,7 +86,7 @@ public class TableHelper {
      * (e.g. callers - producers and consumers)
      *
      * @param historyTable history table
-     * @return
+     * @return list of all active segment in the given history table
      */
     public static List<Integer> getActiveSegments(final byte[] historyTable) {
         final Optional<HistoryRecord> record = HistoryRecord.readLatestRecord(historyTable);
@@ -104,7 +104,7 @@ public class TableHelper {
      * @param timestamp    timestamp
      * @param indexTable   indextable
      * @param historyTable history table
-     * @return
+     * @return list of active segment in the given history table at given timestamp
      */
     public static List<Integer> getActiveSegments(final long timestamp, final byte[] indexTable, final byte[] historyTable) {
         final Optional<IndexRecord> recordOpt = IndexRecord.search(timestamp, indexTable).getValue();
@@ -119,7 +119,7 @@ public class TableHelper {
      *
      * @param current    current segment number
      * @param candidates candidates
-     * @return
+     * @return list of segments that has overlapped key rangeds with current segment
      */
     public static List<Integer> getOverlaps(
             final Segment current,
@@ -148,7 +148,7 @@ public class TableHelper {
      * @param segment      segment
      * @param indexTable   index table
      * @param historyTable history table
-     * @return
+     * @return list of segments that are potential successor of current segment
      */
     public static List<Integer> findSegmentSuccessorCandidates(
             final Segment segment,
@@ -226,12 +226,12 @@ public class TableHelper {
      * First find the segment start time entry in the history table by using a binary
      * search on index followed by fall through History table if index is not up to date.
      * <p>
-     * Fetch the record in history table that immediately preceeds segment created entry.
+     * Fetch the record in history table that immediately precedes segment created entry.
      *
      * @param segment      segment
      * @param indexTable   index table
      * @param historyTable history table
-     * @return
+     * @return list of segments that are potential predecessors of current segment
      */
     public static List<Integer> findSegmentPredecessorCandidates(
             final Segment segment,
@@ -271,7 +271,7 @@ public class TableHelper {
      * @param toCreate              remaining number of segments to create
      * @param newRanges             ranges
      * @param timeStamp             timestamp
-     * @return
+     * @return byte array of updated segment table
      */
     public static byte[] updateSegmentTable(final int startingSegmentNumber,
                                             final byte[] segmentTable,
@@ -311,7 +311,7 @@ public class TableHelper {
      * @param historyTable      history table
      * @param timestamp         timestamp
      * @param newActiveSegments new active segments
-     * @return
+     * @return byte array of updated history table
      */
     public static byte[] updateHistoryTable(final byte[] historyTable,
                                             final long timestamp,
@@ -337,7 +337,7 @@ public class TableHelper {
      * @param indexTable    index table
      * @param timestamp     timestamp
      * @param historyOffset history offset
-     * @return
+     * @return byte array of updated index table
      */
     public static byte[] updateIndexTable(final byte[] indexTable,
                                           final long timestamp,

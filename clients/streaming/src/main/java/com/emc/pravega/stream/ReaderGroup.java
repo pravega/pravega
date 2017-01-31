@@ -36,21 +36,25 @@ public interface ReaderGroup extends Revisioned {
 
     /**
      * Returns the scope of the stream which the group is associated with.
+     * @return a scope string
      */
     String getScope();
 
     /**
      * Returns the names of the streams the group is associated with.
+     * @return list of stream names
      */
     List<String> getStreamNames();
 
     /**
      * Returns the name of the group.
+     * @return reader group name
      */
     String getGroupName();
 
     /**
      * Returns the configuration of the reader group.
+     * @return reader group configuration
      */
     ReaderGroupConfig getConfig();
 
@@ -72,6 +76,7 @@ public interface ReaderGroup extends Revisioned {
      * Returns a set of readerIds for the readers that are considered to be online by the group.
      * i.e. {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)} was called but
      * {@link #readerOffline(String, Position)} was not called subsequently.
+     * @return set of active reader IDs of the group
      */
     Set<String> getOnlineReaders();
 }

@@ -27,6 +27,7 @@ public interface Revision extends Comparable<Revision> {
     /**
      * Returns the actual instance. 
      * This method prevents other classes from implementing this interface.
+     * @return implementation of the revision interface
      */
     RevisionImpl asImpl();
 

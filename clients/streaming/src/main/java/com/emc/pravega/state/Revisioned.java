@@ -26,11 +26,13 @@ public interface Revisioned {
     
     /**
      * Returns the scoped name of this stream used to persist this object.
+     * @return string indicating full stream name including its scope appended to it
      */
     String getScopedStreamName();
     
     /**
      * Returns the revision corresponding to this object.
+     * @return revision object
      */
     Revision getRevision();
 }

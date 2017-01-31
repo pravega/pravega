@@ -67,11 +67,13 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * Returns a previously created transaction.
      * 
      * @param transactionId The result retained from calling {@link Transaction#getTxnId()}
+     * @return transaction object with given UUID
      */
     Transaction<Type> getTxn(UUID transactionId);
 
     /**
      * Returns the configuration that this writer was create with.
+     * @return writer configuration
      */
     EventWriterConfig getConfig();
 

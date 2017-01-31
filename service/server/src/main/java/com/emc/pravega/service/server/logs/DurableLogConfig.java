@@ -64,6 +64,7 @@ public class DurableLogConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the minimum number of commits that need to be accumulated in order to trigger a Checkpoint.
+     * @return minimum number of commits before a checkpoint is triggered.
      */
     public int getCheckpointMinCommitCount() {
         return this.checkpointMinCommitCount;
@@ -71,6 +72,7 @@ public class DurableLogConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the number of commits that would trigger a Checkpoint.
+     * @return the number of commits, after which it would trigger a checkpoint.
      */
     public int getCheckpointCommitCountThreshold() {
         return this.checkpointCommitCountThreshold;
@@ -78,6 +80,7 @@ public class DurableLogConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the number of bytes appended that would trigger a Checkpoint.
+     * @return the number of bytes appended, after which it would trigger a checkpoint
      */
     public long getCheckpointTotalCommitLengthThreshold() {
         return this.checkpointTotalCommitLengthThreshold;

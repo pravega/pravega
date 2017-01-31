@@ -85,6 +85,7 @@ public class ServiceConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the number of containers in the system.
+     * @return number of containers in the system.
      */
     public int getContainerCount() {
         return this.containerCount;
@@ -92,6 +93,7 @@ public class ServiceConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the number of threads in the common thread pool.
+     * @return number of threads in the common pool.
      */
     public int getThreadPoolSize() {
         return this.threadPoolSize;
@@ -99,6 +101,7 @@ public class ServiceConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the TCP Port number to listen to.
+     * @return TCP port number to listen to.
      */
     public int getListeningPort() {
         return this.listeningPort;
@@ -106,6 +109,7 @@ public class ServiceConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the IP address to listen to.
+     * @return IP Address to listen to.
      */
     public String getListeningIPAddress() {
         return this.listeningIPAddress;
@@ -113,6 +117,7 @@ public class ServiceConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the Zookeeper host name.
+     * @return Zookeeper host name.
      */
     public String getZkHostName() {
         return zkHostName;
@@ -120,6 +125,7 @@ public class ServiceConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the Zookeeper port.
+     * @return Zookeeper port.
      */
     public int getZkPort() {
         return zkPort;
@@ -127,6 +133,7 @@ public class ServiceConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the sleep duration before retrying for Zookeeper connection.
+     * @return milliseconds to sleep before retry.
      */
     public int getZkRetrySleepMs() {
         return zkRetrySleepMs;
@@ -134,6 +141,7 @@ public class ServiceConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the retry count for a failed Zookeeper connection.
+     * @return retry count for a failed connection to Zookeeper.
      */
     public int getZkRetryCount() {
         return zkRetryCount;
@@ -141,6 +149,7 @@ public class ServiceConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the cluster name.
+     * @return cluster name.
      */
     public String getClusterName() {
         return clusterName;

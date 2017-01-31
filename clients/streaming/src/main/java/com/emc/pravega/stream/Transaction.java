@@ -38,6 +38,7 @@ public interface Transaction<Type> {
 
     /**
      * Returns a unique ID that can be used to identify this transaction.
+     * @return Unique identifier of the transaction
      */
     UUID getTxnId();
     
@@ -75,6 +76,7 @@ public interface Transaction<Type> {
 
     /**
      * Gets the status of the transaction.
+     * @return current status of the transaction
      */
     Status checkStatus();
 }

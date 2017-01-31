@@ -71,6 +71,7 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
 
     /**
      * Gets a value indicating the Id of the Parent StreamSegment.
+     * @return parent stream segment Id.
      */
     public long getParentStreamSegmentId() {
         return this.parentStreamSegmentId;

@@ -45,11 +45,13 @@ public interface EventRead<T> {
      * even if {@link #getEvent()} is null because no events are available. The value will continue
      * to increase even when no events are available. This is useful as it can bound the values
      * associated with future events.
+     * @return sequence object, a wrapper for 2 numbers, which are'high order' and 'low order'
      */
     Sequence getEventSequence();
 
     /**
-     * Returns the event itself.
+     * @return the event itself.
+     *
      */
     T getEvent();
 
@@ -57,21 +59,24 @@ public interface EventRead<T> {
      * The position in the stream that represents where the reader is immediately following this
      * event. It is useful to store this so that
      * {@link ReaderGroup#readerOffline(String, Position)} can be called if the reader dies.
+     * @return position of the event
      */
     Position getPosition();
 
     /**
      * Returns the segment the event came from.
+     * @return segment object where the event resides
      */
     Segment getSegment();
     
     /**
      * Returns the byte offset within the segment the event was read from.
+     * @return long event offset in the segment
      */
     Long getOffsetInSegment();
 
     /**
-     * Returns a boolean indicating if a rebalance of which events are being routed to which readers
+     * @return a boolean indicating if a rebalance of which events are being routed to which readers
      * is about to or needs to occur.
      * 
      * For a reader that is part of a {@link ReaderGroup} this means the next call to

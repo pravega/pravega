@@ -38,6 +38,7 @@ interface Stream {
      * Create the stream, by creating/modifying underlying data structures.
      *
      * @param configuration stream configuration.
+     * @param createTimestamp stream created timestamp value.
      * @return boolean indicating success.
      */
     CompletableFuture<Boolean> create(final StreamConfiguration configuration, final long createTimestamp);
@@ -59,13 +60,14 @@ interface Stream {
 
     /**
      * Update the state of the stream.
+     * @param state new state of the transaction
      * @return boolean indicating whether the state of stream is updated.
      */
     CompletableFuture<Boolean> updateState(final State state);
 
     /**
-     *  Get the state of the stream.
-     * @return state othe given stream.
+     * Get the state of the stream.
+     * @return state of the given stream.
      */
     CompletableFuture<State> getState();
 
@@ -114,21 +116,21 @@ interface Stream {
 
     /**
      * Method to start new transaction creation
-     * @return
+     * @return Unique identifier of newly created transaction
      */
     CompletableFuture<UUID> createTransaction();
 
     /**
      * Seal given transaction
-     * @param txId
-     * @return
+     * @param txId transaction unique identified
+     * @return transaction status
      */
     CompletableFuture<TxnStatus> sealTransaction(final UUID txId);
 
     /**
      * Returns transaction's status
-     * @param txId
-     * @return
+     * @param txId transaction unique identified
+     * @return transaction status
      */
     CompletableFuture<TxnStatus> checkTransactionStatus(final UUID txId);
 
@@ -136,8 +138,8 @@ interface Stream {
      * Commits a transaction
      * If already committed, return TxnStatus.Committed
      * If aborted, throw OperationOnTxNotAllowedException
-     * @param txId
-     * @return
+     * @param txId transaction unique identified
+     * @return transaction status
      */
     CompletableFuture<TxnStatus> commitTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
 
@@ -145,8 +147,8 @@ interface Stream {
      * Commits a transaction
      * If already aborted, return TxnStatus.Aborted
      * If committed, throw OperationOnTxNotAllowedException
-     * @param txId
-     * @return
+     * @param txId transaction unique identified
+     * @return transaction status
      */
     CompletableFuture<TxnStatus> abortTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
 

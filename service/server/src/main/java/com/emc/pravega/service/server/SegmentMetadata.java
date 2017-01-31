@@ -30,37 +30,44 @@ import java.util.UUID;
 public interface SegmentMetadata extends SegmentProperties {
     /**
      * Gets a value indicating the id of this StreamSegment.
+     * @return stream segment Id.
      */
     long getId();
 
     /**
      * Gets a value indicating the id of this StreamSegment's parent.
+     * @return parent stream segment Id.
      */
     long getParentId();
 
     /**
      * Gets a value indicating the id of the Container this StreamSegment belongs to.
+     * @return container Id that this segment belongs to.
      */
     int getContainerId();
 
     /**
      * Gets a value indicating whether this StreamSegment has been merged into another.
+     * @return whether this segment has merged into another or not.
      */
     boolean isMerged();
 
     /**
      * Gets a value indicating whether this StreamSegment has been sealed in Storage.
      * This is different from isSealed(), which returns true if the StreamSegment has been sealed in DurableLog or in Storage.
+     * @return whether this segment has been sealed in Storage or not.
      */
     boolean isSealedInStorage();
 
     /**
      * Gets a value indicating the length of this StreamSegment for the part that exists in Storage Only.
+     * @return the length of segment that exists in Storage only.
      */
     long getStorageLength();
 
     /**
      * Gets a value indicating the length of this entire StreamSegment (the part in Storage + the part in DurableLog).
+     * @return the length of entire segment.
      */
     long getDurableLogLength();
 
@@ -70,11 +77,13 @@ public interface SegmentMetadata extends SegmentProperties {
      * the metadata).
      *
      * @param clientId The Client Id to inquire for.
+     * @return last append context with given client Id.
      */
     AppendContext getLastAppendContext(UUID clientId);
 
     /**
      * Gets a collection of all known Client Ids (mapped to AppendContexts).
+     * @return known client Ids hat have appended to this segment
      */
     Collection<UUID> getKnownClientIds();
 }

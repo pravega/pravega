@@ -26,7 +26,7 @@ import java.util.Iterator;
  * <ul>
  * <li> The ReadResult is not closed
  * <li> The ReadResult has not reached the end of a sealed StreamSegment
- * <li> The ReadResult has not consumed all requested data (getConsumedLength() < getMaxResultLength())
+ * <li> The ReadResult has not consumed all requested data (getConsumedLength() &lt; getMaxResultLength())
  * </ul>
  * <p>
  * Calls to next() will return an element as long as hasNext() returns true. Some notes to consider:
@@ -49,23 +49,27 @@ import java.util.Iterator;
 public interface ReadResult extends Iterator<ReadResultEntry>, AutoCloseable {
     /**
      * Gets a value indicating the Offset within the StreamSegment where this ReadResult starts at.
+     * @return offset long indicating where ReadResults starts at.
      */
     long getStreamSegmentStartOffset();
 
     /**
      * Gets a value indicating the maximum length that this read result can have.
+     * @return maximum length of this read result.
      */
     int getMaxResultLength();
 
     /**
      * Gets a value indicating the number of bytes that have been consumed via the next() method invocations.
      * Note that this does not track the individual consumption within the objects returned by next().
+     * @return number of bytes that has been consumed so far using next().
      */
     int getConsumedLength();
 
     /**
      * Gets a value indicating whether this ReadResult is fully consumed (either because it was read in its entirety
      * or because it was closed externally).
+     * @return whether ReadResult is fully consumed or not.
      */
     boolean isClosed();
 

@@ -48,6 +48,7 @@ public interface UpdateableContainerMetadata extends ContainerMetadata, Recovera
 
     /**
      * Gets a collection containing all StreamSegmentIds currently mapped.
+     * @return collection of all stream segment Ids currently mapped
      */
     Collection<Long> getAllStreamSegmentIds();
 

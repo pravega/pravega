@@ -66,7 +66,8 @@ public class TaskSweeper {
      * <p>
      * It sweeps through all unfinished tasks of failed host and attempts to execute them to completion.
      * @param oldHostId old host id
-     * @return
+     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
+     * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
     public CompletableFuture<Void> sweepOrphanedTasks(final String oldHostId) {
 
