@@ -66,6 +66,8 @@ public class DistributedLogConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the host name (no port) where DistributedLog is listening.
+     *
+     * @return Hostname for DL
      */
     public String getDistributedLogHost() {
         return this.distributedLogHost;
@@ -73,6 +75,8 @@ public class DistributedLogConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the port where DistributedLog is listening.
+     *
+     * @return int port number
      */
     public int getDistributedLogPort() {
         return this.distributedLogPort;
@@ -80,6 +84,8 @@ public class DistributedLogConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the DistributedLog Namespace to use.
+     *
+     * @return Namespace for DL
      */
     public String getDistributedLogNamespace() {
         return this.distributedLogNamespace;

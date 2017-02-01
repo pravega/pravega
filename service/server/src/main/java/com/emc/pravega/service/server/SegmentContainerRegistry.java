@@ -30,6 +30,7 @@ import java.util.concurrent.CompletableFuture;
 public interface SegmentContainerRegistry extends AutoCloseable {
     /**
      * Gets the number of registered containers.
+     * @return Number of registered containers.
      */
     int getContainerCount();
 

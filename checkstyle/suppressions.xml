@@ -25,4 +25,5 @@
 <suppressions>
     <suppress checks="JavadocStyle" files=".+Tests\.java" />
     <suppress checks="JavadocMethod" files=".+Tests\.java" />
+    <suppress checks="[a-zA-Z0-9]*" files=".*[\\/]src[\\/]test[\\/]"/>
 </suppressions>

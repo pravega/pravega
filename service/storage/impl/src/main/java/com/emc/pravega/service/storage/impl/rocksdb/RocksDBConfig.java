@@ -60,6 +60,8 @@ public class RocksDBConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the path to the RocksDB database (in the local filesystem).
+     *
+     * @return directory path in the local filesystem.
      */
     public String getDatabaseDir() {
         return this.databaseDir;
