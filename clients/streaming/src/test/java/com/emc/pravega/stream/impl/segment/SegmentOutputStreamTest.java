@@ -56,7 +56,7 @@ public class SegmentOutputStreamTest {
      * Tests if connection succeeds and written event is properly acked.
      *
      * @throws ConnectionFailedException in case of connection failure.
-     * @throws SegmentSealedException in case of attempt to the segment is ready sealed.
+     * @throws SegmentSealedException in case of attempt to the segment  that is ready sealed.
      */
     @Test
     public void testConnectAndSend() throws SegmentSealedException, ConnectionFailedException {
@@ -79,7 +79,7 @@ public class SegmentOutputStreamTest {
      * Test if conditional write succeeds.
      *
      * @throws ConnectionFailedException in case of connection failure.
-     * @throws SegmentSealedException in case of attempt to the segment is ready sealed.
+     * @throws SegmentSealedException in case of attempt to the segment  that is ready sealed.
      */
     @Test
     public void testConditionalSend() throws SegmentSealedException, ConnectionFailedException {
@@ -154,7 +154,7 @@ public class SegmentOutputStreamTest {
      * Test if connection close() operation succeeds and no more interaction happend afterward.
      *
      * @throws ConnectionFailedException in case of connection failure.
-     * @throws SegmentSealedException in case of attempt to the segment is ready sealed.
+     * @throws SegmentSealedException in case of attempt to the segment that is ready sealed.
      * @throws InterruptedException in case of interruption happened.
      */
     @Test
