@@ -25,14 +25,25 @@ public class ConnectionFailedException extends Exception {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * Constructor for this exception.
+     */
     public ConnectionFailedException() {
         super();
     }
 
+    /**
+     * Constructor for this exception with message.
+     * @param string exception message
+     */
     public ConnectionFailedException(String string) {
         super(string);
     }
 
+    /**
+     * Constructor for this exception with throwable.
+     * @param throwable a throwable object
+     */
     public ConnectionFailedException(Throwable throwable) {
         super(throwable);
     }

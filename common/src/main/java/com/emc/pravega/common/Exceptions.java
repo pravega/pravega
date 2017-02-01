@@ -26,13 +26,35 @@ import lombok.SneakyThrows;
  */
 public final class Exceptions {
 
+    /**
+     * Interface for Interruptible jobs.
+     * @param <ExceptionT> The type of exception
+     */
     @FunctionalInterface
     public interface InterruptibleRun<ExceptionT extends Exception> {
+
+        /**
+         * Throws exception when job is interrupted.
+         * @throws InterruptedException An exception thrown
+         * @throws ExceptionT An exception type
+         */
         void run() throws InterruptedException, ExceptionT;
     }
 
+    /**
+     * Interface for Interruptible calls.
+     * @param <ExceptionT> The type of exception
+     * @param <ResultT> The type of result
+     */
     @FunctionalInterface
     public interface InterruptibleCall<ExceptionT extends Exception, ResultT> {
+
+        /**
+         * Throws exception when call is interrupted.
+         * @throws InterruptedException An exception thrown
+         * @throws ExceptionT An exception type
+         * @return The result of the call.
+         */
         ResultT call() throws InterruptedException, ExceptionT;
     }
 
@@ -67,6 +89,7 @@ public final class Exceptions {
      * @param <ExceptionT> The type of exception.
      * @param <ResultT>    The type of the result.
      * @throws ExceptionT If thrown by call.
+     * @return call that should be run when handling interrupt, or throws exceptions.
      */
     @SneakyThrows(InterruptedException.class)
     public static <ExceptionT extends Exception, ResultT> ResultT handleInterrupted(InterruptibleCall<ExceptionT, ResultT> call)

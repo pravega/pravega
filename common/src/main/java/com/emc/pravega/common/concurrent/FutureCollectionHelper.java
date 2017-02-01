@@ -35,8 +35,15 @@ public class FutureCollectionHelper {
      * Predicate that evaluates in future.
      *
      * @param <T> Type parameter.
+     *
      */
     public interface FuturePredicate<T> {
+
+        /**
+         * Predicate that evaluates in future.
+         * @param t The type parameter
+         * @return boolean indicating whether the type has been applied as future completable or not.
+         */
         CompletableFuture<Boolean> apply(T t);
     }
 
@@ -86,6 +93,14 @@ public class FutureCollectionHelper {
         );
     }
 
+    /**
+     * Returns a list of all futures.
+     *
+     * @param futureMap List of futures.
+     * @param <T> Type parameter
+     * @param <U> Type parameter
+     * @return A completable future list
+     */
     public static <T, U> CompletableFuture<Map<T, U>> sequenceMap(Map<T, CompletableFuture<U>> futureMap) {
         return CompletableFuture.allOf(futureMap.values().toArray(new CompletableFuture[futureMap.size()]))
                 .thenApply(x ->

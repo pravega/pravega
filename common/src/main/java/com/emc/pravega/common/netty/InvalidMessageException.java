@@ -24,14 +24,25 @@ public class InvalidMessageException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * Constructor for exception explaining that occurred message makes no sense.
+     */
     public InvalidMessageException() {
         super();
     }
 
+    /**
+     * Constructor with message for exception explaining that occurred message makes no sense.
+     * @param string Description of exception
+     */
     public InvalidMessageException(String string) {
         super(string);
     }
 
+    /**
+     * Constructor with throwable itself for exception explaining that occurred message makes no sense.
+     * @param throwable An exception
+     */
     public InvalidMessageException(Throwable throwable) {
         super(throwable);
     }

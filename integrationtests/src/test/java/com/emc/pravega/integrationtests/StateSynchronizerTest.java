@@ -54,6 +54,10 @@ public class StateSynchronizerTest {
     private Level originalLevel;
     private ServiceBuilder serviceBuilder;
 
+    /**
+     * Sets up the Service builder, and initializes it.
+     * @throws Exception in case of failure
+     */
     @Before
     public void setup() throws Exception {
         originalLevel = ResourceLeakDetector.getLevel();
@@ -63,6 +67,9 @@ public class StateSynchronizerTest {
         this.serviceBuilder.initialize().get();
     }
 
+    /**
+     * Destroys the Service builder.
+     */
     @After
     public void teardown() {
         this.serviceBuilder.close();
@@ -91,7 +98,11 @@ public class StateSynchronizerTest {
             return new TestState(scopedStreamName, revision, value);
         }
     }
-    
+
+    /**
+     * Updates StateSyncrhonizer by updating its states, and verifying back.
+     * @throws TxnFailedException in case of transaction failure.
+     */
     @Test(timeout = 20000)
     public void testStateTracker() throws TxnFailedException {
         String endpoint = "localhost";
@@ -144,6 +155,9 @@ public class StateSynchronizerTest {
         return count.get();
     }
 
+    /**
+     * Test 2 sets by adding 10 appends each, and verifying size of sets.
+     */
     @Test(timeout = 20000)
     public void testReadsAllAvailable() {
         String endpoint = "localhost";
@@ -170,6 +184,9 @@ public class StateSynchronizerTest {
         assertEquals(20, setB.getCurrentSize());
     }
 
+    /**
+     * Tests SetSynchronizer by setting various states and verifying back.
+     */
     @Test(timeout = 10000)
     public void testSetSynchronizer() {
         String endpoint = "localhost";

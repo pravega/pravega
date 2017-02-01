@@ -27,6 +27,11 @@ import lombok.Cleanup;
 
 public class StartProducer {
 
+    /**
+     * Connects to local servers, and publishes 10 event via transaction, and 10 via non-transaction.
+     * @param args not used.
+     * @throws Exception in case of failure.
+     */
     public static void main(String[] args) throws Exception {
         MockClientFactory clientFactory = new MockClientFactory(StartLocalService.SCOPE,
                                                                 "localhost",

@@ -19,10 +19,21 @@ package com.emc.pravega.state.impl;
 
 public class CorruptedStateException extends RuntimeException {
 
+    /**
+     * Constructor for corrupted state exception with message.
+     *
+     * @param message exception description
+     */
     public CorruptedStateException(String message) {
         super(message);
     }
 
+    /**
+     * Constructor for corrupted state exception with message and exception.
+     *
+     * @param string exception description
+     * @param e the exception
+     */
     public CorruptedStateException(String string, Exception e) {
         super(string, e);
     }

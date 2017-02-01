@@ -70,6 +70,11 @@ public class ClusterZKImpl implements Cluster {
     private final Map<Host, PersistentNode> entryMap = new HashMap<>(INIT_SIZE);
     private Optional<PathChildrenCache> cache = Optional.empty();
 
+    /**
+     * Constructs ZK cluster by initializing the client.
+     * @param zkClient Zookeeper client object
+     * @param clusterName Name of the Zk cluster
+     */
     public ClusterZKImpl(CuratorFramework zkClient, String clusterName) {
         this.clusterName = clusterName;
         this.client = zkClient;

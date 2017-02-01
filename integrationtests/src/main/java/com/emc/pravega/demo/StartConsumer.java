@@ -26,6 +26,11 @@ import lombok.Cleanup;
 
 public class StartConsumer {
 
+    /**
+     * Reads and prints 20 events from a test stream.
+     * @param args cli inputs. not used for now.
+     * @throws Exception in case of failure.
+     */
     public static void main(String[] args) throws Exception {
         MockClientFactory clientFactory = new MockClientFactory(StartLocalService.SCOPE,
                 "localhost",

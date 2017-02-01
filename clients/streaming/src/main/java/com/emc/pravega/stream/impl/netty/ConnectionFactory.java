@@ -28,6 +28,13 @@ import com.emc.pravega.common.netty.ReplyProcessor;
  */
 public interface ConnectionFactory extends AutoCloseable {
 
+    /**
+     * Interface to establish a connection between server and client with given parameters.
+     *
+     * @param endpoint The Pravega Node URI.
+     * @param rp Reply Processor instance.
+     * @return an instance of client connection.
+     */
     CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp);
 
     @Override

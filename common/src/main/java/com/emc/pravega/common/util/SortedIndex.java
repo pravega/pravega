@@ -58,6 +58,7 @@ public interface SortedIndex<K, V extends IndexEntry<K>> {
 
     /**
      * Gets a value indicating the number of items in the Index.
+     * @return number of items in this index.
      */
     int size();
 

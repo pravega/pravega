@@ -155,6 +155,7 @@ public interface Controller {
      * is no longer the owner.
      *
      * @param qualifiedSegmentName The name of the segment. Usually obtained from {@link Segment#getScopedName()}.
+     * @return PravegaNodeURI where segment resides.
      */
     CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName);
 

@@ -128,6 +128,14 @@ public enum WireCommandType {
         return code;
     }
 
+
+    /**
+     * Constructs a wire command.
+     * @param in Incoming byte.
+     * @param length length of the input.
+     * @return A wire command instance.
+     * @throws IOException is thrown if input is not properly structured.
+     */
     public WireCommand readFrom(DataInput in, int length) throws IOException {
         return factory.readFrom(in, length);
     }

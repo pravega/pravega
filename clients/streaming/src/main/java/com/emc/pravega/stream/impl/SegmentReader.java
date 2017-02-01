@@ -34,11 +34,13 @@ public interface SegmentReader<Type> extends AutoCloseable {
      *
      * @param timeout Timeout for the operation, in milliseconds.
      * @throws EndOfSegmentException If we reached the end of the segment.
+     * @return The next event.
      */
     Type getNextEvent(long timeout) throws EndOfSegmentException;
 
     /**
      * Returns the current offset. This can be passed to {@link #setOffset(long)} to restore to the current position.
+     * @return Current offset of the reader.
      */
     long getOffset();
 

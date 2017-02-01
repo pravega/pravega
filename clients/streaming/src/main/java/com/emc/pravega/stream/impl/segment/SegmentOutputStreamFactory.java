@@ -31,6 +31,7 @@ public interface SegmentOutputStreamFactory {
      *
      * @param segment The segment the transaction belongs to.
      * @param txId    The transaction id.
+     * @return New instance of SegmentOutputStream with an open transaction.
      */
     SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId);
 
@@ -44,6 +45,7 @@ public interface SegmentOutputStreamFactory {
      * @param segment The segment.
      * @param config  The SegmentOutputConfiguration to use.
      * @throws SegmentSealedException If the segment is closed for modifications.
+     * @return New instance of SegmentOutputStream for writing.
      */
     SegmentOutputStream createOutputStreamForSegment(Segment segment, SegmentOutputConfiguration config) throws SegmentSealedException;
 }

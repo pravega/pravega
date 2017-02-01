@@ -32,12 +32,18 @@ public abstract class ThreadPooledTestSuite {
     private static final int INLINE_THREAD_COUNT = 0;
     private ScheduledExecutorService executorService = null;
 
+    /**
+     * Initializes thread pool, and executor service.
+     */
     @Before
     public void before() {
         int threadPoolSize = getThreadPoolSize();
         this.executorService = threadPoolSize == INLINE_THREAD_COUNT ? new InlineExecutor() : Executors.newScheduledThreadPool(threadPoolSize);
     }
 
+    /**
+     * Shuts down the executor service.
+     */
     @After
     public void after() {
         this.executorService.shutdown();
@@ -45,6 +51,7 @@ public abstract class ThreadPooledTestSuite {
 
     /**
      * Gets a pointer to the ScheduledExecutorService to use.
+     * @return scheduled executor instance.
      */
     protected ScheduledExecutorService executorService() {
         return this.executorService;
@@ -53,6 +60,7 @@ public abstract class ThreadPooledTestSuite {
     /**
      * When overridden in a derived class, indicates how many threads should be in the thread pool.
      * If this method returns 0 (default value), then an InlineExecutor is used; otherwise a regular ThreadPool is used.
+     * @return size of the thread pool.
      */
     protected int getThreadPoolSize() {
         return INLINE_THREAD_COUNT;

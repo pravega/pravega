@@ -30,6 +30,11 @@ public class StartLocalService {
     static final String SCOPE = "Scope";
     static final String STREAM_NAME = "Foo";
 
+    /**
+     * Starts a mock server that listens to port 9090.
+     * @param args not used.
+     * @throws Exception if server cannot be started.
+     */
     public static void main(String[] args) throws Exception {
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());

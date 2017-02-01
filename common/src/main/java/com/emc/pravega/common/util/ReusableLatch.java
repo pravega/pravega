@@ -31,10 +31,18 @@ public class ReusableLatch {
     private final AtomicBoolean released;
     private final Object releasingLock = new Object();
 
+    /**
+     * A Constructor with default value of 'false'.
+     */
     public ReusableLatch() {
         this(false);
     }
 
+    /**
+     * A constructor with given boolean value for startReleased.
+     *
+     * @param startReleased Whether semaphore should be initialized with max value or zero.
+     */
     public ReusableLatch(boolean startReleased) {
         released = new AtomicBoolean(startReleased);
         if (startReleased) {
@@ -81,6 +89,7 @@ public class ReusableLatch {
 
     /**
      * Returns whether or not release has been called and threads can call await without blocking.
+     * @return A boolean if release is called or not.
      */
     public boolean isReleased() {
         return released.get();

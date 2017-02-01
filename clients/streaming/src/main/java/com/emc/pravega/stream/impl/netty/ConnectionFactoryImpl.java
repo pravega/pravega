@@ -57,6 +57,11 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     private EventLoopGroup group;
     private boolean nio = false;
 
+    /**
+     * Actual implementation of ConnectionFactory interface.
+     *
+     * @param ssl whether connection should use SSL or not.
+     */
     public ConnectionFactoryImpl(boolean ssl) {
         this.ssl = ssl;
         try {

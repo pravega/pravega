@@ -26,6 +26,10 @@ public class ExceptionLoggingHandler extends ChannelDuplexHandler {
 
     private final String connectionName;
 
+    /**
+     * Constructor to set logging handler.
+     * @param connectionName A connection name of socket.
+     */
     public ExceptionLoggingHandler(String connectionName) {
         this.connectionName = connectionName;
     }

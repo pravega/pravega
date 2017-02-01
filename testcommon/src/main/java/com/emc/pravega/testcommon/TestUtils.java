@@ -23,6 +23,10 @@ public class TestUtils {
     
     static final Random RAND = new Random();
 
+    /**
+     * Returns a random port between 1024 and 49151.
+     * @return a port number.
+     */
     public static int randomPort() {
         int maxValue = 49151 - 1024;
         return RAND.nextInt(maxValue) + 1024;

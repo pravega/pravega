@@ -51,6 +51,13 @@ public class OpStatsData {
 
     private final EnumMap<Percentile, Long> percentileLongMap;
 
+    /**
+     * Sets initial value of operational stats data.
+     * @param numSuccessfulEvents Number of successful events.
+     * @param numFailedEvents Number of failed events.
+     * @param avgLatencyMillis Average latency in milliseconds.
+     * @param percentileLongMap Percentile map.
+     */
     public OpStatsData(long numSuccessfulEvents, long numFailedEvents,
                        double avgLatencyMillis, EnumMap<Percentile, Long> percentileLongMap) {
         Preconditions.checkArgument(numSuccessfulEvents >= 0, "numSuccessfulEvents must be non-negative number.");

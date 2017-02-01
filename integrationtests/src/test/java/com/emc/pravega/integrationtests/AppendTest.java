@@ -81,6 +81,10 @@ public class AppendTest {
     private Level originalLevel;
     private ServiceBuilder serviceBuilder;
 
+    /**
+     * Sets up the Service builder, and initializes it.
+     * @throws Exception in case of failure
+     */
     @Before
     public void setup() throws Exception {
         originalLevel = ResourceLeakDetector.getLevel();
@@ -90,12 +94,19 @@ public class AppendTest {
         this.serviceBuilder.initialize().get();
     }
 
+    /**
+     * Destroys the Service builder.
+     */
     @After
     public void teardown() {
         this.serviceBuilder.close();
         ResourceLeakDetector.setLevel(originalLevel);
     }
 
+    /**
+     * Test a append setup on an existing segment.
+     * @throws Exception in case of a failure.
+     */
     @Test
     public void testSetupOnNonExistentSegment() throws Exception {
         String segment = "123";
@@ -109,6 +120,10 @@ public class AppendTest {
         assertEquals(segment, setup.getSegment());
     }
 
+    /**
+     * Tests append wire protocols.
+     * @throws Exception in case of a failure.
+     */
     @Test
     public void sendReceivingAppend() throws Exception {
         String segment = "123";
@@ -160,6 +175,10 @@ public class AppendTest {
         return channel;
     }
 
+    /**
+     * Appends an event using low level streaming client to a segment.
+     * @throws Exception in case of a failure.
+     */
     @Test
     public void appendThroughSegmentClient() throws Exception {
         String endpoint = "localhost";
@@ -187,6 +206,10 @@ public class AppendTest {
         assertEquals(true, ack.get(5, TimeUnit.SECONDS));
     }
 
+    /**
+     * Testing to publish an event using streaming client.
+     * @throws InterruptedException in case of interruption.
+     */
     @Test
     public void appendThroughStreamingClient() throws InterruptedException {
         String endpoint = "localhost";

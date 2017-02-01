@@ -36,6 +36,12 @@ public class PositionImpl extends PositionInternal {
     private final Map<Segment, Long> ownedSegments;
     private final Map<FutureSegment, Long> futureOwnedSegments;
 
+    /**
+     * Instantiates Position with current and future owned segments.
+     *
+     * @param ownedSegments Current segments that the position refers to.
+     * @param futureOwnedSegments Future segments that position will refer to.
+     */
     public PositionImpl(Map<Segment, Long> ownedSegments, Map<FutureSegment, Long> futureOwnedSegments) {
         this.ownedSegments = ownedSegments;
         this.futureOwnedSegments = futureOwnedSegments;

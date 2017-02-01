@@ -26,5 +26,10 @@ import java.io.IOException;
 public interface WireCommand {
     WireCommandType getType();
 
+    /**
+     * Appends segment data into this output .
+     * @param out Data output.
+     * @throws IOException is thrown when out is not constructed properly
+     */
     void writeFields(DataOutput out) throws IOException;
 }

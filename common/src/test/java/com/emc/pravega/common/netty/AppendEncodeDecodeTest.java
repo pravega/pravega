@@ -50,12 +50,18 @@ public class AppendEncodeDecodeTest {
     private final AppendDecoder appendDecoder = new AppendDecoder();
     private Level origionalLogLevel;
 
+    /**
+     * Sets up the Append Tester.
+     */
     @Before
     public void setup() {
         origionalLogLevel = ResourceLeakDetector.getLevel();
         ResourceLeakDetector.setLevel(Level.PARANOID);
     }
 
+    /**
+     * Destroys the Append Tester.
+     */
     @After
     public void teardown() {
         ResourceLeakDetector.setLevel(origionalLogLevel);
@@ -72,6 +78,10 @@ public class AppendEncodeDecodeTest {
         }
     }
 
+    /**
+     * Attempts to send invalid message.
+     * @throws Exception is thrown if operation fails.
+     */
     @Test(expected = InvalidMessageException.class)
     public void testAppendWithoutSetup() throws Exception {
         int size = 10;
@@ -80,6 +90,10 @@ public class AppendEncodeDecodeTest {
         append(streamName, connectionId, 0, 1, size, fakeNetwork);
     }
 
+    /**
+     * Send events and read back to verify, while switching streams.
+     * @throws Exception is thrown if operation fails.
+     */
     @Test
     public void testSwitchingStream() throws Exception {
         int size = APPEND_BLOCK_SIZE;
@@ -92,6 +106,10 @@ public class AppendEncodeDecodeTest {
         sendAndVerifyEvents(s2, c2, numEvents, size, numEvents);
     }
 
+    /**
+     * Send events and read back to verify.
+     * @throws Exception is thrown if operation fails.
+     */
     private void sendAndVerifyEvents(String segment, UUID connectionId, int numEvents, int eventSize,
             int expectedMessages) throws Exception {
         @Cleanup("release")
@@ -111,16 +129,28 @@ public class AppendEncodeDecodeTest {
         verify(received, numEvents, eventSize);
     }
 
+    /**
+     * Attempts to flush messages before end of block.
+     * @throws Exception is thrown if operation fails.
+     */
     @Test
     public void testFlushBeforeEndOfBlock() throws Exception {
         testFlush(APPEND_BLOCK_SIZE / 2);
     }
 
+    /**
+     * Attempts to flush messages when it is at block boundry.
+     * @throws Exception is thrown if operation fails.
+     */
     @Test
     public void testFlushWhenAtBlockBoundry() throws Exception {
         testFlush(APPEND_BLOCK_SIZE);
     }
 
+    /**
+     * Attempts to flush messages.
+     * @throws Exception is thrown if operation fails.
+     */
     private void testFlush(int size) throws Exception {
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
@@ -140,6 +170,10 @@ public class AppendEncodeDecodeTest {
         assertEquals(keepAlive, two);
     }
 
+    /**
+     * Attempts to append 10000 small events with each has size of 10 bytes.
+     * @throws Exception is thrown if operation fails.
+     */
     @Test
     public void testSmallAppends() throws Exception {
         int eventSize = 10;
@@ -151,6 +185,10 @@ public class AppendEncodeDecodeTest {
                             numEvents * (eventSize + TYPE_PLUS_LENGTH_SIZE) / APPEND_BLOCK_SIZE + 1);
     }
 
+    /**
+     * Attempts to append 4 events with spanning block size .
+     * @throws Exception is thrown if operation fails.
+     */
     @Test
     public void testAppendSpanningBlockBound() throws Exception {
         int numEvents = 4;
@@ -158,6 +196,10 @@ public class AppendEncodeDecodeTest {
         sendAndVerifyEvents(streamName, connectionId, numEvents, size, 2);
     }
 
+    /**
+     * Attempts to append 4 events with actual block size .
+     * @throws Exception is thrown if operation fails.
+     */
     @Test
     public void testBlockSizeAppend() throws Exception {
         int numEvents = 4;
@@ -165,6 +207,10 @@ public class AppendEncodeDecodeTest {
         sendAndVerifyEvents(streamName, connectionId, numEvents, size, numEvents);
     }
 
+    /**
+     * Attempts to append 4 events with block size with 1 byte less.
+     * @throws Exception is thrown if operation fails.
+     */
     @Test
     public void testAlmostBlockSizeAppend1() throws Exception {
         int numEvents = 4;
@@ -172,6 +218,10 @@ public class AppendEncodeDecodeTest {
         sendAndVerifyEvents(streamName, connectionId, numEvents, size, numEvents);
     }
 
+    /**
+     * Attempts to append 4 events with block size with 8 bytes less.
+     * @throws Exception is thrown if operation fails.
+     */
     @Test
     public void testAlmostBlockSizeAppend8() throws Exception {
         int numEvents = 4;
@@ -179,12 +229,22 @@ public class AppendEncodeDecodeTest {
         sendAndVerifyEvents(streamName, connectionId, numEvents, size, numEvents);
     }
 
+    /**
+     * Attempts to append 4 events with block size with 16 bytes less.
+     * @throws Exception is thrown if operation fails.
+     */
+
     @Test
     public void testAlmostBlockSizeAppend16() throws Exception {
         int numEvents = 4;
         int size = APPEND_BLOCK_SIZE - 16;
         sendAndVerifyEvents(streamName, connectionId, numEvents, size, numEvents);
     }
+
+    /**
+     * Attempts to append at block bound.
+     * @throws Exception is thrown if operation fails.
+     */
 
     @Test
     public void testAppendAtBlockBound() throws Exception {
@@ -214,6 +274,10 @@ public class AppendEncodeDecodeTest {
         assertEquals(keepAlive, three);
     }
 
+    /**
+     * Attempts to append as large message as 10* APPEND_BLOCK_SIZE.
+     * @throws Exception is thrown if operation fails.
+     */
     @Test
     public void testLargeAppend() throws Exception {
         int size = 10 * APPEND_BLOCK_SIZE;

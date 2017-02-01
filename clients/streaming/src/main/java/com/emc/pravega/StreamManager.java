@@ -33,6 +33,13 @@ import java.util.List;
  */
 public interface StreamManager extends AutoCloseable {
 
+    /**
+     * Constructor to create a Stream Manager.
+     *
+     * @param scope The Scope string.
+     * @param controllerUri The Controller URI.
+     * @return Instance on Stream Manager implementation.
+     */
     public static StreamManager withScope(String scope, URI controllerUri) {
         return new StreamManagerImpl(scope, controllerUri);
     }

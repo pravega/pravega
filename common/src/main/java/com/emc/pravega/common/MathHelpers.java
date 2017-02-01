@@ -21,14 +21,31 @@ import com.google.common.base.Preconditions;
 
 public class MathHelpers {
 
+    /**
+     * Returns absolute int value of given number.
+     * @param in value to be absoluted
+     * @return absolute value of in
+     */
     public static int abs(int in) {
         return in & Integer.MAX_VALUE;
     }
 
+    /**
+     * Returns absolute long value of given number.
+     * @param in number to needs to be converted to absolute value
+     * @return absolute value of in
+     */
     public static long abs(long in) {
         return in & Long.MAX_VALUE;
     }
 
+    /**
+     * Returns the value itself if it is between min and max numbers.
+     * @param value actual value
+     * @param min minimum value to check againsts
+     * @param max maximum value to check againsts
+     * @return the given value if it is between min and max, min if the value is less than min, or max if the value is greater than max
+     */
     public static long minMax(long value, long min, long max) {
         Preconditions.checkArgument(min <= max, "min must be less than or equal to max");
         return Math.max(Math.min(value, max), min);

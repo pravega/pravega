@@ -86,6 +86,13 @@ public final class WireCommands {
             out.writeUTF(correctHost);
         }
 
+        /**
+         * Constructs a WrongHost reply.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A WrongHost wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             String correctHost = in.readUTF();
@@ -98,6 +105,10 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.SEGMENT_IS_SEALED;
         final String segment;
 
+        /**
+         * Constructs a reply to notify if the segment is sealed or not.
+         * @param cp A reply processor
+         */
         @Override
         public void process(ReplyProcessor cp) {
             cp.segmentIsSealed(this);
@@ -108,6 +119,13 @@ public final class WireCommands {
             out.writeUTF(segment);
         }
 
+        /**
+         * Constructs a SegmentIsSealed reply.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A SegmentIsSealed wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             return new SegmentIsSealed(segment);
@@ -119,6 +137,10 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.SEGMENT_ALREADY_EXISTS;
         final String segment;
 
+        /**
+         * Constructs a reply to notify that segment already existed.
+         * @param cp A reply processor
+         */
         @Override
         public void process(ReplyProcessor cp) {
             cp.segmentAlreadyExists(this);
@@ -129,6 +151,13 @@ public final class WireCommands {
             out.writeUTF(segment);
         }
 
+        /**
+         * Constructs a SegmentAlreadyExists reply.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A SegmentAlreadyExists wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             return new SegmentAlreadyExists(segment);
@@ -140,11 +169,16 @@ public final class WireCommands {
         }
     }
 
+
     @Data
     public static final class NoSuchSegment implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.NO_SUCH_SEGMENT;
         final String segment;
 
+        /**
+         * Constructs a reply to notify that there is not such segment.
+         * @param cp A reply processor
+         */
         @Override
         public void process(ReplyProcessor cp) {
             cp.noSuchSegment(this);
@@ -155,6 +189,13 @@ public final class WireCommands {
             out.writeUTF(segment);
         }
 
+        /**
+         * Constructs a NoSuchSegment reply.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A NoSuchSegment wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             return new NoSuchSegment(segment);
@@ -171,6 +212,10 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.NO_SUCH_TRANSACTION;
         final String batch;
 
+        /**
+         * Constructs a reply to notify that there is not such batch.
+         * @param cp A reply processor
+         */
         @Override
         public void process(ReplyProcessor cp) {
             cp.noSuchBatch(this);
@@ -181,6 +226,13 @@ public final class WireCommands {
             out.writeUTF(batch);
         }
 
+        /**
+         * Constructs a NoSuchTransaction reply.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A NoSuchTransaction wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String batch = in.readUTF();
             return new NoSuchTransaction(batch);
@@ -212,6 +264,13 @@ public final class WireCommands {
             }
         }
 
+        /**
+         * Constructs a Padding wire command.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A Padding wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             in.skipBytes(length);
             return new Padding(length);
@@ -228,6 +287,13 @@ public final class WireCommands {
             out.write(data.array(), data.arrayOffset(), data.readableBytes());
         }
 
+        /**
+         * Constructs a PartialEvent wire command.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A PartialEvent wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             byte[] msg = new byte[length];
             in.readFully(msg);
@@ -245,6 +311,13 @@ public final class WireCommands {
             out.write(data.array(), data.arrayOffset(), data.readableBytes());
         }
 
+        /**
+         * Constructs a Event wire command.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A Event wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             byte[] msg = new byte[length];
             in.readFully(msg);
@@ -269,7 +342,14 @@ public final class WireCommands {
             out.writeLong(connectionId.getLeastSignificantBits());
             out.writeUTF(segment);
         }
-
+        
+        /**
+         * Constructs a SetupAppend request.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A SetupAppend wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID uuid = new UUID(in.readLong(), in.readLong());
             String segment = in.readUTF();
@@ -299,7 +379,14 @@ public final class WireCommands {
             out.writeLong(connectionId.getLeastSignificantBits());
             // Data not written, as it should be null.
         }
-
+        
+        /**
+         * Constructs a AppendBlock wire command.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A AppendBlock wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID connectionId = new UUID(in.readLong(), in.readLong());
             byte[] data = new byte[length - 16];
@@ -330,6 +417,13 @@ public final class WireCommands {
             }
         }
 
+        /**
+         * Constructs a AppendBlockEnd wire command.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A AppendBlockEnd wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID connectionId = new UUID(in.readLong(), in.readLong());
             long lastEventNumber = in.readLong();
@@ -368,7 +462,14 @@ public final class WireCommands {
                 out.write(data.array(), data.arrayOffset(), data.readableBytes());
             }
         }
-
+        
+        /**
+         * Constructs a ConditionalAppend wire command.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A ConditionalAppend wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID connectionId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
@@ -406,6 +507,13 @@ public final class WireCommands {
             out.writeLong(lastEventNumber);
         }
 
+        /**
+         * Constructs a AppendSetup reply.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A AppendSetup wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             UUID connectionId = new UUID(in.readLong(), in.readLong());
@@ -432,6 +540,13 @@ public final class WireCommands {
             out.writeLong(eventNumber);
         }
 
+        /**
+         * Constructs a DataAppended reply.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A DataAppended wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID connectionId = new UUID(in.readLong(), in.readLong());
             long offset = in.readLong();
@@ -457,6 +572,13 @@ public final class WireCommands {
             out.writeLong(eventNumber);
         }
 
+        /**
+         * Constructs a ConditionalCheckFailed reply.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A ConditionalCheckFailed wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID connectionId = new UUID(in.readLong(), in.readLong());
             long offset = in.readLong();
@@ -483,6 +605,13 @@ public final class WireCommands {
             out.writeInt(suggestedLength);
         }
 
+        /**
+         * Constructs a ReadSegment request.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A ReadSegment wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             long offset = in.readLong();
@@ -516,6 +645,13 @@ public final class WireCommands {
             out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
         }
 
+        /**
+         * Constructs a SegmentRead reply.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A SegmentRead wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             long offset = in.readLong();
@@ -545,7 +681,14 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeUTF(segmentName);
         }
-
+        
+        /**
+         * Constructs a GetStreamSegmentInfo request.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A GetStreamSegmentInfo wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             return new GetStreamSegmentInfo(segment);
@@ -577,6 +720,13 @@ public final class WireCommands {
             out.writeLong(segmentLength);
         }
 
+        /**
+         * Constructs a StreamSegmentInfo reply.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A StreamSegmentInfo wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segmentName = in.readUTF();
             boolean exists = in.readBoolean();
@@ -606,6 +756,13 @@ public final class WireCommands {
             out.writeLong(txid.getLeastSignificantBits());
         }
 
+        /**
+         * Constructs a GetTransactionInfo request.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A GetTransactionInfo wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
@@ -642,6 +799,13 @@ public final class WireCommands {
             out.writeLong(dataLength);
         }
 
+        /**
+         * Constructs a TransactionInfo reply.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A TransactionInfo wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
@@ -669,6 +833,13 @@ public final class WireCommands {
             out.writeUTF(segment);
         }
 
+        /**
+         * Constructs a CreateSegment request.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A CreateSegment wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             return new CreateSegment(segment);
@@ -690,6 +861,13 @@ public final class WireCommands {
             out.writeUTF(segment);
         }
 
+        /**
+         * Constructs a SegmentCreated reply.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A SegmentCreated wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             return new SegmentCreated(segment);
@@ -714,6 +892,13 @@ public final class WireCommands {
             out.writeLong(txid.getLeastSignificantBits());
         }
 
+        /**
+         * Constructs a CreateTransaction request.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A CreateTransaction wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
@@ -739,6 +924,13 @@ public final class WireCommands {
             out.writeLong(txid.getLeastSignificantBits());
         }
 
+        /**
+         * Constructs a TransactionCreated wire command.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A TransactionCreated wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
@@ -764,6 +956,13 @@ public final class WireCommands {
             out.writeLong(txid.getLeastSignificantBits());
         }
 
+        /**
+         * Constructs a CommitTransaction wire command.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A CommitTransaction wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
@@ -789,6 +988,13 @@ public final class WireCommands {
             out.writeLong(txid.getLeastSignificantBits());
         }
 
+        /**
+         * Constructs a TransactionCommitted wire command.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A TransactionCommitted wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
@@ -814,6 +1020,13 @@ public final class WireCommands {
             out.writeLong(txid.getLeastSignificantBits());
         }
 
+        /**
+         * Constructs a AbortTransaction wire command.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A AbortTransaction wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
@@ -839,6 +1052,13 @@ public final class WireCommands {
             out.writeLong(txid.getLeastSignificantBits());
         }
 
+        /**
+         * Constructs a TransactionAborted wire command.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A TransactionAborted wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             UUID txid = new UUID(in.readLong(), in.readLong());
@@ -862,6 +1082,13 @@ public final class WireCommands {
             out.writeUTF(segment);
         }
 
+        /**
+         * Constructs a SealSegment request.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A SealSegment wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             return new SealSegment(segment);
@@ -883,6 +1110,13 @@ public final class WireCommands {
             out.writeUTF(segment);
         }
 
+        /**
+         * Constructs a SealSegment reply.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A SealSegment wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             return new SealSegment(segment);
@@ -904,6 +1138,13 @@ public final class WireCommands {
             out.writeUTF(segment);
         }
 
+        /**
+         * Constructs a SealSegment request.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A SealSegment wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             return new SealSegment(segment);
@@ -925,6 +1166,13 @@ public final class WireCommands {
             out.writeUTF(segment);
         }
 
+        /**
+         * Constructs a SealSegment reply.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A SealSegment wire command instance.
+         * @throws IOException is thrown if input is not properly structured. 
+         */
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             return new SealSegment(segment);
@@ -950,6 +1198,12 @@ public final class WireCommands {
 
         }
 
+        /**
+         * Constructs a KeepAlive wire command.
+         * @param in Incoming byte.
+         * @param length length of the input.
+         * @return A KeepAlive wire command instance.
+         */
         public static WireCommand readFrom(DataInput in, int length) {
             return new KeepAlive();
         }

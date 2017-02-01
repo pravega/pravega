@@ -57,6 +57,12 @@ public class ClientFactoryImpl implements ClientFactory {
     private final ConnectionFactory connectionFactory;
     private final StreamManager streamManager;
 
+    /**
+     * Constructor to initiliaze a Client Factory Implementation.
+     *
+     * @param scope The scope string.
+     * @param controllerUri The Controller URI.
+     */
     public ClientFactoryImpl(String scope, URI controllerUri) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controllerUri);
@@ -66,6 +72,14 @@ public class ClientFactoryImpl implements ClientFactory {
         this.streamManager = StreamManager.withScope(scope, controllerUri);
     }
 
+    /**
+     * Constructor to initiliaze a Client Factory Implementation.
+     *
+     * @param scope The scope string.
+     * @param controller The reference to Controller.
+     * @param connectionFactory The reference to Connection Factory impl.
+     * @param streamManager The reference to Stream Manageer impl.
+     */
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
             StreamManager streamManager) {

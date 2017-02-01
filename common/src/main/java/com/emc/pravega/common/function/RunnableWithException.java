@@ -23,5 +23,10 @@ package com.emc.pravega.common.function;
  */
 @FunctionalInterface
 public interface RunnableWithException {
+
+    /**
+     * Runnable with no result, but may throw an exception.
+     * @throws Exception a result of runnable job that has no output.
+     */
     void run() throws Exception;
 }

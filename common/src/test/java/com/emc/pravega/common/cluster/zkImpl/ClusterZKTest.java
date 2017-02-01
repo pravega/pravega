@@ -49,17 +49,29 @@ public class ClusterZKTest {
     private static TestingServer zkTestServer;
     private static String zkUrl;
 
+    /**
+     * Starts a zookeeper.
+     * @throws Exception may be thrown if it initializes the server.
+     */
     @BeforeClass
     public static void startZookeeper() throws Exception {
         zkTestServer = new TestingServer();
         zkUrl = zkTestServer.getConnectString();
     }
 
+    /**
+     * Stops the zookeeper server.
+     * @throws IOException may be thrown if it cannot stop the server.
+     */
     @AfterClass
     public static void stopZookeeper() throws IOException {
         zkTestServer.close();
     }
 
+    /**
+     * Adds a new host to Zookeeper cluster.
+     * @throws Exception is thrown if new host cannot be added.
+     */
     @Test(timeout = TEST_TIMEOUT)
     public void registerNode() throws Exception {
         LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue();
@@ -100,6 +112,10 @@ public class ClusterZKTest {
         clusterZKInstance2.close();
     }
 
+    /**
+     * Removes node from zookeeper cluster.
+     * @throws Exception is thrown if it cannot remove the node.
+     */
     @Test(timeout = TEST_TIMEOUT)
     public void deregisterNode() throws Exception {
         LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue();

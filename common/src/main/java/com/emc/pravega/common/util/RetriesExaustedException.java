@@ -25,6 +25,10 @@ public class RetriesExaustedException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * A Constructor that invokes constructor of super class.
+     * @param last the latest exception
+     */
     public RetriesExaustedException(Exception last) {
         super(last);
     }

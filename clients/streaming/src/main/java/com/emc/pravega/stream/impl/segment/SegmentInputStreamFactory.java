@@ -23,6 +23,7 @@ import com.emc.pravega.stream.Segment;
  * Creates {@link SegmentInputStream} for reading from existing segments.
  */
 public interface SegmentInputStreamFactory {
+
     /**
      * Opens an existing segment for reading. This operation will fail if the
      * segment does not exist.
@@ -32,6 +33,7 @@ public interface SegmentInputStreamFactory {
      *
      * @param segment The segment to create an input for.
      * @param config  The SegmentInputConfiguration to use.
+     * @return New instance of SegmentInputStream for reading.
      */
     SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config);
 }

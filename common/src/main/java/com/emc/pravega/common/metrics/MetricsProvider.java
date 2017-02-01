@@ -40,6 +40,11 @@ public class MetricsProvider {
         return NULLPROVIDER;
     }
 
+    /**
+     * Initiates a StatsLogger object with given logger name.
+     * @param loggerName The name of the logger
+     * @return StatsLogger instance if stats is enabled, or null instance.
+     */
     public static StatsLogger createStatsLogger(String loggerName) {
         return  MetricsConfig.enableStatistics() ?
                 YAMMERPROVIDER.createStatsLogger(loggerName) :

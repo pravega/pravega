@@ -40,6 +40,11 @@ import org.slf4j.LoggerFactory;
 public class SelfTestRunner {
     private static final String LOG_PATH = "/tmp/pravega/selftest.log";
 
+    /**
+     * Runs series of extensive tests as part of Test Framework.
+     * @param args not used so far.
+     * @throws Exception in case of any failure.
+     */
     public static void main(String[] args) throws Exception {
         setupLogging();
         TestConfig testConfig = getTestConfig();

@@ -35,6 +35,13 @@ public class StreamImpl implements Stream {
     @Getter
     private final StreamConfiguration config;
 
+    /**
+     * Constructor to initiate Stream instance with given configuration and scope/name.
+     *
+     * @param scope The scope of the stream.
+     * @param streamName The name of the stream.
+     * @param config The configuration of the stream.
+     */
     public StreamImpl(String scope, String streamName, StreamConfiguration config) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(streamName);

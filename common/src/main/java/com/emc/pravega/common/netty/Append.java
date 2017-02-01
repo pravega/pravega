@@ -29,7 +29,11 @@ public class Append implements Request, Comparable<Append> {
     final long eventNumber;
     final ByteBuf data;
     final Long expectedLength;
-    
+
+    /**
+     * Returns a boolean to indicate whether expected length value has set.
+     * @return true if there is a value in the bytebuff.
+     */
     public boolean isConditional() {
         return expectedLength != null;
     }

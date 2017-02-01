@@ -27,6 +27,7 @@ public interface IndexEntry<K> {
     /**
      * Gets a value representing the key of the entry. The Key should not change for the lifetime of the entry and
      * should be very cheap to return (as it is used very frequently).
+     * @return the key of the entry.
      */
     K key();
 }

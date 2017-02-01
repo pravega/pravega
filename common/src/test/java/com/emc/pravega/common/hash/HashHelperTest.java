@@ -23,6 +23,9 @@ import org.junit.Test;
 
 public class HashHelperTest {
 
+    /**
+     * Tests whether hash helper works properly.
+     */
     @Test
     public void testLongBits() {
         assertEquals(1.0, HashHelper.longToDoubleFraction(-1), 0.0000001);

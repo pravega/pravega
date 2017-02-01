@@ -62,6 +62,13 @@ import java.net.URI;
  */
 public interface ClientFactory {
 
+    /**
+     * Construtor for client factory.
+     *
+     * @param scope The scope string.
+     * @param controllerUri The URI for controller.
+     * @return Instance of ClientFactory implementation.
+     */
     public static ClientFactory withScope(String scope, URI controllerUri) {
         return new ClientFactoryImpl(scope, controllerUri);
     }

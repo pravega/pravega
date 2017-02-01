@@ -22,5 +22,10 @@ package com.emc.pravega.common.function;
  * Defines a Consumer that takes in one argument and may throw an exception.
  */
 public interface ConsumerWithException<T, TEx extends Throwable> {
+    /**
+     * Method to pass an argument and exceptions, which may be thrown, to a Consumer.
+     * @param var1 An argument
+     * @throws TEx The exception
+     */
     void accept(T var1) throws TEx;
 }

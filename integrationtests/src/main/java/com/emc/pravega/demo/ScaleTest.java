@@ -46,6 +46,12 @@ import java.util.concurrent.CompletableFuture;
  *
  */
 public class ScaleTest {
+
+    /**
+     * Creates a stream, splits it into two segments, and merges two segments back to one.
+     * @param args not used so far.
+     * @throws Exception if things go wrong.
+     */
     @SuppressWarnings("checkstyle:ReturnCount")
     public static void main(String[] args) throws Exception {
         TestingServer zkTestServer = new TestingServer();

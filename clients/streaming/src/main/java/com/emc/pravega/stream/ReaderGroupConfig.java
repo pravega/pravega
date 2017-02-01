@@ -26,8 +26,15 @@ import lombok.Getter;
 public class ReaderGroupConfig {
    @Getter
    private final Sequence startingPosition;
-   
+
    public static class ReaderGroupConfigBuilder {
+
+       /**
+        * Returns a config builder that started at given time.
+        *
+        * @param time A time to create sequence at.
+        * @return Sequence instance.
+        */
        public ReaderGroupConfigBuilder startingTime(long time) {
            startingPosition = Sequence.create(time, 0);
            return this;

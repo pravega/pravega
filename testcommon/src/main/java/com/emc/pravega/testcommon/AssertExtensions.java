@@ -313,10 +313,22 @@ public class AssertExtensions {
     }
 
     public interface RunnableWithException {
+
+        /**
+         * Runs the runnable with exception.
+         * @throws Exception in case of a failure.
+         */
         void run() throws Exception;
     }
 
     public interface BiConsumerWithMessage<T, U> {
+
+        /**
+         * Consumer interface with message.
+         * @param message A String message.
+         * @param var1 Type (T) Parameter
+         * @param var2 Type (U) Parameter
+         */
         void accept(String message, T var1, U var2);
     }
 }

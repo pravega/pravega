@@ -38,6 +38,12 @@ public class StreamManagerImpl implements StreamManager {
     private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
     private final ControllerImpl controller;
 
+    /**
+     * Contructor to initialize a Stream Manager implementation.
+     *
+     * @param scope The scope string.
+     * @param controllerUri The controller URI.
+     */
     public StreamManagerImpl(String scope, URI controllerUri) {
         this.scope = scope;
         this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());

@@ -34,6 +34,7 @@ public class CollectionHelpers {
      * @param collection The collection to use.
      * @param filter     The filter to apply.
      * @param <T>        The type of the elements in the collection.
+     * @return a collection that is subset of given collection after filter
      */
     public static <T> Collection<T> filter(Collection<T> collection, Predicate<T> filter) {
         ArrayList<T> result = new ArrayList<>();

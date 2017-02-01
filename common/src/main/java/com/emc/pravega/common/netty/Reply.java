@@ -21,5 +21,9 @@ package com.emc.pravega.common.netty;
  * A response going from the server to the client resulting from a previous message from the client to the server.
  */
 public interface Reply {
+    /**
+     * Constructs the reply with required metadata and content.
+     * @param cp reply type.
+     */
     void process(ReplyProcessor cp);
 }

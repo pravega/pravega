@@ -26,6 +26,14 @@ public class FutureSegment extends Segment {
     @Getter
     private final int precedingNumber;
 
+    /**
+     * Constructor to intilialize a future segment.
+     *
+     * @param scope The scope string.
+     * @param streamName The stream name that the segment belongs to.
+     * @param newSegmentNumber The Id Number of the segment.
+     * @param precedingSegmentNumber The Id number of the preceding segment.
+     */
     public FutureSegment(String scope, String streamName, int newSegmentNumber, int precedingSegmentNumber) {
         super(scope, streamName, newSegmentNumber);
         this.precedingNumber = precedingSegmentNumber;

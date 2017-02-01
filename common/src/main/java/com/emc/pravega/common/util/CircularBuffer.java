@@ -36,6 +36,10 @@ public class CircularBuffer {
     @Getter
     private final int capacity;
 
+    /**
+     * A constructor with initialize circular buffer with the given capacity.
+     * @param capacity Size of the buffer
+     */
     public CircularBuffer(int capacity) {
         this.capacity = capacity;
         byte[] buffer = new byte[capacity];
@@ -44,6 +48,9 @@ public class CircularBuffer {
         clear();
     }
 
+    /**
+     * Clears the buffer.
+     */
     public void clear() {
         readBuffer.position(0).limit(0);
         fillBuffer.position(0).limit(fillBuffer.capacity());
@@ -116,6 +123,7 @@ public class CircularBuffer {
 
     /**
      * Gets the number of bytes that can be read.
+     * @return number of available bytes to be read
      */
     public int dataAvailable() {
         if (readBuffer.position() < fillBuffer.position()) {
@@ -131,6 +139,10 @@ public class CircularBuffer {
         }
     }
 
+    /**
+     * Gets the number of bytes available in the fillBuffer.
+     * @return number of available bytes in fillBuffer
+     */
     public int capacityAvailable() {
         if (fillBuffer.position() < readBuffer.position()) {
             return fillBuffer.remaining();

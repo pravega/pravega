@@ -21,6 +21,13 @@ import java.nio.ByteBuffer;
 
 public class ByteBufferUtils {
 
+    /**
+     * Slices a given byte buffer starting from a 'begin' point to 'begin'+'length'.
+     * @param orig A Bytebuffer to be sliced
+     * @param begin Starting point
+     * @param length Length of slice
+     * @return A sliced ByteBuffer
+     */
     public static ByteBuffer slice(ByteBuffer orig, int begin, int length) {
         int pos = orig.position();
         int limit = orig.limit();

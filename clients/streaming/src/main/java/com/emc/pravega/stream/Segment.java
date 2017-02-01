@@ -33,6 +33,13 @@ public class Segment {
     private final String streamName;
     private final int segmentNumber;
 
+    /**
+     * Constructor to create a segment.
+     *
+     * @param scope The scope string the segment belongs to.
+     * @param streamName The stream name that the segment belongs to.
+     * @param number ID number for the segment.
+     */
     public Segment(String scope, String streamName, int number) {
         Preconditions.checkNotNull(streamName);
         Preconditions.checkArgument(streamName.matches("^\\w+\\z"), "Name must be [a-zA-Z0-9]*");
@@ -67,6 +74,12 @@ public class Segment {
         return sb.toString();
     }
 
+    /**
+     * Parses fully scoped name, and extracts the segment name only.
+     *
+     * @param qualifiedName Fully scoped segment name
+     * @return Segment name.
+     */
     public static Segment fromScopedName(String qualifiedName) {
         String[] tokens = qualifiedName.split("[/#]");
         if (tokens.length == 2) {
