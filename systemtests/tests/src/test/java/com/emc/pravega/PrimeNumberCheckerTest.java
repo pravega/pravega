@@ -28,9 +28,6 @@ import org.junit.runner.RunWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-//@MarathonDistributed -- MarathonDistributed tests: All the tests are executed as marathon jobs.
-//@MarathonSequential -- Each test is executed (as a marathon job ) one after another.
-//@Local -- Each test is executed locally and not as a marathon job. (Default)
 //@FreshSetup -- this is used to indicate the Setup needs to be created afresh.
 
 @RunWith(SystemTestRunner.class)

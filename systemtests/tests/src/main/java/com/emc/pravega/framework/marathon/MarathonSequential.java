@@ -15,17 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.framework;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+package com.emc.pravega.framework.marathon;
 
-/**
- * This ensure all the Test cases inside a Junit file are executed parallely inside the test framework.
- */
-@Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.TYPE)
-public @interface MarathonSequential {
+import java.lang.reflect.Method;
+import java.util.concurrent.CompletableFuture;
+
+public class MarathonSequential implements  TestExecutor {
+    @Override
+    public CompletableFuture<String> startTestExecution(Method method) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<String> stopTestExcecution(String testID) {
+        return null;
+    }
 }
+

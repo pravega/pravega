@@ -32,7 +32,6 @@ import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import lombok.Cleanup;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -47,11 +46,7 @@ import java.util.concurrent.TimeoutException;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
-//@MarathonDistributed -- MarathonDistributed tests: All the tests are executed as marathon jobs.
-//@MarathonSequential -- Each test is executed (as a marathon job ) one after another.
-//@Local -- Each test is executed locally and not as a marathon job. (Default)
 //@FreshSetup -- this is used to indicate the Setup needs to be created afresh.
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class SimplePravegaClientTest {
     private final static String STREAM_NAME = "testStream";
@@ -118,6 +113,7 @@ public class SimplePravegaClientTest {
      * The test fails incase of exceptions/ timeout.
      */
     @Test
+    //@InstanceCount(3)
     public void consumerTest() throws URISyntaxException {
         System.out.println("Invoking consumer test.");
         String controllerHost = System.getProperty("controller", "a1.dcos");

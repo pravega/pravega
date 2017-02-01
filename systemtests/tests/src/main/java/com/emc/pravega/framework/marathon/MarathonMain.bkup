@@ -1,0 +1,76 @@
+package com.emc.pravega.framework.marathon;
+
+import mesosphere.marathon.client.Marathon;
+import mesosphere.marathon.client.MarathonClient;
+import mesosphere.marathon.client.model.v2.App;
+import mesosphere.marathon.client.model.v2.Container;
+import mesosphere.marathon.client.model.v2.Docker;
+import mesosphere.marathon.client.model.v2.GetAppResponse;
+import mesosphere.marathon.client.model.v2.GetAppsResponse;
+import mesosphere.marathon.client.model.v2.GetTasksResponse;
+import mesosphere.marathon.client.model.v2.Port;
+import mesosphere.marathon.client.model.v2.Result;
+import mesosphere.marathon.client.utils.MarathonException;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
+public class MarathonMain {
+    public static void main (String[] args) throws MarathonException {
+        //-Dhttp.proxyHost=webcache.example.com -Dhttp.proxyPort=8080
+       //http://10.240.124.161:8888
+
+
+
+        String endpoint = "http://10.240.124.18/marathon";
+        Marathon marathon = MarathonClient.getInstance(endpoint);
+
+
+        //App result = marathon.createApp(createDockerApp());
+
+        try {
+            Result r1 = marathon.deleteApp("basic-Docker");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+//        List<App> result = marathon.getApps().getApps().stream()
+//                .filter(app -> app.getId().contains("controller")).collect(Collectors.toList());
+//
+
+//        System.out.println(result);
+
+    }
+
+    private static App createDockerApp() {
+        Port p1 = new Port(8080); p1.setHostPort(0);
+
+        App app = new App();
+        app.setId("basic-5");
+        app.setCpus(0.5);
+        app.setMem(32.0);
+        app.setCmd("python3 -m http.server 8080");
+        app.setContainer(new Container());
+        app.getContainer().setType("DOCKER");
+        app.getContainer().setDocker(new Docker());
+        app.getContainer().getDocker().setImage("python:3");
+        app.getContainer().getDocker().setNetwork("BRIDGE");
+        app.getContainer().getDocker().setPortMappings(Arrays.asList(p1));
+        app.getContainer().getDocker().setPrivileged(false);
+        return app;
+
+    }
+
+    private static App createCmdApp() {
+        App app = new App();
+        app.setId("echohisleepbye-app");
+        app.setCmd("echo hi; sleep 10; echo bye;");
+        app.setCpus(1.0);
+        app.setMem(16.0);
+        app.setInstances(1);
+        return app;
+    }
+
+
+}

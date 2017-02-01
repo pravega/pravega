@@ -17,7 +17,8 @@
  */
 package com.emc.pravega.framework;
 
-import com.emc.pravega.SingleJUnitTestRunner;
+import com.emc.pravega.framework.marathon.TestExecutorFactory;
+import com.emc.pravega.framework.marathon.TestExecutorFactory.TestExecutorType;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.internal.runners.model.EachTestNotifier;
 import org.junit.internal.runners.statements.RunBefores;
@@ -30,6 +31,7 @@ import org.junit.runners.model.Statement;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * SystemTestRunner this is used to execute all the systemTests.
@@ -59,37 +61,30 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
         if (isIgnored(method)) {
             notifier.fireTestIgnored(description);
         } else {
-            EachTestNotifier eachNotifier = new EachTestNotifier(notifier, description);
-            eachNotifier.fireTestStarted();
-            Method m = method.getMethod();
-            String executionType = System.getProperties().getProperty("execType");
-
-            if (executionType.equals("MarathonDistributed")) {
-                log.info("Execute Test in a distributed fashion by triggering multiple marathon jobs");
-                //TODO: Write a distributed Test invoker.
-            } else if (executionType.equals("MarathonSequential")) {
-                log.info("Execute test using marathon one by one.");
-                //TODO: Invoke the method using marathon sequentially.
-                invokeTestLocally(eachNotifier, m);
-            } else {
-                log.info("Execute test locally without marathon");
-                //Currently executing the test using SingleJUnitTestRunner; it will be changed to Marathon.
-                //Based on the annotations defined.
-                invokeTestLocally(eachNotifier, m);
-            }
+            //read the type of testExecutor from system property. This is sent by the gradle task. By default
+            //the tests are executed locally.
+            TestExecutorType executionType = TestExecutorType.valueOf(System.getProperty("execType", "LOCAL"));
+            invokeTest(notifier, executionType, method);
         }
     }
 
-    /*
-        Invoke the test locally without using marathon.
-     */
-    private void invokeTestLocally(EachTestNotifier eachNotifier, Method method) {
-        try {
-            boolean result = SingleJUnitTestRunner.execute(method.getDeclaringClass().getName(), method.getName());
-        } catch (Throwable e) {
-            eachNotifier.addFailure(e);
-        } finally {
-            eachNotifier.fireTestFinished();
+    private CompletableFuture<String> execute(TestExecutorType type, Method method) throws Exception {
+        return TestExecutorFactory.getTestExecutor(type).startTestExecution(method);
+    }
+
+    private void invokeTest(RunNotifier notifier, TestExecutorType type, FrameworkMethod method) {
+        if ((type == null) || TestExecutorType.LOCAL.equals(type)) {
+            runLeaf(methodBlock(method), describeChild(method), notifier);
+        } else {
+            EachTestNotifier eachNotifier = new EachTestNotifier(notifier, describeChild(method));
+            try {
+                eachNotifier.fireTestStarted();
+                execute(type, method.getMethod()).get();
+            } catch (Throwable e) {
+                eachNotifier.addFailure(e);
+            } finally {
+                eachNotifier.fireTestFinished();
+            }
         }
     }
 
