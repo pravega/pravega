@@ -27,7 +27,8 @@ public interface WireCommand {
     WireCommandType getType();
 
     /**
-     * Appends segment data into this output .
+     * Appends segment data into this output.
+     *
      * @param out Data output.
      * @throws IOException is thrown when out is not constructed properly
      */
