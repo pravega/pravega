@@ -171,7 +171,8 @@ public class AppendEncodeDecodeTest {
     }
 
     /**
-     * Attempts to append 10000 small events with each has size of 10 bytes.
+     * Attempts to append 10000 small events events each of size 10 bytes.
+     *
      * @throws Exception is thrown if operation fails.
      */
     @Test
