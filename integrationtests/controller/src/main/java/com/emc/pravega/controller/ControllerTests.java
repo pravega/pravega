@@ -46,19 +46,22 @@ import java.util.concurrent.TimeUnit;
 public class ControllerTests {
 
     private static String controllerUri = "http://127.0.0.1:9090";
-    private static int createStreamCallCount = 25;
-    private static int alterStreamCallCount = 25;
+    private static int createStreamCallCount = 2;
+    private static int alterStreamCallCount = 2;
+    private static int sealStreamCallCount = 2;
     private static long starttime;
     private static long endtime;
     private static long timetaken;
     private static ArrayList<CompletableFuture<CreateStreamStatus>> createStatusList = new ArrayList<>();
     private static ArrayList<CompletableFuture<UpdateStreamStatus>> alterStatusList = new ArrayList<>();
+    private static ArrayList<CompletableFuture<UpdateStreamStatus>> sealStatusList = new ArrayList<>();
 
 
     public static void main(String[] args) throws Exception {
         parseCmdLine(args);
         createStream();
         alterStream();
+        sealStream();
         System.exit(0);
     }
 
@@ -162,12 +165,78 @@ public class ControllerTests {
         });
     }
 
+    private static void sealStream() {
+
+        ExecutorService sealExecutor = Executors.newFixedThreadPool(sealStreamCallCount);
+        String scope = "sealscope";
+        String streamName = "sealstreamName";
+        StreamConfiguration config =
+                new StreamConfigurationImpl(scope,
+                        streamName,
+                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
+        ControllerImpl controller3 = null;
+        try {
+            controller3 = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
+        } catch (URISyntaxException e) {
+            e.printStackTrace();
+        }
+        CompletableFuture<CreateStreamStatus> createStream = controller3.createStream(config);
+        try {
+            System.out.println("create stream status" + createStream.get());
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        }
+        System.out.println("\n calling seal stream  " + sealStreamCallCount + " times " + " the controller endpoint is" + controllerUri);
+        starttime = System.currentTimeMillis();
+        for (int i = 0; i < sealStreamCallCount; i++) {
+            try {
+                ControllerImpl controller4 = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
+                Runnable runnable = new SealStream(controller4, scope, streamName);
+                sealExecutor.execute(runnable);
+            } catch (URISyntaxException uri) {
+                System.out.println(uri);
+            }
+        }
+
+        sealExecutor.shutdown();
+        try {
+            sealExecutor.awaitTermination(1, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        endtime = System.currentTimeMillis();
+        timetaken = endtime - starttime;
+        System.out.println("time taken for" + sealStreamCallCount + "alter stream calls =" + timetaken);
+        CompletableFuture<Void> sealAll = FutureHelpers.allOf(sealStatusList);
+        sealAll.join();
+        try {
+            System.out.println("contents" + sealAll.get());
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        }
+        System.out.println("is empty" + sealStatusList.isEmpty());
+        sealStatusList.forEach(sealStreamStatusCompletableFuture -> {
+            try {
+                System.out.println("get status of each alter stream call" + sealStreamStatusCompletableFuture.get());
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
     private static void parseCmdLine(String[] args) {
 
         Options options = new Options();
         options.addOption("controller", true, "controller URI");
         options.addOption("createstream", true, "number of create stream calls");
         options.addOption("alterstream", true, "number of alter stream calls");
+        options.addOption("sealstream", true, "number of seal stream calls");
         options.addOption("help", false, "Help message");
 
         CommandLineParser parser = new BasicParser();
@@ -187,6 +256,9 @@ public class ControllerTests {
                 }
                 if (commandline.hasOption("alterstream")) {
                     alterStreamCallCount = Integer.parseInt(commandline.getOptionValue("alterstream"));
+                }
+                if (commandline.hasOption("sealstream")) {
+                    alterStreamCallCount = Integer.parseInt(commandline.getOptionValue("sealstream"));
                 }
             }
         } catch (Exception nfe) {
@@ -246,6 +318,26 @@ public class ControllerTests {
 
             CompletableFuture<UpdateStreamStatus> alterStreamStatus = controller.alterStream(config);
             alterStatusList.add(alterStreamStatus);
+
+        }
+    }
+
+    private static class SealStream implements Runnable {
+
+        private ControllerImpl controller;
+        private int i;
+        private String scope;
+        private String streamName;
+
+        SealStream(ControllerImpl controller, String scope, String streamName) {
+            this.controller = controller;
+            this.scope = scope;
+            this.streamName = streamName;
+        }
+
+        public void run() {
+            CompletableFuture<UpdateStreamStatus> sealStreamStatus = controller.sealStream(scope, streamName);
+            alterStatusList.add(sealStreamStatus);
 
         }
     }
