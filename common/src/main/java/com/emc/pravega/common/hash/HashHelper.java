@@ -33,6 +33,7 @@ public class HashHelper {
 
     /**
      * Converts seed into hashcode seed.
+     *
      * @param seed A raw seed
      * @return HashHelper instance with hashcoded seed
      */
@@ -42,6 +43,7 @@ public class HashHelper {
 
     /**
      * Hashes the given long value into int.
+     *
      * @param longNumber A value to be hashed
      * @return integer hash value
      */
@@ -51,6 +53,7 @@ public class HashHelper {
 
     /**
      * Hashes the given string value into int.
+     *
      * @param str A string value to be hashed
      * @return integer hash value
      */
@@ -60,6 +63,7 @@ public class HashHelper {
 
     /**
      * Hashes the given string into int.
+     * 
      * @param str A string value to be hashed.
      * @param numBuckets Number of buckets that hashing operates in.
      * @return integer hash value
