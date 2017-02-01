@@ -53,6 +53,7 @@ public class OpStatsData {
 
     /**
      * Sets initial value of operational stats data.
+     *
      * @param numSuccessfulEvents Number of successful events.
      * @param numFailedEvents Number of failed events.
      * @param avgLatencyMillis Average latency in milliseconds.
