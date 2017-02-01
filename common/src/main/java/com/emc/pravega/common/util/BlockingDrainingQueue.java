@@ -21,8 +21,10 @@ package com.emc.pravega.common.util;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.ObjectClosedException;
 import com.google.common.base.Preconditions;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.ArrayDeque;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -37,9 +39,9 @@ public class BlockingDrainingQueue<T> {
     //region Members
 
     @GuardedBy("contents")
-    private final ArrayList<T> contents;
+    private final ArrayDeque<T> contents;
     @GuardedBy("contents")
-    private CompletableFuture<List<T>> pendingRequest;
+    private CompletableFuture<Queue<T>> pendingTake;
     @GuardedBy("contents")
     private boolean closed;
 
@@ -51,7 +53,7 @@ public class BlockingDrainingQueue<T> {
      * Creates a new instance of the BlockingDrainingQueue class.
      */
     public BlockingDrainingQueue() {
-        this.contents = new ArrayList<>();
+        this.contents = new ArrayDeque<>();
     }
 
     //endregion
@@ -64,73 +66,98 @@ public class BlockingDrainingQueue<T> {
      * @return If the queue has any more items in it, these will be returned here. The items are guaranteed not to be
      * returned both here and via takeAllItems().
      */
-    public List<T> close() {
-        CompletableFuture<List<T>> pendingRequest = null;
-        List<T> result = null;
+    public Collection<T> close() {
+        CompletableFuture<Queue<T>> pending = null;
+        Collection<T> result = null;
         synchronized (this.contents) {
             if (!this.closed) {
                 this.closed = true;
-                pendingRequest = this.pendingRequest;
-                this.pendingRequest = null;
-                result = fetchContents();
+                pending = this.pendingTake;
+                this.pendingTake = null;
+                result = fetch(this.contents.size());
             }
         }
 
-        if (pendingRequest != null) {
-            pendingRequest.cancel(true);
+        // Cancel any pending poll request.
+        if (pending != null) {
+            pending.cancel(true);
         }
 
-        return result != null ? result : new ArrayList<>();
+        return result != null ? result : Collections.emptyList();
     }
 
     /**
      * Adds a new item to the queue.
      *
-     * @param item The item to append.
+     * @param item The item to add.
      * @throws ObjectClosedException If the Queue is closed.
      */
     public void add(T item) {
-        CompletableFuture<List<T>> pendingRequest;
-        List<T> result = null;
+        CompletableFuture<Queue<T>> pending;
+        Queue<T> result = null;
         synchronized (this.contents) {
             Exceptions.checkNotClosed(this.closed, this);
-            this.contents.add(item);
-            pendingRequest = this.pendingRequest;
-            this.pendingRequest = null;
-            if (pendingRequest != null) {
-                result = fetchContents();
+            this.contents.addLast(item);
+            pending = this.pendingTake;
+            this.pendingTake = null;
+            if (pending != null) {
+                result = fetch(this.contents.size());
             }
         }
 
-        if (pendingRequest != null) {
-            pendingRequest.complete(result);
+        if (pending != null) {
+            pending.complete(result);
         }
     }
 
     /**
-     * Returns all items from the queue. If the queue is empty, it blocks the call until items are available.
-     * At the end of this call, the queue will be empty.
+     * Returns the next items from the queue, if any.
      *
-     * @return All the items currently in the queue.
-     * @throws ObjectClosedException If the Queue is closed.
-     * @throws IllegalStateException If another call to takeAllEntries is in progress.
+     * @param maxCount The maximum number of items to return.
+     * @return A Queue containing at most maxCount items, or empty if there is nothing in the queue.
+     * @throws IllegalStateException If there is a pending take() operation which hasn't completed yet.
      */
-    public CompletableFuture<List<T>> takeAllEntries() {
+    public Queue<T> poll(int maxCount) {
         synchronized (this.contents) {
-            Preconditions.checkState(this.pendingRequest == null, "Cannot have more than one concurrent pending takeAllEntries request.");
-            if (this.contents.size() > 0) {
-                return CompletableFuture.completedFuture(fetchContents());
+            Exceptions.checkNotClosed(this.closed, this);
+            Preconditions.checkState(this.pendingTake == null, "Cannot call poll() when there is a pending take() request.");
+            return fetch(maxCount);
+        }
+    }
+
+    /**
+     * Returns the next items from the queue. If the queue is empty, it blocks the call until at least one item is added.
+     *
+     * @param maxCount The maximum number of items to return. This argument will be ignored if the queue is currently empty,
+     *                 but in that case the result will always be completed with exactly one element.
+     * @return A CompletableFuture that, when completed, will contain the requested result. If the queue is not currently
+     * empty, this Future will already be completed, otherwise it will be completed the next time the add() method is called.
+     * If the queue is closed and this Future is not yet completed, it will be cancelled.
+     * @throws ObjectClosedException If the Queue is closed.
+     * @throws IllegalStateException If another call to take() is in progress.
+     */
+    public CompletableFuture<Queue<T>> take(int maxCount) {
+        synchronized (this.contents) {
+            Exceptions.checkNotClosed(this.closed, this);
+            Preconditions.checkState(this.pendingTake == null, "Cannot have more than one concurrent pending take() request.");
+            Queue<T> result = fetch(maxCount);
+            if (result.size() > 0) {
+                return CompletableFuture.completedFuture(result);
             } else {
-                this.pendingRequest = new CompletableFuture<>();
-                return this.pendingRequest;
+                this.pendingTake = new CompletableFuture<>();
+                return this.pendingTake;
             }
         }
     }
 
     @GuardedBy("contents")
-    private List<T> fetchContents() {
-        List<T> result = new ArrayList<>(this.contents);
-        this.contents.clear();
+    private Queue<T> fetch(int maxCount) {
+        int count = Math.min(maxCount, this.contents.size());
+        ArrayDeque<T> result = new ArrayDeque<>(count);
+        while (result.size() < count) {
+            result.addLast(this.contents.pollFirst());
+        }
+
         return result;
     }
 

@@ -150,7 +150,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         logError(ex, critical);
         if (critical) {
             // Setting a stop exception guarantees the main Writer loop will not continue running again.
-            setStopException(ex);
+            super.errorHandler(ex);
             stopAsync();
         } else {
             this.state.recordIterationError();

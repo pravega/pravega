@@ -87,8 +87,10 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
         log.info("{}: Started.", this.traceObjectId);
         this.runTask = doRun();
         this.runTask.whenComplete((r, ex) -> {
-            // Record any exception that may have been thrown.
-            this.stopException.compareAndSet(null, ex);
+            // Handle any exception that may have been thrown.
+            if (ex != null) {
+                errorHandler(ex);
+            }
 
             // Make sure the service is stopped when the runTask is done (whether successfully or not).
             if (state() == State.RUNNING) {
@@ -158,13 +160,13 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
     }
 
     /**
-     * Sets the current stop exception. Doing so will not auto-terminate the service, but this value will be used upon
-     * a call to stopAsync() to decide whether to terminate normally or not. This will be returned by calling failureCause()
-     * upon shutdown.
+     * When overridden in a derived class, handles an exception that is caught by the execution of run().
+     * The default implementation simply records the exception in the stopException field, which will then be used
+     * to fail the service when it shuts down.
      *
-     * @param ex The exception to set.
+     * @param ex The Exception.
      */
-    protected void setStopException(Throwable ex) {
-        this.stopException.set(ex);
+    protected void errorHandler(Throwable ex) {
+        this.stopException.compareAndSet(null, ex);
     }
 }
