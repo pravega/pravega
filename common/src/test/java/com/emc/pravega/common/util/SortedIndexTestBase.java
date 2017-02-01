@@ -369,14 +369,20 @@ abstract class SortedIndexTestBase {
 
     @RequiredArgsConstructor
     private static class PerfTester {
+        private static final int NANOS_TO_MILLIS = 1000;
         private final Supplier<SortedIndex<TestEntry>> indexSupplier;
         private final int itemCount;
         private final int iterationCount;
 
         void run() {
             ArrayList<PerfResult> results = new ArrayList<>();
+            String indexName = null;
             for (int i = 0; i < iterationCount; i++) {
                 SortedIndex<TestEntry> index = indexSupplier.get();
+                if (indexName == null) {
+                    indexName = indexSupplier.get().getClass().getSimpleName();
+                }
+
                 PerfResult partialResult = new PerfResult(itemCount);
                 results.add(partialResult);
 
@@ -386,18 +392,17 @@ abstract class SortedIndexTestBase {
                 partialResult.lastElapsed = measure(() -> readLast(index, itemCount));
             }
 
-            String indexName = indexSupplier.get().getClass().getSimpleName();
-            outputStats(indexName + ".Insert ", r -> r.insertElapsed, results);
-            outputStats(indexName + ".Get    ", r -> r.getElapsed, results);
-            outputStats(indexName + ".Ceiling", r -> r.ceilingElapsed, results);
-            outputStats(indexName + ".Last   ", r -> r.lastElapsed, results);
+            outputStats(indexName, "Insert ", r -> r.insertElapsed, results);
+            outputStats(indexName, "Get    ", r -> r.getElapsed, results);
+            outputStats(indexName, "Ceiling", r -> r.ceilingElapsed, results);
+            outputStats(indexName, "Last   ", r -> r.lastElapsed, results);
         }
 
-        private void outputStats(String statsName, Function<PerfResult, Long> statsProvider, Collection<PerfResult> results) {
-            double min = results.stream().mapToDouble(r -> statsProvider.apply(r) / (double) r.count).min().orElse(-1) / 1000;
-            double max = results.stream().mapToDouble(r -> statsProvider.apply(r) / (double) r.count).max().orElse(-1) / 1000;
-            double avg = results.stream().mapToDouble(r -> statsProvider.apply(r) / (double) r.count).average().orElse(-1) / 1000;
-            System.out.println(String.format("%s: Min = %.2f us, Max = %.2f us, Avg = %.2f us", statsName, min, max, avg));
+        private void outputStats(String indexName, String statsName, Function<PerfResult, Long> statsProvider, Collection<PerfResult> results) {
+            double min = results.stream().mapToDouble(r -> statsProvider.apply(r) / (double) r.count).min().orElse(-1) / NANOS_TO_MILLIS;
+            double max = results.stream().mapToDouble(r -> statsProvider.apply(r) / (double) r.count).max().orElse(-1) / NANOS_TO_MILLIS;
+            double avg = results.stream().mapToDouble(r -> statsProvider.apply(r) / (double) r.count).average().orElse(-1) / NANOS_TO_MILLIS;
+            System.out.println(String.format("%s.%s: Min = %.2f us, Max = %.2f us, Avg = %.2f us", indexName, statsName, min, max, avg));
         }
 
         private void insert(SortedIndex<TestEntry> rbt, int count) {
