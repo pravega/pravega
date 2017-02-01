@@ -20,13 +20,17 @@ package com.emc.pravega.common.util;
 
 import com.emc.pravega.testcommon.AssertExtensions;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
 import java.util.LinkedList;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -328,14 +332,11 @@ abstract class SortedIndexTestBase {
     //region TestEntry
 
     private static class TestEntry implements SortedIndex.IndexEntry {
-        private static final AtomicLong ID_GENERATOR = new AtomicLong();
         // Note: do not implement equals() or hash() for this class - the tests rely on object equality, not key equality.
         private final long key;
-        private final long id;
 
         TestEntry(long key) {
             this.key = key;
-            this.id = ID_GENERATOR.incrementAndGet();
         }
 
         @Override
@@ -345,7 +346,98 @@ abstract class SortedIndexTestBase {
 
         @Override
         public String toString() {
-            return String.format("Key = %s, Id = %s", this.key, this.id);
+            return "Key = " + this.key;
+        }
+    }
+
+    //endregion
+
+    //region Performance Testing
+
+    /**
+     * Tests the SortedIndex for performance and outputs results to the console.
+     * Not a real unit test - to be used to judge performance of various operations of the index. Long running test.
+     */
+    @Test
+    @Ignore
+    public void testPerformance() {
+        final int itemCount = 10 * 1000 * 1000;
+        final int iterationCount = 5;
+        PerfTester tester = new PerfTester(this::createIndex, itemCount, iterationCount);
+        tester.run();
+    }
+
+    @RequiredArgsConstructor
+    private static class PerfTester {
+        private final Supplier<SortedIndex<TestEntry>> indexSupplier;
+        private final int itemCount;
+        private final int iterationCount;
+
+        void run() {
+            ArrayList<PerfResult> results = new ArrayList<>();
+            for (int i = 0; i < iterationCount; i++) {
+                SortedIndex<TestEntry> index = indexSupplier.get();
+                PerfResult partialResult = new PerfResult(itemCount);
+                results.add(partialResult);
+
+                partialResult.insertElapsed = measure(() -> insert(index, itemCount));
+                partialResult.getElapsed = measure(() -> readExact(index, itemCount));
+                partialResult.ceilingElapsed = measure(() -> readCeiling(index, itemCount));
+                partialResult.lastElapsed = measure(() -> readLast(index, itemCount));
+            }
+
+            String indexName = indexSupplier.get().getClass().getSimpleName();
+            outputStats(indexName + ".Insert ", r -> r.insertElapsed, results);
+            outputStats(indexName + ".Get    ", r -> r.getElapsed, results);
+            outputStats(indexName + ".Ceiling", r -> r.ceilingElapsed, results);
+            outputStats(indexName + ".Last   ", r -> r.lastElapsed, results);
+        }
+
+        private void outputStats(String statsName, Function<PerfResult, Long> statsProvider, Collection<PerfResult> results) {
+            double min = results.stream().mapToDouble(r -> statsProvider.apply(r) / (double) r.count).min().orElse(-1) / 1000;
+            double max = results.stream().mapToDouble(r -> statsProvider.apply(r) / (double) r.count).max().orElse(-1) / 1000;
+            double avg = results.stream().mapToDouble(r -> statsProvider.apply(r) / (double) r.count).average().orElse(-1) / 1000;
+            System.out.println(String.format("%s: Min = %.2f us, Max = %.2f us, Avg = %.2f us", statsName, min, max, avg));
+        }
+
+        private void insert(SortedIndex<TestEntry> rbt, int count) {
+            for (int i = 0; i < count; i++) {
+                rbt.put(new TestEntry(i));
+            }
+        }
+
+        private void readExact(SortedIndex<TestEntry> rbt, int count) {
+            for (int i = 0; i < count; i++) {
+                rbt.get(i);
+            }
+        }
+
+        private void readCeiling(SortedIndex<TestEntry> rbt, int count) {
+            for (int i = 0; i < count; i++) {
+                rbt.getCeiling(i);
+            }
+        }
+
+        private void readLast(SortedIndex<TestEntry> rbt, int count) {
+            for (int i = 0; i < count; i++) {
+                rbt.getLast();
+            }
+        }
+
+        private long measure(Runnable r) {
+            System.gc();
+            long rbtStart = System.nanoTime();
+            r.run();
+            return System.nanoTime() - rbtStart;
+        }
+
+        @RequiredArgsConstructor
+        private static class PerfResult {
+            final int count;
+            long insertElapsed;
+            long getElapsed;
+            long ceilingElapsed;
+            long lastElapsed;
         }
     }
 
