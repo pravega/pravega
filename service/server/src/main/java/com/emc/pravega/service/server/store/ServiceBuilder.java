@@ -244,7 +244,7 @@ public final class ServiceBuilder implements AutoCloseable {
 
     /**
      * Initializes the ServiceBuilder.
-     * @return future completable.
+     * @return completable future.
      */
     public CompletableFuture<Void> initialize() {
         return getSingleton(this.containerManager, this.segmentContainerManagerCreator)
