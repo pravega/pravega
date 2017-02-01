@@ -48,4 +48,5 @@ public interface SegmentOutputStreamFactory {
      * @return New instance of SegmentOutputStream for writing.
      */
     SegmentOutputStream createOutputStreamForSegment(Segment segment, SegmentOutputConfiguration config) throws SegmentSealedException;
+    
 }
