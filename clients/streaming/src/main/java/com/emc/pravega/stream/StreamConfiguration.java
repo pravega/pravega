@@ -26,24 +26,28 @@ public interface StreamConfiguration extends Serializable {
     
     /**
      * Api to return scope.
+     *
      * @return The scope of the stream.
      */
     String getScope();
 
     /**
      * Api to return stream name.
+     * 
      * @return The name of the stream.
      */
     String getName();
 
     /**
      * Api to return scaling policy.
+     * 
      * @return The stream's scaling policy.
      */
     ScalingPolicy getScalingPolicy();
 
     /**
      * Returns the retention policy for this stream.
+     * 
      * @return The stream's retention policy
      */
     RetentionPolicy getRetentionPolicy();
