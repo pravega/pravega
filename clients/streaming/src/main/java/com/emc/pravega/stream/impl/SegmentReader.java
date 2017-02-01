@@ -40,6 +40,7 @@ public interface SegmentReader<Type> extends AutoCloseable {
 
     /**
      * Returns the current offset. This can be passed to {@link #setOffset(long)} to restore to the current position.
+     *
      * @return Current offset of the reader.
      */
     long getOffset();
