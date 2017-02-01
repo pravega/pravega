@@ -102,7 +102,7 @@ public class SegmentOutputStreamTest {
      * Test if latter events are sent after the events that are already sent.
      *
      * @throws ConnectionFailedException in case of connection failure.
-     * @throws SegmentSealedException in case of attempt to the segment is ready sealed.
+     * @throws SegmentSealedException in case of attempt to the segment that is ready sealed.
      */
     @Test(timeout = 20000)
     public void testNewEventsGoAfterInflight() throws ConnectionFailedException, SegmentSealedException {
