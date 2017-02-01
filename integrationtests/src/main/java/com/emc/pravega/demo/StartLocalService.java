@@ -31,7 +31,7 @@ public class StartLocalService {
     static final String STREAM_NAME = "Foo";
 
     /**
-     * Starts a mock server that listens to port 9090.
+     * Starts a mock server that listens on port 9090.
      * @param args not used.
      * @throws Exception if server cannot be started.
      */
