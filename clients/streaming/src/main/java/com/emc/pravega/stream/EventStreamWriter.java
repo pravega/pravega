@@ -73,6 +73,7 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
 
     /**
      * Returns the configuration that this writer was create with.
+     *
      * @return writer configuration
      */
     EventWriterConfig getConfig();
