@@ -41,4 +41,9 @@ public interface StatsProvider extends AutoCloseable {
      * @return stats logger for the given <i>scope</i>.
      */
     public StatsLogger createStatsLogger(String scope);
+
+    /**
+     * Create a dynamic logger.
+     */
+    public DynamicLogger createDynamicLogger();
 }
