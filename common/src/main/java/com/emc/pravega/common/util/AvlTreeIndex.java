@@ -81,12 +81,12 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
             this.last = item;
             this.first = item;
         } else {
-            if (this.first != null && (this.first.key() > item.key())) {
+            if (this.first != null && (this.first.key() >= item.key())) {
                 // The freshly inserted item is smaller than the previous smallest item, so update it.
                 this.first = item;
             }
 
-            if (this.last != null && (this.last.key() < item.key())) {
+            if (this.last != null && (this.last.key() <= item.key())) {
                 // The freshly inserted item is larger than the previous largest item, so update it.
                 this.last = item;
             }
@@ -100,12 +100,12 @@ public class AvlTreeIndex<V extends SortedIndex.IndexEntry> implements SortedInd
         val result = delete(key, this.root);
         this.root = result.node;
         if (result.updatedItem != null) {
-            if (this.first != null && (key >= this.first.key()) || this.size == 0) {
+            if (this.first != null && (key <= this.first.key()) || this.size == 0) {
                 // We have removed the smallest item; clear its cached value.
                 this.first = null;
             }
 
-            if (this.last != null && (key <= this.last.key()) || this.size == 0) {
+            if (this.last != null && (key >= this.last.key()) || this.size == 0) {
                 // We have removed the largest item; clear its cached value.
                 this.last = null;
             }
