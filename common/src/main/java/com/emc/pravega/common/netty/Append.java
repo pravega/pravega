@@ -31,7 +31,7 @@ public class Append implements Request, Comparable<Append> {
     final Long expectedLength;
 
     /**
-     * Returns a boolean to indicate whether expected length value has set.
+     * Returns a boolean to indicate whether expected length value has been set.
      *
      * @return true if there is a value in the bytebuff.
      */
