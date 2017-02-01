@@ -32,6 +32,7 @@ public class Append implements Request, Comparable<Append> {
 
     /**
      * Returns a boolean to indicate whether expected length value has set.
+     *
      * @return true if there is a value in the bytebuff.
      */
     public boolean isConditional() {
