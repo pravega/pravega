@@ -46,6 +46,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.Setter;
 
 /**
@@ -55,6 +56,7 @@ import lombok.Setter;
  * Note that even though it uses an UpdateableContainerMetadata, no changes to this metadata are performed (except recording truncation markers & Sequence Numbers).
  * All other changes (Segment-based) must be done externally.
  */
+@ThreadSafe
 class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     //region Members
 
@@ -348,16 +350,14 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     private void notifyAddProcessed() {
-        if (this.addProcessed != null) {
-            CompletableFuture<Void> f;
-            synchronized (this.lock) {
-                f = this.addProcessed;
-                this.addProcessed = null;
-            }
+        CompletableFuture<Void> f;
+        synchronized (this.lock) {
+            f = this.addProcessed;
+            this.addProcessed = null;
+        }
 
-            if (f != null) {
-                f.complete(null);
-            }
+        if (f != null) {
+            f.complete(null);
         }
     }
 
