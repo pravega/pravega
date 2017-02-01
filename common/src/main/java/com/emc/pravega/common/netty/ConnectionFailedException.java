@@ -34,6 +34,7 @@ public class ConnectionFailedException extends Exception {
 
     /**
      * Constructor for this exception with message.
+     *
      * @param string exception message
      */
     public ConnectionFailedException(String string) {
@@ -42,6 +43,7 @@ public class ConnectionFailedException extends Exception {
 
     /**
      * Constructor for this exception with throwable.
+     *
      * @param throwable a throwable object
      */
     public ConnectionFailedException(Throwable throwable) {
