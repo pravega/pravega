@@ -42,6 +42,7 @@ public interface EventStreamReader<T> extends AutoCloseable {
 
     /**
      * Gets the configuration that this reader was created with.
+     *
      * @return reader configuration
      */
     ReaderConfig getConfig();
