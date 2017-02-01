@@ -210,7 +210,7 @@ public final class FutureHelpers {
      * @param timeout         The timeout for the future.
      * @param executorService An ExecutorService that will be used to invoke the timeout on.
      * @param <T>             The Type argument for the CompletableFuture to create.
-     * @return A collection of all futures with timeouts
+     * @return A collection of all futures with timeout
      */
     public static <T> CompletableFuture<T> futureWithTimeout(Duration timeout, ScheduledExecutorService executorService) {
         return futureWithTimeout(timeout, null, executorService);
