@@ -177,7 +177,7 @@ public final class ModelHelper {
     }
 
     /**
-     * Return and TxnId object instance for a given transaction with UUID.
+     * Returns TxnId object instance for a given transaction with UUID.
      *
      * @param txnId UUID
      * @return Instance of TxnId.
