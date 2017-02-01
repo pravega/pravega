@@ -92,7 +92,7 @@ public interface ClientFactory {
      * @param config The writer configuration.
      * @param s The Serializer.
      * @param <T> The type of events.
-     * @return Newly created idempotent writer
+     * @return Newly created idempotent writer object
      */
     <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
 
@@ -159,7 +159,7 @@ public interface ClientFactory {
      * @param updateSerializer The serializer for updates.
      * @param initialSerializer The serializer for the initial update.
      * @param config The synchronizer configuration
-     * @return Newly created StateSynchronizer that will work the given stream
+     * @return Newly created StateSynchronizer that will work on the given stream
      */
     <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
     StateSynchronizer<StateT> createStateSynchronizer(String streamName,
