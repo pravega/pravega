@@ -89,6 +89,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     static final int MAX_READ_SIZE = 2 * 1024 * 1024;
 
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
+    // A dynamic logger
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
     public static class Metrics {
         static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
@@ -111,17 +113,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Timer timer = new Timer();
         final String segment = readSegment.getSegment();
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
-
-        // A dynamic logger
-        DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
-
         // A dynamic gauge records read offset of each readSegment for a segment
-        dynamicLogger.reportGaugeValue("readSegment." + segment, readSegment.getOffset());
+        DYNAMIC_LOGGER.reportGaugeValue("readSegment." + segment, readSegment.getOffset());
 
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {
             Metrics.READ_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
-            dynamicLogger.incCounterValue("readSegment." + segment, 1);
+            DYNAMIC_LOGGER.incCounterValue("readSegment." + segment, 1);
             handleReadResult(readSegment, t);
             return null;
         }).exceptionally((Throwable t) -> {
