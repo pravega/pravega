@@ -15,7 +15,7 @@ ssh $ip "docker ps| grep entry | cut -d' ' -f 1 - | xargs docker stop | xargs do
 done
 
 hdfs dfs -rm -r /Scope
-cat << EOF | ./distributedlog-service/bin/dlog zkshell 10.249.250.151
+cat << EOF | ~/distributedlog-service/bin/dlog zkshell 10.249.250.151
 deleteall /cluster
 deleteall /messaging
 deleteall /streams
