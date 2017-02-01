@@ -35,7 +35,6 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.Serializable;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -88,12 +87,12 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
      * @return transaction id.
      */
     @Task(name = "createTransaction", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<UUID> createTx(final String scope, final String stream, final Optional<OperationContext> contextOpt) {
-        final OperationContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
+    public CompletableFuture<UUID> createTx(final String scope, final String stream, final OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return execute(
                 new Resource(scope, stream),
-                new Serializable[]{scope, stream},
+                new Serializable[]{scope, stream, null},
                 () -> createTxBody(scope, stream, context));
     }
 
@@ -107,12 +106,12 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
      * @return true/false.
      */
     @Task(name = "dropTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
-    public CompletableFuture<TxnStatus> dropTx(final String scope, final String stream, final UUID txId, final Optional<OperationContext> contextOpt) {
-        final OperationContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
+    public CompletableFuture<TxnStatus> dropTx(final String scope, final String stream, final UUID txId, final OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return execute(
                 new Resource(scope, stream, txId.toString()),
-                new Serializable[]{scope, stream, txId},
+                new Serializable[]{scope, stream, txId, null},
                 () -> dropTxBody(scope, stream, txId, context));
     }
 
@@ -126,11 +125,11 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
      * @return true/false.
      */
     @Task(name = "commitTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
-    public CompletableFuture<TxnStatus> commitTx(final String scope, final String stream, final UUID txId, final Optional<OperationContext> contextOpt) {
-        final OperationContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
+    public CompletableFuture<TxnStatus> commitTx(final String scope, final String stream, final UUID txId, final OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         return execute(
                 new Resource(scope, stream, txId.toString()),
-                new Serializable[]{scope, stream, txId},
+                new Serializable[]{scope, stream, txId, null},
                 () -> commitTxBody(scope, stream, txId, context));
     }
 

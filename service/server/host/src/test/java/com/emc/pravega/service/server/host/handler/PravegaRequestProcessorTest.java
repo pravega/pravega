@@ -18,6 +18,8 @@
 package com.emc.pravega.service.server.host.handler;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.metrics.Counter;
+import com.emc.pravega.common.metrics.OpStatsData;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
@@ -56,18 +58,15 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
-
-import com.emc.pravega.common.metrics.Counter;
-import com.emc.pravega.common.metrics.OpStatsData;
 
 public class PravegaRequestProcessorTest {
 
@@ -177,7 +176,7 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
 
         // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
-        processor.createSegment(new CreateSegment(streamSegmentName, false, 0L, false));
+        processor.createSegment(new CreateSegment(streamSegmentName, false, 0L, (byte) 0));
         assertTrue(append(streamSegmentName, 1, store));
         processor.getStreamSegmentInfo(new GetStreamSegmentInfo(streamSegmentName));
         assertTrue(append(streamSegmentName, 2, store));
@@ -204,7 +203,7 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
 
         // Execute create/seal/delete Segment command.
-        processor.createSegment(new CreateSegment(streamSegmentName, false, 0L, false));
+        processor.createSegment(new CreateSegment(streamSegmentName, false, 0L, (byte) 0));
         assertTrue(append(streamSegmentName, 1, store));
         processor.sealSegment(new SealSegment(streamSegmentName));
         assertFalse(append(streamSegmentName, 2, store));
@@ -233,7 +232,7 @@ public class PravegaRequestProcessorTest {
 
     private static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
         return ServiceBuilder.newInMemoryBuilder(config, new InlineExecutor())
-                             .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
-                                     setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
+                .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
+                        setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
     }
 }

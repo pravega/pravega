@@ -24,6 +24,7 @@ import com.emc.pravega.common.util.CollectionHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.BadEventNumberException;
 import com.emc.pravega.service.contracts.BadOffsetException;
+import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -502,6 +503,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             // Create StreamSegment metadata here - we need to do this as part of the transaction.
+            // TODO: shivesh
             UpdateableSegmentMetadata streamSegmentMetadata = recordNewStreamSegment(operation.getStreamSegmentName(), operation.getStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID);
             streamSegmentMetadata.setStorageLength(operation.getLength());
             streamSegmentMetadata.setDurableLogLength(operation.getLength()); // DurableLogLength must be at least StorageLength.
@@ -569,12 +571,14 @@ class OperationMetadataUpdater implements ContainerMetadata {
             return sm;
         }
 
-        private UpdateableSegmentMetadata recordNewStreamSegment(String streamSegmentName, long streamSegmentId, long parentId) {
+        private UpdateableSegmentMetadata recordNewStreamSegment(SegmentInfo segment, long streamSegmentId, long parentId) {
             UpdateableSegmentMetadata metadata;
             if (parentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                metadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, this.containerMetadata.getContainerId());
+                metadata = new StreamSegmentMetadata(segment.getStreamSegmentName(), streamSegmentId,
+                        this.containerMetadata.getContainerId(), segment.isAutoScale(), segment.getDesiredRate(), segment.getRateType());
             } else {
-                metadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentId, this.containerMetadata.getContainerId());
+                metadata = new StreamSegmentMetadata(segment.getStreamSegmentName(), streamSegmentId, parentId,
+                        this.containerMetadata.getContainerId(), segment.isAutoScale(), segment.getDesiredRate(), segment.getRateType());
             }
 
             this.newStreamSegments.put(metadata.getId(), metadata);
@@ -809,6 +813,21 @@ class OperationMetadataUpdater implements ContainerMetadata {
         @Override
         public long getLength() {
             return this.currentDurableLogLength; // ReadableLength == DurableLogLength.
+        }
+
+        @Override
+        public boolean isAutoScale() {
+            return baseMetadata.isAutoScale();
+        }
+
+        @Override
+        public long getTargetRate() {
+            return baseMetadata.getTargetRate();
+        }
+
+        @Override
+        public byte getRateType() {
+            return baseMetadata.getRateType();
         }
 
         @Override

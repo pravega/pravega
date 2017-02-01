@@ -84,24 +84,24 @@ public class SegmentHelper {
 
         final boolean autoScale;
         final long desiredRate;
-        final boolean isRateInBytes;
+        final byte rateType;
         if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
             autoScale = false;
             desiredRate = 0L;
-            isRateInBytes = false;
+            rateType = 0;
         } else {
             autoScale = true;
 
             desiredRate = policy.getTargetRate();
             if (policy.getType().equals(ScalingPolicy.Type.BY_RATE_IN_BYTES)) {
-                isRateInBytes = true;
+                rateType = 0;
             } else {
-                isRateInBytes = false;
+                rateType = 1;
             }
         }
 
         return sendRequestOverNewConnection(
-                new WireCommands.CreateSegment(Segment.getScopedName(scope, stream, segmentNumber), autoScale, desiredRate, isRateInBytes),
+                new WireCommands.CreateSegment(Segment.getScopedName(scope, stream, segmentNumber), autoScale, desiredRate, rateType),
                 replyProcessor,
                 clientCF,
                 uri)

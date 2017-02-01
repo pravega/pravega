@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.storage;
 
+import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 
 import java.io.InputStream;
@@ -31,8 +32,8 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
     /**
      * Creates a new StreamSegment in this Storage Layer.
      *
-     * @param streamSegmentName The full name of the StreamSegment.
-     * @param timeout           Timeout for the operation.
+     * @param segment The StreamSegment information, contains full name.
+     * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been created (it will
      * contain a StreamSegmentInformation for a blank stream). If the operation failed, it will contain the cause of the
      * failure. Notable exceptions:
@@ -40,7 +41,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * <li> StreamSegmentExistsException: When the given Segment already exists in Storage.
      * </ul>
      */
-    CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout);
+    CompletableFuture<SegmentProperties> create(SegmentInfo segment, Duration timeout);
 
     /**
      * Writes the given data to the StreamSegment.

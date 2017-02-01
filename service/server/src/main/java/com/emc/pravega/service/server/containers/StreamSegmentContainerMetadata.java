@@ -132,7 +132,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
             Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
-            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId());
+            // TODO: shivesh: how to get segment info about scale policy
+            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId(), autoscale);
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
             this.segmentMetadata.put(streamSegmentId, segmentMetadata);
         }
@@ -152,7 +153,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
             Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a transaction StreamSegment for another transaction StreamSegment.");
 
-            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
+            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId(),
+                    parentMetadata.isAutoScale(), parentMetadata.getTargetRate(), parentMetadata.getRateType());
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
             this.segmentMetadata.put(streamSegmentId, segmentMetadata);
         }

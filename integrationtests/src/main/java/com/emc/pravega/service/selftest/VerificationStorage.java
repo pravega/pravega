@@ -20,6 +20,7 @@ package com.emc.pravega.service.selftest;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
+import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
@@ -86,8 +87,8 @@ class VerificationStorage implements TruncateableStorage {
     //region Storage Implementation
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        return this.baseStorage.create(streamSegmentName, timeout);
+    public CompletableFuture<SegmentProperties> create(SegmentInfo segment, Duration timeout) {
+        return this.baseStorage.create(segment, timeout);
     }
 
     @Override

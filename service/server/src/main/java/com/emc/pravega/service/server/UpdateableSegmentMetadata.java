@@ -26,20 +26,6 @@ import java.util.Date;
  * Defines an updateable StreamSegment Metadata.
  */
 public interface UpdateableSegmentMetadata extends SegmentMetadata {
-    boolean isAutoScale();
-
-    long getTargetRate();
-
-    boolean isRateInBytes();
-
-    long getTwoMinuteRate();
-
-    long getFiveMinuteRate();
-
-    long getTenMinuteRate();
-
-    long getTwentyMinuteRate();
-
     /**
      * Sets the current StorageLength for this StreamSegment.
      *

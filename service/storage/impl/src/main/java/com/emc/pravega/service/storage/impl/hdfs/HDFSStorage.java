@@ -22,6 +22,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.function.RunnableWithException;
 import com.emc.pravega.service.contracts.BadOffsetException;
+import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
@@ -125,8 +126,8 @@ class HDFSStorage implements Storage {
     //region Storage Implementation
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        return supplyAsync(() -> createSync(streamSegmentName), streamSegmentName, "create");
+    public CompletableFuture<SegmentProperties> create(SegmentInfo segment, Duration timeout) {
+        return supplyAsync(() -> createSync(segment), segment.getStreamSegmentName(), "create");
     }
 
     @Override
@@ -173,19 +174,34 @@ class HDFSStorage implements Storage {
 
     //region Helpers
 
-    private SegmentProperties createSync(String streamSegmentName) throws IOException {
-        this.fileSystem.create(new Path(getOwnedSegmentFullPath(streamSegmentName)),
+    private SegmentProperties createSync(SegmentInfo segment) throws IOException {
+        // TODO: store other information in segmentInfo into tier 2
+        this.fileSystem.create(new Path(getOwnedSegmentFullPath(segment.getStreamSegmentName())),
                 new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
                 false,
                 0,
                 this.config.getReplication(),
                 this.config.getBlockSize(),
                 null).close();
-        return new StreamSegmentInformation(streamSegmentName,
+
+        // TODO: create another file called policy where write the policy
+        this.fileSystem.create(new Path(getOwnedSegmentFullPath(segment.getStreamSegmentName() + "_policy")),
+                new FsPermission(FsAction.READ, FsAction.NONE, FsAction.NONE),
+                false,
+                0,
+                this.config.getReplication(),
+                this.config.getBlockSize(),
+                null).close();
+
+
+        return new StreamSegmentInformation(segment.getStreamSegmentName(),
                 0,
                 false,
                 false,
-                new Date());
+                new Date(),
+                segment.isAutoScale(),
+                segment.getDesiredRate(),
+                segment.getRateType());
     }
 
     /**
@@ -254,12 +270,16 @@ class HDFSStorage implements Storage {
 
     private SegmentProperties getStreamSegmentInfoSync(String streamSegmentName) throws IOException {
         FileStatus status = findOne(streamSegmentName);
+        // TODO: shivesh read metadata file for segment policy and put it in the properties
 
         return new StreamSegmentInformation(streamSegmentName,
                 status.getLen(),
                 status.getPermission().getUserAction() == FsAction.READ,
                 false,
-                new Date(status.getModificationTime()));
+                new Date(status.getModificationTime()),
+                autoScale,
+                targetRate,
+                rateType);
     }
 
     private void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName) throws IOException, BadOffsetException, StreamSegmentSealedException {

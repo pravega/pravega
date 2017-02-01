@@ -117,7 +117,7 @@ public class AppendTest {
 
         EmbeddedChannel channel = createChannel(store);
 
-        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(segment, false, 0L, false));
+        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(segment, false, 0L, (byte) 0));
         assertEquals(segment, created.getSegment());
 
         UUID uuid = UUID.randomUUID();
@@ -127,7 +127,7 @@ public class AppendTest {
         assertEquals(uuid, setup.getConnectionId());
 
         DataAppended ack = (DataAppended) sendRequest(channel,
-                                                      new Append(segment, uuid, data.readableBytes(), data, null));
+                new Append(segment, uuid, data.readableBytes(), data, null));
         assertEquals(uuid, ack.getConnectionId());
         assertEquals(data.readableBytes(), ack.getEventNumber());
     }

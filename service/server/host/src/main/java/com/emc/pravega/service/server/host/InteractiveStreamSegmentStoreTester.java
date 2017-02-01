@@ -167,7 +167,7 @@ public class InteractiveStreamSegmentStoreTester {
         String name = parsedCommand.getNext();
         checkArguments(name != null && name.length() > 0, Commands.SYNTAXES.get(Commands.CREATE));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.createStreamSegment(SegmentInfo.createDefault(name), defaultTimeout), r -> log(startTime, "Created StreamSegment %s.", name));
+        await(this.streamSegmentStore.createStreamSegment(SegmentInfo.noAutoScale(name), defaultTimeout), r -> log(startTime, "Created StreamSegment %s.", name));
     }
 
     private void deleteStream(CommandLineParser parsedCommand) {

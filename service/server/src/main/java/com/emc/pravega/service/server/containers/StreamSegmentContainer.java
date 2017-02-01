@@ -254,7 +254,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                             sm.getDurableLogLength(),
                             sm.isSealed(),
                             sm.isDeleted(),
-                            new Date());
+                            new Date(),
+                            sm.isAutoScale(),
+                            sm.getTargetRate(),
+                            sm.getRateType());
                 });
     }
 

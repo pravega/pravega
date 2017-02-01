@@ -254,7 +254,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final SegmentInfo segmentData = new SegmentInfo(createStreamsSegment.getSegment(),
                 createStreamsSegment.isAutoScale(),
                 createStreamsSegment.getDesiredRate(),
-                createStreamsSegment.isRateInBytes());
+                createStreamsSegment.getRateType());
 
         CompletableFuture<Void> future = segmentStore.createStreamSegment(
                 segmentData, TIMEOUT);

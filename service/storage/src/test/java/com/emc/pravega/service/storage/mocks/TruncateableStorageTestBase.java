@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.storage.mocks;
 
+import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.storage.TruncateableStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
@@ -50,7 +51,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
     @Test
     public void testTruncate() throws Exception {
         try (TruncateableStorage s = createStorage()) {
-            s.create(SEGMENT_NAME, TIMEOUT).join();
+            s.create(SegmentInfo.noAutoScale(SEGMENT_NAME), TIMEOUT).join();
 
             // Invalid segment name.
             assertThrows(
@@ -127,7 +128,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
 
     private void verifyConcat(TruncateableStorage s) {
         final String newSegmentName = "newFoo";
-        s.create(newSegmentName, TIMEOUT).join();
+        s.create(SegmentInfo.noAutoScale(newSegmentName), TIMEOUT).join();
         assertThrows("concat() allowed concatenation of truncated segment.",
                 () -> s.concat(newSegmentName, 0, SEGMENT_NAME, TIMEOUT),
                 ex -> ex instanceof IllegalStateException);

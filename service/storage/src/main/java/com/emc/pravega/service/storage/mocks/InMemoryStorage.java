@@ -21,6 +21,7 @@ package com.emc.pravega.service.storage.mocks;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.BadOffsetException;
+import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -101,18 +102,19 @@ public class InMemoryStorage implements TruncateableStorage {
     //region Storage Implementation
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<SegmentProperties> create(SegmentInfo segment, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
         return CompletableFuture
                 .supplyAsync(() -> {
                     synchronized (this.lock) {
-                        if (this.streamSegments.containsKey(streamSegmentName)) {
-                            throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
+                        if (this.streamSegments.containsKey(segment.getStreamSegmentName())) {
+                            throw new CompletionException(new StreamSegmentExistsException(segment.getStreamSegmentName()));
                         }
 
-                        StreamSegmentData data = new StreamSegmentData(streamSegmentName, this.syncContext);
+                        StreamSegmentData data = new StreamSegmentData(segment.getStreamSegmentName(), this.syncContext,
+                                segment.isAutoScale(), segment.getDesiredRate(), segment.getRateType());
                         data.open();
-                        this.streamSegments.put(streamSegmentName, data);
+                        this.streamSegments.put(segment.getStreamSegmentName(), data);
                         return data;
                     }
                 }, this.executor)
@@ -396,9 +398,15 @@ public class InMemoryStorage implements TruncateableStorage {
         private long truncateOffset;
         @GuardedBy("lock")
         private int firstBufferOffset;
+        private final boolean autoScale;
+        private final long targetRate;
+        private final byte rateType;
 
-        StreamSegmentData(String name, SyncContext context) {
+        StreamSegmentData(String name, SyncContext context, boolean autoScale, long targetRate, byte rateType) {
             this.name = name;
+            this.autoScale = autoScale;
+            this.targetRate = targetRate;
+            this.rateType = rateType;
             this.data = new ArrayList<>();
             this.length = 0;
             this.sealed = false;
@@ -454,7 +462,7 @@ public class InMemoryStorage implements TruncateableStorage {
             synchronized (this.lock) {
                 checkOpened();
                 this.sealed = true;
-                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date());
+                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date(), autoScale, targetRate, rateType);
             }
         }
 
@@ -512,7 +520,7 @@ public class InMemoryStorage implements TruncateableStorage {
         SegmentProperties getInfo() {
             synchronized (this.lock) {
                 checkOpened();
-                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date());
+                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date(), autoScale, targetRate, rateType);
             }
         }
 

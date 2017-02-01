@@ -153,7 +153,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     @Override
     public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.createStreamSegment(SegmentInfo.createDefault(streamSegmentName), timeout);
+        return this.streamSegmentStore.createStreamSegment(SegmentInfo.noAutoScale(streamSegmentName), timeout);
     }
 
     @Override

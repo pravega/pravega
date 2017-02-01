@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.writer;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
@@ -618,7 +619,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         UpdateableSegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(segmentId);
         metadata.setDurableLogLength(0);
         metadata.setStorageLength(0);
-        context.storage.create(metadata.getName(), TIMEOUT).join();
+        context.storage.create(new SegmentInfo(metadata.getName(), metadata.isAutoScale(), metadata.getTargetRate(), metadata.getRateType()), TIMEOUT).join();
     }
 
     private byte[] getAppendData(String segmentName, long segmentId, int segmentAppendSeq, int writeId) {

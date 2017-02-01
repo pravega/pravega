@@ -51,7 +51,7 @@ public class StreamSegmentMetadataTests {
             lastContexts.put(UUID.randomUUID(), null);
         }
 
-        StreamSegmentMetadata m = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
+        StreamSegmentMetadata m = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID, autoScale);
         for (int i = 0; i < contextsPerClient; i++) {
             for (UUID clientId : lastContexts.keySet()) {
                 AppendContext c = new AppendContext(clientId, i);
@@ -75,7 +75,7 @@ public class StreamSegmentMetadataTests {
      */
     @Test
     public void testCopyFrom() {
-        StreamSegmentMetadata baseMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
+        StreamSegmentMetadata baseMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID, autoScale);
         final int clientCount = 20;
         for (int i = 0; i < clientCount; i++) {
             baseMetadata.recordAppendContext(new AppendContext(UUID.randomUUID(), 1));
@@ -88,24 +88,24 @@ public class StreamSegmentMetadataTests {
         baseMetadata.markMerged();
 
         // Normal metadata copy.
-        StreamSegmentMetadata newMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
+        StreamSegmentMetadata newMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID, autoScale);
         newMetadata.copyFrom(baseMetadata);
         assertEquals("Normal metadata copy:", baseMetadata, newMetadata);
 
         // Verify we cannot copy from different StreamSegments.
         AssertExtensions.assertThrows(
                 "copyFrom allowed copying from a metadata with a different Segment Name",
-                () -> new StreamSegmentMetadata("foo", SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID).copyFrom(baseMetadata),
+                () -> new StreamSegmentMetadata("foo", SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID, autoScale).copyFrom(baseMetadata),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 "copyFrom allowed copying from a metadata with a different Segment Id",
-                () -> new StreamSegmentMetadata(SEGMENT_NAME, -SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID).copyFrom(baseMetadata),
+                () -> new StreamSegmentMetadata(SEGMENT_NAME, -SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID, autoScale).copyFrom(baseMetadata),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 "copyFrom allowed copying from a metadata with a different Parent Id",
-                () -> new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, -PARENT_SEGMENT_ID, CONTAINER_ID).copyFrom(baseMetadata),
+                () -> new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, -PARENT_SEGMENT_ID, CONTAINER_ID, autoScale).copyFrom(baseMetadata),
                 ex -> ex instanceof IllegalArgumentException);
     }
 

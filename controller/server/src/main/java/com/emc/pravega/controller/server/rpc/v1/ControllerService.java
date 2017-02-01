@@ -45,7 +45,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -71,24 +70,24 @@ public class ControllerService {
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig, final long createTimestamp) {
-        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, createTimestamp, Optional.empty());
+        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, createTimestamp, null);
     }
 
     public CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig) {
-        return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, Optional.empty());
+        return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, null);
     }
 
     public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String stream) {
-        return streamMetadataTasks.sealStream(scope, stream, Optional.empty());
+        return streamMetadataTasks.sealStream(scope, stream, null);
     }
 
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(final String scope, final String stream) {
         // fetch active segments from segment store
         return streamStore.getActiveSegments(scope, stream, null)
                 .thenApply(activeSegments -> activeSegments
-                                .stream()
-                                .map(segment -> convert(scope, stream, segment))
-                                .collect(Collectors.toList())
+                        .stream()
+                        .map(segment -> convert(scope, stream, segment))
+                        .collect(Collectors.toList())
                 );
     }
 
@@ -124,7 +123,7 @@ public class ControllerService {
                                                   final List<Integer> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges,
                                                   final long scaleTimestamp) {
-        return streamMetadataTasks.scale(scope, stream, new ArrayList<>(sealedSegments), new ArrayList<>(ModelHelper.encode(newKeyRanges)), scaleTimestamp, Optional.empty());
+        return streamMetadataTasks.scale(scope, stream, new ArrayList<>(sealedSegments), new ArrayList<>(ModelHelper.encode(newKeyRanges)), scaleTimestamp, null);
     }
 
     public CompletableFuture<NodeUri> getURI(final SegmentId segment) throws TException {
@@ -257,12 +256,12 @@ public class ControllerService {
         // Note: We acquire an interprocess ephemeral lock before creating the transaction. The purpose of this is to ensure
         // that we mimic a priority queue per stream for incoming operation requests. Two kinds of operations contest for these locks -
         // createTxn and scale. Scale is given higher priority hence a write lock and
-        return streamTransactionMetadataTasks.createTx(scope, stream, Optional.empty()).thenApply(ModelHelper::decode);
+        return streamTransactionMetadataTasks.createTx(scope, stream, null).thenApply(ModelHelper::decode);
     }
 
     public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId
             txnId) {
-        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txnId), Optional.empty())
+        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txnId), null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
@@ -274,7 +273,7 @@ public class ControllerService {
     }
 
     public CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final TxnId txnId) {
-        return streamTransactionMetadataTasks.dropTx(scope, stream, ModelHelper.encode(txnId), Optional.empty())
+        return streamTransactionMetadataTasks.dropTx(scope, stream, ModelHelper.encode(txnId), null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user

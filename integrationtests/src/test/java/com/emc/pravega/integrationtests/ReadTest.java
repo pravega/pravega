@@ -214,7 +214,7 @@ public class ReadTest {
     private void fillStoreForSegment(String segmentName, UUID clientId, byte[] data, int numEntries,
                                      StreamSegmentStore segmentStore) {
         try {
-            segmentStore.createStreamSegment(SegmentInfo.createDefault(segmentName), Duration.ZERO).get();
+            segmentStore.createStreamSegment(SegmentInfo.noAutoScale(segmentName), Duration.ZERO).get();
             for (int eventNumber = 1; eventNumber <= numEntries; eventNumber++) {
                 AppendContext appendContext = new AppendContext(clientId, eventNumber);
                 segmentStore.append(segmentName, data, appendContext, Duration.ZERO).get();

@@ -136,13 +136,13 @@ public class TaskTest {
     @Test
     public void testMethods() throws InterruptedException, ExecutionException {
         try {
-            streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), Optional.empty()).join();
+            streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null).join();
         } catch (CompletionException e) {
             assertTrue(e.getCause() instanceof StreamAlreadyExistsException);
         }
 
         CreateStreamStatus result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
-                System.currentTimeMillis(), Optional.empty()).join();
+                System.currentTimeMillis(), null).join();
         assertEquals(result, CreateStreamStatus.SUCCESS);
     }
 
@@ -159,7 +159,7 @@ public class TaskTest {
         final long timestamp = System.currentTimeMillis();
         taskData.setMethodName("createStream");
         taskData.setMethodVersion("1.0");
-        taskData.setParameters(new Serializable[]{scope, stream, configuration, timestamp});
+        taskData.setParameters(new Serializable[]{scope, stream, configuration, timestamp, null});
 
         for (int i = 0; i < 5; i++) {
             final TaggedResource taggedResource = new TaggedResource(UUID.randomUUID().toString(), resource);
@@ -204,14 +204,14 @@ public class TaskTest {
         final long timestamp1 = System.currentTimeMillis();
         taskData1.setMethodName("createStream");
         taskData1.setMethodVersion("1.0");
-        taskData1.setParameters(new Serializable[]{scope, stream1, config1, timestamp1});
+        taskData1.setParameters(new Serializable[]{scope, stream1, config1, timestamp1, null});
 
         final TaskData taskData2 = new TaskData();
         final Resource resource2 = new Resource(scope, stream2);
         final long timestamp2 = System.currentTimeMillis();
         taskData2.setMethodName("createStream");
         taskData2.setMethodVersion("1.0");
-        taskData2.setParameters(new Serializable[]{scope, stream2, config2, timestamp2});
+        taskData2.setParameters(new Serializable[]{scope, stream2, config2, timestamp2, null});
 
         for (int i = 0; i < 5; i++) {
             final TaggedResource taggedResource = new TaggedResource(UUID.randomUUID().toString(), resource1);
@@ -297,3 +297,4 @@ public class TaskTest {
         }
     }
 }
+

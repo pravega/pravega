@@ -102,7 +102,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         for (int i = 0; i < streamSegmentCount; i++) {
             String name = getStreamSegmentName(i);
             long streamSegmentId = mapper
-                    .createNewStreamSegment(SegmentInfo.createDefault(name), Duration.ZERO)
+                    .createNewStreamSegment(SegmentInfo.noAutoScale(name), Duration.ZERO)
                     .thenCompose((v) -> mapper.getOrAssignStreamSegmentId(name, Duration.ZERO)).join();
             result.add(streamSegmentId);
         }

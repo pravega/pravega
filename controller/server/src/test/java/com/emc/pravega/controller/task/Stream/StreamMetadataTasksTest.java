@@ -21,7 +21,6 @@ import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
@@ -44,7 +43,6 @@ import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -122,7 +120,7 @@ public class StreamMetadataTasksTest {
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
 
         //seal a stream.
-        UpdateStreamStatus sealOperationResult = streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1, Optional.empty()).get();
+        UpdateStreamStatus sealOperationResult = streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1, null).get();
         assertEquals(UpdateStreamStatus.SUCCESS, sealOperationResult);
 
         //a sealed stream should have zero active/current segments
@@ -130,7 +128,7 @@ public class StreamMetadataTasksTest {
         assertTrue(streamStorePartialMock.isSealed(SCOPE, stream1, null).get());
 
         //reseal a sealed stream.
-        assertEquals(UpdateStreamStatus.SUCCESS, streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1, Optional.empty()).get());
+        assertEquals(UpdateStreamStatus.SUCCESS, streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1, null).get());
 
         //scale operation on the sealed stream.
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.2);
@@ -139,7 +137,7 @@ public class StreamMetadataTasksTest {
 
         ScaleResponse scaleOpResult = streamMetadataTasksPartialMock.scaleBody(SCOPE, stream1, Collections
                         .singletonList(0),
-                Arrays.asList(segment3, segment4, segment5), 30, Optional.<OperationContext>empty()).get();
+                Arrays.asList(segment3, segment4, segment5), 30, null).get();
 
         //scaling operation fails once a stream is sealed.
         assertEquals(ScaleStreamStatus.PRECONDITION_FAILED, scaleOpResult.getStatus());

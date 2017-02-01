@@ -660,7 +660,7 @@ public final class WireCommands {
         final String segment;
         final boolean autoScale;
         final long desiredRate;
-        final boolean rateInBytes;
+        final byte rateType;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -672,16 +672,16 @@ public final class WireCommands {
             out.writeUTF(segment);
             out.writeBoolean(autoScale);
             out.writeLong(desiredRate);
-            out.writeBoolean(rateInBytes);
+            out.writeByte(rateType);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
             boolean autoScale = in.readBoolean();
             long desiredRate = in.readLong();
-            boolean rateInBytes = in.readBoolean();
+            byte rateType = in.readByte();
 
-            return new CreateSegment(segment, autoScale, desiredRate, rateInBytes);
+            return new CreateSegment(segment, autoScale, desiredRate, rateType);
         }
     }
 

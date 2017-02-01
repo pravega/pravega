@@ -736,7 +736,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i);
             segmentNames.add(segmentName);
-            futures.add(context.container.createStreamSegment(SegmentInfo.createDefault(segmentName), TIMEOUT));
+            futures.add(context.container.createStreamSegment(SegmentInfo.noAutoScale(segmentName), TIMEOUT));
         }
 
         FutureHelpers.allOf(futures).join();

@@ -84,12 +84,12 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         HashSet<String> storageSegments = new HashSet<>();
         setupStorageCreateHandler(context, storageSegments);
-        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, 0, false, false, new Date()));
+        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, 0, false, false, new Date(), autoScale, targetRate, rateType));
 
         // Create some Segments and Transaction and verify they are properly created and registered.
         for (int i = 0; i < segmentCount; i++) {
             String name = getName(i);
-            context.mapper.createNewStreamSegment(SegmentInfo.createDefault(name), TIMEOUT).join();
+            context.mapper.createNewStreamSegment(SegmentInfo.noAutoScale(name), TIMEOUT).join();
             assertStreamSegmentCreated(name, context);
 
             for (int j = 0; j < transactionsPerSegment; j++) {
@@ -117,7 +117,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new StreamSegmentExistsException("intentional"));
         AssertExtensions.assertThrows(
                 "createNewStreamSegment did not fail when Segment already exists.",
-                () -> context.mapper.createNewStreamSegment(SegmentInfo.createDefault(segmentName), TIMEOUT),
+                () -> context.mapper.createNewStreamSegment(SegmentInfo.noAutoScale(segmentName), TIMEOUT),
                 ex -> ex instanceof StreamSegmentExistsException);
         Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (StreamSegmentExistsException).", ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName));
 
@@ -125,7 +125,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
         AssertExtensions.assertThrows(
                 "createNewStreamSegment did not fail when random exception was thrown.",
-                () -> context.mapper.createNewStreamSegment(SegmentInfo.createDefault(segmentName), TIMEOUT),
+                () -> context.mapper.createNewStreamSegment(SegmentInfo.noAutoScale(segmentName), TIMEOUT),
                 ex -> ex instanceof IntentionalException);
         Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (IntentionalException).", ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName));
 
@@ -152,7 +152,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         // Check how this behaves when Storage works, but the OperationLog cannot process the operations.
         context.operationLog.addHandler = op -> FutureHelpers.failedFuture(new TimeoutException("intentional"));
         setupStorageCreateHandler(context, storageSegments);
-        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new Date()));
+        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new Date(), autoScale, targetRate, rateType));
 
         // 5. When Creating a Transaction.
         AssertExtensions.assertThrows(
@@ -165,7 +165,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         // 6. When creating a new StreamSegment.
         AssertExtensions.assertThrows(
                 "createNewStreamSegment did not fail when OperationLog threw an exception.",
-                () -> context.mapper.createNewStreamSegment(SegmentInfo.createDefault(segmentName + "foo"), TIMEOUT),
+                () -> context.mapper.createNewStreamSegment(SegmentInfo.noAutoScale(segmentName + "foo"), TIMEOUT),
                 ex -> ex instanceof TimeoutException);
         Assert.assertEquals("Segment was registered in the metadata even if it failed to be processed by the OperationLog.", 1, context.metadata.getAllStreamSegmentIds().size());
         Assert.assertEquals("Segment was not created in Storage even if the failure was post-storage (in OperationLog processing).", 3, storageSegments.size());
@@ -197,7 +197,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         setupOperationLog(context);
         Predicate<String> isSealed = segmentName -> segmentName.hashCode() % 2 == 0;
         Function<String, Long> getInitialLength = segmentName -> (long) Math.abs(segmentName.hashCode());
-        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, getInitialLength.apply(segmentName), isSealed.test(segmentName), false, new Date()));
+        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, getInitialLength.apply(segmentName), isSealed.test(segmentName), false, new Date(), autoScale, targetRate, rateType));
 
         // First, map all the parents (stand-alone segments).
         for (String name : storageSegments) {
@@ -250,7 +250,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext();
         setupOperationLog(context);
-        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, 0, false, false, new Date()));
+        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, 0, false, false, new Date(), autoScale, targetRate, rateType));
 
         // Map all the segments, then delete them, then verify behavior.
         for (String name : storageSegments) {
@@ -292,7 +292,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof IntentionalException);
 
         // 2a. StreamSegmentNotExists (Stand-Alone segment)
-        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new Date()));
+        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new Date(), autoScale, targetRate, rateType));
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a non-existent stand-alone StreamSegment.",
                 () -> context.mapper.getOrAssignStreamSegmentId(segmentName + "foo", TIMEOUT),
@@ -329,7 +329,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext();
-        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new Date()));
+        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new Date(), autoScale, targetRate, rateType));
         CompletableFuture<Long> initialAddFuture = new CompletableFuture<>();
         AtomicBoolean operationLogInvoked = new AtomicBoolean(false);
         context.operationLog.addHandler = op -> {
@@ -414,7 +414,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                     return FutureHelpers.failedFuture(new StreamSegmentExistsException(segmentName));
                 } else {
                     storageSegments.add(segmentName);
-                    return CompletableFuture.completedFuture(new StreamSegmentInformation(segmentName, 0, false, false, new Date()));
+                    return CompletableFuture.completedFuture(new StreamSegmentInformation(segmentName, 0, false, false, new Date(), autoScale, targetRate, rateType));
                 }
             }
         };

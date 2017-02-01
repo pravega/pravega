@@ -17,5 +17,8 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-public interface OperationContext {
+import java.io.Serializable;
+
+public interface OperationContext extends Serializable {
+
 }

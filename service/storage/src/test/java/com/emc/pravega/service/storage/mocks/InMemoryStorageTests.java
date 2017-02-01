@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.service.storage.mocks;
 
+import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.TruncateableStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
@@ -24,6 +25,7 @@ import lombok.Cleanup;
 import lombok.val;
 import org.junit.Test;
 
+import javax.swing.text.Segment;
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.TimeUnit;
 
@@ -44,7 +46,7 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
         val storage = new InMemoryStorage();
 
         // Part 1: Create a segment and verify all operations are allowed.
-        storage.create(segment1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        storage.create(SegmentInfo.noAutoScale(segment1), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         verifyOperationsSucceed(segment1, storage);
 
         // Part 2: Change owner, verify segment operations are not allowed until a call to open() is made.
@@ -55,7 +57,7 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
         verifyOperationsSucceed(segment1, storage);
 
         // Part 3: Create new segment and verify all operations are allowed.
-        storage.create(segment2, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        storage.create(SegmentInfo.noAutoScale(segment2), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         verifyOperationsSucceed(segment2, storage);
 
         // Cleanup.

@@ -116,9 +116,9 @@ public class MockController implements Controller {
             }
         };
         ClientConnection connection = getAndHandleExceptions(connectionFactory.establishConnection(uri, replyProcessor),
-                                                             RuntimeException::new);
+                RuntimeException::new);
         try {
-            connection.send(new WireCommands.CreateSegment(name, false, 0L, false));
+            connection.send(new WireCommands.CreateSegment(name, false, 0L, (byte) 0));
         } catch (ConnectionFailedException e) {
             throw new RuntimeException(e);
         }
@@ -243,10 +243,10 @@ public class MockController implements Controller {
     private PositionImpl getInitialPosition(String scope, String stream) {
         return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
     }
-    
+
     private void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor) {
         ClientConnection connection = getAndHandleExceptions(connectionFactory
-            .establishConnection(new PravegaNodeUri(endpoint, port), replyProcessor), RuntimeException::new);
+                .establishConnection(new PravegaNodeUri(endpoint, port), replyProcessor), RuntimeException::new);
         try {
             connection.send(request);
         } catch (ConnectionFailedException e) {

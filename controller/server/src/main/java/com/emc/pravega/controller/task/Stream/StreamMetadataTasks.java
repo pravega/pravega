@@ -55,7 +55,7 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -106,10 +106,10 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
      * @return creation status.
      */
     @Task(name = "createStream", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp, Optional<OperationContext> contextOpt) {
+    public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp, OperationContext contextOpt) {
         return execute(
                 new Resource(scope, stream),
-                new Serializable[]{scope, stream, config},
+                new Serializable[]{scope, stream, config, createTimestamp, null},
                 () -> createStreamBody(scope, stream, config, createTimestamp, contextOpt));
     }
 
@@ -123,10 +123,10 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
      * @return update status.
      */
     @Task(name = "updateConfig", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<UpdateStreamStatus> alterStream(String scope, String stream, StreamConfiguration config, Optional<OperationContext> contextOpt) {
+    public CompletableFuture<UpdateStreamStatus> alterStream(String scope, String stream, StreamConfiguration config, OperationContext contextOpt) {
         return execute(
                 new Resource(scope, stream),
-                new Serializable[]{scope, stream, config},
+                new Serializable[]{scope, stream, config, null},
                 () -> updateStreamConfigBody(scope, stream, config, contextOpt));
     }
 
@@ -142,10 +142,10 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
      * @return returns the newly created segments.
      */
     @Task(name = "scaleStream", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<ScaleResponse> scale(String scope, String stream, ArrayList<Integer> sealedSegments, ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp, Optional<OperationContext> contextOpt) {
+    public CompletableFuture<ScaleResponse> scale(String scope, String stream, ArrayList<Integer> sealedSegments, ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp, OperationContext contextOpt) {
         return execute(
                 new Resource(scope, stream),
-                new Serializable[]{scope, stream, sealedSegments, newRanges, scaleTimestamp},
+                new Serializable[]{scope, stream, sealedSegments, newRanges, scaleTimestamp, null},
                 () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp, contextOpt));
     }
 
@@ -158,19 +158,19 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
      * @return update status.
      */
     @Task(name = "sealStream", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String stream, Optional<OperationContext> contextOpt) {
+    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String stream, OperationContext contextOpt) {
         return execute(
                 new Resource(scope, stream),
-                new Serializable[]{scope, stream},
+                new Serializable[]{scope, stream, null},
                 () -> sealStreamBody(scope, stream, contextOpt));
     }
 
-    private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp, Optional<OperationContext> contextOpt) {
+    private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp, OperationContext contextOpt) {
 
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null)
                 .thenCompose(x -> {
                     if (x) {
-                        final OperationContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
+                        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
                         return this.streamMetadataStore.getActiveSegments(scope, stream, context)
                                 .thenApply(activeSegments ->
@@ -194,8 +194,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 });
     }
 
-    public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream, StreamConfiguration config, Optional<OperationContext> contextOpt) {
-        final OperationContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
+    public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream, StreamConfiguration config, OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return streamMetadataStore.updateConfiguration(scope, stream, config, context)
                 .handle((result, ex) -> {
@@ -207,8 +207,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 });
     }
 
-    public CompletableFuture<UpdateStreamStatus> sealStreamBody(String scope, String stream, Optional<OperationContext> contextOpt) {
-        final OperationContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
+    public CompletableFuture<UpdateStreamStatus> sealStreamBody(String scope, String stream, OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return streamMetadataStore.getActiveSegments(scope, stream, context)
                 .thenCompose(activeSegments -> {
@@ -232,7 +232,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     @VisibleForTesting
-    CompletableFuture<ScaleResponse> scaleBody(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp, Optional<OperationContext> contextOpt) {
+    CompletableFuture<ScaleResponse> scaleBody(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp, OperationContext contextOpt) {
         // Abort scaling operation in the following error scenarios
         // 1. if the active segments in the stream have ts greater than scaleTimestamp -- ScaleStreamStatus.PRECONDITION_FAILED
         // 2. if active segments having creation timestamp as scaleTimestamp have different key ranges than the ones specified in newRanges (todo) -- ScaleStreamStatus.CONFLICT
@@ -250,27 +250,25 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         // So we need to retry and complete all steps.
         // However, after sufficient retries, if we are still not able to complete all steps in scale task,
         // we should stop retrying indefinitely and notify administrator.
-        final OperationContext context = contextOpt.orElse(streamMetadataStore.createContext(scope, stream));
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         CompletableFuture<Pair<Boolean, Boolean>> checkValidity =
                 streamMetadataStore.getActiveSegments(scope, stream, context)
                         .thenCompose(activeSegments -> streamMetadataStore.isTransactionOngoing(scope, stream, context)
-                                .thenApply(active -> new ImmutablePair<>(!active, !(
-                                        // Case: some segment to be sealed is not an active segment
-                                        sealedSegments.stream().anyMatch(x ->
-                                                activeSegments
-                                                        .stream()
-                                                        .noneMatch(segment ->
-                                                                segment.getNumber() == x))
-                                                &&
-                                                // if segments to seal are not in active segment list
-                                                // check activeSegment's highest creation time is same
-                                                // as scaleTime. Which means we are redoing the same task
-                                                activeSegments
-                                                        .stream()
-                                                        .mapToLong(Segment::getStart)
-                                                        .max()
-                                                        .getAsLong() == scaleTimestamp))));
+                                .thenApply(active -> {
+                                    boolean result = false;
+                                    Set<Integer> activeNum = activeSegments.stream().mapToInt(Segment::getNumber).boxed().collect(Collectors.toSet());
+                                    if (activeNum.containsAll(sealedSegments)) {
+                                        result = true;
+                                    } else if (activeSegments.size() > 0 && activeSegments
+                                            .stream()
+                                            .mapToLong(Segment::getStart)
+                                            .max()
+                                            .getAsLong() == scaleTimestamp) {
+                                        result = true;
+                                    }
+                                    return new ImmutablePair<>(!active, result);
+                                }));
 
         return checkValidity.thenCompose(result -> {
                     if (result.getLeft() && result.getRight()) {
