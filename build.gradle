@@ -311,7 +311,7 @@ project('integrationtests') {
 
 project('integrationtests:controller') {
     apply plugin: 'application'
-    mainClassName = "com.emc.pravega.controller.stresstest.ControllerTests"
+    mainClassName = "com.emc.pravega.controller.ControllerTests"
     dependencies {
         compile project(':clients:streaming')
         compile project(':controller:server')

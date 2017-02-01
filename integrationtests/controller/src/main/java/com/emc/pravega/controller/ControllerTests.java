@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.stresstest;
+package com.emc.pravega.controller;
 
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -57,7 +57,7 @@ public class ControllerTests {
     private static ArrayList<CompletableFuture<UpdateStreamStatus>> sealStatusList = new ArrayList<>();
 
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         parseCmdLine(args);
         createStream();
         alterStream();
@@ -67,7 +67,7 @@ public class ControllerTests {
 
     private static void createStream() {
         ExecutorService createExecutor = Executors.newFixedThreadPool(createStreamCallCount);
-        System.out.println("\n Calling create stream  " + createStreamCallCount + " times. " + " The controller endpoint is" + controllerUri);
+        log.debug("\n Calling Create Stream  {} times.The controller endpoint is {}", createStreamCallCount, controllerUri);
         starttime = System.currentTimeMillis();
         for (int i = 0; i < createStreamCallCount; i++) {
             try {
@@ -75,27 +75,27 @@ public class ControllerTests {
                 Runnable runnable = new CreateStream(controller, i);
                 createExecutor.execute(runnable);
             } catch (URISyntaxException uri) {
-                System.out.println(uri);
+                log.error("invalid controller uri {}", uri);
             }
         }
         createExecutor.shutdown();
         try {
             createExecutor.awaitTermination(1, TimeUnit.MINUTES);
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            log.error("error in await termination of create executor {}", e);
         }
         endtime = System.currentTimeMillis();
         timetaken = endtime - starttime;
-        System.out.println("time taken for" + createStreamCallCount + "create stream calls =" + timetaken);
+        log.debug("time taken for {} create stream calls = {} ", createStreamCallCount, timetaken);
         CompletableFuture<Void> createAll = FutureHelpers.allOf(createStatusList);
         createAll.join();
         createStatusList.forEach(createStreamStatusCompletableFuture -> {
             try {
-                System.out.println("get status of each create stream call" + createStreamStatusCompletableFuture.get());
+                log.debug("Status of each create stream call {}", createStreamStatusCompletableFuture.get());
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                log.error("error in doing a get on create stream status {}", e);
             } catch (ExecutionException e) {
-                e.printStackTrace();
+                log.error("error in doing a get on create status {}", e);
             }
         });
     }
@@ -112,18 +112,18 @@ public class ControllerTests {
         ControllerImpl controller1 = null;
         try {
             controller1 = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
-        } catch (URISyntaxException e) {
-            e.printStackTrace();
+        } catch (URISyntaxException uri) {
+            log.error("invalid controller uri {}", uri);
         }
         CompletableFuture<CreateStreamStatus> createStream = controller1.createStream(config);
         try {
-            System.out.println("create stream status" + createStream.get());
+            log.debug("create stream status before altering config {}", createStream.get());
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            log.error("error in doing a get on create stream status before altering config{}", e);
         } catch (ExecutionException e) {
-            e.printStackTrace();
+            log.error("error in doing a get on create stream status before altering config {}", e);
         }
-        System.out.println("\n calling alter stream  " + alterStreamCallCount + " times " + " the controller endpoint is" + controllerUri);
+        log.debug("\n Calling Alter Stream {} times.The controller endpoint is {}", alterStreamCallCount, controllerUri);
         starttime = System.currentTimeMillis();
         for (int i = 0; i < alterStreamCallCount; i++) {
             try {
@@ -131,36 +131,29 @@ public class ControllerTests {
                 Runnable runnable1 = new AlterStream(controller2, scope, streamName, i);
                 alterExecutor.execute(runnable1);
             } catch (URISyntaxException uri) {
-                System.out.println(uri);
+                log.error("invalid controller uri {}", uri);
             }
         }
 
         alterExecutor.shutdown();
         try {
-            alterExecutor.awaitTermination(1, TimeUnit.MINUTES);
+            alterExecutor.awaitTermination(2, TimeUnit.MINUTES);
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            log.error("error in await termination of alter executor {}", e);
         }
+
         endtime = System.currentTimeMillis();
         timetaken = endtime - starttime;
-        System.out.println("time taken for" + alterStreamCallCount + "alter stream calls =" + timetaken);
+        log.debug("time taken for {} alter stream calls = {}", alterStreamCallCount, timetaken);
         CompletableFuture<Void> alterAll = FutureHelpers.allOf(alterStatusList);
         alterAll.join();
-        try {
-            System.out.println("contents" + alterAll.get());
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-        }
-        System.out.println("is empty" + alterStatusList.isEmpty());
         alterStatusList.forEach(alterStreamStatusCompletableFuture -> {
             try {
-                System.out.println("get status of each alter stream call" + alterStreamStatusCompletableFuture.get());
+                log.debug("Status of each alter stream call {}", alterStreamStatusCompletableFuture.get());
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                log.error("error in doing a get on alter stream status {}", e);
             } catch (ExecutionException e) {
-                e.printStackTrace();
+                log.error("error in doing a get on alter stream status {}", e);
             }
         });
     }
@@ -177,18 +170,18 @@ public class ControllerTests {
         ControllerImpl controller3 = null;
         try {
             controller3 = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
-        } catch (URISyntaxException e) {
-            e.printStackTrace();
+        } catch (URISyntaxException uri) {
+            log.error("invalid controller uri {}", uri);
         }
         CompletableFuture<CreateStreamStatus> createStream = controller3.createStream(config);
         try {
-            System.out.println("create stream status" + createStream.get());
+            log.debug("create stream status {} before sealing", createStream.get());
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            log.error("error in doing a get on create stream status before sealing it {}", e);
         } catch (ExecutionException e) {
-            e.printStackTrace();
+            log.error("error in doing a get on create stream status before sealing it {}", e);
         }
-        System.out.println("\n calling seal stream  " + sealStreamCallCount + " times " + " the controller endpoint is" + controllerUri);
+        log.debug("\n Calling Seal Stream {} times.The controller endpoint is {}", sealStreamCallCount, controllerUri);
         starttime = System.currentTimeMillis();
         for (int i = 0; i < sealStreamCallCount; i++) {
             try {
@@ -196,7 +189,7 @@ public class ControllerTests {
                 Runnable runnable = new SealStream(controller4, scope, streamName);
                 sealExecutor.execute(runnable);
             } catch (URISyntaxException uri) {
-                System.out.println(uri);
+                log.error("invalid controller uri {}", uri);
             }
         }
 
@@ -204,11 +197,11 @@ public class ControllerTests {
         try {
             sealExecutor.awaitTermination(1, TimeUnit.MINUTES);
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            log.error("error in await termination of seal executor {}", e);
         }
         endtime = System.currentTimeMillis();
         timetaken = endtime - starttime;
-        System.out.println("time taken for" + sealStreamCallCount + "alter stream calls =" + timetaken);
+        log.debug("time taken for {} seal stream calls = {}", sealStreamCallCount, timetaken);
         CompletableFuture<Void> sealAll = FutureHelpers.allOf(sealStatusList);
         sealAll.join();
         try {
@@ -221,11 +214,11 @@ public class ControllerTests {
         System.out.println("is empty" + sealStatusList.isEmpty());
         sealStatusList.forEach(sealStreamStatusCompletableFuture -> {
             try {
-                System.out.println("get status of each alter stream call" + sealStreamStatusCompletableFuture.get());
+                log.debug("Status of each alter stream call {}", sealStreamStatusCompletableFuture.get());
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                log.error("error in doing a get on seal stream status {}", e);
             } catch (ExecutionException e) {
-                e.printStackTrace();
+                log.error("error in doing a get on seal stream status {}", e);
             }
         });
     }
@@ -258,12 +251,11 @@ public class ControllerTests {
                     alterStreamCallCount = Integer.parseInt(commandline.getOptionValue("alterstream"));
                 }
                 if (commandline.hasOption("sealstream")) {
-                    alterStreamCallCount = Integer.parseInt(commandline.getOptionValue("sealstream"));
+                    sealStreamCallCount = Integer.parseInt(commandline.getOptionValue("sealstream"));
                 }
             }
         } catch (Exception nfe) {
-            System.out.println("Invalid arguments. Starting with default values");
-            nfe.printStackTrace();
+            log.error("Invalid arguments. Starting with default values {}", nfe);
             System.exit(0);
         }
     }
@@ -337,13 +329,8 @@ public class ControllerTests {
 
         public void run() {
             CompletableFuture<UpdateStreamStatus> sealStreamStatus = controller.sealStream(scope, streamName);
-            alterStatusList.add(sealStreamStatus);
+            sealStatusList.add(sealStreamStatus);
 
         }
     }
 }
-
-
-
-
-
