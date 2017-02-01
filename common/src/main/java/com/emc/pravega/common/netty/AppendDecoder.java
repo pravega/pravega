@@ -76,6 +76,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
 
     /**
      * Parses wire command and creates append request object.
+     *
      * @param command Append Wire Command
      * @return Append Instance.
      * @throws Exception thrown if command type is not append, or event block is constructed properly.
