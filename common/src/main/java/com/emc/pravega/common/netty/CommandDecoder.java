@@ -51,6 +51,7 @@ public class CommandDecoder extends ByteToMessageDecoder {
 
     /**
      * Parses incoming byte buffer and converts it into wire command.
+     *
      * @param in Incoming byte buffer
      * @return WireCommand
      * @throws IOException thrown if byte buffer doesn't contain enough bytes to read.
