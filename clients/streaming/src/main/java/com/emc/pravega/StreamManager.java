@@ -38,7 +38,7 @@ public interface StreamManager extends AutoCloseable {
      *
      * @param scope The Scope string.
      * @param controllerUri The Controller URI.
-     * @return Instance on Stream Manager implementation.
+     * @return Instance of Stream Manager implementation.
      */
     public static StreamManager withScope(String scope, URI controllerUri) {
         return new StreamManagerImpl(scope, controllerUri);
