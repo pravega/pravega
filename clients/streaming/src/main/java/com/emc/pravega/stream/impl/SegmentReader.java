@@ -53,6 +53,7 @@ public interface SegmentReader<Type> extends AutoCloseable {
 
     /**
      * Closes the reader. Frees any resources associated with it.
+     * 
      * No further opertations may be performed.
      */
     @Override
