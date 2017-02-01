@@ -86,7 +86,7 @@ public class TableHelper {
      * (e.g. callers - producers and consumers)
      *
      * @param historyTable history table
-     * @return list of all active segment in the given history table
+     * @return list of all active segment in given history table
      */
     public static List<Integer> getActiveSegments(final byte[] historyTable) {
         final Optional<HistoryRecord> record = HistoryRecord.readLatestRecord(historyTable);
@@ -104,7 +104,7 @@ public class TableHelper {
      * @param timestamp    timestamp
      * @param indexTable   indextable
      * @param historyTable history table
-     * @return list of active segment in the given history table at given timestamp
+     * @return list of active segment in given history table at given timestamp
      */
     public static List<Integer> getActiveSegments(final long timestamp, final byte[] indexTable, final byte[] historyTable) {
         final Optional<IndexRecord> recordOpt = IndexRecord.search(timestamp, indexTable).getValue();
