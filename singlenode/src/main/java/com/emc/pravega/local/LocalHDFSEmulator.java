@@ -18,23 +18,22 @@
 
 package com.emc.pravega.local;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.io.FileHelpers;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
-public class LocalHDFSEmulator {
+public class LocalHDFSEmulator implements AutoCloseable {
     private static File baseDir = null;
     private static MiniDFSCluster hdfsCluster = null;
     private final String baseDirName;
 
-    public LocalHDFSEmulator(String baseDirName) {
+    private LocalHDFSEmulator(String baseDirName) {
+        Exceptions.checkNotNullOrEmpty(baseDirName, "baseDirName");
         this.baseDirName = baseDirName;
     }
 
@@ -43,10 +42,6 @@ public class LocalHDFSEmulator {
     }
 
     public void start() throws IOException {
-        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        context.getLoggerList().get(0).setLevel(Level.OFF);
-        //context.reset();
-
         baseDir = Files.createTempDirectory(baseDirName).toFile().getAbsoluteFile();
         Configuration conf = new Configuration();
         conf.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, baseDir.getAbsolutePath());
@@ -64,22 +59,26 @@ public class LocalHDFSEmulator {
         }
     }
 
-    public Object getNameNodePort() {
+    public int getNameNodePort() {
         return hdfsCluster.getNameNodePort();
+    }
+
+    @Override
+    public void close() throws Exception {
+        teardown();
     }
 
     public static class Builder {
         private String baseDirName;
 
         public Builder baseDirName(String baseDir) {
+            Exceptions.checkNotNullOrEmpty(baseDir, "baseDir");
             this.baseDirName = baseDir;
             return this;
         }
 
         public LocalHDFSEmulator build() {
             return new LocalHDFSEmulator(baseDirName);
-
         }
-
     }
 }

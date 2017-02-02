@@ -79,7 +79,7 @@ public final class Config {
     public static final String REST_SERVER_IP = CONFIG.getString("config.controller.server.rest.serverIp");
     public static final int REST_SERVER_PORT = CONFIG.getInt("config.controller.server.rest.serverPort");
 
-    public static void overRideZKURL(String replaceZKURL) {
+    public static void setZKURL(String replaceZKURL) {
         zKURL = replaceZKURL;
     }
 }

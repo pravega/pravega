@@ -18,6 +18,8 @@
 
 package com.emc.pravega.local;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
@@ -49,6 +51,7 @@ import com.twitter.distributedlog.admin.DistributedLogAdmin;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.commons.io.FileUtils;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.net.InetAddress;
@@ -62,18 +65,21 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.emc.pravega.controller.util.Config.*;
 
 @Slf4j
-public class LocalPravegaEmulator {
+public class LocalPravegaEmulator implements AutoCloseable {
 
-
+    private static final int NUM_BOOKIES = 5;
+    private static final String CONTAINER_COUNT = "2";
+    private static final String THREADPOOL_SIZE = "20";
     private static LocalHDFSEmulator localHdfs;
     private static int zkPort;
-    AtomicReference<ServiceStarter> nodeServiceStarter = new AtomicReference<>();
+    private static LocalDLMEmulator localDlm;
+    private final AtomicReference<ServiceStarter> nodeServiceStarter = new AtomicReference<>();
 
     private final int controllerPort;
     private final int hostPort;
     private ScheduledExecutorService controllerExecutor;
 
-    public LocalPravegaEmulator(int controllerPort, int hostPort) {
+    private LocalPravegaEmulator(int controllerPort, int hostPort) {
         this.controllerPort = controllerPort;
         this.hostPort = hostPort;
     }
@@ -90,10 +96,13 @@ public class LocalPravegaEmulator {
             final int hostPort = Integer.parseInt(args[2]);
 
             final File zkDir = IOUtils.createTempDir("distrlog", "zookeeper");
-            final LocalDLMEmulator localDlm = LocalDLMEmulator.newBuilder()
+            localDlm = LocalDLMEmulator.newBuilder()
                     .zkPort(zkPort)
-                    .numBookies(5)
+                    .numBookies(NUM_BOOKIES)
                     .build();
+
+            LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+            context.getLoggerList().get(0).setLevel(Level.OFF);
 
              localHdfs = LocalHDFSEmulator.newBuilder()
                                                 .baseDirName("temp")
@@ -108,7 +117,7 @@ public class LocalPravegaEmulator {
                 @Override
                 public void run() {
                     try {
-                        localPravega.teardown();
+                        localPravega.close();
                         localDlm.teardown();
                         localHdfs.teardown();
                         FileUtils.deleteDirectory(zkDir);
@@ -136,11 +145,11 @@ public class LocalPravegaEmulator {
 
     private static void configureDLBinding() {
         DistributedLogAdmin admin = new DistributedLogAdmin();
-        String[] params = {"bind", "-dlzr", "localhost:"+zkPort,
-                "-dlzw", "localhost:"+7000, "-s", "localhost:"+zkPort, "-bkzr",
-                "localhost:"+7000, "-l", "/ledgers",
+        String[] params = {"bind", "-dlzr", "localhost:" + zkPort,
+                "-dlzw", "localhost:" + 7000, "-s", "localhost:" + zkPort, "-bkzr",
+                "localhost:" + 7000, "-l", "/ledgers",
                 "-i", "false", "-r", "true", "-c",
-                "distributedlog://localhost:"+zkPort+"/messaging/distributedlog/mynamespace"};
+                "distributedlog://localhost:" + zkPort + "/messaging/distributedlog/mynamespace"};
         try {
             admin.run(params);
         } catch (Exception e) {
@@ -152,7 +161,8 @@ public class LocalPravegaEmulator {
     /**
      * Stop controller and host.
      * */
-    private void teardown() {
+    @Override
+     public void close() {
         localHdfs.teardown();
         controllerExecutor.shutdown();
         nodeServiceStarter.get().shutdown();
@@ -181,8 +191,10 @@ public class LocalPravegaEmulator {
                     String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort()));
 
             // Change Number of containers and Thread Pool Size for each test.
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "2");
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "20");
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT,
+                    CONTAINER_COUNT);
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE,
+                    THREADPOOL_SIZE);
 
             ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, "100");
             ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, "100");
@@ -241,7 +253,7 @@ public class LocalPravegaEmulator {
         }
 
         //1. LOAD configuration.
-        Config.overRideZKURL("localhost:"+zkPort);
+        Config.setZKURL("localhost:"+zkPort);
         //Initialize the executor service.
         controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
                 new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
