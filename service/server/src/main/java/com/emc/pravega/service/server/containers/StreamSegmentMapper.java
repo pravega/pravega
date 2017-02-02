@@ -94,7 +94,7 @@ public class StreamSegmentMapper {
     /**
      * Creates a new StreamSegment with given name (in Storage) and assigns a unique internal Id to it.
      *
-     * @param streamSegmentName       Wrapper class for case-sensitive StreamSegment Name and scaling policy.
+     * @param streamSegmentName The case-sensitive StreamSegment Name.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed normally.
      * If the operation failed, this will contain the exception that caused the failure.

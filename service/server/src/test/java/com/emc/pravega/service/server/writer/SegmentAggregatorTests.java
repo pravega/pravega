@@ -96,6 +96,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     }
 
     //region initialize()
+
     /**
      * Tests the initialize() method.
      */
@@ -1587,5 +1588,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                     this.sequenceNumbers.floorEntry(this.context.segmentAggregator.getMetadata().getStorageLength()).getValue();
         }
     }
+
     // endregion
 }

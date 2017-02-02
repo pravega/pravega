@@ -31,8 +31,8 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
     /**
      * Creates a new StreamSegment in this Storage Layer.
      *
-     * @param streamSegmentName The StreamSegment full name.
-     * @param timeout Timeout for the operation.
+     * @param streamSegmentName The full name of the StreamSegment.
+     * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been created (it will
      * contain a StreamSegmentInformation for a blank stream). If the operation failed, it will contain the cause of the
      * failure. Notable exceptions:

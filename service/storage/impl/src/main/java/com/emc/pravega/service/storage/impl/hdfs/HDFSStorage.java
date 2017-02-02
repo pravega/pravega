@@ -76,7 +76,6 @@ class HDFSStorage implements Storage {
 
     /**
      * Creates a new instance of the HDFSStorage class.
-     *
      * @param config   The configuration to use.
      * @param executor The executor to use for running async operations.
      */
@@ -177,14 +176,6 @@ class HDFSStorage implements Storage {
     private SegmentProperties createSync(String streamSegmentName) throws IOException {
         this.fileSystem.create(new Path(getOwnedSegmentFullPath(streamSegmentName)),
                 new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
-                false,
-                0,
-                this.config.getReplication(),
-                this.config.getBlockSize(),
-                null).close();
-
-        this.fileSystem.create(new Path(getOwnedSegmentFullPath(streamSegmentName + "_policy")),
-                new FsPermission(FsAction.READ, FsAction.NONE, FsAction.NONE),
                 false,
                 0,
                 this.config.getReplication(),

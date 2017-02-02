@@ -244,7 +244,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("getStreamSegmentInfo", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenApply(streamSegmentId -> {

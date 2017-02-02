@@ -35,9 +35,6 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperati
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.testcommon.AssertExtensions;
-import lombok.Cleanup;
-import org.junit.Assert;
-import org.junit.Test;
 
 import java.io.InputStream;
 import java.time.Duration;
@@ -51,6 +48,9 @@ import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import lombok.Cleanup;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for MemoryStateUpdater class.
