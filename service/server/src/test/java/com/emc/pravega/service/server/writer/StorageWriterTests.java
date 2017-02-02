@@ -246,6 +246,8 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                     ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true);
                 },
                 ex -> ex instanceof IllegalStateException);
+
+        ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, false);
         Assert.assertTrue("Unexpected failure cause for StorageWriter.", ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof ReconciliationFailureException);
     }
 

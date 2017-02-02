@@ -22,6 +22,9 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.common.metrics.MetricsConfig;
+import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.StatsProvider;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.monitor.MonitorFactory;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -35,18 +38,13 @@ import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.slf4j.LoggerFactory;
-
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicReference;
-
-import com.emc.pravega.common.metrics.MetricsConfig;
-import com.emc.pravega.common.metrics.StatsProvider;
-import com.emc.pravega.common.metrics.MetricsProvider;
 
 /**
  * Starts the Pravega Service.
@@ -110,10 +108,7 @@ public final class ServiceStarter {
         context.getLoggerList().get(0).setLevel(Level.INFO);
 
         log.info("Initializing metrics provider ...");
-        statsProvider = metricsConfig.enableStatistics() ?
-                        MetricsProvider.getNullProvider() :
-                        MetricsProvider.getProvider();
-
+        statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.start(metricsConfig);
 
         SegmentStats.addMonitor(MonitorFactory.createMonitor(MonitorFactory.MonitorType.ThresholdMonitor));

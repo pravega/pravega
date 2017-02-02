@@ -15,18 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.controller.server.rest.contract.response;
 
-package com.emc.pravega.common.util;
+import com.emc.pravega.controller.server.rest.contract.common.RetentionPolicyCommon;
+import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommon;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.io.Serializable;
 
 /**
- * Defines a generic entry into an Index.
- *
- * @param <K> The Type of the key.
+ * REST representation of properties of a stream.
  */
-public interface IndexEntry<K> {
-    /**
-     * Gets a value representing the key of the entry. The Key should not change for the lifetime of the entry and
-     * should be very cheap to return (as it is used very frequently).
-     */
-    K key();
+@AllArgsConstructor
+@Getter
+@Setter
+public class StreamProperty implements Serializable {
+    private String scope;
+    private String streamName;
+    private ScalingPolicyCommon scalingPolicy;
+    private RetentionPolicyCommon retentionPolicy;
 }

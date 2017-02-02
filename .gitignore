@@ -1,6 +1,11 @@
 *.iml
+<<<<<<< HEAD
 *.ipr
 *.iws
+=======
+*.iws
+*.ipr
+>>>>>>> 7450f93de02cf01a7e9acaf6cfaf8ac720fe0797
 .project
 build
 .classpath

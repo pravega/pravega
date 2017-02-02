@@ -21,8 +21,8 @@ package com.emc.pravega.service.server.reading;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.AvlTreeIndex;
 import com.emc.pravega.common.util.ByteArraySegment;
-import com.emc.pravega.common.util.RedBlackTreeIndex;
 import com.emc.pravega.common.util.SortedIndex;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
@@ -68,7 +68,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
     private final String traceObjectId;
     @GuardedBy("lock")
-    private final SortedIndex<Long, ReadIndexEntry> indexEntries; // Key = First Offset of Entry, Value = Entry.
+    private final SortedIndex<ReadIndexEntry> indexEntries;
     private final ReadIndexConfig config;
     @GuardedBy("lock")
     private final Cache cache;
@@ -113,7 +113,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         this.metadata = metadata;
         this.cache = cache;
         this.recoveryMode = recoveryMode;
-        this.indexEntries = new RedBlackTreeIndex<>(Long::compare);
+        this.indexEntries = new AvlTreeIndex<>();
         this.futureReads = new FutureReadResultEntryCollection();
         this.mergeOffsets = new HashMap<>();
         this.lastAppendedOffset = -1;

@@ -39,6 +39,7 @@ import com.emc.pravega.stream.impl.PositionInternal;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
+import lombok.Getter;
 import org.apache.thrift.TException;
 
 import java.util.ArrayList;
@@ -52,6 +53,7 @@ import java.util.stream.Collectors;
 /**
  * Stream controller RPC server implementation.
  */
+@Getter
 public class ControllerService {
 
     private final StreamMetadataStore streamStore;

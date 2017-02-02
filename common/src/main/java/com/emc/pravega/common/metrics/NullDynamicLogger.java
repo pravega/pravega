@@ -15,27 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server.rest.test;
+package com.emc.pravega.common.metrics;
 
-import com.emc.pravega.controller.server.rest.resources.PingImpl;
-import org.glassfish.jersey.server.ResourceConfig;
-import org.glassfish.jersey.test.JerseyTest;
-import org.junit.Test;
-
-import javax.ws.rs.core.Application;
-
-import static org.junit.Assert.assertEquals;
-
-public class PingTest extends JerseyTest {
+public class NullDynamicLogger implements DynamicLogger {
+    public static final NullDynamicLogger INSTANCE = new NullDynamicLogger();
 
     @Override
-    protected Application configure() {
-        return new ResourceConfig(PingImpl.class);
+    public void incCounterValue(String name, long delta) {
+        // nop
     }
 
-    @Test
-    public void test() {
-        final String hello = target("/v1/ping").request().get(String.class);
-        assertEquals("true", hello);
+    @Override
+    public <T extends Number> void reportGaugeValue(String name, T value) {
+        // nop
     }
 }

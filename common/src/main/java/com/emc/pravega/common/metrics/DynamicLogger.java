@@ -15,19 +15,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server.rest.contract.request;
-
-import com.emc.pravega.controller.server.rest.contract.common.RetentionPolicyCommon;
-import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommon;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
+package com.emc.pravega.common.metrics;
 
 /**
- * Conforms to updateStreamConfig REST API request object.
+ * A simple interface that only exposes simple type metrics: Counter/Gauge.
  */
-@Getter
-@AllArgsConstructor
-public class UpdateStreamRequest {
-    private final ScalingPolicyCommon scalingPolicy;
-    private final RetentionPolicyCommon retentionPolicy;
+public interface DynamicLogger {
+
+    /**
+     * Increase Counter with value <i>delta</i> .
+     *
+     * @param name  the name of Counter
+     * @param delta the delta to be added
+     */
+    void incCounterValue(String name, long delta);
+
+    /**
+     * Report gauge value.
+     *
+     * @param <T>   the type of value
+     * @param name  the name of gauge
+     * @param value the value to be reported
+     */
+    <T extends Number> void reportGaugeValue(String name, T value);
 }

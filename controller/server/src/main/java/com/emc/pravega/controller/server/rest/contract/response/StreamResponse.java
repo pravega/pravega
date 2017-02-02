@@ -17,23 +17,19 @@
  */
 package com.emc.pravega.controller.server.rest.contract.response;
 
-import com.emc.pravega.controller.server.rest.contract.common.RetentionPolicyCommon;
-import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommon;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.Setter;
 
-import javax.ws.rs.Consumes;
-import javax.ws.rs.Produces;
-import javax.ws.rs.core.MediaType;
+import java.io.Serializable;
 
+/**
+ * REST representation of response object of a stream.
+ * Stream properties wrapped in stream response.
+ */
 @Getter
+@Setter
 @AllArgsConstructor
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
-
-public class StreamResponse {
-    private String scope;
-    private String name;
-    private ScalingPolicyCommon scalingPolicy;
-    private RetentionPolicyCommon retentionPolicy;
+public class StreamResponse implements Serializable {
+    private StreamProperty stream;
 }
