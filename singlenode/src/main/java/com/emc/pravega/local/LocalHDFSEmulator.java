@@ -50,7 +50,8 @@ public class LocalHDFSEmulator implements AutoCloseable {
         hdfsCluster = builder.build();
     }
 
-    public void teardown() {
+    @Override
+    public void close() {
         if (hdfsCluster != null) {
             hdfsCluster.shutdown();
             hdfsCluster = null;
@@ -61,11 +62,6 @@ public class LocalHDFSEmulator implements AutoCloseable {
 
     public int getNameNodePort() {
         return hdfsCluster.getNameNodePort();
-    }
-
-    @Override
-    public void close() throws Exception {
-        teardown();
     }
 
     public static class Builder {

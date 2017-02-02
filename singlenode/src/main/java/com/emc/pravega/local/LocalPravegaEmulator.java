@@ -119,7 +119,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     try {
                         localPravega.close();
                         localDlm.teardown();
-                        localHdfs.teardown();
+                        localHdfs.close();
                         FileUtils.deleteDirectory(zkDir);
                         System.out.println("ByeBye!");
                     } catch (Exception e) {
@@ -162,8 +162,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
      * Stop controller and host.
      * */
     @Override
-     public void close() {
-        localHdfs.teardown();
+    public void close() {
+        localHdfs.close();
         controllerExecutor.shutdown();
         nodeServiceStarter.get().shutdown();
     }
@@ -222,23 +222,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
         }
-
-        try {
-            nodeServiceStarter.get().start();
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        log.info("Caught interrupt signal...");
-                        nodeServiceStarter.get().shutdown();
-                    } catch (Exception e) {
-                        // do nothing
-                        log.error("Exception while stopping the threads...");
-                    }
-                }
-            });
-        } catch (Exception e) {
-        }
+        nodeServiceStarter.get().start();
     }
 
     private void startController() {
