@@ -14,11 +14,8 @@
  */
 package com.emc.pravega.common.netty;
 
-import static com.emc.pravega.common.netty.WireCommandType.EVENT;
-import static com.emc.pravega.common.netty.WireCommands.APPEND_BLOCK_SIZE;
-import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import com.emc.pravega.common.netty.WireCommands.KeepAlive;
+import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,8 +26,10 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.emc.pravega.common.netty.WireCommands.KeepAlive;
-import com.emc.pravega.common.netty.WireCommands.SetupAppend;
+import static com.emc.pravega.common.netty.WireCommandType.EVENT;
+import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -40,16 +39,18 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import lombok.Cleanup;
+import lombok.RequiredArgsConstructor;
 
 public class AppendEncodeDecodeTest {
 
+    private final int appendBlockSize = 1024;  
     private final UUID connectionId = new UUID(1, 2);
     private final String streamName = "Test Stream Name";
-    private final CommandEncoder encoder = new CommandEncoder();
+    private final CommandEncoder encoder = new CommandEncoder(new FixedBatchSizeTracker(appendBlockSize));
     private final FakeLengthDecoder lengthDecoder = new FakeLengthDecoder();
     private final AppendDecoder appendDecoder = new AppendDecoder();
     private Level origionalLogLevel;
-
+    
     @Before
     public void setup() {
         origionalLogLevel = ResourceLeakDetector.getLevel();
@@ -61,6 +62,24 @@ public class AppendEncodeDecodeTest {
         ResourceLeakDetector.setLevel(origionalLogLevel);
     }
 
+    @RequiredArgsConstructor
+    private final class FixedBatchSizeTracker implements AppendBatchSizeTracker {
+        private final int appendBlockSize;  
+        @Override
+        public void noteAppend(int size) {
+        }
+
+        @Override
+        public void noteAck() {
+        }
+
+        @Override
+        public int getAppendBlockSize() {
+            return appendBlockSize;
+        }
+        
+    }
+    
     private final class FakeLengthDecoder extends LengthFieldBasedFrameDecoder {
         FakeLengthDecoder() {
             super(1024 * 1024, 4, 4);
@@ -79,10 +98,30 @@ public class AppendEncodeDecodeTest {
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         append(streamName, connectionId, 0, 1, size, fakeNetwork);
     }
+    
+    @Test
+    public void testVerySmallBlockSize() throws Exception {
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        byte[] content = new byte[100];
+        Arrays.fill(content, (byte) 1);
+        ByteBuf buffer = Unpooled.wrappedBuffer(content);
+        Append msg = new Append("segment", connectionId, 1, buffer, null);
+        CommandEncoder commandEncoder = new CommandEncoder(new FixedBatchSizeTracker(3));
+        SetupAppend setupAppend = new SetupAppend(connectionId, "segment");
+        commandEncoder.encode(null, setupAppend, fakeNetwork);
+        appendDecoder.processCommand(setupAppend);
+        
+        ArrayList<Object> received = new ArrayList<>();
+        commandEncoder.encode(null, msg, fakeNetwork);
+        read(fakeNetwork, received);
+        assertEquals(2, received.size());
+        Append readAppend = (Append) received.get(1);
+        assertEquals(msg.data.readableBytes() + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
+    }
 
     @Test
     public void testSwitchingStream() throws Exception {
-        int size = APPEND_BLOCK_SIZE;
+        int size = appendBlockSize;
         int numEvents = 2;
         UUID c1 = new UUID(1, 1);
         UUID c2 = new UUID(2, 2);
@@ -113,12 +152,12 @@ public class AppendEncodeDecodeTest {
 
     @Test
     public void testFlushBeforeEndOfBlock() throws Exception {
-        testFlush(APPEND_BLOCK_SIZE / 2);
+        testFlush(appendBlockSize / 2);
     }
 
     @Test
     public void testFlushWhenAtBlockBoundry() throws Exception {
-        testFlush(APPEND_BLOCK_SIZE);
+        testFlush(appendBlockSize);
     }
 
     private void testFlush(int size) throws Exception {
@@ -148,47 +187,47 @@ public class AppendEncodeDecodeTest {
                             connectionId,
                             numEvents,
                             eventSize,
-                            numEvents * (eventSize + TYPE_PLUS_LENGTH_SIZE) / APPEND_BLOCK_SIZE + 1);
+                            numEvents * (eventSize + TYPE_PLUS_LENGTH_SIZE) / appendBlockSize + 1);
     }
 
     @Test
     public void testAppendSpanningBlockBound() throws Exception {
         int numEvents = 4;
-        int size = (APPEND_BLOCK_SIZE * 3) / numEvents;
+        int size = (appendBlockSize * 3) / numEvents;
         sendAndVerifyEvents(streamName, connectionId, numEvents, size, 2);
     }
 
     @Test
     public void testBlockSizeAppend() throws Exception {
         int numEvents = 4;
-        int size = APPEND_BLOCK_SIZE;
+        int size = appendBlockSize;
         sendAndVerifyEvents(streamName, connectionId, numEvents, size, numEvents);
     }
 
     @Test
     public void testAlmostBlockSizeAppend1() throws Exception {
         int numEvents = 4;
-        int size = APPEND_BLOCK_SIZE - 1;
+        int size = appendBlockSize - 1;
         sendAndVerifyEvents(streamName, connectionId, numEvents, size, numEvents);
     }
 
     @Test
     public void testAlmostBlockSizeAppend8() throws Exception {
         int numEvents = 4;
-        int size = APPEND_BLOCK_SIZE - 8;
+        int size = appendBlockSize - 8;
         sendAndVerifyEvents(streamName, connectionId, numEvents, size, numEvents);
     }
 
     @Test
     public void testAlmostBlockSizeAppend16() throws Exception {
         int numEvents = 4;
-        int size = APPEND_BLOCK_SIZE - 16;
+        int size = appendBlockSize - 16;
         sendAndVerifyEvents(streamName, connectionId, numEvents, size, numEvents);
     }
 
     @Test
     public void testAppendAtBlockBound() throws Exception {
-        int size = APPEND_BLOCK_SIZE;
+        int size = appendBlockSize;
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         ArrayList<Object> received = setupAppend(streamName, connectionId, fakeNetwork);
@@ -216,7 +255,7 @@ public class AppendEncodeDecodeTest {
 
     @Test
     public void testLargeAppend() throws Exception {
-        int size = 10 * APPEND_BLOCK_SIZE;
+        int size = 10 * appendBlockSize;
         sendAndVerifyEvents(streamName, connectionId, 2, size, 2);
     }
 
