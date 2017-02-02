@@ -21,7 +21,6 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.io.FileHelpers;
-import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
@@ -107,8 +106,8 @@ public class HDFSStorageTest extends StorageTestBase {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> create(SegmentInfo segment, Duration timeout) {
-            return storage.create(segment, timeout);
+        public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+            return storage.create(streamSegmentName, timeout);
         }
 
         @Override

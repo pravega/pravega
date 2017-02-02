@@ -19,7 +19,6 @@
 package com.emc.pravega.service.storage.mocks;
 
 import com.emc.pravega.service.contracts.BadOffsetException;
-import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
@@ -77,7 +76,7 @@ public abstract class StorageTestBase {
         int appendCount = 100;
 
         try (Storage s = createStorage()) {
-            s.create(SegmentInfo.noAutoScale(segmentName), TIMEOUT).join();
+            s.create(segmentName, TIMEOUT).join();
 
             // Invalid segment name.
             assertThrows(
@@ -298,7 +297,7 @@ public abstract class StorageTestBase {
         for (int segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
             String segmentName = getSegmentName(segmentId, context);
 
-            s.create(SegmentInfo.noAutoScale(segmentName), TIMEOUT).join();
+            s.create(segmentName, TIMEOUT).join();
             ByteArrayOutputStream writeStream = new ByteArrayOutputStream();
             appendData.put(segmentName, writeStream);
 

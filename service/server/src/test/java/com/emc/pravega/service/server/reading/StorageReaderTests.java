@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.SegmentMetadata;
@@ -226,7 +225,7 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         int length = MIN_SEGMENT_LENGTH + random.nextInt(MAX_SEGMENT_LENGTH - MIN_SEGMENT_LENGTH);
         byte[] segmentData = new byte[length];
         random.nextBytes(segmentData);
-        storage.create(SegmentInfo.noAutoScale(SEGMENT_METADATA.getName()), TIMEOUT).join();
+        storage.create(SEGMENT_METADATA.getName(), TIMEOUT).join();
         storage.write(SEGMENT_METADATA.getName(), 0, new ByteArrayInputStream(segmentData), segmentData.length, TIMEOUT).join();
         return segmentData;
     }

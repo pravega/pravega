@@ -21,7 +21,6 @@ package com.emc.pravega.service.storage.mocks;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.BadOffsetException;
-import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -102,18 +101,18 @@ public class InMemoryStorage implements TruncateableStorage {
     //region Storage Implementation
 
     @Override
-    public CompletableFuture<SegmentProperties> create(SegmentInfo segment, Duration timeout) {
+    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
         return CompletableFuture
                 .supplyAsync(() -> {
                     synchronized (this.lock) {
-                        if (this.streamSegments.containsKey(segment.getStreamSegmentName())) {
-                            throw new CompletionException(new StreamSegmentExistsException(segment.getStreamSegmentName()));
+                        if (this.streamSegments.containsKey(streamSegmentName)) {
+                            throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
                         }
 
-                        StreamSegmentData data = new StreamSegmentData(segment.getStreamSegmentName(), this.syncContext);
+                        StreamSegmentData data = new StreamSegmentData(streamSegmentName, this.syncContext);
                         data.open();
-                        this.streamSegments.put(segment.getStreamSegmentName(), data);
+                        this.streamSegments.put(streamSegmentName, data);
                         return data;
                     }
                 }, this.executor)

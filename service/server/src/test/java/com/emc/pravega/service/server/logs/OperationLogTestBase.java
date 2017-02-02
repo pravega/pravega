@@ -23,7 +23,6 @@ import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
-import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.ReadIndex;
@@ -102,7 +101,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         for (int i = 0; i < streamSegmentCount; i++) {
             String name = getStreamSegmentName(i);
             long streamSegmentId = mapper
-                    .createNewStreamSegment(SegmentInfo.noAutoScale(name), Duration.ZERO)
+                    .createNewStreamSegment(name, Duration.ZERO)
                     .thenCompose((v) -> mapper.getOrAssignStreamSegmentId(name, Duration.ZERO)).join();
             result.add(streamSegmentId);
         }

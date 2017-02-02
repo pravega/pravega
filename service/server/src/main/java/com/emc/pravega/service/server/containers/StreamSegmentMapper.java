@@ -23,7 +23,6 @@ import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
-import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -95,13 +94,12 @@ public class StreamSegmentMapper {
     /**
      * Creates a new StreamSegment with given name (in Storage) and assigns a unique internal Id to it.
      *
-     * @param segmentInfo       Wrapper class for case-sensitive StreamSegment Name and scaling policy.
+     * @param streamSegmentName       Wrapper class for case-sensitive StreamSegment Name and scaling policy.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed normally.
      * If the operation failed, this will contain the exception that caused the failure.
      */
-    public CompletableFuture<Void> createNewStreamSegment(SegmentInfo segmentInfo, Duration timeout) {
-        String streamSegmentName = segmentInfo.getStreamSegmentName();
+    public CompletableFuture<Void> createNewStreamSegment(String streamSegmentName, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewStreamSegment", streamSegmentName);
         long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
         if (isValidStreamSegmentId(streamId)) {
@@ -113,7 +111,7 @@ public class StreamSegmentMapper {
         // to get the same info about the StreamSegmentId.
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.storage
-                .create(segmentInfo, timer.getRemaining())
+                .create(streamSegmentName, timer.getRemaining())
                 .thenCompose(si -> getOrAssignStreamSegmentId(si.getName(), timer.getRemaining()))
                 .thenAccept(id -> LoggerHelpers.traceLeave(log, traceObjectId, "createNewStreamSegment", traceId, streamSegmentName, id));
     }
@@ -164,7 +162,7 @@ public class StreamSegmentMapper {
         }
 
         return parentCheckFuture
-                .thenCompose(parentInfo -> this.storage.create(SegmentInfo.noAutoScale(transactionName), timer.getRemaining()))
+                .thenCompose(parentInfo -> this.storage.create(transactionName, timer.getRemaining()))
                 .thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentStreamSegmentId, timer.getRemaining()))
                 .thenApply(id -> {
                     LoggerHelpers.traceLeave(log, traceObjectId, "createNewTransactionStreamSegment", traceId, parentStreamSegmentName, transactionName, id);

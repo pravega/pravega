@@ -25,7 +25,6 @@ import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
-import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -167,7 +166,7 @@ public class InteractiveStreamSegmentStoreTester {
         String name = parsedCommand.getNext();
         checkArguments(name != null && name.length() > 0, Commands.SYNTAXES.get(Commands.CREATE));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.createStreamSegment(SegmentInfo.noAutoScale(name), defaultTimeout), r -> log(startTime, "Created StreamSegment %s.", name));
+        await(this.streamSegmentStore.createStreamSegment(name, defaultTimeout), r -> log(startTime, "Created StreamSegment %s.", name));
     }
 
     private void deleteStream(CommandLineParser parsedCommand) {

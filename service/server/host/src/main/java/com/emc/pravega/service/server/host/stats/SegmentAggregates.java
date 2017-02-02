@@ -18,7 +18,6 @@
 package com.emc.pravega.service.server.host.stats;
 
 import com.emc.pravega.common.netty.WireCommands;
-import com.emc.pravega.service.contracts.SegmentInfo;
 
 import java.time.Duration;
 
@@ -78,9 +77,9 @@ class SegmentAggregates {
     // Note: we are not concurrency protecting this variable
     private long currentCount;
 
-    SegmentAggregates(SegmentInfo info) {
-        targetRate = info.getTargetRate();
-        scaleType = info.getType();
+    SegmentAggregates(long targetRate, byte scaleType) {
+        this.targetRate = targetRate;
+        this.scaleType = scaleType;
         startTime = System.currentTimeMillis();
     }
 

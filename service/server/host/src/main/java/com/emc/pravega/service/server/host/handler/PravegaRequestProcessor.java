@@ -53,7 +53,6 @@ import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
-import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -260,12 +259,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
-        final SegmentInfo segment = new SegmentInfo(createStreamsSegment.getSegment(), createStreamsSegment.getScaleType(), createStreamsSegment.getDesiredRate());
 
         CompletableFuture<Void> future = segmentStore.createStreamSegment(
-                segment, TIMEOUT);
+                createStreamsSegment.getSegment(), TIMEOUT);
         future.thenAccept((Void v) -> {
-            SegmentStats.createSegment(segment);
+            SegmentStats.createSegment(createStreamsSegment.getSegment(), createStreamsSegment.getScaleType(), createStreamsSegment.getDesiredRate());
         });
 
         future.thenApply((Void v) -> {

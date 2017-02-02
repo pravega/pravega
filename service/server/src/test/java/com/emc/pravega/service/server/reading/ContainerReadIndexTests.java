@@ -26,7 +26,6 @@ import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
-import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.CacheKey;
@@ -960,7 +959,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     private void createSegmentsInStorage(TestContext context) {
         for (long segmentId : context.metadata.getAllStreamSegmentIds()) {
             SegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
-            context.storage.create(SegmentInfo.noAutoScale(sm.getName()), TIMEOUT).join();
+            context.storage.create(sm.getName(), TIMEOUT).join();
         }
     }
 

@@ -22,7 +22,6 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.function.RunnableWithException;
 import com.emc.pravega.service.contracts.BadOffsetException;
-import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
@@ -127,8 +126,8 @@ class HDFSStorage implements Storage {
     //region Storage Implementation
 
     @Override
-    public CompletableFuture<SegmentProperties> create(SegmentInfo segment, Duration timeout) {
-        return supplyAsync(() -> createSync(segment), segment.getStreamSegmentName(), "create");
+    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+        return supplyAsync(() -> createSync(streamSegmentName), streamSegmentName, "create");
     }
 
     @Override
@@ -175,9 +174,8 @@ class HDFSStorage implements Storage {
 
     //region Helpers
 
-    private SegmentProperties createSync(SegmentInfo segment) throws IOException {
-        // TODO: store other information in segmentInfo into tier 2. Issue#350 use k,v pairs
-        this.fileSystem.create(new Path(getOwnedSegmentFullPath(segment.getStreamSegmentName())),
+    private SegmentProperties createSync(String streamSegmentName) throws IOException {
+        this.fileSystem.create(new Path(getOwnedSegmentFullPath(streamSegmentName)),
                 new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
                 false,
                 0,
@@ -185,7 +183,7 @@ class HDFSStorage implements Storage {
                 this.config.getBlockSize(),
                 null).close();
 
-        this.fileSystem.create(new Path(getOwnedSegmentFullPath(segment.getStreamSegmentName() + "_policy")),
+        this.fileSystem.create(new Path(getOwnedSegmentFullPath(streamSegmentName + "_policy")),
                 new FsPermission(FsAction.READ, FsAction.NONE, FsAction.NONE),
                 false,
                 0,
@@ -193,7 +191,7 @@ class HDFSStorage implements Storage {
                 this.config.getBlockSize(),
                 null).close();
 
-        return new StreamSegmentInformation(segment.getStreamSegmentName(),
+        return new StreamSegmentInformation(streamSegmentName,
                 0,
                 false,
                 false,

@@ -19,7 +19,6 @@
 package com.emc.pravega.service.server.host.stats;
 
 import com.emc.pravega.common.netty.WireCommands;
-import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.monitor.SegmentTrafficMonitor;
 import lombok.Synchronized;
 
@@ -41,9 +40,9 @@ public class SegmentStats {
         monitors.add(monitor);
     }
 
-    public static void createSegment(SegmentInfo segment) {
-        aggregatesMap.put(segment.getStreamSegmentName(), new SegmentAggregates(segment));
-        monitors.forEach(x -> x.notify(segment.getStreamSegmentName(), SegmentTrafficMonitor.NotificationType.SegmentSealed));
+    public static void createSegment(String streamSegmentName, byte type, long targetRate) {
+        aggregatesMap.put(streamSegmentName, new SegmentAggregates(targetRate, type));
+        monitors.forEach(x -> x.notify(streamSegmentName, SegmentTrafficMonitor.NotificationType.SegmentCreated));
     }
 
     public static void sealSegment(String streamSegmentName) {
@@ -53,10 +52,10 @@ public class SegmentStats {
         }
     }
 
-    public static void policyUpdate(SegmentInfo segment) {
-        SegmentAggregates aggregates = aggregatesMap.get(segment.getStreamSegmentName());
-        aggregates.targetRate = segment.getTargetRate();
-        aggregates.scaleType = segment.getType();
+    public static void policyUpdate(String segmentStreamName, byte type, long targetRate) {
+        SegmentAggregates aggregates = aggregatesMap.get(segmentStreamName);
+        aggregates.targetRate = targetRate;
+        aggregates.scaleType = type;
     }
 
     /**
