@@ -38,8 +38,7 @@ class SegmentAggregates {
 
     private static final long TICK_INTERVAL = Duration.ofSeconds(5).toNanos();
 
-
-    // Amount of data stored in each aggregate = 74 bytes
+    // Amount of data stored in each aggregate = 74 bytes.
 
     /**
      * Policy = 10 bytes.
@@ -63,21 +62,21 @@ class SegmentAggregates {
     /**
      * 16 bytes.
      */
-    long lastUpdateTime;
     long lastReportedTime;
 
     /**
      * Start time and last ticked time.
      * 16 bytes.
      */
-    private long startTime;
+    long startTime;
+
     private long lastTick;
 
     /**
      * 8 bytes.
      */
     // Note: we are not concurrency protecting this variable
-    long currentCount;
+    private long currentCount;
 
     SegmentAggregates(SegmentInfo info) {
         autoScale = info.isAutoScale();
@@ -87,9 +86,6 @@ class SegmentAggregates {
     }
 
     public void update(long dataLength, int numOfEvents) {
-        // update all the rates with exponential smoothening.
-        lastUpdateTime = System.currentTimeMillis();
-
         if (rateType == SegmentInfo.IN_BYTES) {
             currentCount += dataLength;
         } else {
@@ -109,9 +105,6 @@ class SegmentAggregates {
     }
 
     public void updateTx(long dataSize, int numOfEvents, long txnCreationTime) {
-        // figure out how to merge two rates. the txn rate is datalength
-        lastUpdateTime = System.currentTimeMillis();
-
         if (rateType == SegmentInfo.IN_BYTES) {
             computeDecay(dataSize, System.currentTimeMillis() - txnCreationTime);
         } else {

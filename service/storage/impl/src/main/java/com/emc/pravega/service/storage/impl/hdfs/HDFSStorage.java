@@ -77,7 +77,8 @@ class HDFSStorage implements Storage {
 
     /**
      * Creates a new instance of the HDFSStorage class.
-     * @param config The configuration to use.
+     *
+     * @param config   The configuration to use.
      * @param executor The executor to use for running async operations.
      */
     HDFSStorage(HDFSStorageConfig config, Executor executor) {
@@ -192,7 +193,6 @@ class HDFSStorage implements Storage {
                 this.config.getBlockSize(),
                 null).close();
 
-
         return new StreamSegmentInformation(segment.getStreamSegmentName(),
                 0,
                 false,
@@ -266,7 +266,6 @@ class HDFSStorage implements Storage {
 
     private SegmentProperties getStreamSegmentInfoSync(String streamSegmentName) throws IOException {
         FileStatus status = findOne(streamSegmentName);
-        // TODO: shivesh read metadata file for segment policy and put it in the properties
 
         return new StreamSegmentInformation(streamSegmentName,
                 status.getLen(),

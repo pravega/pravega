@@ -40,6 +40,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -153,6 +154,9 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
      * on completion of some task.
      * <p>
      * If we fail in trying to write to request stream, should we ignore or retry indefinitely?
+     * Since this class gives a guarantee of at least once processing with retry on retryable failures,
+     * so we may do that. But we have already processed the message at least once. So we should not waste our
+     * cycles here.
      * <p>
      * Example: For scale operations: we have a request relayed after a 'mute' delay, so it is not fatal.
      * In the interest of not stalling checkpointing for long, we should fail fast and put the request back in the queue
@@ -164,8 +168,17 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
      */
     @Synchronized
     private void putBack(String key, R request) {
-        // TODO: retry on failure
-        writer.writeEvent(key, request);
+        Retry.withExpBackoff(100, 10, 3, 1000)
+                .retryingOn(RetryableException.class)
+                .throwingOn(NonRetryableException.class)
+                .run(() ->
+                        CompletableFuture.runAsync(() -> {
+                            try {
+                                writer.writeEvent(key, request).get();
+                            } catch (Exception e) {
+                                throw new RetryableException(e);
+                            }
+                        }));
     }
 
     /**

@@ -60,7 +60,8 @@ public class SegmentStats {
     }
 
     /**
-     * Updates segment specific aggregates and then if two minutes have elapsed between last report
+     * Updates segment specific aggregates.
+     * Then if two minutes have elapsed between last report
      * of aggregates for this segment, send a new update to the monitor.
      * This update to the monitor is processed by monitor asynchronously.
      *
@@ -74,14 +75,14 @@ public class SegmentStats {
 
         if (System.currentTimeMillis() - aggregates.lastReportedTime > TWO_MINUTES) {
             CompletableFuture.runAsync(() -> monitors.forEach(monitor -> monitor.process(streamSegmentName,
-                    aggregates.autoScale, aggregates.targetRate, aggregates.rateType,
+                    aggregates.autoScale, aggregates.targetRate, aggregates.rateType, aggregates.startTime,
                     aggregates.twoMinuteRate, aggregates.fiveMinuteRate, aggregates.tenMinuteRate, aggregates.twentyMinuteRate)));
             aggregates.lastReportedTime = System.currentTimeMillis();
         }
     }
 
     /**
-     * Method called with txn stats whenever a txn is committed
+     * Method called with txn stats whenever a txn is committed.
      *
      * @param streamSegmentName parent segment name
      * @param dataLength        length of data written in txn

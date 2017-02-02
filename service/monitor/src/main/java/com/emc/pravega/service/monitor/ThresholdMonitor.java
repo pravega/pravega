@@ -34,32 +34,20 @@ import org.apache.commons.lang3.tuple.Pair;
 import java.io.Serializable;
 import java.net.URI;
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 public class ThresholdMonitor implements SegmentTrafficMonitor {
 
     private static final long MUTE_DURATION = Duration.ofMinutes(10).toMillis();
+    private static final long MINIMUM_COOLDOWN_PERIOD = Duration.ofMinutes(20).toMillis();
+
     private static ThresholdMonitor singletonMonitor;
 
     ClientFactory clientFactory;
 
     EventStreamWriter<Serializable> writer;
-
-    private ThresholdMonitor() {
-        // TODO: read these from configuration.
-        clientFactory = new ClientFactoryImpl("pravega", URI.create("tcp://controller:9090"));
-        writer = clientFactory.createEventWriter("ScaleRequest",
-                new JavaSerializer<>(),
-                new EventWriterConfig(null));
-    }
-
-    static SegmentTrafficMonitor getMonitor() {
-        if (singletonMonitor == null) {
-            singletonMonitor = new ThresholdMonitor();
-        }
-        return singletonMonitor;
-    }
-
     // static guava cache <last request ts>
     // forced eviction rule: 20 minutes
     // eviction: if segmentSealed do nothing
@@ -78,22 +66,40 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
             })
             .build();
 
-    @Override
-    public void process(String streamSegmentName, boolean autoScale, long targetRate, byte rateType, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
 
-        // process to see if a scale operation needs to be performed.
-        if (twoMinuteRate > 5 * targetRate ||
-                fiveMinuteRate > 2 * targetRate ||
-                tenMinuteRate > targetRate) {
-            int numOfSplits = (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate);
-            triggerScaleUp(streamSegmentName, numOfSplits);
+    private ThresholdMonitor() {
+        // TODO: read these from configuration.
+        clientFactory = new ClientFactoryImpl("pravega", URI.create("tcp://controller:9090"));
+        writer = clientFactory.createEventWriter("requeststream",
+                new JavaSerializer<>(),
+                new EventWriterConfig(null));
+    }
+
+    static SegmentTrafficMonitor getMonitor() {
+        if (singletonMonitor == null) {
+            singletonMonitor = new ThresholdMonitor();
         }
+        return singletonMonitor;
+    }
 
-        if (twoMinuteRate < targetRate &&
-                fiveMinuteRate < targetRate &&
-                tenMinuteRate < targetRate &&
-                twentyMinuteRate < targetRate / 2) {
-            triggerScaleDown(streamSegmentName);
+    @Override
+    public void process(String streamSegmentName, boolean autoScale, long targetRate, byte rateType, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
+
+        if (System.currentTimeMillis() - startTime > MINIMUM_COOLDOWN_PERIOD) {
+            // process to see if a scale operation needs to be performed.
+            if (twoMinuteRate > 5 * targetRate ||
+                    fiveMinuteRate > 2 * targetRate ||
+                    tenMinuteRate > targetRate) {
+                int numOfSplits = (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate);
+                triggerScaleUp(streamSegmentName, numOfSplits);
+            }
+
+            if (twoMinuteRate < targetRate &&
+                    fiveMinuteRate < targetRate &&
+                    tenMinuteRate < targetRate &&
+                    twentyMinuteRate < targetRate / 2) {
+                triggerScaleDown(streamSegmentName);
+            }
         }
     }
 
@@ -111,8 +117,13 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
             Segment segment = Segment.fromScopedName(streamSegmentName);
             ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleRequest.UP, timestamp, numOfSplits);
             // Mute scale for timestamp for both scale up and down
-            cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp));
-            writer.writeEvent(event.getKey(), event);
+            CompletableFuture.supplyAsync(() -> {
+                try {
+                    return writer.writeEvent(event.getKey(), event).get();
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new RuntimeException(e);
+                }
+            }).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
         }
     }
 
@@ -128,7 +139,14 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
         if (timestamp - lastRequestTs > MUTE_DURATION) {
             Segment segment = Segment.fromScopedName(streamSegmentName);
             ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleRequest.DOWN, timestamp, 0);
-            writer.writeEvent(event.getKey(), event);
+            CompletableFuture.supplyAsync(() -> {
+                try {
+                    return writer.writeEvent(event.getKey(), event).get();
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new RuntimeException(e);
+                }
+                // mute only scale downs
+            }).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(0L, timestamp)));
         }
     }
 

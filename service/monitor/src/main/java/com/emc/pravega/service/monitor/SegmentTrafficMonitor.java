@@ -24,7 +24,7 @@ public interface SegmentTrafficMonitor {
         SegmentSealed
     }
 
-    void process(String streamSegmentName, boolean autoScale, long targetRate, byte rateType, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate);
+    void process(String streamSegmentName, boolean autoScale, long targetRate, byte rateType, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate);
 
     void notify(String streamSegmentName, NotificationType type);
 }

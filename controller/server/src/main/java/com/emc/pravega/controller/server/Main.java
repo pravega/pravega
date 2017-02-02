@@ -131,7 +131,6 @@ public class Main {
         RESTServer.start();
 
         final ScaleRequestHandler handler = new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks);
-        // TODO: read from configuration
         final RequestReader<ScaleRequest, ScaleRequestHandler> reader = new RequestReader<>(
                 Config.SCALE_STREAM_NAME,
                 Config.SCALE_READER_ID,

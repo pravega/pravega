@@ -235,7 +235,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     CompletableFuture<ScaleResponse> scaleBody(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp, OperationContext contextOpt) {
         // Abort scaling operation in the following error scenarios
         // 1. if the active segments in the stream have ts greater than scaleTimestamp -- ScaleStreamStatus.PRECONDITION_FAILED
-        // 2. if active segments having creation timestamp as scaleTimestamp have different key ranges than the ones specified in newRanges (todo) -- ScaleStreamStatus.CONFLICT
+        // 2. if active segments having creation timestamp as scaleTimestamp have different key ranges than the ones specified
+        // in newRanges (todo) -- ScaleStreamStatus.CONFLICT
         // 3. Transaction is active on the stream
         // 4. sealedSegments should be a subset of activeSegments.
 

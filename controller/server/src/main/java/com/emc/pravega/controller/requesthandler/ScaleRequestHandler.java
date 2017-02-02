@@ -246,7 +246,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                                     // can lead to flooding of request stream with duplicate messages for this request. This is
                                     // particularly bad during controller instance failover recovery and can also impact other
                                     // requests.
-                                    blockAndSweep(request, context);
+                                    blockAndSweep(request, context); // block and sweep returns a future, but we dont need any callbacks linked with it.
                                     throw (LockFailedException) e;
                                 } else {
                                     // We could be here because of two reasons:
@@ -329,10 +329,10 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
      * Block creation of new transactions for limited period while scale will attempt to acquire lock.
      * It may still not be able to acquire the lock immediately as there could be ongoing transactions.
      * But by blocking creation of new transactions, it increase probability of scale to be processed
-     * after existing transactions complete. Note there could be existing transactions that may have timed out
-     * but their timed clean up may not have been scheduled successfully. Note: in such cases, we do not notify the
-     * writer about txnid but metadata entry may still be lying around.
-     * This is a good opportunity to find and clean such txns that can potentially block scale operation.
+     * after existing transactions complete.
+     * Note: there could be existing transactions that may have timed out
+     * but their timed clean up may not have been scheduled successfully. So if such a txn failed, we need to
+     * opportunistically sweep and clean them.
      *
      * @param request scale request
      * @param context stream store context

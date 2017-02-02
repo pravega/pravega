@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.requesthandler;
 
 import com.emc.pravega.ClientFactory;
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.requests.TxTimeoutRequest;
 import com.emc.pravega.controller.task.Stream.TxTimeOutScheduler;
@@ -48,12 +49,15 @@ public class TxTimeoutStreamScheduler implements TxTimeOutScheduler {
     public CompletableFuture<Void> scheduleTimeOut(String scope, String stream, UUID txid, long timeoutPeriod) {
         TxTimeoutRequest txRequest = new TxTimeoutRequest(scope, stream, txid.toString(), System.currentTimeMillis() + timeoutPeriod);
 
-        // TODO: this
-        try {
-            writer.writeEvent(txRequest.getKey(), txRequest).get();
-        } catch (Exception e) {
-            throw new RetryableException("scheduling timeout failed. Try again");
-        }
-        return CompletableFuture.completedFuture(null);
+        return Retry.withExpBackoff(100, 10, 3, 1000)
+                .retryingOn(RetryableException.class)
+                .throwingOn(RuntimeException.class)
+                .run(() -> CompletableFuture.runAsync(() -> {
+                    try {
+                        writer.writeEvent(txRequest.getKey(), txRequest).get();
+                    } catch (Exception e) {
+                        throw new RetryableException("scheduling timeout failed. Try again");
+                    }
+                }));
     }
 }

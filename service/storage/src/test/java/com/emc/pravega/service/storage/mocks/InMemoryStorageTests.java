@@ -25,7 +25,6 @@ import lombok.Cleanup;
 import lombok.val;
 import org.junit.Test;
 
-import javax.swing.text.Segment;
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.TimeUnit;
 
