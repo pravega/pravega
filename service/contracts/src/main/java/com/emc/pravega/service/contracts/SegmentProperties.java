@@ -48,11 +48,5 @@ public interface SegmentProperties {
      * Gets a value indicating the full, readable length of the StreamSegment.
      */
     long getLength();
-
-    boolean isAutoScale();
-
-    long getTargetRate();
-
-    byte getRateType();
 }
 

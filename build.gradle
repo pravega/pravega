@@ -165,6 +165,16 @@ project('service:contracts') {
     }
 }
 
+project('service:monitor') {
+    dependencies {
+        compile project(':service:contracts')
+        compile project(':controller:contract')
+        compile project(':clients:streaming')
+        compile project(':common')
+        testCompile project(':testcommon')
+    }
+}
+
 project('service:storage') {
     dependencies {
         compile project(':common')
@@ -203,6 +213,7 @@ project('service:server') {
         compile project(':common')
         compile project(':service:contracts')
         compile project(':service:storage')
+        compile project(':service:monitor')
         testCompile project(':testcommon')
     }
 }

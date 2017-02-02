@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.util.CollectionHelpers;
+import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
@@ -132,8 +133,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
             Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
-            // TODO: shivesh: how to get segment info about scale policy
-            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId(), autoscale);
+            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId()/*, segment.isAutoScale(), segment.getDesiredRate(), segment.getRateType()*/);
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
             this.segmentMetadata.put(streamSegmentId, segmentMetadata);
         }
@@ -153,8 +153,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
             Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a transaction StreamSegment for another transaction StreamSegment.");
 
-            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId(),
-                    parentMetadata.isAutoScale(), parentMetadata.getTargetRate(), parentMetadata.getRateType());
+            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
             this.segmentMetadata.put(streamSegmentId, segmentMetadata);
         }

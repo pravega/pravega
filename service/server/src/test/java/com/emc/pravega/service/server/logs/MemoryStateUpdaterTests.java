@@ -35,6 +35,10 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperati
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.testcommon.AssertExtensions;
+import lombok.Cleanup;
+import org.junit.Assert;
+import org.junit.Test;
+
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -47,9 +51,6 @@ import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import lombok.Cleanup;
-import org.junit.Assert;
-import org.junit.Test;
 
 /**
  * Unit tests for MemoryStateUpdater class.
@@ -172,7 +173,7 @@ public class MemoryStateUpdaterTests {
         long offset = 0;
         for (int i = 0; i < segmentCount; i++) {
             for (int j = 0; j < operationCountPerType; j++) {
-                StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation("a", i * j, false, false, new Date(), autoScale, targetRate, rateType));
+                StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation("a", i * j, false, false, new Date()));
                 mapOp.setStreamSegmentId(i);
                 operations.add(mapOp);
                 StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(i, Integer.toString(i).getBytes(), new AppendContext(UUID.randomUUID(), i * j));

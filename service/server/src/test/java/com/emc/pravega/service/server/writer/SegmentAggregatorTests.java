@@ -1590,7 +1590,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     }
 
     private SegmentInfo getSegmentInfo(SegmentMetadata sm) {
-        return new SegmentInfo(sm.getName(), sm.isAutoScale(), sm.getTargetRate(), sm.getRateType());
+        return new SegmentInfo(sm.getName());
     }
     // endregion
 }

@@ -32,7 +32,7 @@ import java.util.Random;
 public class StreamSegmentMapOperationTests extends OperationTestsBase<StreamSegmentMapOperation> {
     @Override
     protected StreamSegmentMapOperation createOperation(Random random) {
-        return new StreamSegmentMapOperation(new StreamSegmentInformation(super.getStreamSegmentName(random.nextLong()), random.nextLong(), random.nextBoolean(), random.nextBoolean(), new Date(), autoScale, targetRate, rateType));
+        return new StreamSegmentMapOperation(new StreamSegmentInformation(super.getStreamSegmentName(random.nextLong()), random.nextLong(), random.nextBoolean(), random.nextBoolean(), new Date()));
     }
 
     @Override

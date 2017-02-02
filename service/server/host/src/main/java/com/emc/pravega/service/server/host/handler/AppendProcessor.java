@@ -35,6 +35,7 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
+import com.emc.pravega.service.server.host.stats.SegmentStats;
 import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -179,6 +180,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else {
             future = store.append(segment, bytes, context, TIMEOUT);
         }
+        // TODO: number of events
+        future.thenAccept(x -> SegmentStats.record(segment, bytes.length, 0));
         future.handle(new BiFunction<Void, Throwable, Void>() {
             @Override
             public Void apply(Void t, Throwable u) {

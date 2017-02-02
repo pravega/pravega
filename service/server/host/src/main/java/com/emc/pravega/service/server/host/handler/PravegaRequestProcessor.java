@@ -59,6 +59,7 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
+import com.emc.pravega.service.server.host.stats.SegmentStats;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -251,13 +252,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
-        final SegmentInfo segmentData = new SegmentInfo(createStreamsSegment.getSegment(),
-                createStreamsSegment.isAutoScale(),
-                createStreamsSegment.getDesiredRate(),
-                createStreamsSegment.getRateType());
+        final SegmentInfo segment = new SegmentInfo(createStreamsSegment.getSegment(), createStreamsSegment.isAutoScale(), createStreamsSegment.getDesiredRate(), createStreamsSegment.getRateType());
 
         CompletableFuture<Void> future = segmentStore.createStreamSegment(
-                segmentData, TIMEOUT);
+                segment, TIMEOUT);
+        future.thenAccept((Void v) -> {
+            SegmentStats.createSegment(segment);
+        });
+
         future.thenApply((Void v) -> {
             Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
             connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
@@ -350,6 +352,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             handleException(segment, "Seal segment", e);
             return null;
         });
+
+        future.thenAccept(size -> SegmentStats.sealSegment(sealSegment.getSegment()));
     }
 
     @Override

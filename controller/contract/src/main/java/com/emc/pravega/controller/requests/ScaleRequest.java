@@ -21,10 +21,13 @@ import lombok.Data;
 
 @Data
 public class ScaleRequest implements ControllerRequest {
+    public static final byte UP = (byte) 0;
+    public static final byte DOWN = (byte) 1;
+
     private final String scope;
     private final String stream;
     private final int segmentNumber;
-    private final boolean up;
+    private final byte direction;
     private final long timestamp;
     private final int numOfSplits;
 

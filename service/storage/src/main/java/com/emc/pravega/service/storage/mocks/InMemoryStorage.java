@@ -111,8 +111,7 @@ public class InMemoryStorage implements TruncateableStorage {
                             throw new CompletionException(new StreamSegmentExistsException(segment.getStreamSegmentName()));
                         }
 
-                        StreamSegmentData data = new StreamSegmentData(segment.getStreamSegmentName(), this.syncContext,
-                                segment.isAutoScale(), segment.getDesiredRate(), segment.getRateType());
+                        StreamSegmentData data = new StreamSegmentData(segment.getStreamSegmentName(), this.syncContext);
                         data.open();
                         this.streamSegments.put(segment.getStreamSegmentName(), data);
                         return data;
@@ -398,15 +397,9 @@ public class InMemoryStorage implements TruncateableStorage {
         private long truncateOffset;
         @GuardedBy("lock")
         private int firstBufferOffset;
-        private final boolean autoScale;
-        private final long targetRate;
-        private final byte rateType;
 
-        StreamSegmentData(String name, SyncContext context, boolean autoScale, long targetRate, byte rateType) {
+        StreamSegmentData(String name, SyncContext context) {
             this.name = name;
-            this.autoScale = autoScale;
-            this.targetRate = targetRate;
-            this.rateType = rateType;
             this.data = new ArrayList<>();
             this.length = 0;
             this.sealed = false;
@@ -462,7 +455,7 @@ public class InMemoryStorage implements TruncateableStorage {
             synchronized (this.lock) {
                 checkOpened();
                 this.sealed = true;
-                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date(), autoScale, targetRate, rateType);
+                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date());
             }
         }
 
@@ -520,7 +513,7 @@ public class InMemoryStorage implements TruncateableStorage {
         SegmentProperties getInfo() {
             synchronized (this.lock) {
                 checkOpened();
-                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date(), autoScale, targetRate, rateType);
+                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date());
             }
         }
 

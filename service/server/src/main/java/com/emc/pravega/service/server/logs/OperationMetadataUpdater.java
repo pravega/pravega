@@ -571,14 +571,13 @@ class OperationMetadataUpdater implements ContainerMetadata {
             return sm;
         }
 
-        private UpdateableSegmentMetadata recordNewStreamSegment(SegmentInfo segment, long streamSegmentId, long parentId) {
+        private UpdateableSegmentMetadata recordNewStreamSegment(String streamSegmentName, long streamSegmentId, long parentId) {
             UpdateableSegmentMetadata metadata;
             if (parentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                metadata = new StreamSegmentMetadata(segment.getStreamSegmentName(), streamSegmentId,
-                        this.containerMetadata.getContainerId(), segment.isAutoScale(), segment.getDesiredRate(), segment.getRateType());
+                metadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, this.containerMetadata.getContainerId());
             } else {
-                metadata = new StreamSegmentMetadata(segment.getStreamSegmentName(), streamSegmentId, parentId,
-                        this.containerMetadata.getContainerId(), segment.isAutoScale(), segment.getDesiredRate(), segment.getRateType());
+                metadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentId,
+                        this.containerMetadata.getContainerId());
             }
 
             this.newStreamSegments.put(metadata.getId(), metadata);
@@ -813,21 +812,6 @@ class OperationMetadataUpdater implements ContainerMetadata {
         @Override
         public long getLength() {
             return this.currentDurableLogLength; // ReadableLength == DurableLogLength.
-        }
-
-        @Override
-        public boolean isAutoScale() {
-            return baseMetadata.isAutoScale();
-        }
-
-        @Override
-        public long getTargetRate() {
-            return baseMetadata.getTargetRate();
-        }
-
-        @Override
-        public byte getRateType() {
-            return baseMetadata.getRateType();
         }
 
         @Override

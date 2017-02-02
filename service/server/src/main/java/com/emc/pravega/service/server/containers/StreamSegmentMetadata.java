@@ -53,10 +53,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private boolean merged;
     private Date lastModified;
 
-    private final boolean autoScale;
-    private final long targetRate;
-    private final byte rateType;
-
     //endregion
 
     //region Constructor
@@ -67,11 +63,10 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
      * @param streamSegmentName The name of the StreamSegment.
      * @param streamSegmentId   The Id of the StreamSegment.
      * @param containerId       The Id of the Container this StreamSegment belongs to.
-     * @param autoScale
      * @throws IllegalArgumentException If either of the arguments are invalid.
      */
-    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, int containerId, boolean autoScale, long targetRate, byte rateType) {
-        this(streamSegmentName, streamSegmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID, containerId, autoScale, targetRate, rateType);
+    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, int containerId) {
+        this(streamSegmentName, streamSegmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID, containerId);
     }
 
     /**
@@ -81,10 +76,9 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
      * @param streamSegmentId       The Id of the StreamSegment.
      * @param parentStreamSegmentId The Id of the Parent StreamSegment.
      * @param containerId           The Id of the Container this StreamSegment belongs to.
-     * @param autoScale
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId, int containerId, boolean autoScale, long targetRate, byte rateType) {
+    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId, int containerId) {
         Exceptions.checkNotNullOrEmpty(streamSegmentName, "streamSegmentName");
         Preconditions.checkArgument(streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "streamSegmentId");
         Preconditions.checkArgument(containerId >= 0, "containerId");
@@ -102,14 +96,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.durableLogLength = -1;
         this.lastCommittedAppends = new HashMap<>();
         this.lastModified = new Date(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
-
-        this.autoScale = autoScale;
-        this.targetRate = targetRate;
-        this.rateType = rateType;
-    }
-
-    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, int containerId) {
-        this(streamSegmentName, streamSegmentId, containerId, false, 0, (byte) 0);
     }
 
     //endregion
@@ -188,21 +174,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public Collection<UUID> getKnownClientIds() {
         return this.lastCommittedAppends.keySet();
-    }
-
-    @Override
-    public boolean isAutoScale() {
-        return autoScale;
-    }
-
-    @Override
-    public long getTargetRate() {
-        return targetRate;
-    }
-
-    @Override
-    public byte getRateType() {
-        return rateType;
     }
 
     @Override

@@ -175,7 +175,7 @@ class HDFSStorage implements Storage {
     //region Helpers
 
     private SegmentProperties createSync(SegmentInfo segment) throws IOException {
-        // TODO: store other information in segmentInfo into tier 2
+        // TODO: store other information in segmentInfo into tier 2. Issue#350 use k,v pairs
         this.fileSystem.create(new Path(getOwnedSegmentFullPath(segment.getStreamSegmentName())),
                 new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
                 false,
@@ -184,7 +184,6 @@ class HDFSStorage implements Storage {
                 this.config.getBlockSize(),
                 null).close();
 
-        // TODO: create another file called policy where write the policy
         this.fileSystem.create(new Path(getOwnedSegmentFullPath(segment.getStreamSegmentName() + "_policy")),
                 new FsPermission(FsAction.READ, FsAction.NONE, FsAction.NONE),
                 false,
@@ -198,10 +197,7 @@ class HDFSStorage implements Storage {
                 0,
                 false,
                 false,
-                new Date(),
-                segment.isAutoScale(),
-                segment.getDesiredRate(),
-                segment.getRateType());
+                new Date());
     }
 
     /**
@@ -276,10 +272,7 @@ class HDFSStorage implements Storage {
                 status.getLen(),
                 status.getPermission().getUserAction() == FsAction.READ,
                 false,
-                new Date(status.getModificationTime()),
-                autoScale,
-                targetRate,
-                rateType);
+                new Date(status.getModificationTime()));
     }
 
     private void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName) throws IOException, BadOffsetException, StreamSegmentSealedException {

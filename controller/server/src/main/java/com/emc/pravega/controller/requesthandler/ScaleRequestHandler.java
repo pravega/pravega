@@ -116,7 +116,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                             .getConfiguration(request.getScope(), request.getStream(), context)
                             .thenApply(StreamConfiguration::getScalingPolicy);
 
-                    if (request.isUp()) {
+                    if (request.getDirection() == (byte) 0) {
                         return policyFuture.thenCompose(policy -> processScaleUp(request, policy, context));
                     } else {
                         return policyFuture.thenCompose(policy -> processScaleDown(request, policy, context));

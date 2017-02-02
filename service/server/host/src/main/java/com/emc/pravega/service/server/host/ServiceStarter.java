@@ -23,7 +23,9 @@ import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
+import com.emc.pravega.service.monitor.MonitorFactory;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
+import com.emc.pravega.service.server.host.stats.SegmentStats;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
@@ -113,6 +115,8 @@ public final class ServiceStarter {
                         MetricsProvider.getProvider();
 
         statsProvider.start(metricsConfig);
+
+        SegmentStats.addMonitor(MonitorFactory.createMonitor(MonitorFactory.MonitorType.ThresholdMonitor));
 
         log.info("Initializing Service Builder ...");
         this.serviceBuilder.initialize().join();

@@ -33,9 +33,6 @@ public class StreamSegmentInformation implements SegmentProperties {
     private final boolean sealed;
     private final boolean deleted;
     private final Date lastModified;
-    private final boolean autoScale;
-    private final long targetRate;
-    private final byte rateType;
 
     /**
      * Creates a new instance of the StreamSegmentInformation class.
@@ -44,19 +41,13 @@ public class StreamSegmentInformation implements SegmentProperties {
      * @param isSealed          Whether the StreamSegment is sealed (for modifications).
      * @param isDeleted         Whether the StreamSegment is deleted (does not exist).
      * @param lastModified      The last time the StreamSegment was modified.
-     * @param autoScale         Whether autoscaling is enabled for the stream
-     * @param targetRate        If autoscaling is enabled, what is the desired rate
-     * @param rateType          Type of desired rate in bytes or number of events
      */
-    public StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, Date lastModified, boolean autoScale, long targetRate, byte rateType) {
+    public StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, Date lastModified) {
         this.name = streamSegmentName;
         this.length = length;
         this.sealed = isSealed;
         this.deleted = isDeleted;
         this.lastModified = lastModified;
-        this.autoScale = autoScale;
-        this.targetRate = targetRate;
-        this.rateType = rateType;
     }
 
     @Override
