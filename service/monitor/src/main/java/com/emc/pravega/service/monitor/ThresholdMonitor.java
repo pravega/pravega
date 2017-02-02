@@ -45,19 +45,19 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
 
     EventStreamWriter<Serializable> writer;
 
-    static SegmentTrafficMonitor getMonitor() {
-        if (singletonMonitor == null) {
-            singletonMonitor = new ThresholdMonitor();
-        }
-        return singletonMonitor;
-    }
-
     private ThresholdMonitor() {
         // TODO: read these from configuration.
         clientFactory = new ClientFactoryImpl("pravega", URI.create("tcp://controller:9090"));
         writer = clientFactory.createEventWriter("ScaleRequest",
                 new JavaSerializer<>(),
                 new EventWriterConfig(null));
+    }
+
+    static SegmentTrafficMonitor getMonitor() {
+        if (singletonMonitor == null) {
+            singletonMonitor = new ThresholdMonitor();
+        }
+        return singletonMonitor;
     }
 
     // static guava cache <last request ts>
@@ -134,16 +134,10 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
 
     @Override
     public void notify(String segmentStreamName, NotificationType type) {
-        // cache.remove
-        switch (type) {
-            case SegmentCreated: {
-                cache.put(segmentStreamName, new ImmutablePair<>(System.currentTimeMillis(), System.currentTimeMillis()));
-            }
-            break;
-            case SegmentSealed: {
-                cache.invalidate(segmentStreamName);
-            }
-            break;
+        if (type.equals(NotificationType.SegmentCreated)) {
+            cache.put(segmentStreamName, new ImmutablePair<>(System.currentTimeMillis(), System.currentTimeMillis()));
+        } else if (type.equals(NotificationType.SegmentSealed)) {
+            cache.invalidate(segmentStreamName);
         }
     }
 }

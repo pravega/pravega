@@ -17,8 +17,6 @@
  */
 package com.emc.pravega.service.monitor;
 
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
-
 public class MonitorFactory {
 
     public enum MonitorType {
@@ -26,13 +24,9 @@ public class MonitorFactory {
     }
 
     public static SegmentTrafficMonitor createMonitor(MonitorType monitorType) {
-        switch (monitorType) {
-            case ThresholdMonitor: {
-                return ThresholdMonitor.getMonitor();
-            }
-            default: {
-                throw new NotImplementedException();
-            }
+        if (monitorType.equals(MonitorType.ThresholdMonitor)) {
+            return ThresholdMonitor.getMonitor();
         }
+        return null;
     }
 }
