@@ -18,7 +18,8 @@
 package com.emc.pravega.controller;
 
 /**
- * Retryable exception.
+ * Retryable exception. Throw this when you want to let the caller know that this exception is transient and
+ * warrants another retry.
  */
 public class RetryableException extends RuntimeException {
     private static final long serialVersionUID = 1L;

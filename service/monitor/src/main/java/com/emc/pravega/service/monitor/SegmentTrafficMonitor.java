@@ -17,6 +17,11 @@
  */
 package com.emc.pravega.service.monitor;
 
+/**
+ * Interface for segment's traffic monitor.
+ * The process method of this interface is called periodically with aggregates sent over.
+ * Implementations of this interface define what needs to be done with these aggregates.
+ */
 public interface SegmentTrafficMonitor {
 
     enum NotificationType {
@@ -24,7 +29,7 @@ public interface SegmentTrafficMonitor {
         SegmentSealed
     }
 
-    void process(String streamSegmentName, boolean autoScale, long targetRate, byte rateType, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate);
+    void process(String streamSegmentName, long targetRate, byte rateType, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate);
 
     void notify(String streamSegmentName, NotificationType type);
 }

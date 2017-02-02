@@ -24,6 +24,20 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * This class is used to compare two position objects from the same reader.
+ *
+ * It is useful to compare two position objects if the reader is processing incoming events concurrently but wants to
+ * sort the received position objects or compare them to identify which event is ahead in the stream.
+ *
+ * While comparing position objects, if both have exact same segments then the one with any segment with
+ * higher offset than the other is treated as greater of the two.
+ * If they have different number of segments, but there are overlaps, then the one which is ahead in the overlap
+ * segment set is treated as greater.
+ * If they have no overlaps then the one with higher segment number is treated as being ahead.
+ *
+ *
+ */
 public class PositionComparator implements Comparator<Position> {
 
     @Override

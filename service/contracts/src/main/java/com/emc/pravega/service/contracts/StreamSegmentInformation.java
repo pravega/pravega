@@ -36,7 +36,8 @@ public class StreamSegmentInformation implements SegmentProperties {
 
     /**
      * Creates a new instance of the StreamSegmentInformation class.
-     *  @param streamSegmentName The name of the StreamSegment.
+     *
+     * @param streamSegmentName The name of the StreamSegment.
      * @param length            The length of the StreamSegment.
      * @param isSealed          Whether the StreamSegment is sealed (for modifications).
      * @param isDeleted         Whether the StreamSegment is deleted (does not exist).

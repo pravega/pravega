@@ -163,9 +163,6 @@ public class StreamSegmentMapper {
             parentCheckFuture = FutureHelpers.toVoid(this.storage.getStreamSegmentInfo(parentStreamSegmentName, timer.getRemaining()));
         }
 
-        // TODO: change transaction segment to match parent segment.
-        // Right now we are just doing no-scale so we dont measure any rates for the tx segment. We will not merge it with
-        // parent in this iteration. But there should be an issue to tackle this in future. 
         return parentCheckFuture
                 .thenCompose(parentInfo -> this.storage.create(SegmentInfo.noAutoScale(transactionName), timer.getRemaining()))
                 .thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentStreamSegmentId, timer.getRemaining()))

@@ -18,7 +18,7 @@
 package com.emc.pravega.controller;
 
 /**
- * Lock failed exception.
+ * Exception class to wrap exceptions where we do not want to retry.
  */
 public class NonRetryableException extends RuntimeException {
     private static final long serialVersionUID = 1L;

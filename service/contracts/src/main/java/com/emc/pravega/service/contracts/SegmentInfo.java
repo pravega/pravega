@@ -17,19 +17,16 @@
  */
 package com.emc.pravega.service.contracts;
 
+import com.emc.pravega.common.netty.WireCommands;
 import lombok.Data;
 
 @Data
 public class SegmentInfo {
-    public static final byte IN_BYTES = (byte) 0;
-    public static final byte IN_EVENTS = (byte) 1;
-
     final String streamSegmentName;
-    final boolean autoScale;
+    final byte type;
     final long targetRate;
-    final byte rateType;
 
     public static SegmentInfo noAutoScale(String name) {
-        return new SegmentInfo(name, false, 0, IN_BYTES);
+        return new SegmentInfo(name, WireCommands.CreateSegment.NO_SCALE, 0);
     }
 }

@@ -32,6 +32,12 @@ import java.net.URI;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * This class is responsible for scheduling timeout tasks for txns once they are created.
+ * Right after a txn is created and passed to this scheduler, tt posts the txnTimeoutRequest
+ * into a special stream.
+ * TxnTimeout request has the timetodrop timestamp and txnid.
+ */
 public class TxTimeoutStreamScheduler implements TxTimeOutScheduler {
     private final EventStreamWriter<TxTimeoutRequest> writer;
 

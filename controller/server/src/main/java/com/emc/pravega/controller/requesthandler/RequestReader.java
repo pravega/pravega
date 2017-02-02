@@ -49,6 +49,25 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+/**
+ * Common class for reading requests from a pravega stream. It implements a runnable.
+ * It keeps polling the supplied stream for events and calls registered request handler for processing these requests.
+ * Request handlers are supposed to request events asynchronously.
+ * The request reader submits a processing of a request asynchronously and moves on to next request.
+ * It handles exceptions that are thrown by processing and if the thrown exception is of type Retryable, then
+ * the request is written into the stream.
+ *
+ * It is expected of requesthandlers to wrap their processing in enough retries locally before throwing a retryable
+ * exception to request reader.
+ *
+ * The request reader also maintains a checkpoint candidate position from among the events for which processing is complete.
+ * Everytime a new request completes, it updates the checkpoint candidate.
+ * It periodically checkpoints the candidate position object into metadata store.
+ *
+ *
+ * @param <R>
+ * @param <H>
+ */
 @Slf4j
 public class RequestReader<R extends ControllerRequest, H extends RequestHandler<R>> implements Runnable {
     private static final int CORE_POOL_SIZE = 1000;

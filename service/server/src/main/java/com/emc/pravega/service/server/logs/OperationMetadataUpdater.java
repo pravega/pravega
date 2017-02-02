@@ -574,8 +574,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             if (parentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
                 metadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, this.containerMetadata.getContainerId());
             } else {
-                metadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentId,
-                        this.containerMetadata.getContainerId());
+                metadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentId, this.containerMetadata.getContainerId());
             }
 
             this.newStreamSegments.put(metadata.getId(), metadata);

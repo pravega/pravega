@@ -117,7 +117,7 @@ public class AppendTest {
 
         EmbeddedChannel channel = createChannel(store);
 
-        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(segment, false, 0L, (byte) 0));
+        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(segment, CreateSegment.NO_SCALE, 0L));
         assertEquals(segment, created.getSegment());
 
         UUID uuid = UUID.randomUUID();

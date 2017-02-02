@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.service.server.host.stats;
 
+import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.service.contracts.SegmentInfo;
 
 import java.time.Duration;
@@ -43,9 +44,8 @@ class SegmentAggregates {
     /**
      * Policy = 10 bytes.
      */
-    boolean autoScale;
+    byte scaleType;
     long targetRate;
-    byte rateType;
 
     /**
      * Rates for Scale up = 24 bytes.
@@ -79,17 +79,18 @@ class SegmentAggregates {
     private long currentCount;
 
     SegmentAggregates(SegmentInfo info) {
-        autoScale = info.isAutoScale();
         targetRate = info.getTargetRate();
-        rateType = info.getRateType();
+        scaleType = info.getType();
         startTime = System.currentTimeMillis();
     }
 
     public void update(long dataLength, int numOfEvents) {
-        if (rateType == SegmentInfo.IN_BYTES) {
+        if (scaleType == WireCommands.CreateSegment.IN_BYTES) {
             currentCount += dataLength;
-        } else {
+        } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS) {
             currentCount += numOfEvents;
+        } else {
+            return;
         }
 
         final long newTick = System.nanoTime();
@@ -105,10 +106,12 @@ class SegmentAggregates {
     }
 
     public void updateTx(long dataSize, int numOfEvents, long txnCreationTime) {
-        if (rateType == SegmentInfo.IN_BYTES) {
+        if (scaleType == WireCommands.CreateSegment.IN_BYTES) {
             computeDecay(dataSize, System.currentTimeMillis() - txnCreationTime);
-        } else {
+        } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS) {
             computeDecay(numOfEvents, System.currentTimeMillis() - txnCreationTime);
+        } else {
+            return;
         }
     }
 

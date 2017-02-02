@@ -26,6 +26,6 @@ public interface ControllerRequest extends Serializable {
 
     enum RequestType {
         ScaleRequest,
-        TransactionRequest
+        TxTimeoutRequest
     }
 }

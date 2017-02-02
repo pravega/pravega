@@ -82,26 +82,22 @@ public class SegmentHelper {
             }
         };
 
-        final boolean autoScale;
         final long desiredRate;
         final byte rateType;
         if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
-            autoScale = false;
             desiredRate = 0L;
-            rateType = 0;
+            rateType = WireCommands.CreateSegment.NO_SCALE;
         } else {
-            autoScale = true;
-
             desiredRate = policy.getTargetRate();
             if (policy.getType().equals(ScalingPolicy.Type.BY_RATE_IN_BYTES)) {
-                rateType = 0;
+                rateType = WireCommands.CreateSegment.IN_BYTES;
             } else {
-                rateType = 1;
+                rateType = WireCommands.CreateSegment.IN_EVENTS;
             }
         }
 
         return sendRequestOverNewConnection(
-                new WireCommands.CreateSegment(Segment.getScopedName(scope, stream, segmentNumber), autoScale, desiredRate, rateType),
+                new WireCommands.CreateSegment(Segment.getScopedName(scope, stream, segmentNumber), rateType, desiredRate),
                 replyProcessor,
                 clientCF,
                 uri)

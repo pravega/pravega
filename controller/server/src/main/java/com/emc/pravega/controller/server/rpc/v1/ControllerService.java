@@ -255,9 +255,6 @@ public class ControllerService {
     }
 
     public CompletableFuture<TxnId> createTransaction(final String scope, final String stream) {
-        // Note: We acquire an interprocess ephemeral lock before creating the transaction. The purpose of this is to ensure
-        // that we mimic a priority queue per stream for incoming operation requests. Two kinds of operations contest for these locks -
-        // createTxn and scale. Scale is given higher priority hence a write lock and
         return streamTransactionMetadataTasks.createTx(scope, stream, null).thenApply(ModelHelper::decode);
     }
 

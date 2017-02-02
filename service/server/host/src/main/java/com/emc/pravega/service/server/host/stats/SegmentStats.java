@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.host.stats;
 
+import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.service.contracts.SegmentInfo;
 import com.emc.pravega.service.monitor.SegmentTrafficMonitor;
 import lombok.Synchronized;
@@ -54,9 +55,8 @@ public class SegmentStats {
 
     public static void policyUpdate(SegmentInfo segment) {
         SegmentAggregates aggregates = aggregatesMap.get(segment.getStreamSegmentName());
-        aggregates.autoScale = segment.isAutoScale();
         aggregates.targetRate = segment.getTargetRate();
-        aggregates.rateType = segment.getRateType();
+        aggregates.scaleType = segment.getType();
     }
 
     /**
@@ -71,13 +71,14 @@ public class SegmentStats {
      */
     public static void record(String streamSegmentName, long dataLength, int numOfEvents) {
         SegmentAggregates aggregates = aggregatesMap.get(streamSegmentName);
-        aggregates.update(dataLength, numOfEvents);
+        if (aggregates.scaleType != WireCommands.CreateSegment.NO_SCALE) {
+            aggregates.update(dataLength, numOfEvents);
 
-        if (System.currentTimeMillis() - aggregates.lastReportedTime > TWO_MINUTES) {
-            CompletableFuture.runAsync(() -> monitors.forEach(monitor -> monitor.process(streamSegmentName,
-                    aggregates.autoScale, aggregates.targetRate, aggregates.rateType, aggregates.startTime,
-                    aggregates.twoMinuteRate, aggregates.fiveMinuteRate, aggregates.tenMinuteRate, aggregates.twentyMinuteRate)));
-            aggregates.lastReportedTime = System.currentTimeMillis();
+            if (System.currentTimeMillis() - aggregates.lastReportedTime > TWO_MINUTES) {
+                CompletableFuture.runAsync(() -> monitors.forEach(monitor -> monitor.process(streamSegmentName, aggregates.targetRate, aggregates.scaleType, aggregates.startTime,
+                        aggregates.twoMinuteRate, aggregates.fiveMinuteRate, aggregates.tenMinuteRate, aggregates.twentyMinuteRate)));
+                aggregates.lastReportedTime = System.currentTimeMillis();
+            }
         }
     }
 

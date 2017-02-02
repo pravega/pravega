@@ -62,6 +62,4 @@ public interface ContainerMetadata {
      * @return The mapped StreamSegmentMetadata, or null if none is.
      */
     SegmentMetadata getStreamSegmentMetadata(long streamSegmentId);
-
-
 }

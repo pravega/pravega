@@ -22,6 +22,11 @@ import com.emc.pravega.controller.requests.ControllerRequest;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
+/**
+ * Interface for request handlers.
+ * @param <Request> Type of request this handler will process.
+ */
+@FunctionalInterface
 public interface RequestHandler<Request extends ControllerRequest> {
     CompletableFuture<Void> process(Request request, ScheduledExecutorService executor);
 }

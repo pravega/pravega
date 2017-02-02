@@ -47,6 +47,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
+/**
+ * Request handler for scale requests in scale-request-stream.
+ */
 @Slf4j
 public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
 

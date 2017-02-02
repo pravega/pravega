@@ -118,7 +118,7 @@ public class MockController implements Controller {
         ClientConnection connection = getAndHandleExceptions(connectionFactory.establishConnection(uri, replyProcessor),
                 RuntimeException::new);
         try {
-            connection.send(new WireCommands.CreateSegment(name, false, 0L, (byte) 0));
+            connection.send(new WireCommands.CreateSegment(name, WireCommands.CreateSegment.NO_SCALE, 0L));
         } catch (ConnectionFailedException e) {
             throw new RuntimeException(e);
         }

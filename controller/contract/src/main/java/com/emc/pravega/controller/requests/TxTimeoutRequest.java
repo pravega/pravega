@@ -29,7 +29,7 @@ public class TxTimeoutRequest implements ControllerRequest {
 
     @Override
     public RequestType getType() {
-        return RequestType.TransactionRequest;
+        return RequestType.TxTimeoutRequest;
     }
 
     @Override

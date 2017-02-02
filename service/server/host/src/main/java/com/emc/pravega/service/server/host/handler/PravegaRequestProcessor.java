@@ -260,7 +260,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
-        final SegmentInfo segment = new SegmentInfo(createStreamsSegment.getSegment(), createStreamsSegment.isAutoScale(), createStreamsSegment.getDesiredRate(), createStreamsSegment.getRateType());
+        final SegmentInfo segment = new SegmentInfo(createStreamsSegment.getSegment(), createStreamsSegment.getScaleType(), createStreamsSegment.getDesiredRate());
 
         CompletableFuture<Void> future = segmentStore.createStreamSegment(
                 segment, TIMEOUT);

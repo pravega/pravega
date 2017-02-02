@@ -18,6 +18,7 @@
 package com.emc.pravega.service.monitor;
 
 import com.emc.pravega.ClientFactory;
+import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -38,6 +39,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * This looks at segment aggregates and determines if a scale operation has to be triggered.
+ * If a scale has to be triggered, then it puts a new scale request into the request stream.
+ */
 public class ThresholdMonitor implements SegmentTrafficMonitor {
 
     private static final long MUTE_DURATION = Duration.ofMinutes(10).toMillis();
@@ -83,22 +88,24 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
     }
 
     @Override
-    public void process(String streamSegmentName, boolean autoScale, long targetRate, byte rateType, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
+    public void process(String streamSegmentName, long targetRate, byte type, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
 
-        if (System.currentTimeMillis() - startTime > MINIMUM_COOLDOWN_PERIOD) {
-            // process to see if a scale operation needs to be performed.
-            if (twoMinuteRate > 5 * targetRate ||
-                    fiveMinuteRate > 2 * targetRate ||
-                    tenMinuteRate > targetRate) {
-                int numOfSplits = (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate);
-                triggerScaleUp(streamSegmentName, numOfSplits);
-            }
+        if (type != WireCommands.CreateSegment.NO_SCALE) {
+            if (System.currentTimeMillis() - startTime > MINIMUM_COOLDOWN_PERIOD) {
+                // process to see if a scale operation needs to be performed.
+                if (twoMinuteRate > 5 * targetRate ||
+                        fiveMinuteRate > 2 * targetRate ||
+                        tenMinuteRate > targetRate) {
+                    int numOfSplits = (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate);
+                    triggerScaleUp(streamSegmentName, numOfSplits);
+                }
 
-            if (twoMinuteRate < targetRate &&
-                    fiveMinuteRate < targetRate &&
-                    tenMinuteRate < targetRate &&
-                    twentyMinuteRate < targetRate / 2) {
-                triggerScaleDown(streamSegmentName);
+                if (twoMinuteRate < targetRate &&
+                        fiveMinuteRate < targetRate &&
+                        tenMinuteRate < targetRate &&
+                        twentyMinuteRate < targetRate / 2) {
+                    triggerScaleDown(streamSegmentName);
+                }
             }
         }
     }

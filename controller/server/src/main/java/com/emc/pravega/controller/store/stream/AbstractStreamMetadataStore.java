@@ -59,7 +59,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     protected AbstractStreamMetadataStore() {
         cache = CacheBuilder.newBuilder()
-                .maximumSize(100000)
+                .maximumSize(1000000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .build(

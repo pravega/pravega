@@ -132,7 +132,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
             Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
-            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId()/*, segment.isAutoScale(), segment.getDesiredRate(), segment.getRateType()*/);
+            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId());
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
             this.segmentMetadata.put(streamSegmentId, segmentMetadata);
         }
