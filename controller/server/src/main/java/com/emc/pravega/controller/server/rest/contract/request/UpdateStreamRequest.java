@@ -15,14 +15,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.controller.server.rest.contract.request;
 
-package com.emc.pravega.service.server.logs;
-
-import com.emc.pravega.common.util.TruncateableList;
-import com.emc.pravega.service.server.logs.operations.Operation;
+import com.emc.pravega.controller.server.rest.contract.common.RetentionPolicyCommon;
+import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommon;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 
 /**
- * In-Memory Operation Log.
+ * Conforms to updateStreamConfig REST API request object.
  */
-public class MemoryOperationLog extends TruncateableList<Operation> {
+@Getter
+@AllArgsConstructor
+public class UpdateStreamRequest {
+    private final ScalingPolicyCommon scalingPolicy;
+    private final RetentionPolicyCommon retentionPolicy;
 }

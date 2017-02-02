@@ -24,7 +24,9 @@ import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
+import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
+import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
@@ -40,6 +42,7 @@ import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetAddress;
@@ -95,14 +98,16 @@ public class Main {
             monitor.startAsync();
         }
 
-        //2. Start the RPC server.
-        log.info("Starting RPC server");
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, executor, hostId);
-        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks));
+        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks);
+
+        //2. Start the RPC server.
+        log.info("Starting RPC server");
+        RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
@@ -114,5 +119,9 @@ public class Main {
         // controllers and starts sweeping tasks orphaned by those hostIds.
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
+
+        // 4. Start the REST server.
+        log.info("Starting Pravega REST Service");
+        RESTServer.start(controllerService);
     }
 }

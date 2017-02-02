@@ -33,9 +33,10 @@ import java.util.Set;
 @Slf4j
 public final class Config {
     private final static com.typesafe.config.Config CONFIG = ConfigFactory.defaultApplication()
-            .withFallback(
-            ConfigFactory.defaultOverrides().resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true)))
-            .withFallback(ConfigFactory.defaultReference()).resolve();
+            .withFallback(ConfigFactory.defaultOverrides().resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true)))
+            .withFallback(ConfigFactory.systemEnvironment())
+            .withFallback(ConfigFactory.defaultReference())
+            .resolve();
 
     //RPC Server configuration
     public static final int SERVER_PORT = CONFIG.getInt("config.controller.server.port");
@@ -73,7 +74,12 @@ public final class Config {
         Set<Map.Entry<String, ConfigValue>> entries = CONFIG.entrySet();
         entries.forEach(entry -> log.debug("{} = {}", entry.getKey(), entry.getValue()));
     }
+  
     public static void overRideZKURL(String replaceZKURL) {
         zKURL = replaceZKURL;
     }
+  
+    //REST server configuration
+    public static final String REST_SERVER_IP = CONFIG.getString("config.controller.server.rest.serverIp");
+    public static final int REST_SERVER_PORT = CONFIG.getInt("config.controller.server.rest.serverPort");
 }
