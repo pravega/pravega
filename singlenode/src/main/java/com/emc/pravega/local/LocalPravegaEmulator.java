@@ -21,6 +21,7 @@ package com.emc.pravega.local;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
+import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
@@ -220,10 +221,11 @@ public class LocalPravegaEmulator {
                         nodeServiceStarter.get().shutdown();
                     } catch (Exception e) {
                         // do nothing
+                        log.error("Exception while stopping the threads...");
                     }
                 }
             });
-    } catch (Exception e) {
+        } catch (Exception e) {
         }
     }
 
@@ -272,8 +274,8 @@ public class LocalPravegaEmulator {
                 controllerExecutor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, controllerExecutor, hostId);
-        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks));
+        RPCServer.start(new ControllerServiceAsyncImpl(new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks)));
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
