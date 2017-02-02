@@ -25,7 +25,7 @@ import com.emc.pravega.stream.mock.MockStreamManager;
 
 import lombok.Cleanup;
 
-public class StartProducer {
+public class StartWriter {
 
     public static void main(String[] args) throws Exception {
         @Cleanup
@@ -34,23 +34,23 @@ public class StartProducer {
                                                                 StartLocalService.PORT);
         streamManager.createStream(StartLocalService.STREAM_NAME, null);
         @Cleanup
-        EventStreamWriter<String> producer = streamManager.getClientFactory().createEventWriter(StartLocalService.STREAM_NAME,
+        EventStreamWriter<String> writer = streamManager.getClientFactory().createEventWriter(StartLocalService.STREAM_NAME,
                                                                 new JavaSerializer<>(),
                                                                 new EventWriterConfig(null));
-        Transaction<String> transaction = producer.beginTxn(60000);
+        Transaction<String> transaction = writer.beginTxn(60000);
 
         for (int i = 0; i < 10; i++) {
-            String event = "\n Transactional Publish \n";
-            System.err.println("Producing event: " + event);
+            String event = "\n Transactional write \n";
+            System.err.println("Writing event: " + event);
             transaction.writeEvent("", event);
             transaction.flush();
             Thread.sleep(500);
         }
         for (int i = 0; i < 10; i++) {
             String event = "\n Non-transactional Publish \n";
-            System.err.println("Producing event: " + event);
-            producer.writeEvent("", event);
-            producer.flush();
+            System.err.println("Writing event: " + event);
+            writer.writeEvent("", event);
+            writer.flush();
             Thread.sleep(500);
         }
         transaction.commit();

@@ -30,7 +30,7 @@ public interface RevisionedStreamClient<T> {
     /**
      * Returns the latest revision. 
      */
-    Revision getCurrentRevision();
+    Revision fetchRevision();
     
     /**
      * Read from a specified revision to the end of the stream.

@@ -281,14 +281,14 @@ project('integrationtests') {
         standardInput = System.in
     }
 
-    task startProducer(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartProducer"
+    task startWriter(type: JavaExec) {
+        main = "com.emc.pravega.demo.StartWriter"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
-    task startConsumer(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartConsumer"
+    task startReader(type: JavaExec) {
+        main = "com.emc.pravega.demo.StartReader"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }

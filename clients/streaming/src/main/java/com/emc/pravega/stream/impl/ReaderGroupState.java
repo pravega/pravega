@@ -287,7 +287,7 @@ class ReaderGroupState implements Revisioned {
     }
     
     /**
-     * Update the size of this consumers backlog for load balancing purposes. 
+     * Update the size of this reader's backlog for load balancing purposes. 
      */
     @RequiredArgsConstructor
     static class UpdateDistanceToTail extends ReaderGroupStateUpdate {

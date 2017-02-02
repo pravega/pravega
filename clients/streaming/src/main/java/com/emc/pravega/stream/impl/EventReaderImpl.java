@@ -113,6 +113,7 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
         return true;
     }
 
+    //TODO: This is broken until https://github.com/emccode/pravega/issues/191 is implemented.
     private long getLag() {
         if (lastRead == null) {
             return 0;

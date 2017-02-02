@@ -24,7 +24,7 @@ import com.emc.pravega.stream.mock.MockStreamManager;
 
 import lombok.Cleanup;
 
-public class StartConsumer {
+public class StartReader {
 
     public static void main(String[] args) throws Exception {
         @Cleanup
@@ -33,12 +33,12 @@ public class StartConsumer {
                                                                 StartLocalService.PORT);
         streamManager.createStream(StartLocalService.STREAM_NAME, null);
         @Cleanup
-        EventStreamReader<String> consumer = streamManager.getClientFactory().createReader(StartLocalService.STREAM_NAME,
+        EventStreamReader<String> reader = streamManager.getClientFactory().createReader(StartLocalService.STREAM_NAME,
                                      new JavaSerializer<>(),
                             new ReaderConfig(),
                             streamManager.getInitialPosition(StartLocalService.STREAM_NAME));        
         for (int i = 0; i < 20; i++) {
-            String event = consumer.readNextEvent(60000).getEvent();
+            String event = reader.readNextEvent(60000).getEvent();
             System.err.println("Read event: " + event);
         }
         System.exit(0);

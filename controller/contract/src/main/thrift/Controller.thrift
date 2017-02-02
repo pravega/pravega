@@ -85,7 +85,7 @@ struct ScaleResponse {
 }
 
 /*
- * Producer, Consumer and Admin APIs supported by Stream Controller Service
+ * Writer, Reader and Admin APIs supported by Stream Controller Service
  */
 service ControllerService {
     CreateStreamStatus createStream (1: StreamConfig streamConfig)

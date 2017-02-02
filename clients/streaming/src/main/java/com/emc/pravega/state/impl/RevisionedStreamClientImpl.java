@@ -100,7 +100,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     }
     
     @Override
-    public Revision getCurrentRevision() {
+    public Revision fetchRevision() {
         synchronized (lock) {
             long streamLength = in.fetchCurrentStreamLength();
             return new RevisionImpl(segment, streamLength, 0);

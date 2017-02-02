@@ -130,7 +130,7 @@ public class SynchronizerTest {
         }
 
         @Override
-        public Revision getCurrentRevision() {
+        public Revision fetchRevision() {
             return new RevisionImpl(segment, visableLength, visableLength);
         }
 

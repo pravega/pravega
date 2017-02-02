@@ -95,8 +95,8 @@ public interface StateSynchronizer<StateT extends Revisioned> {
     void initialize(InitialUpdate<StateT> initial);
 
     /**
-     * Provide a function that and generates a compaction that exactly represents the provided localState so
-     * that some of the history of updates can be dropped.
+     * Provide a function that generates compacted version of localState so that we can drop some of the
+     * history updates.
      * 
      * NOTE: If InitialUpdate returned does not generate local state exactly corruption will occur.
      * 

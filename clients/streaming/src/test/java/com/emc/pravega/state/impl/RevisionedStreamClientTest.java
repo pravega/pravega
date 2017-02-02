@@ -55,7 +55,7 @@ public class RevisionedStreamClientTest {
         SynchronizerConfig config = new SynchronizerConfig(null, null);
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
-        Revision initialRevision = client.getCurrentRevision();
+        Revision initialRevision = client.fetchRevision();
         client.writeUnconditionally("a");
         client.writeUnconditionally("b");
         client.writeUnconditionally("c");
@@ -93,15 +93,15 @@ public class RevisionedStreamClientTest {
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
         client.writeUnconditionally("a");
-        Revision revision = client.getCurrentRevision();
+        Revision revision = client.fetchRevision();
         Revision newRevision = client.writeConditionally(revision, "b");
         assertNotNull(newRevision);
         assertTrue(newRevision.compareTo(revision) > 0);
-        assertEquals(newRevision, client.getCurrentRevision());
+        assertEquals(newRevision, client.fetchRevision());
         
         Revision failed = client.writeConditionally(revision, "fail");
         assertNull(failed);
-        assertEquals(newRevision, client.getCurrentRevision());
+        assertEquals(newRevision, client.fetchRevision());
         
         Iterator<Entry<Revision, String>> iter = client.readFrom(revision);
         assertTrue(iter.hasNext());

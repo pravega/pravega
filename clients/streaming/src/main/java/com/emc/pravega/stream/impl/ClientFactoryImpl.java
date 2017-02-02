@@ -48,7 +48,7 @@ import com.google.common.base.Preconditions;
 
 import java.net.URI;
 import java.util.List;
-import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.NotImplementedException;
 
@@ -126,24 +126,18 @@ public class ClientFactoryImpl implements ClientFactory {
         return new EventReaderImpl<T>(inFactory,
                                       s,
                                       stateManager,
-                                      new RandomOrderer<>(),
+                                      new RoundRobinOrderer<>(),
                                       System::currentTimeMillis,
                                       config);
     }
 
-    private static class RandomOrderer<T> implements Orderer<T> {
-        private final Random rand = new Random();
+    private static class RoundRobinOrderer<T> implements Orderer<T> {
+        private final AtomicInteger counter = new AtomicInteger(0);
 
         @Override
         public SegmentReader<T> nextSegment(List<SegmentReader<T>> segments) {
-            SegmentReader<T> result = null;
-            for (int retries = 0; retries < 3; retries++) {
-                result = segments.get(rand.nextInt(segments.size()));
-                if (result.canReadWithoutBlocking()) {
-                    break;
-                }
-            }
-            return result;
+            int count = counter.incrementAndGet();
+            return segments.get(count % segments.size());
         }
     }
 
