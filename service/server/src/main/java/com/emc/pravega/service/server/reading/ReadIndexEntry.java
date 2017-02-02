@@ -18,17 +18,17 @@
 
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.common.util.IndexEntry;
 import com.google.common.base.Preconditions;
 import javax.annotation.concurrent.GuardedBy;
 
 /**
  * An entry in the Read Index with data at a particular offset.
  */
-class ReadIndexEntry {
+abstract class ReadIndexEntry implements IndexEntry<Long> {
     //region Members
 
     private final long streamSegmentOffset;
-    private final long length;
     @GuardedBy("this")
     private int generation;
 
@@ -43,12 +43,10 @@ class ReadIndexEntry {
      * @throws IllegalArgumentException if the offset is a negative number.
      * @throws IllegalArgumentException if the length is a negative number.
      */
-    ReadIndexEntry(long streamSegmentOffset, long length) {
+    ReadIndexEntry(long streamSegmentOffset) {
         Preconditions.checkArgument(streamSegmentOffset >= 0, "streamSegmentOffset must be a non-negative number.");
-        Preconditions.checkArgument(length >= 0, "length", "length must be a non-negative number.");
 
         this.streamSegmentOffset = streamSegmentOffset;
-        this.length = length;
     }
 
     //endregion
@@ -83,27 +81,28 @@ class ReadIndexEntry {
     /**
      * Gets the length of this entry.
      */
-    long getLength() {
-        return this.length;
-    }
+    abstract long getLength();
 
     /**
      * Gets a value indicating the last Offset in the StreamSegment pertaining to this entry.
      */
     long getLastStreamSegmentOffset() {
-        return this.streamSegmentOffset + this.length - 1;
+        return this.streamSegmentOffset + getLength() - 1;
     }
 
     /**
      * Gets a value indicating whether this ReadIndexEntry actually points to data (vs. being a meta-entry).
      */
-    boolean isDataEntry() {
-        return true;
-    }
+    abstract boolean isDataEntry();
 
     @Override
     public String toString() {
-        return String.format("Offset = %d, Length = %d, Gen = %d", this.streamSegmentOffset, this.length, this.generation);
+        return String.format("Offset = %d, Length = %d, Gen = %d", this.streamSegmentOffset, getLength(), this.generation);
+    }
+
+    @Override
+    public Long key() {
+        return this.streamSegmentOffset;
     }
 
     //endregion
