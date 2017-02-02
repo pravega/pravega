@@ -180,8 +180,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else {
             future = store.append(segment, bytes, context, TIMEOUT);
         }
-        // TODO: number of events
-        future.thenAccept(x -> SegmentStats.record(segment, bytes.length, 0));
+
+        // TODO: add number of events in case the rate has to be calculated in number of events
+        int numOfEvents = 0; // toWrite.getEventNumber() - previouslyWrittenEventNumber;
+        future.thenAccept(x -> SegmentStats.record(segment, bytes.length, numOfEvents));
+
         future.handle(new BiFunction<Void, Throwable, Void>() {
             @Override
             public Void apply(Void t, Throwable u) {

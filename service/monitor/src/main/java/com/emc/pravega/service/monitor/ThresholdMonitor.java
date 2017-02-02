@@ -1,9 +1,27 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.emc.pravega.service.monitor;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.google.common.cache.Cache;
@@ -35,7 +53,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
     }
 
     private ThresholdMonitor() {
-        // TODO: read these from configuration
+        // TODO: read these from configuration.
         clientFactory = new ClientFactoryImpl("pravega", URI.create("tcp://controller:9090"));
         writer = clientFactory.createEventWriter("ScaleRequest",
                 new JavaSerializer<>(),
@@ -61,18 +79,18 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
             .build();
 
     @Override
-    public void process(String streamSegmentName, boolean autoScale, long targetRate, byte rateType, long twoMinuteRate, long fiveMinuteRate, long tenMinuteRate, long twentyMinuteRate) {
+    public void process(String streamSegmentName, boolean autoScale, long targetRate, byte rateType, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
 
         // process to see if a scale operation needs to be performed.
         if (twoMinuteRate > 5 * targetRate ||
                 fiveMinuteRate > 2 * targetRate ||
                 tenMinuteRate > targetRate) {
-            int numOfSplits = (int) (Long.max(Long.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate);
+            int numOfSplits = (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate);
             triggerScaleUp(streamSegmentName, numOfSplits);
         }
 
-        if (twoMinuteRate < 5 * targetRate &&
-                fiveMinuteRate < 2 * targetRate &&
+        if (twoMinuteRate < targetRate &&
+                fiveMinuteRate < targetRate &&
                 tenMinuteRate < targetRate &&
                 twentyMinuteRate < targetRate / 2) {
             triggerScaleDown(streamSegmentName);
@@ -90,11 +108,8 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
         long timestamp = System.currentTimeMillis();
 
         if (timestamp - lastRequestTs > MUTE_DURATION) {
-            // TODO: get stream name from streamSegmentName
-            String scope;
-            String stream;
-            int number;
-            ScaleRequest event = new ScaleRequest(scope, stream, number, ScaleRequest.UP, timestamp, numOfSplits);
+            Segment segment = Segment.fromScopedName(streamSegmentName);
+            ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleRequest.UP, timestamp, numOfSplits);
             // Mute scale for timestamp for both scale up and down
             cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp));
             writer.writeEvent(event.getKey(), event);
@@ -111,11 +126,8 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
 
         long timestamp = System.currentTimeMillis();
         if (timestamp - lastRequestTs > MUTE_DURATION) {
-            String scope;
-            String stream;
-            int number;
-
-            ScaleRequest event = new ScaleRequest(scope, stream, number, ScaleRequest.DOWN, timestamp, 0);
+            Segment segment = Segment.fromScopedName(streamSegmentName);
+            ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleRequest.DOWN, timestamp, 0);
             writer.writeEvent(event.getKey(), event);
         }
     }

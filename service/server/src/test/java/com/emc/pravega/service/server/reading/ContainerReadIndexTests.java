@@ -960,7 +960,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     private void createSegmentsInStorage(TestContext context) {
         for (long segmentId : context.metadata.getAllStreamSegmentIds()) {
             SegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
-            context.storage.create(new SegmentInfo(sm.getName()), TIMEOUT).join();
+            context.storage.create(SegmentInfo.noAutoScale(sm.getName()), TIMEOUT).join();
         }
     }
 

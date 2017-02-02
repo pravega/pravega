@@ -312,13 +312,31 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void commitTransaction(CommitTransaction commitTx) {
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
         segmentStore.sealStreamSegment(transactionName, TIMEOUT).thenApply((Long length) -> {
-            segmentStore.mergeTransaction(transactionName, TIMEOUT).thenApply((Long offset) -> {
+            CompletableFuture<Long> mergeFuture = segmentStore.mergeTransaction(transactionName, TIMEOUT);
+
+            mergeFuture.thenApply((Long offset) -> {
                 connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));
                 return null;
             }).exceptionally((Throwable e) -> {
                 handleException(transactionName, "Commit transaction", e);
                 return null;
             });
+
+            mergeFuture.thenCompose(x -> segmentStore.getStreamSegmentInfo(transactionName, TIMEOUT))
+                    .thenAccept(segmentProp -> {
+                        // TODO: How to get number of events in txn segment.
+                        // We will keep txn stats simple:
+                        // total data written in the txn segment * txn lifespan.
+                        // TODO: know txn lifespan. We need either txn creation time. Or we need txn timeout
+                        // in order to approximate txn lifetime.
+                        // Since we do not have segment creationTime in the metadata, we will assume txn lived
+                        // for txn timeout duration if txnTimeout is of fixed size.
+                        // Currently taking 1 minute fixed txn timeout.
+                        long txnCreationTime = System.currentTimeMillis() - TIMEOUT.toMillis();
+                        int numOfEvents = 0;
+                        SegmentStats.merge(commitTx.getSegment(), segmentProp.getLength(), numOfEvents, txnCreationTime);
+                    });
+
             return null;
         }).exceptionally((Throwable e) -> {
             handleException(transactionName, "Commit transaction", e);
