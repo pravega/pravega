@@ -1,0 +1,163 @@
+syntax = "proto3";
+package com.emc.pravega.controller.stream.api.v1;
+
+option optimize_for = SPEED;
+
+message CreateStreamStatus {
+    enum Status {
+        SUCCESS = 0; FAILURE = 1; STREAM_EXISTS = 2;
+    }
+    Status status = 1;
+}
+
+message UpdateStreamStatus {
+    enum Status {
+        SUCCESS = 0; FAILURE = 1; STREAM_NOT_FOUND = 2;
+    }
+    Status status = 1;
+}
+
+message ScaleStreamStatus {
+    enum Status {
+        SUCCESS = 0; FAILURE = 1; PRECONDITION_FAILED = 2; UPDATE_CONFLICT = 3;
+    }
+    Status status = 1;
+}
+
+message TxnStatus {
+    enum Status {
+        SUCCESS = 0; FAILURE = 1; STREAM_NOT_FOUND = 2; TRANSACTION_NOT_FOUND = 3;
+    }
+    Status status = 1;
+}
+
+message TxnState {
+    enum Status {
+        UNKNOWN = 0; OPEN = 1; SEALED = 2; COMMITTED = 3; ABORTED = 4;
+    }
+    Status status = 1;
+}
+
+message StreamInfo {
+    string scope = 1;
+    string stream = 2;
+}
+
+message ScalingPolicy {
+    enum ScalingPolicyType {
+        FIXED_NUM_SEGMENTS = 0;
+        BY_RATE_IN_BYTES = 1;
+        BY_RATE_IN_EVENTS = 2;
+    }
+    ScalingPolicyType type = 1;
+    int64 targetRate = 2;
+    int32 scaleFactor = 3;
+    int32 minNumSegments = 4;
+}
+
+message StreamConfig {
+    StreamInfo streamInfo = 1;
+    ScalingPolicy policy = 2;
+}
+
+message SegmentId {
+    StreamInfo streamInfo = 1;
+    int32 segmentNumber = 2;
+}
+
+message FutureSegment {
+    SegmentId futureSegment = 1;
+    SegmentId precedingSegment = 2;
+}
+
+message SegmentRange {
+    SegmentId segmentId = 1;
+    double minKey = 2;
+    double maxKey = 3;
+}
+
+message NodeUri {
+    string endpoint = 1;
+    int32 port = 2;
+}
+
+message Position {
+    message OwnedSegmentEntry {
+        SegmentId segmentId = 1;
+        int64 value = 2;
+    }
+    repeated OwnedSegmentEntry ownedSegments = 1;
+
+    message futureOwnedSegmentsEntry {
+        FutureSegment futureSegment = 1;
+        int64 value = 2;
+    }
+    repeated futureOwnedSegmentsEntry futureOwnedSegments = 2;
+}
+
+message TxnId {
+    int64 highBits = 1;
+    int64 lowBits = 2;
+}
+
+message TxnRequest {
+    StreamInfo streamInfo = 1;
+    TxnId txnId = 2;
+}
+
+message ScaleRequest {
+    StreamInfo streamInfo = 1;
+    repeated int32 sealedSegments = 2;
+    message KeyRangeEntry {
+        double start = 1;
+        double end = 2;
+    }
+    repeated KeyRangeEntry newKeyRanges = 3;
+    int64 scaleTimestamp = 4;
+}
+
+message ScaleResponse {
+    ScaleStreamStatus status = 1;
+    repeated SegmentRange segments = 2;
+}
+
+message SegmentRanges {
+    repeated SegmentRange segmentRanges = 1;
+}
+
+message GetPositionRequest {
+    StreamInfo streamInfo = 1;
+    int64 timestamp = 2;
+    int32 count = 3;
+}
+
+message Positions {
+    repeated Position positions = 1;
+}
+
+message UpdatePositionRequest {
+    StreamInfo streamInfo = 1;
+    Positions positions = 2;
+}
+
+message BooleanResponse {
+    bool response = 1;
+}
+/*
+ * Producer, Consumer and Admin APIs supported by Stream Controller Service
+ */
+service ControllerService {
+    rpc createStream(StreamConfig) returns (CreateStreamStatus);
+    rpc alterStream(StreamConfig) returns (UpdateStreamStatus);
+    rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
+    rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
+    rpc getPositions(GetPositionRequest) returns (Positions);
+    rpc updatePositions(UpdatePositionRequest) returns (Positions);
+    rpc scale(ScaleRequest) returns (ScaleResponse);
+    rpc getURI(SegmentId) returns (NodeUri);
+    rpc isSegmentValid(SegmentId) returns (BooleanResponse);
+    rpc createTransaction(StreamInfo) returns (TxnId);
+    rpc commitTransaction(TxnRequest) returns (TxnStatus);
+    rpc dropTransaction(TxnRequest) returns (TxnStatus);
+    rpc checkTransactionStatus(TxnRequest) returns (TxnState);
+}
