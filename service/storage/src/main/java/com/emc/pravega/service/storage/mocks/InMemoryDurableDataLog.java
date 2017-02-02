@@ -22,13 +22,12 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.CloseableIterator;
-import com.emc.pravega.common.util.TruncateableList;
+import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -39,6 +38,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import lombok.Getter;
 
 /**
  * In-Memory Mock for DurableDataLog. Contents is destroyed when object is garbage collected.
@@ -243,7 +243,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
     //region EntryCollection
 
     static class EntryCollection {
-        private final TruncateableList<Entry> entries;
+        private final SequencedItemList<Entry> entries;
         private final AtomicReference<String> writeLock;
         private final int maxAppendSize;
 
@@ -252,7 +252,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
         }
 
         EntryCollection(int maxAppendSize) {
-            this.entries = new TruncateableList<>();
+            this.entries = new SequencedItemList<>();
             this.writeLock = new AtomicReference<>();
             this.maxAppendSize = maxAppendSize;
         }
@@ -272,11 +272,11 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
         int truncate(long upToSequence, String clientId) throws DataLogWriterNotPrimaryException {
             ensureLock(clientId);
-            return this.entries.truncate(e -> e.sequenceNumber <= upToSequence);
+            return this.entries.truncate(upToSequence);
         }
 
         Iterator<Entry> iterator() {
-            return this.entries.read(i -> true, Integer.MAX_VALUE);
+            return this.entries.read(Long.MIN_VALUE, Integer.MAX_VALUE);
         }
 
         void acquireLock(String clientId) throws DataLogWriterNotPrimaryException {
@@ -313,8 +313,9 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
     //region Entry
 
-    static class Entry {
-        long sequenceNumber;
+    static class Entry implements SequencedItemList.Element {
+        @Getter
+        long sequenceNumber = -1;
         final byte[] data;
 
         Entry(InputStream inputData) throws IOException {

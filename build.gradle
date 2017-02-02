@@ -20,7 +20,6 @@ buildscript {
 import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
 import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
 
-
 allprojects {
     apply plugin: 'java'
     apply plugin: 'idea'
@@ -40,8 +39,8 @@ allprojects {
         exclude  "**/impl/**";
     }
 
-    ext {
-        pravegaVersion = "0.0"
+    docker {
+        url = dockerUrl
     }
 
     repositories {
@@ -227,7 +226,7 @@ project('service:server:host') {
         dependsOn 'distTar','distZip'
         dockerFile = file(dockerFilePravegaHost)
         inputDir = file(dockerDirPravegaHost)
-        tag = 'abhijeet78/pravega:host'
+        tag = "${pravegaHostBaseTag}:${pravegaVersion}"
     }
     task pushPravegaHostImage(type: DockerPushImage) {
         dependsOn buildPravegaHostImage
@@ -336,6 +335,9 @@ project('controller:contract') {
         // https://mvnrepository.com/artifact/org.apache.thrift/libthrift
         compile group: 'org.apache.thrift', name: 'libthrift', version: '0.9.3'
         compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
+        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-netty-http', version: '2.25'
+        compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: '2.25'
+        compile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-netty', version: '2.25'
     }
     publishing {
         publications {
@@ -387,7 +389,7 @@ project('controller:server') {
         dependsOn 'distTar','distZip'
         dockerFile = file(dockerFilePravegaController)
         inputDir = file(dockerDirPravegaController)
-        tag = 'abhijeet78/pravega:controller'
+        tag = "${pravegaControllerBaseTag}:${pravegaVersion}"
     }
 
     task pushPravegaControllerImage(type: DockerPushImage) {

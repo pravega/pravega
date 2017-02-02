@@ -40,14 +40,14 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for OperationMetadataUpdater class.
@@ -577,7 +577,7 @@ public class OperationMetadataUpdaterTests {
         // Checkpoint 1 Should have original metadata.
         processOperation(checkpoint1, updater, seqNo::incrementAndGet);
         UpdateableContainerMetadata checkpointedMetadata = getCheckpointedMetadata(checkpoint1);
-        MetadataHelpers.assertMetadataEquals("Unexpected metadata before any operation.", metadata, checkpointedMetadata);
+        assertMetadataEquals("Unexpected metadata before any operation.", metadata, checkpointedMetadata);
 
         // Map another StreamSegment, and add an append
         StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation(newSegmentName, SEGMENT_LENGTH, false, false, new Date()));
@@ -588,7 +588,7 @@ public class OperationMetadataUpdaterTests {
         // Checkpoint 2 should have Checkpoint 1 + New StreamSegment + Append.
         updater.commit();
         checkpointedMetadata = getCheckpointedMetadata(checkpoint2);
-        MetadataHelpers.assertMetadataEquals("Unexpected metadata after deserializing checkpoint.", metadata, checkpointedMetadata);
+        assertMetadataEquals("Unexpected metadata after deserializing checkpoint.", metadata, checkpointedMetadata);
     }
 
     /**
@@ -898,6 +898,39 @@ public class OperationMetadataUpdaterTests {
         boolean success = updater.commit();
         Assert.assertTrue("OperationMetadataUpdater.commit() did not make any modifications.", success);
         return metadata;
+    }
+
+    /**
+     * Verify that the given ContainerMetadata objects contain the same data.
+     */
+    private void assertMetadataEquals(String message, UpdateableContainerMetadata expected, UpdateableContainerMetadata actual) {
+        Assert.assertEquals("Unexpected ContainerId.", expected.getContainerId(), actual.getContainerId());
+        Collection<Long> expectedSegmentIds = expected.getAllStreamSegmentIds();
+        Collection<Long> actualSegmentIds = actual.getAllStreamSegmentIds();
+        AssertExtensions.assertContainsSameElements(message + " Unexpected StreamSegments mapped.", expectedSegmentIds, actualSegmentIds);
+        for (long streamSegmentId : expectedSegmentIds) {
+            SegmentMetadata expectedSegmentMetadata = expected.getStreamSegmentMetadata(streamSegmentId);
+            SegmentMetadata actualSegmentMetadata = actual.getStreamSegmentMetadata(streamSegmentId);
+            Assert.assertNotNull(message + " No metadata for StreamSegment " + streamSegmentId, actualSegmentMetadata);
+            assertSegmentMetadataEquals(message, expectedSegmentMetadata, actualSegmentMetadata);
+        }
+    }
+
+    /**
+     * Verifies that the given SegmentMetadata objects contain the same data.
+     */
+    private void assertSegmentMetadataEquals(String message, SegmentMetadata expected, SegmentMetadata actual) {
+        String idPrefix = message + " SegmentId " + expected.getId();
+        Assert.assertEquals(idPrefix + " getId() mismatch.", expected.getId(), actual.getId());
+        Assert.assertEquals(idPrefix + " getParentId() mismatch.", expected.getParentId(), actual.getParentId());
+        Assert.assertEquals(idPrefix + " getName() isDeleted.", expected.isDeleted(), actual.isDeleted());
+        Assert.assertEquals(idPrefix + " getStorageLength() mismatch.", expected.getStorageLength(), actual.getStorageLength());
+        Assert.assertEquals(idPrefix + " getDurableLogLength() mismatch.", expected.getDurableLogLength(), actual.getDurableLogLength());
+        Assert.assertEquals(idPrefix + " getName() mismatch.", expected.getName(), actual.getName());
+        Assert.assertEquals(idPrefix + " isSealed() mismatch.", expected.isSealed(), actual.isSealed());
+        Assert.assertEquals(idPrefix + " isMerged() mismatch.", expected.isMerged(), actual.isMerged());
+
+        // getLastModified is not tested (yet). Unsure as of this moment if it is required for testing or not.
     }
 
     //endregion

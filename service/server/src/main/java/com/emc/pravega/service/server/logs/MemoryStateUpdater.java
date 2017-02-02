@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
@@ -34,7 +35,7 @@ class MemoryStateUpdater {
     //region Private
 
     private final CacheUpdater cacheUpdater;
-    private final MemoryOperationLog inMemoryOperationLog;
+    private final SequencedItemList<Operation> inMemoryOperationLog;
     private final Runnable flushCallback;
 
     //endregion
@@ -47,7 +48,7 @@ class MemoryStateUpdater {
      * @param inMemoryOperationLog InMemory Operation Log.
      * @param cacheUpdater         Cache Updater.
      */
-    MemoryStateUpdater(MemoryOperationLog inMemoryOperationLog, CacheUpdater cacheUpdater) {
+    MemoryStateUpdater(SequencedItemList<Operation> inMemoryOperationLog, CacheUpdater cacheUpdater) {
         this(inMemoryOperationLog, cacheUpdater, null);
     }
 
@@ -58,7 +59,7 @@ class MemoryStateUpdater {
      * @param cacheUpdater         Cache Updater.
      * @param flushCallback        (Optional) A callback to be invoked whenever flush() is invoked.
      */
-    MemoryStateUpdater(MemoryOperationLog inMemoryOperationLog, CacheUpdater cacheUpdater, Runnable flushCallback) {
+    MemoryStateUpdater(SequencedItemList<Operation> inMemoryOperationLog, CacheUpdater cacheUpdater, Runnable flushCallback) {
         Preconditions.checkNotNull(cacheUpdater, "cacheUpdater");
         Preconditions.checkNotNull(inMemoryOperationLog, "inMemoryOperationLog");
 
@@ -116,8 +117,7 @@ class MemoryStateUpdater {
             }
         }
 
-        long seqNo = operation.getSequenceNumber();
-        boolean added = this.inMemoryOperationLog.addIf(operation, previous -> previous.getSequenceNumber() < seqNo);
+        boolean added = this.inMemoryOperationLog.add(operation);
         if (!added) {
             // This is a pretty nasty one. It's safer to shut down the container than continue.
             // We either recorded the Operation correctly, but invoked this callback out of order, or we really

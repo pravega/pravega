@@ -109,8 +109,8 @@ public final class ServiceStarter {
 
         log.info("Initializing metrics provider ...");
         statsProvider = metricsConfig.enableStatistics() ?
-                        MetricsProvider.getNullProvider() :
-                        MetricsProvider.getProvider();
+                        MetricsProvider.getProvider() :
+                        MetricsProvider.getNullProvider();
 
         statsProvider.start(metricsConfig);
 

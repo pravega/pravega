@@ -1,4 +1,6 @@
 *.iml
+*.iws
+*.ipr
 .project
 build
 .classpath
