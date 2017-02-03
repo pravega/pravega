@@ -44,7 +44,6 @@ import com.google.common.annotations.VisibleForTesting;
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -277,7 +276,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 new SegmentId(scope, stream, segment.getNumber()), segment.getKeyStart(), segment.getKeyEnd());
     }
 
-    private Void notifyNewSegments(String scope, String stream, Collection<Segment> segmentNumbers) {
+    private Void notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers) {
         segmentNumbers
                 .stream()
                 .parallel()
