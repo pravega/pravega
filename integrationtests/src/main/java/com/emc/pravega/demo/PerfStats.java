@@ -40,8 +40,8 @@ class PerfStats {
     private long reportingInterval;
 
     public PerfStats(long numRecords, int reportingInterval) {
-        this.start = System.nanoTime();
-        this.windowStartTime = System.nanoTime();
+        this.start = System.currentTimeMillis();
+        this.windowStartTime = System.currentTimeMillis();
         this.windowStart = 0;
         this.index = 0;
         this.iteration = 0;
@@ -100,10 +100,10 @@ class PerfStats {
     }
 
     public synchronized void printAll() {
-        for (int i = 0; i < latencies.length; i++) {
+   /*     for (int i = 0; i < latencies.length; i++) {
             System.out.printf("%d %d\n", i, latencies[i]);
 
-        }
+        }*/
     }
 
     public synchronized void printTotal() {
