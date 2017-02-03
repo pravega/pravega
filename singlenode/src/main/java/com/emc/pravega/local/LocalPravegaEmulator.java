@@ -18,6 +18,8 @@
 
 package com.emc.pravega.local;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
@@ -49,6 +51,7 @@ import com.twitter.distributedlog.admin.DistributedLogAdmin;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.commons.io.FileUtils;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.net.InetAddress;
@@ -62,18 +65,21 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.emc.pravega.controller.util.Config.*;
 
 @Slf4j
-public class LocalPravegaEmulator {
+public class LocalPravegaEmulator implements AutoCloseable {
 
-
+    private static final int NUM_BOOKIES = 5;
+    private static final String CONTAINER_COUNT = "2";
+    private static final String THREADPOOL_SIZE = "20";
     private static LocalHDFSEmulator localHdfs;
     private static int zkPort;
-    AtomicReference<ServiceStarter> nodeServiceStarter = new AtomicReference<>();
+    private static LocalDLMEmulator localDlm;
+    private final AtomicReference<ServiceStarter> nodeServiceStarter = new AtomicReference<>();
 
     private final int controllerPort;
     private final int hostPort;
     private ScheduledExecutorService controllerExecutor;
 
-    public LocalPravegaEmulator(int controllerPort, int hostPort) {
+    private LocalPravegaEmulator(int controllerPort, int hostPort) {
         this.controllerPort = controllerPort;
         this.hostPort = hostPort;
     }
@@ -90,27 +96,23 @@ public class LocalPravegaEmulator {
             final int hostPort = Integer.parseInt(args[2]);
 
             final File zkDir = IOUtils.createTempDir("distrlog", "zookeeper");
-            final LocalDLMEmulator localDlm = LocalDLMEmulator.newBuilder()
-                    .zkPort(zkPort)
-                    .numBookies(3)
-                    .build();
+            localDlm = LocalDLMEmulator.newBuilder().zkPort(zkPort).numBookies(NUM_BOOKIES).build();
 
-             localHdfs = LocalHDFSEmulator.newBuilder()
-                                                .baseDirName("temp")
-                                                .build();
+            LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+            context.getLoggerList().get(0).setLevel(Level.OFF);
 
-            final LocalPravegaEmulator localPravega = LocalPravegaEmulator.newBuilder()
-                    .controllerPort(controllerPort)
-                    .hostPort(hostPort)
-                    .build();
+            localHdfs = LocalHDFSEmulator.newBuilder().baseDirName("temp").build();
+
+            final LocalPravegaEmulator localPravega = LocalPravegaEmulator.newBuilder().controllerPort(
+                    controllerPort).hostPort(hostPort).build();
 
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
                     try {
-                        localPravega.teardown();
+                        localPravega.close();
                         localDlm.teardown();
-                        localHdfs.teardown();
+                        localHdfs.close();
                         FileUtils.deleteDirectory(zkDir);
                         System.out.println("ByeBye!");
                     } catch (Exception e) {
@@ -124,10 +126,9 @@ public class LocalPravegaEmulator {
             configureDLBinding();
             localPravega.start();
 
-            System.out.println(String.format(
-                    "Pravega Sandbox is running locally now. You could access it at %s:%d",
-                    "127.0.0.1",
-                    controllerPort));
+            System.out.println(
+                    String.format("Pravega Sandbox is running locally now. You could access it at %s:%d", "127.0.0.1",
+                            controllerPort));
         } catch (Exception ex) {
             System.out.println("Exception occurred running emulator " + ex);
             System.exit(1);
@@ -136,11 +137,9 @@ public class LocalPravegaEmulator {
 
     private static void configureDLBinding() {
         DistributedLogAdmin admin = new DistributedLogAdmin();
-        String[] params = {"bind", "-dlzr", "localhost:"+zkPort,
-                "-dlzw", "localhost:"+7000, "-s", "localhost:"+zkPort, "-bkzr",
-                "localhost:"+7000, "-l", "/ledgers",
-                "-i", "false", "-r", "true", "-c",
-                "distributedlog://localhost:"+zkPort+"/messaging/distributedlog/mynamespace"};
+        String[] params = {"bind", "-dlzr", "localhost:" + zkPort, "-dlzw", "localhost:" + 7000, "-s", "localhost:" +
+                zkPort, "-bkzr", "localhost:" + 7000, "-l", "/ledgers", "-i", "false", "-r", "true", "-c",
+                "distributedlog://localhost:" + zkPort + "/messaging/distributedlog/mynamespace"};
         try {
             admin.run(params);
         } catch (Exception e) {
@@ -151,16 +150,17 @@ public class LocalPravegaEmulator {
 
     /**
      * Stop controller and host.
-     * */
-    private void teardown() {
-        localHdfs.teardown();
+     */
+    @Override
+    public void close() {
+        localHdfs.close();
         controllerExecutor.shutdown();
         nodeServiceStarter.get().shutdown();
     }
 
     /**
      * Start controller and host.
-     * */
+     */
     private void start() {
         startController();
         try {
@@ -175,28 +175,28 @@ public class LocalPravegaEmulator {
         try {
             Properties p = new Properties();
             ServiceBuilderConfig props = ServiceBuilderConfig.getConfigFromFile();
-            props.set(p,
-                    HDFSStorageConfig.COMPONENT_CODE,
-                    HDFSStorageConfig.PROPERTY_HDFS_URL,
+            props.set(p, HDFSStorageConfig.COMPONENT_CODE, HDFSStorageConfig.PROPERTY_HDFS_URL,
                     String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort()));
 
             // Change Number of containers and Thread Pool Size for each test.
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "2");
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "20");
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT,
+                    CONTAINER_COUNT);
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE,
+                    THREADPOOL_SIZE);
 
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ENABLE_ZIPKIN, "true");
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZIPKIN_ENDPOINT,
-                    "http://10.249.250.151:9411/api/v1/spans");
+            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE,
+                    DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, "100");
+            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE,
+                    DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, "100");
+            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE,
+                    DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, "104857600");
 
-            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, "100");
-            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, "100");
-            ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, "104857600");
+            ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME,
+                    Integer.toString(60 * 1000));
+            ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE,
+                    Long.toString(128 * 1024 * 1024));
 
-            ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, Integer.toString(60 * 1000));
-            ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.toString(128 * 1024 * 1024));
-
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_HOSTNAME,
-                    "localhost");
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_HOSTNAME, "localhost");
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_PORT,
                     new Integer(zkPort).toString());
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT,
@@ -204,7 +204,7 @@ public class LocalPravegaEmulator {
 
             ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_HOSTNAME,
                     "localhost");
-            ServiceBuilderConfig.set(p,  DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_PORT,
+            ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_PORT,
                     new Integer(zkPort).toString());
 
             props = new ServiceBuilderConfig(p);
@@ -214,22 +214,7 @@ public class LocalPravegaEmulator {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
         }
-
-        try {
-            nodeServiceStarter.get().start();
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        log.info("Caught interrupt signal...");
-                        nodeServiceStarter.get().shutdown();
-                    } catch (Exception e) {
-                        // do nothing
-                    }
-                }
-            });
-    } catch (Exception e) {
-        }
+        nodeServiceStarter.get().start();
     }
 
     private void startController() {
@@ -244,32 +229,30 @@ public class LocalPravegaEmulator {
         }
 
         //1. LOAD configuration.
-        Config.overRideZKURL("localhost:"+zkPort);
+        Config.setZKURL("localhost:" + zkPort);
         //Initialize the executor service.
         controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
                 new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
         log.info("Creating store client");
-        StoreClient storeClient = StoreClientFactory.createStoreClient(
-                StoreClientFactory.StoreType.Zookeeper);
+        StoreClient storeClient = StoreClientFactory.createStoreClient(StoreClientFactory.StoreType.Zookeeper);
 
         log.info("Creating the stream store");
-        StreamMetadataStore streamStore = StreamStoreFactory.createStore(
-                StreamStoreFactory.StoreType.Zookeeper, controllerExecutor );
+        StreamMetadataStore streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper,
+                controllerExecutor);
 
         log.info("Creating zk based task store");
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, controllerExecutor );
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, controllerExecutor);
 
         log.info("Creating the host store");
-        HostControllerStore hostStore = HostStoreFactory.createStore(
-                HostStoreFactory.StoreType.Zookeeper);
+        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.Zookeeper);
 
         //Start the Segment Container Monitor.
         log.info("Starting the segment container monitor");
         SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore,
-                    ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient(), Config.CLUSTER_NAME,
-                    new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL);
-            monitor.startAsync();
+                ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient(), Config.CLUSTER_NAME,
+                new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL);
+        monitor.startAsync();
 
         //2. Start the RPC server.
         log.info("Starting RPC server");
@@ -277,8 +260,8 @@ public class LocalPravegaEmulator {
                 controllerExecutor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, controllerExecutor, hostId);
-        RPCServer.start(new ControllerServiceAsyncImpl(new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks)));
+        RPCServer.start(new ControllerServiceAsyncImpl(
+                new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks)));
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature

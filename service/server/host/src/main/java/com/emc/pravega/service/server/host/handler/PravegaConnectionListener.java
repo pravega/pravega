@@ -108,7 +108,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
                  ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
                  // p.addLast(new LoggingHandler(LogLevel.INFO));
                  p.addLast(new ExceptionLoggingHandler(ch.remoteAddress().toString()),
-                         new CommandEncoder(),
+                         new CommandEncoder(null),
                          new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                          new CommandDecoder(),
                          new AppendDecoder(),

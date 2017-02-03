@@ -18,19 +18,21 @@
 
 package com.emc.pravega.stream.impl.netty;
 
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.Append;
+import com.emc.pravega.common.netty.AppendBatchSizeTracker;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.Reply;
 import com.emc.pravega.common.netty.ReplyProcessor;
 import com.emc.pravega.common.netty.WireCommand;
+import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.google.common.base.Preconditions;
+
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -45,17 +47,19 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ClientConnection {
 
-
     private final String connectionName;
     private final ReplyProcessor processor;
     private final AtomicReference<Channel> channel = new AtomicReference<>();
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
     private final AtomicBoolean recentMessage = new AtomicBoolean(false);
+    private final AppendBatchSizeTracker batchSizeTracker;
 
-    ClientConnectionInboundHandler(String connectionName, ReplyProcessor processor) {
+    ClientConnectionInboundHandler(String connectionName, ReplyProcessor processor, AppendBatchSizeTracker batchSizeTracker) {
         Preconditions.checkNotNull(processor);
+        Preconditions.checkNotNull(batchSizeTracker);
         this.connectionName = connectionName;
         this.processor = processor;
+        this.batchSizeTracker = batchSizeTracker;
     }
 
     @Override
@@ -63,26 +67,9 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         super.channelRegistered(ctx);
         Channel c = ctx.channel();
         channel.set(c);
-        ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(ctx), 2, 1, TimeUnit.SECONDS));
+        ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(ctx), 20, 10, TimeUnit.SECONDS));
         if (old != null) {
             old.cancel(false);
-        }
-    }
-    
-    @RequiredArgsConstructor
-    private final class KeepAliveTask implements Runnable {
-        private final ChannelHandlerContext ctx;
-
-        @Override
-        public void run() {
-            try {
-                if (!recentMessage.getAndSet(false)) {
-                    send(new KeepAlive());
-                }
-            } catch (Exception e) {
-                log.warn("Keep alive failed, killing connection "+connectionName);
-                ctx.close();
-            }
         }
     }
 
@@ -100,7 +87,10 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         Reply cmd = (Reply) msg;
-        log.trace(connectionName + " processing reply: {}", cmd);
+        log.debug(connectionName + " processing reply: {}", cmd);
+        if (cmd instanceof DataAppended) {
+            batchSizeTracker.recordAck(((DataAppended) cmd).getEventNumber());
+        }
         cmd.process(processor);
     }
 
@@ -127,6 +117,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void send(Append append) throws ConnectionFailedException {
         recentMessage.set(true);
+        batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
         FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(append), ConnectionFailedException::new);
     }
 
@@ -142,6 +133,23 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         Channel ch = channel.get();
         Preconditions.checkState(ch != null, connectionName + " Connection not yet established.");
         return ch;
+    }
+
+    @RequiredArgsConstructor
+    private final class KeepAliveTask implements Runnable {
+        private final ChannelHandlerContext ctx;
+
+        @Override
+        public void run() {
+            try {
+                if (!recentMessage.getAndSet(false)) {
+                    send(new KeepAlive());
+                }
+            } catch (Exception e) {
+                log.warn("Keep alive failed, killing connection " + connectionName);
+                ctx.close();
+            }
+        }
     }
 
 }
