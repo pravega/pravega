@@ -70,13 +70,12 @@ public class TransactionTimer implements RequestHandler<TxTimeoutRequest> {
 
         CompletableFuture<Void> result = new CompletableFuture<>();
         executor.schedule(() -> streamTxMetadataTasks.dropTx(request.getScope(), request.getStream(), UUID.fromString(request.getTxid()), null)
-                .thenAccept(status -> {
+                .whenComplete((status, ex) -> {
                     if (status.equals(TxnStatus.OPEN)) {
                         result.completeExceptionally(new RetryableException("Failed to drop and transaction is still open. Retry."));
                     } else {
                         result.complete(null);
                     }
-
                 }), request.getTimeToDrop() - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
         return result;
     }
