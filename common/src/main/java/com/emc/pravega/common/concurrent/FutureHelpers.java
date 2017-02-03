@@ -181,23 +181,6 @@ public final class FutureHelpers {
     }
 
     /**
-     * Completes the supplied CompletableFuture object with either the exception or a valid value. Preference is given
-     * to exception e when both the exception e and result value are non-null.
-     *
-     * @param result The result object to complete.
-     * @param value  The result value.
-     * @param e      Exception.
-     * @param <T>    Type parameter.
-     */
-    public static <T> void complete(final CompletableFuture<T> result, final T value, final Throwable e) {
-        if (e != null) {
-            result.completeExceptionally(e);
-        } else {
-            result.complete(value);
-        }
-    }
-
-    /**
      * A variant of .exceptionally that admits an exception handler returning value of type T in future. Exceptionally
      * and flatExceptionally can be thought of as analogous to map and flatMap method for transforming Futures.
      *
@@ -211,8 +194,9 @@ public final class FutureHelpers {
         CompletableFuture<T> result = new CompletableFuture<>();
         input.whenComplete((r, e) -> {
             if (e != null) {
-                exceptionHandler.apply(e)
-                                .whenComplete((ir, ie) -> complete(result, ir, ie));
+                CompletableFuture<T> f = exceptionHandler.apply(e);
+                f.thenAccept(result::complete);
+                exceptionListener(f, result::completeExceptionally);
             } else {
                 result.complete(r);
             }
@@ -326,7 +310,7 @@ public final class FutureHelpers {
      * @return The result.
      */
     public static <T> CompletableFuture<T> futureWithTimeout(Duration timeout, String tag, ScheduledExecutorService executorService) {
-        CompletableFuture<T> result = new CompletableFuture<T>();
+        CompletableFuture<T> result = new CompletableFuture<>();
         ScheduledFuture<Boolean> sf = executorService.schedule(() -> result.completeExceptionally(new TimeoutException(tag)), timeout.toMillis(), TimeUnit.MILLISECONDS);
         result.whenComplete((r, ex) -> sf.cancel(true));
         return result;
@@ -377,12 +361,8 @@ public final class FutureHelpers {
     public static <T> CompletableFuture<T> delayedFuture(final Supplier<CompletableFuture<T>> task,
                                                          final long delay,
                                                          final ScheduledExecutorService executorService) {
-        CompletableFuture<T> result = new CompletableFuture<>();
-        executorService.schedule(
-                () -> task.get().whenComplete((r, ex) -> complete(result, r, ex)),
-                delay,
-                TimeUnit.MILLISECONDS);
-        return result;
+        return delayedFuture(Duration.ofMillis(delay), executorService)
+                .thenCompose(v -> task.get());
     }
 
     /**
