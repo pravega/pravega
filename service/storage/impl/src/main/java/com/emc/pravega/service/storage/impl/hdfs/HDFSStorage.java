@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Date;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -125,7 +126,7 @@ class HDFSStorage implements Storage {
     //region Storage Implementation
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
         return supplyAsync(() -> createSync(streamSegmentName), streamSegmentName, "create");
     }
 

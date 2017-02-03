@@ -48,6 +48,7 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -959,7 +960,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     private void createSegmentsInStorage(TestContext context) {
         for (long segmentId : context.metadata.getAllStreamSegmentIds()) {
             SegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
-            context.storage.create(sm.getName(), TIMEOUT).join();
+            context.storage.create(sm.getName(), Collections.emptyMap(), TIMEOUT).join();
         }
     }
 

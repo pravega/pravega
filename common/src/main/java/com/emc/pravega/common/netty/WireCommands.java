@@ -663,7 +663,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
         final String segment;
         final byte scaleType;
-        final long desiredRate;
+        final long targetRate;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -673,7 +673,7 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeUTF(segment);
-            out.writeLong(desiredRate);
+            out.writeLong(targetRate);
             out.writeByte(scaleType);
         }
 

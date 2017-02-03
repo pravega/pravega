@@ -35,7 +35,6 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
-import com.emc.pravega.service.server.host.stats.SegmentStats;
 import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -66,6 +65,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
     static AtomicLong pendBytes = new AtomicLong();
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
+
     static {
         STATS_LOGGER.registerGauge(PENDING_APPEND_BYTES, pendBytes::get);
     }
@@ -147,7 +147,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 ByteBuf[] toAppend = new ByteBuf[appends.size()];
                 Append last = null;
                 int i = -1;
-                for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext();) {
+                for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext(); ) {
                     Append a = iterator.next();
                     if (a.isConditional()) {
                         break;
@@ -156,7 +156,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     toAppend[i] = a.getData();
                     last = a;
                     iterator.remove();
-                }                
+                }
                 ByteBuf data = Unpooled.wrappedBuffer(toAppend);
                 append = new Append(last.getSegment(), writer, last.getEventNumber(), data, null);
             }
@@ -180,10 +180,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else {
             future = store.append(segment, bytes, context, TIMEOUT);
         }
-
-        // TODO: add number of events in case the rate has to be calculated in number of events
-        int numOfEvents = 0; // toWrite.getEventNumber() - previouslyWrittenEventNumber;
-        future.thenAccept(x -> SegmentStats.record(segment, bytes.length, numOfEvents));
 
         future.handle(new BiFunction<Void, Throwable, Void>() {
             @Override
@@ -210,7 +206,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             handleException(segment, u);
                         }
                     } else {
-                        connection.send(new DataAppended(context.getClientId(),  context.getEventNumber()));
+                        connection.send(new DataAppended(context.getClientId(), context.getEventNumber()));
                     }
                     pauseOrResumeReading();
                     performNextWrite();
@@ -256,9 +252,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         int bytesWaiting;
         synchronized (lock) {
             bytesWaiting = waitingAppends.values()
-                .stream()
-                .mapToInt(a -> a.getData().readableBytes())
-                .sum();
+                    .stream()
+                    .mapToInt(a -> a.getData().readableBytes())
+                    .sum();
         }
         // Registered gauge value
         pendBytes.set(bytesWaiting);

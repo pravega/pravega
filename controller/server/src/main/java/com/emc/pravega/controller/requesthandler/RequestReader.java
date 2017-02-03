@@ -24,21 +24,18 @@ import com.emc.pravega.controller.NonRetryableException;
 import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.requests.ControllerRequest;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ReaderConfig;
-import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.PositionComparator;
 import com.google.common.base.Preconditions;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
-import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -56,14 +53,13 @@ import java.util.stream.Collectors;
  * The request reader submits a processing of a request asynchronously and moves on to next request.
  * It handles exceptions that are thrown by processing and if the thrown exception is of type Retryable, then
  * the request is written into the stream.
- *
+ * <p>
  * It is expected of requesthandlers to wrap their processing in enough retries locally before throwing a retryable
  * exception to request reader.
- *
+ * <p>
  * The request reader also maintains a checkpoint candidate position from among the events for which processing is complete.
  * Everytime a new request completes, it updates the checkpoint candidate.
  * It periodically checkpoints the candidate position object into metadata store.
- *
  *
  * @param <R>
  * @param <H>
@@ -85,7 +81,8 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
     private AtomicBoolean stop = new AtomicBoolean(false);
     private final H requestHandler;
 
-    public RequestReader(final String requestStream,
+    public RequestReader(final ClientFactory clientFactory,
+                         final String requestStream,
                          final String readerId,
                          final String readerGroup,
                          final Position start,
@@ -102,9 +99,6 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
         positionComparator = new PositionComparator();
         running = new ConcurrentSkipListSet<>(positionComparator);
         completed = new ConcurrentSkipListSet<>(positionComparator);
-
-        // controller is localhost.
-        ClientFactory clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, URI.create(String.format("tcp://localhost:%d", Config.SERVER_PORT)));
 
         // TODO: create reader in a group instead of a standalone reader.
         // read request stream name from configuration

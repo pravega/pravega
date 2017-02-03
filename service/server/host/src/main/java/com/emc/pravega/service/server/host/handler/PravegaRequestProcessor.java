@@ -59,7 +59,6 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
-import com.emc.pravega.service.server.host.stats.SegmentStats;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -68,10 +67,11 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-
 
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Cache;
@@ -81,6 +81,8 @@ import static com.emc.pravega.service.server.host.PravegaRequestStats.ALL_READ_B
 import static com.emc.pravega.service.server.host.PravegaRequestStats.CREATE_SEGMENT;
 import static com.emc.pravega.service.server.host.PravegaRequestStats.READ_SEGMENT;
 import static com.emc.pravega.service.server.host.PravegaRequestStats.SEGMENT_READ_BYTES;
+import static com.emc.pravega.service.server.stats.SegmentStatsRecorder.putScaleType;
+import static com.emc.pravega.service.server.stats.SegmentStatsRecorder.putTargetRate;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
@@ -260,11 +262,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
 
+        Map<String, String> attributes = new HashMap<>();
+        putScaleType(attributes, createStreamsSegment.getScaleType());
+        putTargetRate(attributes, createStreamsSegment.getTargetRate());
+
         CompletableFuture<Void> future = segmentStore.createStreamSegment(
-                createStreamsSegment.getSegment(), TIMEOUT);
-        future.thenAccept((Void v) -> {
-            SegmentStats.createSegment(createStreamsSegment.getSegment(), createStreamsSegment.getScaleType(), createStreamsSegment.getDesiredRate());
-        });
+                createStreamsSegment.getSegment(), attributes, TIMEOUT);
 
         future.thenApply((Void v) -> {
             Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
@@ -328,21 +331,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 return null;
             });
 
-            mergeFuture.thenCompose(x -> segmentStore.getStreamSegmentInfo(transactionName, TIMEOUT))
-                    .thenAccept(segmentProp -> {
-                        // TODO: How to get number of events in txn segment.
-                        // We will keep txn stats simple:
-                        // total data written in the txn segment * txn lifespan.
-                        // TODO: know txn lifespan. We need either txn creation time. Or we need txn timeout
-                        // in order to approximate txn lifetime.
-                        // Since we do not have segment creationTime in the metadata, we will assume txn lived
-                        // for txn timeout duration if txnTimeout is of fixed size.
-                        // Currently taking 1 minute fixed txn timeout.
-                        long txnCreationTime = System.currentTimeMillis() - TIMEOUT.toMillis();
-                        int numOfEvents = 0;
-                        SegmentStats.merge(commitTx.getSegment(), segmentProp.getLength(), numOfEvents, txnCreationTime);
-                    });
-
             return null;
         }).exceptionally((Throwable e) -> {
             handleException(transactionName, "Commit transaction", e);
@@ -376,8 +364,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             handleException(segment, "Seal segment", e);
             return null;
         });
-
-        future.thenAccept(size -> SegmentStats.sealSegment(sealSegment.getSegment()));
     }
 
     @Override

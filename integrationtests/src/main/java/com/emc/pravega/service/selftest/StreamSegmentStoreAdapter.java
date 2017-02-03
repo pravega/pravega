@@ -34,6 +34,7 @@ import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -152,7 +153,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     @Override
     public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.createStreamSegment(streamSegmentName, timeout);
+        return this.streamSegmentStore.createStreamSegment(streamSegmentName, Collections.emptyMap(), timeout);
     }
 
     @Override

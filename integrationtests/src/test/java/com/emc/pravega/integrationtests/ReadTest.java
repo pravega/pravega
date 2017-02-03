@@ -58,6 +58,7 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -213,7 +214,7 @@ public class ReadTest {
     private void fillStoreForSegment(String segmentName, UUID clientId, byte[] data, int numEntries,
                                      StreamSegmentStore segmentStore) {
         try {
-            segmentStore.createStreamSegment(segmentName, Duration.ZERO).get();
+            segmentStore.createStreamSegment(segmentName, Collections.emptyMap(), Duration.ZERO).get();
             for (int eventNumber = 1; eventNumber <= numEntries; eventNumber++) {
                 AppendContext appendContext = new AppendContext(clientId, eventNumber);
                 segmentStore.append(segmentName, data, appendContext, Duration.ZERO).get();

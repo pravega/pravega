@@ -15,13 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.service.server.host.stats;
+package com.emc.pravega.service.server.stats;
 
 import com.emc.pravega.common.netty.WireCommands;
 
+import java.io.Serializable;
 import java.time.Duration;
 
-class SegmentAggregates {
+class SegmentAggregates implements Serializable {
     private static final int INTERVAL = 5;
 
     private static final int SECONDS_PER_MINUTE = 60;
@@ -43,38 +44,39 @@ class SegmentAggregates {
     /**
      * Policy = 10 bytes.
      */
-    byte scaleType;
-    long targetRate;
+    private byte scaleType;
+
+    private long targetRate;
 
     /**
      * Rates for Scale up = 24 bytes.
      */
-    double twoMinuteRate;
-    double fiveMinuteRate;
-    double tenMinuteRate;
+    private double twoMinuteRate;
+    private double fiveMinuteRate;
+    private double tenMinuteRate;
 
     /**
      * Rate for Scale down = 8 bytes.
      */
-    double twentyMinuteRate;
+    private double twentyMinuteRate;
 
     /**
      * 16 bytes.
      */
-    long lastReportedTime;
+    private long lastReportedTime;
 
     /**
      * Start time and last ticked time.
      * 16 bytes.
      */
-    long startTime;
+    private long startTime;
 
     private long lastTick;
 
     /**
      * 8 bytes.
      */
-    // Note: we are not concurrency protecting this variable
+    // Note: we are not concurrency protecting this variable for performance reasons
     private long currentCount;
 
     SegmentAggregates(long targetRate, byte scaleType) {
@@ -114,6 +116,45 @@ class SegmentAggregates {
         }
     }
 
+    public void setScaleType(byte scaleType) {
+        this.scaleType = scaleType;
+    }
+
+    public void setTargetRate(long targetRate) {
+        this.targetRate = targetRate;
+    }
+
+    public byte getScaleType() {
+        return scaleType;
+    }
+
+    public long getTargetRate() {
+        return targetRate;
+    }
+
+    public double getTwoMinuteRate() {
+        return twoMinuteRate;
+    }
+
+    public double getFiveMinuteRate() {
+        return fiveMinuteRate;
+    }
+
+    public double getTenMinuteRate() {
+        return tenMinuteRate;
+    }
+
+    public double getTwentyMinuteRate() {
+        return twentyMinuteRate;
+    }
+
+    public long getLastReportedTime() {
+        return lastReportedTime;
+    }
+
+    public long getStartTime() {
+        return startTime;
+    }
 
     private void computeDecay(long size, long duration) {
         // We have two options here --
@@ -136,5 +177,9 @@ class SegmentAggregates {
     private double decayingRate(long count, double rate, double alpha, long interval) {
         final double instantRate = count / interval;
         return rate + (alpha * (instantRate - rate));
+    }
+
+    public void setLastReportedTime(long lastReportedTime) {
+        this.lastReportedTime = lastReportedTime;
     }
 }

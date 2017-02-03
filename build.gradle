@@ -170,6 +170,7 @@ project('service') {
         testCompile project(':service:contracts')
         testCompile project(':service:server')
         testCompile project(':service:server:host')
+        testCompile project(':service:monitor')
         testCompile project(':service:storage')
         testCompile project(':service:storage:impl')
         testCompile project(':controller:contract')

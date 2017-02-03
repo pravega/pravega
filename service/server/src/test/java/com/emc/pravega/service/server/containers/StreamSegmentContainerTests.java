@@ -47,6 +47,7 @@ import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.reading.TestReadResultHandler;
+import com.emc.pravega.service.server.stats.SegmentStatsFactory;
 import com.emc.pravega.service.server.writer.StorageWriterFactory;
 import com.emc.pravega.service.server.writer.WriterConfig;
 import com.emc.pravega.service.storage.CacheFactory;
@@ -61,6 +62,7 @@ import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -68,6 +70,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.Lists;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -735,7 +739,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i);
             segmentNames.add(segmentName);
-            futures.add(context.container.createStreamSegment(segmentName, TIMEOUT));
+            futures.add(context.container.createStreamSegment(segmentName, Collections.emptyMap(), TIMEOUT));
         }
 
         FutureHelpers.allOf(futures).join();
@@ -826,6 +830,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final WriterFactory writerFactory;
         private final CacheFactory cacheFactory;
         private final InMemoryStorage storage;
+        private final SegmentStatsFactory statsFactory;
 
         TestContext() {
             this.metadataRepository = new InMemoryMetadataRepository();
@@ -835,7 +840,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.cacheFactory = new InMemoryCacheFactory();
             this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.storageFactory, executorService());
             this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, this.storageFactory, executorService());
-            StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, executorService());
+            this.statsFactory = new SegmentStatsFactory(Lists.newArrayList());
+            StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, this.statsFactory, executorService());
             this.container = factory.createStreamSegmentContainer(CONTAINER_ID);
             this.storage = (InMemoryStorage) this.storageFactory.getStorageAdapter();
         }

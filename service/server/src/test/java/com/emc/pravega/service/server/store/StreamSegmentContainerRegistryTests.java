@@ -39,6 +39,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -258,7 +259,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
+        public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
             return null;
         }
 

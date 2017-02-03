@@ -41,6 +41,7 @@ import java.io.InterruptedIOException;
 import java.io.PrintStream;
 import java.time.Duration;
 import java.util.AbstractMap;
+import java.util.Collections;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
@@ -166,7 +167,7 @@ public class InteractiveStreamSegmentStoreTester {
         String name = parsedCommand.getNext();
         checkArguments(name != null && name.length() > 0, Commands.SYNTAXES.get(Commands.CREATE));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.createStreamSegment(name, defaultTimeout), r -> log(startTime, "Created StreamSegment %s.", name));
+        await(this.streamSegmentStore.createStreamSegment(name, Collections.emptyMap(), defaultTimeout), r -> log(startTime, "Created StreamSegment %s.", name));
     }
 
     private void deleteStream(CommandLineParser parsedCommand) {
