@@ -15,27 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server.rest.test;
+package com.emc.pravega.controller.server.rest.contract.response;
 
-import com.emc.pravega.controller.server.rest.resources.PingImpl;
-import org.glassfish.jersey.server.ResourceConfig;
-import org.glassfish.jersey.test.JerseyTest;
-import org.junit.Test;
+import com.emc.pravega.controller.server.rest.contract.common.RetentionPolicyCommon;
+import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommon;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 
-import javax.ws.rs.core.Application;
+import java.io.Serializable;
 
-import static org.junit.Assert.assertEquals;
-
-public class PingTest extends JerseyTest {
-
-    @Override
-    protected Application configure() {
-        return new ResourceConfig(PingImpl.class);
-    }
-
-    @Test
-    public void test() {
-        final String hello = target("/v1/ping").request().get(String.class);
-        assertEquals("true", hello);
-    }
+/**
+ * REST representation of properties of a stream.
+ */
+@AllArgsConstructor
+@Getter
+@Setter
+public class StreamProperty implements Serializable {
+    private String scope;
+    private String streamName;
+    private ScalingPolicyCommon scalingPolicy;
+    private RetentionPolicyCommon retentionPolicy;
 }
