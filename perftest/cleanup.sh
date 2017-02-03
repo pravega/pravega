@@ -9,13 +9,13 @@ do
 #	mount /dev/sdca1 /mnt/bki;
 #	mount /dev/sdd1 /mnt/bkl;"
 ssh $ip "rm -r /mnt/bki/* /mnt/bkj/* /mnt/bkl/*;df"
-ssh $ip "docker ps| grep entry | cut -d' ' -f 1 - | xargs docker stop | xargs docker rm"
+#ssh $ip "docker ps| grep entry | cut -d' ' -f 1 - | xargs docker stop | xargs docker rm"
 #ssh $ip "docker rmi arvindkandhare/pravega_host"
 	
 done
 
 hdfs dfs -rm -r /Scope
-cat << EOF | ./distributedlog-service/bin/dlog zkshell 10.249.250.151
+cat << EOF | ~/distributedlog-service/bin/dlog zkshell 10.249.250.151
 deleteall /cluster
 deleteall /messaging
 deleteall /streams
