@@ -32,26 +32,26 @@ import java.util.concurrent.TimeUnit;
  * Request handler for handling txn timeout requests.
  * It receives a txn request and if the txn has not timed out, it schedules until the txn times out.
  * If it has timed out the drop treansaction flow is executed.
- *
+ * <p>
  * Note: a transactions timeout could be well into future and we would have scheduled a request in the executor.
  * This has two risks - if a lot of txns are coming in, we need a mechanism to slow down our request handling
  * or we will put a lot of stress on controller's memory.
- *
+ * <p>
  * So we need to slow down fetches from txn queue until the existing backlog clears.
- *
+ * <p>
  * A simpler scheme is if all txns have a fixed timeout and are posted into the queue in approximate order of
  * their timeout period. Then we can simply sleep and block the execution here.
- *
+ * <p>
  * Right now we have a block method that is called and requests are assumed to follow the timeToDrop order.
  * The order can be achieved if all txns have fixed timeout period and these requests are posted in order of txn creation.
  * This order is not strictly guaranteed as there could be race between txns created concurrently.
  * But that error is within acceptable range of acting when a timeout occurs.
- *
+ * <p>
  * Note: however, the ordering can still break significantly if we fail to drop a txn after timeout and fail with
  * a retryable exception. That will lead to txn being put back into the txnTimeout stream. And once its put back
  * there is no ordering guarantee for this event. However, its ok as we did try to execute this txn at the time
  * when it had timed out and we need to give fair opportunity to other txns.
- *
+ * <p>
  * Also, if a scale request for this stream comes in, it will try to sweep clean all such txns that were not cleaned up
  * through this scheme.
  */
@@ -73,6 +73,8 @@ public class TransactionTimer implements RequestHandler<TxTimeoutRequest> {
                 .thenAccept(status -> {
                     if (status.equals(TxnStatus.OPEN)) {
                         result.completeExceptionally(new RetryableException("Failed to drop and transaction is still open. Retry."));
+                    } else {
+                        result.complete(null);
                     }
 
                 }), request.getTimeToDrop() - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
@@ -87,6 +89,6 @@ public class TransactionTimer implements RequestHandler<TxTimeoutRequest> {
         // If that changes, we will need to change this scheme.
         if (System.currentTimeMillis() < timeToDrop) {
             Exceptions.handleInterrupted(() -> Thread.sleep(timeToDrop - System.currentTimeMillis()));
-            }
+        }
     }
 }

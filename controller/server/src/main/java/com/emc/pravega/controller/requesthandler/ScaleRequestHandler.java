@@ -120,9 +120,23 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                             .thenApply(StreamConfiguration::getScalingPolicy);
 
                     if (request.getDirection() == (byte) 0) {
-                        return policyFuture.thenCompose(policy -> processScaleUp(request, policy, context));
+                        return policyFuture.thenCompose(policy -> processScaleUp(request, policy, context))
+                                .whenComplete((res, ex) -> {
+                                    if (ex != null) {
+                                        result.completeExceptionally(ex);
+                                    } else {
+                                        result.complete(res);
+                                    }
+                                });
                     } else {
-                        return policyFuture.thenCompose(policy -> processScaleDown(request, policy, context));
+                        return policyFuture.thenCompose(policy -> processScaleDown(request, policy, context))
+                                .whenComplete((res, ex) -> {
+                                    if (ex != null) {
+                                        result.completeExceptionally(ex);
+                                    } else {
+                                        result.complete(res);
+                                    }
+                                });
                     }
                 }, executor);
 
