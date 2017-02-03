@@ -56,7 +56,7 @@ public class SynchronizerTest {
     }
     
     @Data
-    private static class NormalUpdate implements Update<RevisionedImpl>, InitialUpdate<RevisionedImpl>, Serializable {
+    private static class RegularUpdate implements Update<RevisionedImpl>, InitialUpdate<RevisionedImpl>, Serializable {
         @Override
         public RevisionedImpl create(String scopedStreamName, Revision revision) {
             return new RevisionedImpl(scopedStreamName, revision);
@@ -191,30 +191,30 @@ public class SynchronizerTest {
                                                                                        new JavaSerializer<>(),
                                                                                        new SynchronizerConfig(null, null));
         AtomicInteger callCount = new AtomicInteger(0);
-        sync.initialize(new NormalUpdate());
+        sync.initialize(new RegularUpdate());
         sync.updateState(state -> {
             callCount.incrementAndGet();
-            return Collections.singletonList(new NormalUpdate());
+            return Collections.singletonList(new RegularUpdate());
         });
         assertEquals(1, callCount.get());
         sync.updateState(state -> {
             callCount.incrementAndGet();
-            return Collections.singletonList(new NormalUpdate());
+            return Collections.singletonList(new RegularUpdate());
         });
         assertEquals(2, callCount.get());
         sync.compact(state -> {
             callCount.incrementAndGet();
-            return new NormalUpdate();
+            return new RegularUpdate();
         });
         assertEquals(3, callCount.get());
         sync.updateState(s -> {
             callCount.incrementAndGet();
-            return Collections.singletonList(new NormalUpdate());
+            return Collections.singletonList(new RegularUpdate());
         });
         assertEquals(5, callCount.get());
         sync.compact(state -> {
             callCount.incrementAndGet();
-            return new NormalUpdate();
+            return new RegularUpdate();
         });
         assertEquals(6, callCount.get());
     }

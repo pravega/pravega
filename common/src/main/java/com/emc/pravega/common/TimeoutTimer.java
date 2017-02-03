@@ -30,7 +30,7 @@ public class TimeoutTimer {
     private volatile long initialNanos;
 
     /**
-     * Creates a new instane of the TimeoutTimer class.
+     * Creates a new instance of the TimeoutTimer class.
      *
      * @param initialTimeout The initial timeout.
      */
@@ -39,7 +39,7 @@ public class TimeoutTimer {
     }
     
     /**
-     * Creates a new instane of the TimeoutTimer class.
+     * Creates a new instance of the TimeoutTimer class.
      *
      * @param initialTimeout The initial timeout.
      * @param getNanos The supplier of nanoseconds.

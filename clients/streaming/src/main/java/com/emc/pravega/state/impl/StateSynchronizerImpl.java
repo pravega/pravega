@@ -162,6 +162,5 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             currentState = newValue;
         }
     }
-
     
 }
