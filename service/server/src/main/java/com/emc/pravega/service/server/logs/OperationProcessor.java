@@ -231,6 +231,7 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
             }
         } catch (Throwable ex) {
             handleIterationException(ex, state, operations);
+            dataFrameBuilder.reset();
         }
     }
 
