@@ -18,14 +18,14 @@
 
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.common.util.IndexEntry;
+import com.emc.pravega.common.util.SortedIndex;
 import com.google.common.base.Preconditions;
 import javax.annotation.concurrent.GuardedBy;
 
 /**
  * An entry in the Read Index with data at a particular offset.
  */
-abstract class ReadIndexEntry implements IndexEntry<Long> {
+abstract class ReadIndexEntry implements SortedIndex.IndexEntry {
     //region Members
 
     private final long streamSegmentOffset;
@@ -101,7 +101,7 @@ abstract class ReadIndexEntry implements IndexEntry<Long> {
     }
 
     @Override
-    public Long key() {
+    public long key() {
         return this.streamSegmentOffset;
     }
 
