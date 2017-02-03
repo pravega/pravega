@@ -48,23 +48,17 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
-
-
-
 /**
  * Sample app will simulate sensors that measure temperatures of Wind Turbines Gearbox.
  * Data format is in comma separated format as following: {TimeStamp, Sensor Id, Location, TempValue }.
- *
  */
 public class TurbineHeatSensor {
-
 
     private static Stream stream;
     private static PerfStats produceStats, consumeStats;
     private static String controllerUri = "http://10.249.250.154:9090";
     private static int messageSize = 100;
     private static String streamName = StartLocalService.STREAM_NAME;
-    private static ClientFactoryImpl factory = null;
     private static boolean onlyWrite = true;
     private static boolean blocking = false;
     // How many producers should we run concurrently
@@ -76,30 +70,30 @@ public class TurbineHeatSensor {
     // Should producers use Transaction or not
     private static boolean isTransaction = false;
 
-
     public static void main(String[] args) throws Exception {
 
         // Place names where wind farms are located
         String[] locations = {"Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut",
                 "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas",
-                "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi",
-                "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico", "New York",
-                "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island",
-                "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
-                "West Virginia", "Wisconsin", "Wyoming", "Montgomery", "Juneau", "Phoenix", "Little Rock",
-                "Sacramento", "Denver", "Hartford", "Dover", "Tallahassee", "Atlanta", "Honolulu", "Boise",
-                "Springfield", "Indianapolis", "Des Moines", "Topeka", "Frankfort", "Baton Rouge", "Augusta",
-                "Annapolis", "Boston", "Lansing", "St. Paul", "Jackson", "Jefferson City", "Helena", "Lincoln",
-                "Carson City", "Concord", "Trenton", "Santa Fe", "Albany", "Raleigh", "Bismarck", "Columbus",
-                "Oklahoma City", "Salem", "Harrisburg", "Providence", "Columbia", "Pierre", "Nashville", "Austin",
-                "Salt Lake City", "Montpelier", "Richmond", "Olympia", "Charleston", "Madison", "Cheyenne"};
+                "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota",
+                "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New " +
+                "Mexico", "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania",
+                "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont",
+                "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming", "Montgomery", "Juneau", "Phoenix",
+                "Little Rock", "Sacramento", "Denver", "Hartford", "Dover", "Tallahassee", "Atlanta", "Honolulu",
+                "Boise", "Springfield", "Indianapolis", "Des Moines", "Topeka", "Frankfort", "Baton Rouge",
+                "Augusta", "Annapolis", "Boston", "Lansing", "St. Paul", "Jackson", "Jefferson City", "Helena",
+                "Lincoln", "Carson City", "Concord", "Trenton", "Santa Fe", "Albany", "Raleigh", "Bismarck",
+                "Columbus", "Oklahoma City", "Salem", "Harrisburg", "Providence", "Columbia", "Pierre", "Nashville",
+                "Austin", "Salt Lake City", "Montpelier", "Richmond", "Olympia", "Charleston", "Madison", "Cheyenne"};
 
         parseCmdLine(args);
 
-        System.out.println("\nTurbineHeatSensor is running "+ producerCount + " simulators each ingesting " +
-                eventsPerSec + " temperature data per second for " + runtimeSec + " seconds " +
-                (isTransaction ? "via transactional mode" : " via non-transactional mode. The controller end point " +
-                        "is " + controllerUri));
+        System.out.println(
+                "\nTurbineHeatSensor is running " + producerCount + " simulators each ingesting " + eventsPerSec + " " +
+                        "temperature data per second for " + runtimeSec + " seconds " + (isTransaction ? "via " +
+                        "transactional mode" : " via non-transactional mode. The controller end point " + "is " +
+                        controllerUri));
 
         // Initialize executor
         @Cleanup("shutdown")
@@ -107,13 +101,10 @@ public class TurbineHeatSensor {
 
         try {
             @Cleanup
-            StreamManager streamManager = null;
-            streamManager = new StreamManagerImpl(StartLocalService.SCOPE, new URI(controllerUri));
+            StreamManager streamManager = new StreamManagerImpl(StartLocalService.SCOPE, new URI(controllerUri));
 
-            stream = streamManager.createStream(streamName,
-                    new StreamConfigurationImpl("hi", streamName,
-                            new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 5,
-                                    producerCount)));
+            stream = streamManager.createStream(streamName, new StreamConfigurationImpl("hi", streamName,
+                    new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 5, producerCount)));
         } catch (URISyntaxException e) {
             e.printStackTrace();
             System.exit(1);
@@ -121,19 +112,21 @@ public class TurbineHeatSensor {
 
         produceStats = new PerfStats(producerCount * eventsPerSec * runtimeSec, 200);
 
-        if ( !onlyWrite ) {
+        if (!onlyWrite) {
             consumeStats = new PerfStats(producerCount * eventsPerSec * runtimeSec, 2);
-            SensorReader reader = new SensorReader(producerCount * eventsPerSec * runtimeSec);
+            SensorReader reader = new SensorReader(producerCount * eventsPerSec * runtimeSec,
+                    new ClientFactoryImpl("hi", new URI(controllerUri)));
+
             executor.execute(reader);
         }
         /* Create producerCount number of threads to simulate sensors. */
         for (int i = 0; i < producerCount; i++) {
-            factory = new ClientFactoryImpl("hi", new URI(controllerUri));
+            ClientFactoryImpl factory = new ClientFactoryImpl("hi", new URI(controllerUri));
 
             TemperatureSensors worker;
-            if ( isTransaction ) {
+            if (isTransaction) {
                 worker = new TransactionTemperatureSensors(i, locations[i % locations.length], eventsPerSec, runtimeSec,
-                                isTransaction, factory);
+                        isTransaction, factory);
             } else {
                 worker = new TemperatureSensors(i, locations[i % locations.length], eventsPerSec, runtimeSec,
                         isTransaction, factory);
@@ -149,7 +142,7 @@ public class TurbineHeatSensor {
         System.out.println("\nFinished all producers");
         produceStats.printAll();
         produceStats.printTotal();
-        if ( !onlyWrite ) {
+        if (!onlyWrite) {
             consumeStats.printTotal();
         }
         System.exit(0);
@@ -243,21 +236,22 @@ public class TurbineHeatSensor {
             this.eventsPerSec = eventsPerSec;
             this.secondsToRun = secondsToRun;
             this.isTransaction = isTransaction;
-            this.producer = factory.createEventWriter(streamName, new JavaSerializer<>(),
-                    new EventWriterConfig(null));
+            this.producer = factory.createEventWriter(streamName, new JavaSerializer<>(), new EventWriterConfig(null));
 
         }
 
         /**
          * This function will be executed in a loop and time behavior is measured.
+         *
          * @return A function which takes String key and data and returns a future object.
          */
         BiFunction<String, String, Future> sendFunction() {
-            return  ( key, data) -> producer.writeEvent(key, data);
+            return (key, data) -> producer.writeEvent(key, data);
         }
 
         /**
          * Executes the given method over the producer with configured settings.
+         *
          * @param fn The function to execute.
          */
         void runLoop(BiFunction<String, String, Future> fn) {
@@ -267,37 +261,35 @@ public class TurbineHeatSensor {
                 int currentEventsPerSec = 0;
 
                 long loopStartTime = System.nanoTime();
-                while ( currentEventsPerSec < eventsPerSec) {
+                while (currentEventsPerSec < eventsPerSec) {
                     currentEventsPerSec++;
 
                     // Construct event payload
-                    String val = System.nanoTime() + ", " + producerId + ", " + city + ", " + (int) (Math.random() * 200);
+                    String val = System.nanoTime() + ", " + producerId + ", " + city + ", " + (int) (Math.random() *
+                            200);
                     String payload = String.format("%-" + messageSize + "s", val);
                     // event ingestion
                     long now = System.nanoTime();
                     retFuture = produceStats.runAndRecordTime(() -> {
-                                    return (CompletableFuture<Void>) fn.apply(Integer.toString(producerId),
-                                            payload);
-                                },
-                                now,
-                                payload.length());
-                        //If it is a blocking call, wait for the ack
-                        if ( blocking ) {
-                            try {
-                                retFuture.get();
-                            } catch (InterruptedException  | ExecutionException e) {
-                                e.printStackTrace();
-                            }
+                        return (CompletableFuture<Void>) fn.apply(Integer.toString(producerId), payload);
+                    }, now, payload.length());
+                    //If it is a blocking call, wait for the ack
+                    if (blocking) {
+                        try {
+                            retFuture.get();
+                        } catch (InterruptedException | ExecutionException e) {
+                            e.printStackTrace();
                         }
+                    }
 
                 }
                 long timeSpent = System.nanoTime() - loopStartTime;
                 // wait for next event
                 try {
                     //There is no need for sleep for blocking calls.
-                    if ( !blocking ) {
-                        if ( timeSpent < 1000000 ) {
-                            Thread.sleep((1000000 - timeSpent) / 1000 );
+                    if (!blocking) {
+                        if (timeSpent < 1000000) {
+                            Thread.sleep((1000000 - timeSpent) / 1000);
                         }
                     }
                 } catch (InterruptedException e) {
@@ -310,7 +302,7 @@ public class TurbineHeatSensor {
             try {
                 //Wait for the last packet to get acked
                 retFuture.get();
-            } catch (InterruptedException | ExecutionException e ) {
+            } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
             }
         }
@@ -333,7 +325,7 @@ public class TurbineHeatSensor {
         }
 
         BiFunction<String, String, Future> sendFunction() {
-            return  ( key, data) -> {
+            return (key, data) -> {
                 try {
                     transaction.writeEvent(key, data);
                 } catch (TxnFailedException e) {
@@ -349,24 +341,28 @@ public class TurbineHeatSensor {
      * A Sensor reader class that reads the temperative data
      */
     private static class SensorReader implements Runnable {
-        private int totalEvents;
+        private final int totalEvents;
+        private final ClientFactoryImpl factory;
 
-        public SensorReader(int totalEvents) {
+        public SensorReader(int totalEvents,  ClientFactoryImpl factory) {
             this.totalEvents = totalEvents;
+            this.factory = factory;
         }
 
         @Override
         public void run() {
             @Cleanup
-            EventStreamReader<String> reader = factory.createReader(streamName,
-                    new JavaSerializer<>(), new ReaderConfig(), null);
+            EventStreamReader<String> reader = factory.createReader(streamName, new JavaSerializer<>(),
+                    new ReaderConfig(), null);
 
-            do {
+            int events = 0;
+            while (events < totalEvents) {
                 final EventRead<String> result = reader.readNextEvent(0);
                 produceStats.runAndRecordTime(() -> {
                     return CompletableFuture.completedFuture(null);
                 }, Long.parseLong(result.getEvent()), 100);
-            } while ( totalEvents-- > 0 );
+                events++;
+            }
         }
     }
 

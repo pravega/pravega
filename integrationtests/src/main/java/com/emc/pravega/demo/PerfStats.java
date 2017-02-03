@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.demo;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -26,6 +27,7 @@ class PerfStats {
     private long windowStart;
     private int[] latencies;
     private int sampling;
+    @GuardedBy("lock")
     private int iteration;
     private int index;
     private long count;
@@ -37,6 +39,7 @@ class PerfStats {
     private long windowTotalLatency;
     private long windowBytes;
     private long reportingInterval;
+    private final Object lock = new Object();
 
     public PerfStats(long numRecords, int reportingInterval) {
         this.start = System.nanoTime();
@@ -137,11 +140,16 @@ class PerfStats {
     public CompletableFuture<Void> runAndRecordTime(Supplier<CompletableFuture<Void>> fn,
                                                     long startTime,
                                                     int length) {
-        int iter = this.iteration++;
+        int iter = incrementIter();
         return fn.get().thenAccept( (lmn) -> {
             record(iter, (int) (System.nanoTime() - startTime), length,
                     System.nanoTime());
         });
+    }
 
+    private int incrementIter() {
+        synchronized (this.lock) {
+            return this.iteration++;
+        }
     }
 }
