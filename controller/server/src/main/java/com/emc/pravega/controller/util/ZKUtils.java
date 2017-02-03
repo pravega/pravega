@@ -41,7 +41,7 @@ public final class ZKUtils {
 
         CuratorSingleton() {
             //Create and initialize the curator client framework.
-            zkClient = CuratorFrameworkFactory.newClient(Config.ZK_URL, new ExponentialBackoffRetry(
+            zkClient = CuratorFrameworkFactory.newClient(Config.zKURL, new ExponentialBackoffRetry(
                         Config.ZK_RETRY_SLEEP_MS, Config.ZK_MAX_RETRIES));
             zkClient.start();
         }
