@@ -33,7 +33,7 @@ public class ExponentialMovingAverage {
     /**
      * Creates a new value to track.
      * 
-     * @param initalValue The value to be used as the initial average
+     * @param initialValue The value to be used as the initial average
      * @param newSampleWeight The fractional weight to give to new samples. 0.0 - 1.0 (exclusive)
      * @param logarithmicWeighting If the samples should be weighted logarithmically to reduce the impact of outliers.
      */

@@ -30,7 +30,7 @@ public interface AppendBatchSizeTracker {
     /**
      * Records that one or more events have been acked.
      * 
-     * @param eventNumber the nubmer of the last event
+     * @param eventNumber the number of the last event
      */
     void recordAck(long eventNumber);
 
