@@ -21,6 +21,7 @@ package com.emc.pravega.common.concurrent;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.google.common.base.Preconditions;
+
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
@@ -41,6 +42,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
 import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -214,8 +216,11 @@ public final class FutureHelpers {
      * this future.
      */
     public static <T> CompletableFuture<Void> toVoid(CompletableFuture<T> future) {
-        return future.thenAccept(r -> {
-        });
+        return future.thenAccept(FutureHelpers::doNothing);
+    }
+
+    private static <T> void doNothing(T ignored) {
+        // This method intentionally left blank.
     }
 
     //endregion
