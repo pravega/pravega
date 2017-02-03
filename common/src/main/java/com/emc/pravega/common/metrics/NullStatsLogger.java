@@ -25,6 +25,7 @@ public class NullStatsLogger implements StatsLogger {
     public static final NullStatsLogger INSTANCE = new NullStatsLogger();
     static final NullCounter NULLCOUNTER = new NullCounter();
     static final NullGauge NULLGAUGE = new NullGauge();
+    static final NullMeter NULLMETER = new NullMeter();
     private static final String NULLNAME = "";
     private static final NullOpStatsLogger NULLOPSTATSLOGGER = new NullOpStatsLogger();
 
@@ -95,6 +96,28 @@ public class NullStatsLogger implements StatsLogger {
         }
     }
 
+    static class NullMeter implements Meter {
+        @Override
+        public void mark() {
+            // nop
+        }
+
+        @Override
+        public void mark(long n) {
+            // nop
+        }
+
+        @Override
+        public long getCount() {
+            return 0L;
+        }
+
+        @Override
+        public String getName() {
+            return NULLNAME;
+        }
+    }
+
     @Override
     public OpStatsLogger createStats(String name) {
         return NULLOPSTATSLOGGER;
@@ -114,6 +137,11 @@ public class NullStatsLogger implements StatsLogger {
     @Override
     public <T extends Number> Gauge registerGauge(String name, Supplier<T> value) {
         return NULLGAUGE;
+    }
+
+    @Override
+    public Meter createMeter(String name) {
+        return NULLMETER;
     }
 
     @Override

@@ -40,6 +40,14 @@ public interface StatsLogger {
     public Counter createCounter(String name);
 
     /**
+     * Create meter meter.
+     *
+     * @param name the Stats name
+     * @return Create and register Meter described by the <i>name</i>
+     */
+    public Meter createMeter(String name);
+
+    /**
      * Register gauge.
      * <i>value</i> is usually get of Number: AtomicInteger::get, AtomicLong::get
      *

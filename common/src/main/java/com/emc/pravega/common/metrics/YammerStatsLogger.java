@@ -103,6 +103,42 @@ public class YammerStatsLogger implements StatsLogger {
         }
     }
 
+    private static class MeterImpl implements Meter {
+        private final com.codahale.metrics.Meter meter;
+        private final String name;
+
+        MeterImpl(com.codahale.metrics.Meter meter, String name) {
+            this.meter = meter;
+            this.name = name;
+        }
+
+        @Override
+        public void mark() {
+            meter.mark();
+        }
+
+        @Override
+        public void mark(long n) {
+            meter.mark(n);
+        }
+
+        @Override
+        public long getCount() {
+            return meter.getCount();
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+    }
+
+    @Override
+    public Meter createMeter(String statName) {
+        final com.codahale.metrics.Meter meter = metrics.meter(name(basename, statName));
+        return new MeterImpl(meter, name(basename, statName));
+    }
+
     @Override
     public <T extends Number> Gauge registerGauge(final String statName, Supplier<T> value) {
         String metricName = name(basename, statName);

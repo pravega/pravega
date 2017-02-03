@@ -63,6 +63,19 @@ public class YammerProviderTest {
     }
 
     /**
+     * Test Meter registered and  worked well with StatsLogger.
+     */
+    @Test
+    public void testMeter() {
+        Meter testMeter = statsLogger.createMeter("testMeter");
+        testMeter.mark();
+        testMeter.mark();
+        assertEquals(2, testMeter.getCount());
+        testMeter.mark(27);
+        assertEquals(29, testMeter.getCount());
+    }
+
+    /**
      * Test gauge registered and  worked well with StatsLogger..
      */
     @Test
