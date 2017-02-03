@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
@@ -30,8 +30,6 @@ import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Optional;
@@ -40,6 +38,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 
 public abstract class PersistentStreamBase<T> implements Stream {
     private final String name;
@@ -150,14 +149,14 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 final Segment segment = (Segment) futures[0].get();
                 final Data<T> indexTable = (Data<T>) futures[1].get();
                 final Data<T> historyTable = (Data<T>) futures[2].get();
-                return FutureCollectionHelper.sequence(
+                return FutureHelpers.allOfWithResults(
                         TableHelper.findSegmentSuccessorCandidates(segment,
                                 indexTable.getData(),
                                 historyTable.getData())
                                 .stream()
                                 .map(this::getSegment)
                                 .collect(Collectors.toList()))
-                        .thenApply(successorCandidates -> new ImmutablePair<>(segment, successorCandidates));
+                                    .thenApply(successorCandidates -> new ImmutablePair<>(segment, successorCandidates));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -183,7 +182,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 final Segment segment = (Segment) futures[0].get();
                 final Data<T> indexTable = (Data<T>) futures[1].get();
                 final Data<T> historyTable = (Data<T>) futures[2].get();
-                return FutureCollectionHelper.sequence(
+                return FutureHelpers.allOfWithResults(
                         TableHelper.findSegmentPredecessorCandidates(segment,
                                 indexTable.getData(),
                                 historyTable.getData())
@@ -375,7 +374,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .boxed()
                 .map(this::getSegment)
                 .collect(Collectors.<CompletableFuture<Segment>>toList());
-        return FutureCollectionHelper.sequence(segments);
+        return FutureHelpers.allOfWithResults(segments);
     }
 
     /**
