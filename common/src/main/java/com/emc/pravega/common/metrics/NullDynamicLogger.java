@@ -15,18 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.common.metrics;
 
-package com.emc.pravega.common.util;
+public class NullDynamicLogger implements DynamicLogger {
+    public static final NullDynamicLogger INSTANCE = new NullDynamicLogger();
 
-/**
- * Defines a generic entry into an Index.
- *
- * @param <K> The Type of the key.
- */
-public interface IndexEntry<K> {
-    /**
-     * Gets a value representing the key of the entry. The Key should not change for the lifetime of the entry and
-     * should be very cheap to return (as it is used very frequently).
-     */
-    K key();
+    @Override
+    public void incCounterValue(String name, long delta) {
+        // nop
+    }
+
+    @Override
+    public <T extends Number> void reportGaugeValue(String name, T value) {
+        // nop
+    }
 }

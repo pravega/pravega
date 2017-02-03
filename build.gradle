@@ -42,7 +42,6 @@ allprojects {
     docker {
         url = dockerUrl
     }
-
     repositories {
         // Use 'jcenter' for resolving your dependencies.
         // You can declare any Maven/Ivy/file repository here.
@@ -69,7 +68,7 @@ allprojects {
         compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
 
         testCompile 'junit:junit:4.12'
-        compile group: 'com.google.guava', name: 'guava', version: '19.0'
+        compile group: 'com.google.guava', name: 'guava', version: '16.0'
         compile group: 'commons-lang', name: 'commons-lang', version: '2.6'
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: '1.3.9'
         compile group: 'org.projectlombok', name: 'lombok', version: '1.16.10'
@@ -120,6 +119,11 @@ project('common') {
         compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: '3.1.0'
         // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-jvm
         compile group: 'io.dropwizard.metrics', name: 'metrics-jvm', version: '3.1.0'
+
+        jar {
+            from project.sourceSets.main.output
+            from project(":testcommon").sourceSets.main.output
+        }
     }
     publishing {
         publications {
@@ -140,11 +144,51 @@ project('clients:streaming') {
         compile project(":controller:contract")
         testCompile project(':testcommon')
     }
+}
+
+project('clients') {
+    dependencies {
+        testCompile project(':clients:streaming')
+    }
+    jar {
+        from project(":clients:streaming").sourceSets.main.output
+    }
     publishing {
         publications {
             maven(MavenPublication) {
                 groupId 'pravega'
                 artifactId 'client'
+                version = pravegaVersion
+                from components.java
+            }
+        }
+    }
+}
+
+project('service') {
+    dependencies {
+        testCompile project(':service:contracts')
+        testCompile project(':service:server')
+        testCompile project(':service:server:host')
+        testCompile project(':service:storage')
+        testCompile project(':service:storage:impl')
+        testCompile project(':controller:contract')
+        testCompile project(':controller:server')
+    }
+    jar {
+        from project(":service:contracts").sourceSets.main.output
+        from project(":service:server").sourceSets.main.output
+        from project(":service:server:host").sourceSets.main.output
+        from project(":service:storage").sourceSets.main.output
+        from project(":service:storage:impl").sourceSets.main.output
+        from project(":controller:contract").sourceSets.main.output
+        from project(":controller:server").sourceSets.main.output
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                groupId 'pravega'
+                artifactId 'service'
                 version = pravegaVersion
                 from components.java
             }
@@ -339,16 +383,6 @@ project('controller:contract') {
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: '2.25'
         compile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-netty', version: '2.25'
     }
-    publishing {
-        publications {
-            maven(MavenPublication) {
-                groupId 'pravega'
-                artifactId 'contract'
-                version = pravegaVersion
-                from components.java
-            }
-        }
-    }
 }
 
 project('controller:server') {
@@ -404,6 +438,57 @@ project('controller:server') {
         }
     }
 }
+
+
+
+project('singlenode') {
+    apply plugin: 'application'
+    mainClassName = "com.emc.pravega.local.LocalPravegaEmulator"
+    applicationDefaultJvmArgs = ["-server", "-Xms4g", "-XX:+HeapDumpOnOutOfMemoryError", "-Xdebug",
+                                 "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"]
+    dependencies {
+        compile project(':common')
+        compile project(':clients:streaming')
+        compile project(':service:server')
+        compile project(':service:server:host')
+        compile project(':controller:server')
+
+        compile project(':service:contracts')
+        compile project(':service:storage')
+        compile project(':service:storage:impl')
+
+        compile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
+        // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
+        compile group: 'org.apache.hadoop', name: 'hadoop-common', version: '2.7.3'
+
+        // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '2.7.3'
+
+        compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: '2.7.3'
+
+        compile('com.twitter:distributedlog-core:0.3.51-RC1') {
+            exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+        }
+        compile('com.twitter:distributedlog-client:0.3.51-RC1') {
+            exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+        }
+        compile group: 'com.google.guava', name: 'guava', version: '16.0'
+
+        testCompile project(':testcommon')
+        testCompile files(project(':common').sourceSets.test.output)
+        compile files(project(':clients:streaming').sourceSets.test.output)
+        testCompile files(project(':service:server').sourceSets.test.output)
+        testCompile files(project(':service:server:host').sourceSets.test.output)
+    }
+
+    task startSinglenode(type: JavaExec) {
+        main = "com.emc.pravega.local.LocalPravegaEmulator"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+        args = ["4000", "5000", "6000"]
+    }
+}
+
 
 subprojects {
     task allDeps(type: DependencyReportTask) {}

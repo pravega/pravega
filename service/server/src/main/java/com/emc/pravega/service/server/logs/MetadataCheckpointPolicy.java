@@ -19,8 +19,9 @@
 package com.emc.pravega.service.server.logs;
 
 import com.google.common.base.Preconditions;
-
 import java.util.concurrent.Executor;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Configurable Checkpointing Policy for the Metadata for a single container.
@@ -33,13 +34,16 @@ import java.util.concurrent.Executor;
  * size), then no checkpointing is done.
  * </ul>
  */
+@ThreadSafe
 public class MetadataCheckpointPolicy {
     // region Members
 
     private final DurableLogConfig config;
     private final Runnable createCheckpointCallback;
     private final Executor executor;
+    @GuardedBy("this")
     private int commitCount;
+    @GuardedBy("this")
     private long accumulatedLength;
 
     //endregion
@@ -96,7 +100,9 @@ public class MetadataCheckpointPolicy {
 
     @Override
     public String toString() {
-        return String.format("Count = %d/%d, Length = %d/%d", this.commitCount, this.config.getCheckpointCommitCountThreshold(), this.accumulatedLength, this.config.getCheckpointTotalCommitLengthThreshold());
+        synchronized (this) {
+            return String.format("Count = %d/%d, Length = %d/%d", this.commitCount, this.config.getCheckpointCommitCountThreshold(), this.accumulatedLength, this.config.getCheckpointTotalCommitLengthThreshold());
+        }
     }
 
     //endregion
