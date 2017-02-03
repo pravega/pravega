@@ -31,9 +31,6 @@ import com.emc.pravega.service.server.logs.operations.CompletableOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.google.common.base.Preconditions;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-
 import java.time.Duration;
 import java.util.Collection;
 import java.util.LinkedList;
@@ -41,6 +38,8 @@ import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Single-thread Processor for Operations. Queues all incoming entries in a BlockingDrainingQueue, then picks them all
@@ -191,13 +190,13 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
         try {
             // Process the operations in the queue. This loop will ensure we continue processing after a recoverable failure,
             // as well as after we processed the entire collection, but found more items in need of processing.
-            while (operations.size() > 0) {
+            while (!operations.isEmpty()) {
                 // Process the current set of operations.
                 processOperations(operations, state, dataFrameBuilder);
 
                 // Check if there are more operations to process. If so, it's more efficient to process them now (no thread
                 // context switching, better DataFrame occupancy optimization) rather than by going back to run().
-                if (operations.size() == 0) {
+                if (operations.isEmpty()) {
                     operations = this.operationQueue.poll(MAX_READ_AT_ONCE);
                     log.debug("{}: processOperations (Add OperationCount = {}).", this.traceObjectId, operations.size());
                 }
@@ -220,7 +219,7 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
      */
     private void processOperations(Queue<CompletableOperation> operations, QueueProcessingState state, DataFrameBuilder<Operation> dataFrameBuilder) {
         try {
-            while (operations.size() > 0) {
+            while (!operations.isEmpty()) {
                 CompletableOperation o = operations.poll();
                 if (processOperation(o, dataFrameBuilder)) {
                     // Add the operation as 'pending', only if we were able to successfully append it to a data frame.
