@@ -41,7 +41,7 @@ public class ExponentialMovingAverage {
         Preconditions.checkArgument(newSampleWeight > 0.0 && newSampleWeight < 1.0, "New sample weight must be between 0.0 and 1.0");       
         this.newSampleWeight = newSampleWeight;
         this.logarithmicWeighting = logarithmicWeighting;
-        double value = logarithmicWeighting ? Math.log(initalValue) : initalValue;
+        double value = logWeight(initalValue);
         this.valueEncodedAsLong = new AtomicLong(Double.doubleToLongBits(value));
     }
     
@@ -50,8 +50,9 @@ public class ExponentialMovingAverage {
      */
     public double getCurrentValue() {
         double result = Double.longBitsToDouble(valueEncodedAsLong.get());
-        return logarithmicWeighting ? Math.exp(result) : result;
+        return unLogWeight(result);
     }
+
     
     /**
      * Adds a new sample to the moving average and returns the updated value.
@@ -59,10 +60,26 @@ public class ExponentialMovingAverage {
      * @param newSample the new value to be added
      */
     public double addNewSample(double newSample) {
-        final double sample = logarithmicWeighting ? Math.log(newSample) : newSample;
+        final double sample = logWeight(newSample);
         return Double.longBitsToDouble(valueEncodedAsLong.updateAndGet(value -> {
             return Double.doubleToRawLongBits(sample * newSampleWeight + (1.0 - newSampleWeight) * Double.longBitsToDouble(value));
         }));
+    }
+
+    private double logWeight(double newSample) {
+        if (!logarithmicWeighting) {
+            return newSample;
+        } 
+        
+        return Math.signum(newSample) * Math.log1p(Math.abs(newSample));
+    }
+    
+    private double unLogWeight(double result) {
+        if (!logarithmicWeighting) {
+            return result;
+        } 
+        
+        return Math.signum(result) * (Math.expm1(Math.abs(result)));
     }
     
     @Override

@@ -16,7 +16,7 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private final AtomicLong lastAppendNumber;
     private final AtomicLong lastAppendTime;
     private final AtomicLong lastAckNumber;
-    private final ExponentialMovingAverage eventSize = new ExponentialMovingAverage(1024, 0.05, true);
+    private final ExponentialMovingAverage eventSize = new ExponentialMovingAverage(1024, 0.1, true);
     private final ExponentialMovingAverage millisBetweenAppends = new ExponentialMovingAverage(10, 0.1, false);
 
     AppendBatchSizeTrackerImpl() {
