@@ -26,12 +26,10 @@ import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockClientFactory;
-
-import java.util.concurrent.CompletableFuture;
-
+import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 
-import lombok.Cleanup;
+import java.util.concurrent.CompletableFuture;
 
 public class EndToEndTransactionTest {
     public static void main(String[] args) throws Exception {
