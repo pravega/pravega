@@ -22,6 +22,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
+import com.emc.pravega.controller.requesthandler.TxTimeoutStreamScheduler;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
@@ -62,7 +63,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.emc.pravega.controller.util.Config.*;
+import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
 
 @Slf4j
 public class LocalPravegaEmulator implements AutoCloseable {
@@ -259,7 +260,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 controllerExecutor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, controllerExecutor, hostId);
+                hostStore, taskMetadataStore, controllerExecutor, hostId, new TxTimeoutStreamScheduler());
         RPCServer.start(new ControllerServiceAsyncImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks)));
 
