@@ -55,7 +55,7 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     }
 
     @Override
-    public void noteAppend(long eventNumber, int size) {
+    public void recordAppend(long eventNumber, int size) {
         long now = Math.max(lastAppendTime.get(), clock.get());
         long last = lastAppendTime.getAndSet(now);
         lastAppendNumber.set(eventNumber);
@@ -64,7 +64,7 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     }
 
     @Override
-    public void noteAck(long eventNumber) {
+    public void recordAck(long eventNumber) {
         lastAckNumber.getAndSet(eventNumber);
     }
 

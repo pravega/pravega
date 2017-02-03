@@ -20,19 +20,19 @@ package com.emc.pravega.common.netty;
 public interface AppendBatchSizeTracker {
 
     /**
-     * Note that an append has been sent.
+     * Records that an append has been sent.
      * 
      * @param eventNumber the number of the event
      * @param size the size of the event
      */
-    void noteAppend(long eventNumber, int size);
+    void recordAppend(long eventNumber, int size);
 
     /**
-     * Note that one or more events have been acked.
+     * Records that one or more events have been acked.
      * 
      * @param eventNumber the nubmer of the last event
      */
-    void noteAck(long eventNumber);
+    void recordAck(long eventNumber);
 
     /**
      * Returns the size that should be used for the next append block.

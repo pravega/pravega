@@ -34,14 +34,14 @@ public class ExponentialMovingAverage {
      * Creates a new value to track.
      * 
      * @param initalValue The value to be used as the initial average
-     * @param newSampleWeight The fractional weight to give to new samples. 0.0 - 1.0
+     * @param newSampleWeight The fractional weight to give to new samples. 0.0 - 1.0 (exclusive)
      * @param logarithmicWeighting If the samples should be weighted logarithmically to reduce the impact of outliers.
      */
-    public ExponentialMovingAverage(double initalValue, double newSampleWeight, boolean logarithmicWeighting ) {
+    public ExponentialMovingAverage(double initialValue, double newSampleWeight, boolean logarithmicWeighting ) {
         Preconditions.checkArgument(newSampleWeight > 0.0 && newSampleWeight < 1.0, "New sample weight must be between 0.0 and 1.0");       
         this.newSampleWeight = newSampleWeight;
         this.logarithmicWeighting = logarithmicWeighting;
-        double value = logWeight(initalValue);
+        double value = calculateLog(initialValue);
         this.valueEncodedAsLong = new AtomicLong(Double.doubleToLongBits(value));
     }
     
@@ -50,7 +50,7 @@ public class ExponentialMovingAverage {
      */
     public double getCurrentValue() {
         double result = Double.longBitsToDouble(valueEncodedAsLong.get());
-        return unLogWeight(result);
+        return calculateExponential(result);
     }
 
     
@@ -60,13 +60,13 @@ public class ExponentialMovingAverage {
      * @param newSample the new value to be added
      */
     public double addNewSample(double newSample) {
-        final double sample = logWeight(newSample);
+        final double sample = calculateLog(newSample);
         return Double.longBitsToDouble(valueEncodedAsLong.updateAndGet(value -> {
             return Double.doubleToRawLongBits(sample * newSampleWeight + (1.0 - newSampleWeight) * Double.longBitsToDouble(value));
         }));
     }
 
-    private double logWeight(double newSample) {
+    private double calculateLog(double newSample) {
         if (!logarithmicWeighting) {
             return newSample;
         } 
@@ -74,7 +74,7 @@ public class ExponentialMovingAverage {
         return Math.signum(newSample) * Math.log1p(Math.abs(newSample));
     }
     
-    private double unLogWeight(double result) {
+    private double calculateExponential(double result) {
         if (!logarithmicWeighting) {
             return result;
         } 

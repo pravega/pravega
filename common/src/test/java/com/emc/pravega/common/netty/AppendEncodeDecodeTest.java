@@ -72,12 +72,12 @@ public class AppendEncodeDecodeTest {
         }
 
         @Override
-        public void noteAppend(long eventNumber, int size) {
+        public void recordAppend(long eventNumber, int size) {
 
         }
 
         @Override
-        public void noteAck(long eventNumber) {
+        public void recordAck(long eventNumber) {
         }
 
         @Override
