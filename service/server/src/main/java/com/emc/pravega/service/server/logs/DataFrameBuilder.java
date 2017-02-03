@@ -98,7 +98,16 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
     //endregion
 
-    //region Appending
+    //region Operations
+
+    /**
+     * Resets the DataFrameBuilder to its initial state.
+     */
+    public void reset() {
+        this.lastSerializedSequenceNumber = -1;
+        this.lastStartedSequenceNumber = -1;
+        this.outputStream.reset();
+    }
 
     /**
      * Appends a LogItem to the DataFrameBuilder. If any exceptions happened during serialization, whatever contents was

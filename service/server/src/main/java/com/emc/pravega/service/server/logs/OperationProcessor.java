@@ -31,6 +31,9 @@ import com.emc.pravega.service.server.logs.operations.CompletableOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.google.common.base.Preconditions;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.Duration;
 import java.util.Collection;
 import java.util.LinkedList;
@@ -38,8 +41,6 @@ import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Single-thread Processor for Operations. Queues all incoming entries in a BlockingDrainingQueue, then picks them all
@@ -182,25 +183,17 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
      */
     private void processOperations(Queue<CompletableOperation> operations) {
         log.debug("{}: processOperations (OperationCount = {}).", this.traceObjectId, operations.size());
-        QueueProcessingState state = null;
-        DataFrameBuilder<Operation> dataFrameBuilder = null;
+
+        // Create a new State and Builder (we need this either initially or after recovery from an error).
+        final QueueProcessingState state = new QueueProcessingState(this.metadataUpdater, this.stateUpdater, this.checkpointPolicy, this.traceObjectId);
+        final DataFrameBuilder<Operation> dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, state::commit, state::fail);
 
         try {
             // Process the operations in the queue. This loop will ensure we continue processing after a recoverable failure,
             // as well as after we processed the entire collection, but found more items in need of processing.
             while (operations.size() > 0) {
-                if (state == null) {
-                    // Create a new State and Builder (we need this either initially or after recovery from an error).
-                    state = new QueueProcessingState(this.metadataUpdater, this.stateUpdater, this.checkpointPolicy, this.traceObjectId);
-                    dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, state::commit, state::fail);
-                }
-
                 // Process the current set of operations.
-                if (!processOperations(operations, state, dataFrameBuilder)) {
-                    // Unable to process a set of operations. The best way to move forward is to start with clean state
-                    state = null;
-                    dataFrameBuilder = null; // Don't close - that would attempt flushing, which is not desired in this case.
-                }
+                processOperations(operations, state, dataFrameBuilder);
 
                 // Check if there are more operations to process. If so, it's more efficient to process them now (no thread
                 // context switching, better DataFrame occupancy optimization) rather than by going back to run().
@@ -210,11 +203,9 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
                 }
             }
 
-            if (dataFrameBuilder != null) {
-                // Close the DataFrameBuilder, which makes sure that the last set of operations are properly flushed and
-                // completed.
-                dataFrameBuilder.close();
-            }
+            // Close the DataFrameBuilder, which makes sure that the last set of operations are properly flushed and
+            // completed.
+            dataFrameBuilder.close();
         } catch (Throwable ex) {
             handleIterationException(ex, state, operations);
         }
@@ -226,28 +217,20 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
      * @param operations       The operations to process.
      * @param state            The QueueProcessingState to use.
      * @param dataFrameBuilder The DataFrameBuilder to use for constructing DataFrames.
-     * @return True if all the operations were processed without an unexpected exception, false if an exception was
-     * encountered which prevented at least one operation from being processed. Note that this is different from
-     * operations being rejected because of an external error.
      */
-    private boolean processOperations(Queue<CompletableOperation> operations, QueueProcessingState state, DataFrameBuilder<Operation> dataFrameBuilder) {
+    private void processOperations(Queue<CompletableOperation> operations, QueueProcessingState state, DataFrameBuilder<Operation> dataFrameBuilder) {
         try {
             while (operations.size() > 0) {
                 CompletableOperation o = operations.poll();
-                boolean processedSuccessfully = processOperation(o, dataFrameBuilder);
-
-                // Add the operation as 'pending', only if we were able to successfully append it to a data frame.
-                // We only commit data frames when we attempt to start a new record (if it's full) or if we try to
-                // close it, so we will not miss out on it.
-                if (processedSuccessfully) {
+                if (processOperation(o, dataFrameBuilder)) {
+                    // Add the operation as 'pending', only if we were able to successfully append it to a data frame.
+                    // We only commit data frames when we attempt to start a new record (if it's full) or if we try to
+                    // close it, so we will not miss out on it.
                     state.addPending(o);
                 }
             }
-
-            return true;
         } catch (Throwable ex) {
             handleIterationException(ex, state, operations);
-            return false;
         }
     }
 
