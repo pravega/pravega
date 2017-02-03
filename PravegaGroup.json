@@ -8,31 +8,26 @@
           "id": "/pravega/bkgroup/bookie", 
           "cpus": 2,
           "mem": 1000,
-          "instances": 5,
+          "instances":5,
           "constraints": [["hostname", "UNIQUE"]],
           "container": {
               "type": "DOCKER",
               "volumes": [
-              {
-                  "containerPath": "/bk/journal",
-                  "hostPath": "/mnt/journal",
-                  "mode": "RW"
-              },
-              {
-                  "containerPath": "/bk/index",
-                  "hostPath": "/mnt/index",
-                  "mode": "RW"
-              },
-              {
-                  "containerPath": "/bk/ledgers",
-                  "hostPath": "/mnt/ledgers",
-                  "mode": "RW"
-              },
-              {
-                  "containerPath": "/opt/dl_all/distributedlog-service/logs/",
-                  "hostPath": "/mnt/logs",
-                  "mode": "RW"
-              },
+	    {
+        "containerPath": "/bk/ledgers",
+        "hostPath": "/mnt/bkl",
+        "mode": "RW"
+      },
+ {
+        "containerPath": "/bk/journal",
+        "hostPath": "/mnt/bkj",
+        "mode": "RW"
+      },
+ {
+        "containerPath": "/bk/index",
+        "hostPath": "/mnt/bki",
+        "mode": "RW"
+      },
               {
                   "containerPath": "persist",
                   "mode": "RW",
@@ -43,13 +38,11 @@
               ],
 
               "docker": {
-                  "image": "zhaijia/bookie",
+                  "image": "zhaijia/bookkeeper",
                   "network": "HOST",
                    "parameters": [
-                                 { "key": "env",
-                                   "value": "DLOG_EXTRA_OPTS=-Xms512m "
-				 }
-		   ]
+                                        { "key": "env",
+                                          "value": "DLOG_EXTRA_OPTS=-Xms512m " }]
 
               }
           },
@@ -67,17 +60,7 @@
           "env": {
               "ZK": "master.mesos:2181"
           },
-          "healthChecks": [
-            {
-               "protocol": "TCP",
-               "port": 3181,
-               "gracePeriodSeconds": 900,
-               "intervalSeconds": 60,
-               "timeoutSeconds": 20,
-               "maxConsecutiveFailures": 0,
-               "ignoreHttp1xx": false
-            }
-          ],
+
           "upgradeStrategy": {
               "maximumOverCapacity": 0,
               "minimumHealthCapacity": 0
@@ -93,7 +76,7 @@
       "apps": [
       { 
           "id": "/pravega/hostgroup/host",
-	  "backoffSeconds": 7200,
+	  "backoffSeconds": 7200, 
           "cpus": 2,
           "mem": 1000,
           "instances": 3,
@@ -110,7 +93,13 @@
               "docker": {
                   "image": "arvindkandhare/pravega_host",
                   "network": "HOST",
-		  "forcePullImage": true
+		  "forcePullImage": false,
+ 		  "parameters": [
+                                        {
+					  "key": "env",
+                                          "value": "pravegaservice_enablezipkin=false"
+				        }
+                              ]
               }
           },
 
@@ -123,17 +112,6 @@
 
           "requirePorts": true,
 
-	  "healthChecks": [
-            {
-               "protocol": "TCP",
-               "port": 12345,
-               "gracePeriodSeconds": 900,
-               "intervalSeconds": 60,
-               "timeoutSeconds": 20,
-               "maxConsecutiveFailures": 0,
-               "ignoreHttp1xx": false
-            }
-          ],
           "upgradeStrategy": {
               "maximumOverCapacity": 0,
               "minimumHealthCapacity": 0
@@ -143,6 +121,7 @@
     },
     {
       "id": "/pravega/controllergroup",
+      "dependencies": ["/pravega/bkgroup"],
       "apps": [
       { 
           "id": "/pravega/controllergroup/controller", 
@@ -159,7 +138,7 @@
         				{ "key": "env",
         				  "value": "SERVER_OPTS=\"-DZK_URL=master.mesos:2181\"" }
 		    ],
-		  "forcePullImage": true
+		  "forcePullImage": false
               }
           },
 
@@ -171,20 +150,7 @@
           ],
 
           "requirePorts": true,
-          "env": {
-              "SERVER_OPTS": "-DZK_URL=master.mesos:2181"
-          },
-          "healthChecks": [
-            {
-               "protocol": "TCP",
-               "port": 9090,
-               "gracePeriodSeconds": 900,
-               "intervalSeconds": 60,
-               "timeoutSeconds": 20,
-               "maxConsecutiveFailures": 0,
-               "ignoreHttp1xx": false
-            }
-          ],
+
           "upgradeStrategy": {
               "maximumOverCapacity": 0,
               "minimumHealthCapacity": 0
