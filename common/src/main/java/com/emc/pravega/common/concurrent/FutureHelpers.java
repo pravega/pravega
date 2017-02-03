@@ -21,11 +21,10 @@ package com.emc.pravega.common.concurrent;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.google.common.base.Preconditions;
-import lombok.Data;
-import lombok.SneakyThrows;
-
 import java.time.Duration;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -42,11 +41,16 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import lombok.Data;
+import lombok.SneakyThrows;
+import lombok.val;
 
 /**
  * Extensions to Future and CompletableFuture.
  */
 public final class FutureHelpers {
+    //region Completion
+
     /**
      * Waits for the provided future to be complete, and returns if it was successful, false otherwise.
      *
@@ -177,15 +181,92 @@ public final class FutureHelpers {
     }
 
     /**
+     * Completes the supplied CompletableFuture object with either the exception or a valid value. Preference is given
+     * to exception e when both the exception e and result value are non-null.
+     *
+     * @param result The result object to complete.
+     * @param value  The result value.
+     * @param e      Exception.
+     * @param <T>    Type parameter.
+     */
+    public static <T> void complete(final CompletableFuture<T> result, final T value, final Throwable e) {
+        if (e != null) {
+            result.completeExceptionally(e);
+        } else {
+            result.complete(value);
+        }
+    }
+
+    /**
+     * A variant of .exceptionally that admits an exception handler returning value of type T in future. Exceptionally
+     * and flatExceptionally can be thought of as analogous to map and flatMap method for transforming Futures.
+     *
+     * @param input            The input future.
+     * @param exceptionHandler Exception handler.
+     * @param <T>              Type parameter.
+     * @return result of exceptionHandler if input completed exceptionally, otherwise input.
+     */
+    public static <T> CompletableFuture<T> flatExceptionally(final CompletableFuture<T> input,
+                                                             final Function<Throwable, CompletableFuture<T>> exceptionHandler) {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        input.whenComplete((r, e) -> {
+            if (e != null) {
+                exceptionHandler.apply(e)
+                                .whenComplete((ir, ie) -> complete(result, ir, ie));
+            } else {
+                result.complete(r);
+            }
+        });
+        return result;
+    }
+
+    /**
+     * Returns a CompletableFuture that will end when the given future ends, but discards its result. If the given future
+     * fails, the returned future will fail with the same exception.
+     *
+     * @param future The CompletableFuture to attach to.
+     * @param <T>    The type of the input's future result.
+     * @return A CompletableFuture that will complete when the given future completes. If the given future fails, so will
+     * this future.
+     */
+    public static <T> CompletableFuture<Void> toVoid(CompletableFuture<T> future) {
+        return future.thenAccept(r -> {
+        });
+    }
+
+    //endregion
+
+    //region Collections
+
+    /**
      * Similar implementation to CompletableFuture.allOf(vararg) but that works on a Collection and that returns another
      * Collection which has the results of the given CompletableFutures.
      *
-     * @param futures A Collection of CompletableFutures to wait on.
+     * @param futures A List of CompletableFutures to wait on.
      * @param <T>     The type of the results items.
      */
-    public static <T> CompletableFuture<Collection<T>> allOfWithResults(Collection<CompletableFuture<T>> futures) {
+    public static <T> CompletableFuture<List<T>> allOfWithResults(List<CompletableFuture<T>> futures) {
         CompletableFuture<Void> allDoneFuture = CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
         return allDoneFuture.thenApply(v -> futures.stream().map(CompletableFuture::join).collect(Collectors.toList()));
+    }
+
+    /**
+     * Similar to CompletableFuture.allOf(varargs), but that works on a Map and that returns another Map which has the
+     * results of the given CompletableFutures, with the same input keys.
+     *
+     * @param futureMap A Map of Keys to CompletableFutures to wait on.
+     * @param <K>       The type of the Keys.
+     * @param <V>       The Type of the Values.
+     * @return A CompletableFuture that will contain a Map of Keys to Values, where Values are the results of the Futures
+     * in the input map.
+     */
+    public static <K, V> CompletableFuture<Map<K, V>> allOfWithResults(Map<K, CompletableFuture<V>> futureMap) {
+        return FutureHelpers
+                .allOf(futureMap.values())
+                .thenApply(ignored ->
+                        futureMap.entrySet().stream()
+                                 .collect(Collectors.toMap(Map.Entry::getKey, future -> future.getValue().join()))
+                );
     }
 
     /**
@@ -197,6 +278,32 @@ public final class FutureHelpers {
     public static <T> CompletableFuture<Void> allOf(Collection<CompletableFuture<T>> futures) {
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
     }
+
+    /**
+     * Filter that takes a predicate that evaluates in future and returns the filtered list that evaluates in future.
+     *
+     * @param input     Input list.
+     * @param predicate Predicate that evaluates in the future.
+     * @param <T>       Type parameter.
+     * @return List that evaluates in future.
+     */
+    public static <T> CompletableFuture<List<T>> filter(List<T> input, Function<T, CompletableFuture<Boolean>> predicate) {
+        Preconditions.checkNotNull(input);
+
+        val allFutures = input.stream().collect(Collectors.toMap(key -> key, predicate::apply));
+        return FutureHelpers
+                .allOf(allFutures.values())
+                .thenApply(ignored ->
+                        allFutures.entrySet()
+                                  .stream()
+                                  .filter(e -> e.getValue().join())
+                                  .map(Map.Entry::getKey).collect(Collectors.toList())
+                );
+    }
+
+    //endregion
+
+    //region Time-based Futures
 
     /**
      * Creates a new CompletableFuture that will timeout after the given amount of time.
@@ -223,6 +330,18 @@ public final class FutureHelpers {
         ScheduledFuture<Boolean> sf = executorService.schedule(() -> result.completeExceptionally(new TimeoutException(tag)), timeout.toMillis(), TimeUnit.MILLISECONDS);
         result.whenComplete((r, ex) -> sf.cancel(true));
         return result;
+    }
+
+    /**
+     * Attaches the given callback as an exception listener to the given CompletableFuture, which will be invoked when
+     * the future times out (fails with a TimeoutException).
+     *
+     * @param future   The future to attach to.
+     * @param callback The callback to invoke.
+     * @param <T>      The Type of the future's result.
+     */
+    public static <T> void onTimeout(CompletableFuture<T> future, Consumer<TimeoutException> callback) {
+        exceptionListener(future, TimeoutException.class, callback);
     }
 
     /**
@@ -293,57 +412,9 @@ public final class FutureHelpers {
         return result;
     }
 
-    /**
-     * Completes the supplied CompletableFuture object with either the exception or a valid value. Preference is given
-     * to exception e when both the exception e and result value are non-null.
-     *
-     * @param result The result object to complete.
-     * @param value  The result value.
-     * @param e      Exception.
-     * @param <T>    Type parameter.
-     */
-    public static <T> void complete(final CompletableFuture<T> result, final T value, final Throwable e) {
-        if (e != null) {
-            result.completeExceptionally(e);
-        } else {
-            result.complete(value);
-        }
-    }
+    //endregion
 
-    /**
-     * A variant of .exceptionally that admits an exception handler returning value of type T in future. Exceptionally
-     * and flatExceptionally can be thought of as analogous to map and flatMap method for transforming Futures.
-     *
-     * @param input            The input future.
-     * @param exceptionHandler Exception handler.
-     * @param <T>              Type parameter.
-     * @return result of exceptionHandler if input completed exceptionally, otherwise input.
-     */
-    public static <T> CompletableFuture<T> flatExceptionally(final CompletableFuture<T> input,
-                                                             final Function<Throwable, CompletableFuture<T>> exceptionHandler) {
-        CompletableFuture<T> result = new CompletableFuture<>();
-        input.whenComplete((r, e) -> {
-            if (e != null) {
-                exceptionHandler.apply(e)
-                                .whenComplete((ir, ie) -> complete(result, ir, ie));
-            } else {
-                result.complete(r);
-            }
-        });
-        return result;
-    }
-
-    /**
-     * Attaches the given callback as an exception listener to the given CompletableFuture, which will be invoked when
-     * the future times out (fails with a TimeoutException).
-     *
-     * @param future   The future to attach to.
-     * @param callback The callback to invoke.
-     * @param <T>      The Type of the future's result.
-     */
-    public static <T> void onTimeout(CompletableFuture<T> future, Consumer<TimeoutException> callback) {
-        exceptionListener(future, TimeoutException.class, callback);
-    }
+    //region Loops
 
     /**
      * Executes a loop using CompletableFutures, without invoking join()/get() on any of them or exclusively hogging a thread.
@@ -414,19 +485,7 @@ public final class FutureHelpers {
         return result;
     }
 
-    /**
-     * Returns a CompletableFuture that will end when the given future ends, but discards its result. If the given future
-     * fails, the returned future will fail with the same exception.
-     *
-     * @param future The CompletableFuture to attach to.
-     * @param <T>    The type of the input's future result.
-     * @return A CompletableFuture that will complete when the given future completes. If the given future fails, so will
-     * this future.
-     */
-    public static <T> CompletableFuture<Void> toVoid(CompletableFuture<T> future) {
-        return future.thenAccept(r -> {
-        });
-    }
+    //endregion
 
     //region Loop Implementation
 

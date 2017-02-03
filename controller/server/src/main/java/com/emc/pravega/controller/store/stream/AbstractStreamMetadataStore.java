@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -25,8 +26,6 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Sets;
-
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,9 +39,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static com.emc.pravega.common.concurrent.FutureCollectionHelper.filter;
-import static com.emc.pravega.common.concurrent.FutureCollectionHelper.sequence;
+import javax.annotation.ParametersAreNonnullByDefault;
 
 /**
  * Abstract Stream metadata store. It implements various read queries using the Stream interface.
@@ -54,20 +51,20 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     protected AbstractStreamMetadataStore() {
         cache = CacheBuilder.newBuilder()
-                .maximumSize(1000)
-                .refreshAfterWrite(10, TimeUnit.MINUTES)
-                .expireAfterWrite(10, TimeUnit.MINUTES)
-                .build(
-                        new CacheLoader<String, Stream>() {
-                            @ParametersAreNonnullByDefault
-                            public Stream load(String name) {
-                                try {
-                                    return newStream(name);
-                                } catch (Exception e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                        });
+                            .maximumSize(1000)
+                            .refreshAfterWrite(10, TimeUnit.MINUTES)
+                            .expireAfterWrite(10, TimeUnit.MINUTES)
+                            .build(
+                                    new CacheLoader<String, Stream>() {
+                                        @ParametersAreNonnullByDefault
+                                        public Stream load(String name) {
+                                            try {
+                                                return newStream(name);
+                                            } catch (Exception e) {
+                                                throw new RuntimeException(e);
+                                            }
+                                        }
+                                    });
     }
 
     abstract Stream newStream(final String name);
@@ -109,11 +106,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<List<Segment>> getActiveSegments(final String name) {
         final Stream stream = getStream(name);
         return stream.getState()
-                .thenCompose(state ->
-                        State.SEALED.equals(state) ? CompletableFuture.completedFuture(Collections.emptyList()) : stream
-                                .getActiveSegments())
-                .thenCompose(currentSegments -> sequence(currentSegments.stream().map(stream::getSegment)
-                        .collect(Collectors.toList())));
+                     .thenCompose(state ->
+                             State.SEALED.equals(state) ? CompletableFuture.completedFuture(Collections.emptyList()) : stream
+                                     .getActiveSegments())
+                     .thenCompose(currentSegments -> FutureHelpers.allOfWithResults(currentSegments.stream().map(stream::getSegment)
+                                                                                                   .collect(Collectors.toList())));
     }
 
     @Override
@@ -200,7 +197,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         List<CompletableFuture<List<Integer>>> list =
                 activeSegments.stream().map(number -> getDefaultFutures(stream, number)).collect(Collectors.toList());
 
-        CompletableFuture<List<List<Integer>>> futureDefaultFutures = sequence(list);
+        CompletableFuture<List<List<Integer>>> futureDefaultFutures = FutureHelpers.allOfWithResults(list);
         return futureDefaultFutures
                 .thenApply(futureList -> {
                             for (int i = 0; i < futureList.size(); i++) {
@@ -228,7 +225,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private CompletableFuture<List<Integer>> getDefaultFutures(final Stream stream, final int number) {
         CompletableFuture<List<Integer>> futureSuccessors = stream.getSuccessors(number);
         return futureSuccessors.thenCompose(
-                list -> filter(list, elem -> stream.getPredecessors(elem).thenApply(x -> x.size() == 1)));
+                list -> FutureHelpers.filter(list, elem -> stream.getPredecessors(elem).thenApply(x -> x.size() == 1)));
     }
 
     private CompletableFuture<Set<Integer>> getImplicitCompletedSegments(final Stream stream,
@@ -240,8 +237,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         .map(x -> stream.getPredecessors(x).thenApply(list -> list.stream().collect(Collectors.toSet())))
                         .collect(Collectors.toList());
 
-        return sequence(futures)
-                .thenApply(list -> Sets.union(completedSegments, list.stream().reduce(Collections.emptySet(), Sets::union)));
+        return FutureHelpers.allOfWithResults(futures)
+                            .thenApply(list -> Sets.union(completedSegments, list.stream().reduce(Collections.emptySet(), Sets::union)));
     }
 
     private CompletableFuture<Set<Integer>> getSuccessors(final Stream stream, final Set<Integer> completedSegments) {
@@ -255,8 +252,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         .map(x -> stream.getSuccessors(x).thenApply(list -> list.stream().collect(Collectors.toSet())))
                         .collect(Collectors.toList());
 
-        return sequence(futures)
-                .thenApply(list -> list.stream().reduce(Collections.emptySet(), Sets::union));
+        return FutureHelpers.allOfWithResults(futures)
+                            .thenApply(list -> list.stream().reduce(Collections.emptySet(), Sets::union));
     }
 
     private CompletableFuture<List<Integer>> getNewCurrents(final Stream stream,
@@ -269,15 +266,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         // 3. all its predecessors completed.
         // shall become current and be added to some position
         List<Integer> newCurrents = successors.stream().filter(x ->
-                        // 2. it is not completed yet, and
-                        !completedSegments.contains(x)
-                                // 3. it is not current in any of the positions
-                                && positions.stream().allMatch(z -> !z.getCurrent().contains(x))
+                // 2. it is not completed yet, and
+                !completedSegments.contains(x)
+                        // 3. it is not current in any of the positions
+                        && positions.stream().allMatch(z -> !z.getCurrent().contains(x))
         ).collect(Collectors.toList());
 
         // 3. all its predecessors completed, and
         Function<List<Integer>, Boolean> predicate = list -> list.stream().allMatch(completedSegments::contains);
-        return filter(
+        return FutureHelpers.filter(
                 newCurrents,
                 (Integer x) -> stream.getPredecessors(x).thenApply(predicate));
     }
@@ -290,11 +287,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         List<CompletableFuture<List<Integer>>> predecessors = new ArrayList<>();
         for (Integer number : subset) {
             predecessors.add(stream.getPredecessors(number)
-                            .thenApply(preds -> preds.stream().filter(y -> !completedSegments.contains(y)).collect(Collectors.toList()))
+                                   .thenApply(preds -> preds.stream().filter(y -> !completedSegments.contains(y)).collect(Collectors.toList()))
             );
         }
 
-        return sequence(predecessors).thenApply((List<List<Integer>> preds) -> {
+        return FutureHelpers.allOfWithResults(predecessors).thenApply((List<List<Integer>> preds) -> {
             Map<Integer, List<Integer>> map = new HashMap<>();
             for (int i = 0; i < preds.size(); i++) {
                 List<Integer> filtered = preds.get(i);
@@ -354,7 +351,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                     newCurrent.stream().map(x -> getDefaultFutures(stream, x)).collect(Collectors.toList());
 
             CompletableFuture<SegmentFutures> segmentFuture =
-                    sequence(defaultFutures).thenApply((List<List<Integer>> list) -> {
+                    FutureHelpers.allOfWithResults(defaultFutures).thenApply((List<List<Integer>> list) -> {
                         for (int k = 0; k < list.size(); k++) {
                             Integer x = newCurrent.get(k);
                             list.get(k).stream().forEach(
@@ -369,6 +366,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                     });
             newPositions.add(segmentFuture);
         }
-        return sequence(newPositions);
+        return FutureHelpers.allOfWithResults(newPositions);
     }
 }
