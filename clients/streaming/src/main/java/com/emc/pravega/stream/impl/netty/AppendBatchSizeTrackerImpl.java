@@ -24,6 +24,17 @@ import com.emc.pravega.common.netty.AppendBatchSizeTracker;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+/**
+ * See {@link AppendBatchSizeTracker}.
+ * 
+ * This implementation tracks three things:
+ * 1. The time between appends
+ * 2. The size of each append
+ * 3. The number of unackedAppends there are outstanding
+ * 
+ * If the number of unacked appends is <= 1 batching is disabled. This improves latency for low volume and synchronus writers.
+ * Otherwise the batch size is set to the amount of data that will be written in the next {@link #TARGET_BATCH_TIME_MILLIS}
+ */
 class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private static final int MAX_BATCH_TIME_MILLIS = 100;
     private static final int TARGET_BATCH_TIME_MILLIS = 10;
@@ -57,6 +68,9 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
         lastAckNumber.getAndSet(eventNumber);
     }
 
+    /**
+     * Returns a block size that in an estimate of how much data will be written in the next {@link #TARGET_BATCH_TIME_MILLIS}
+     */
     @Override
     public int getAppendBlockSize() {
         long numInflight = lastAppendNumber.get() - lastAckNumber.get();
