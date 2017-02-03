@@ -89,7 +89,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         Reply cmd = (Reply) msg;
         log.debug(connectionName + " processing reply: {}", cmd);
         if (cmd instanceof DataAppended) {
-            batchSizeTracker.noteAck();
+            batchSizeTracker.noteAck(((DataAppended) cmd).getEventNumber());
         }
         cmd.process(processor);
     }
@@ -117,7 +117,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void send(Append append) throws ConnectionFailedException {
         recentMessage.set(true);
-        batchSizeTracker.noteAppend(append.getData().readableBytes());
+        batchSizeTracker.noteAppend(append.getEventNumber(), append.getData().readableBytes());
         FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(append), ConnectionFailedException::new);
     }
     

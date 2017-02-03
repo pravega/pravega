@@ -65,17 +65,24 @@ public class AppendEncodeDecodeTest {
     @RequiredArgsConstructor
     private final class FixedBatchSizeTracker implements AppendBatchSizeTracker {
         private final int appendBlockSize;  
-        @Override
-        public void noteAppend(int size) {
-        }
-
-        @Override
-        public void noteAck() {
-        }
 
         @Override
         public int getAppendBlockSize() {
             return appendBlockSize;
+        }
+
+        @Override
+        public void noteAppend(long eventNumber, int size) {
+
+        }
+
+        @Override
+        public void noteAck(long eventNumber) {
+        }
+
+        @Override
+        public int getBatchTimeout() {
+            return 10;
         }
         
     }

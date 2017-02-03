@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.common.Timer;
@@ -223,7 +222,7 @@ public class AppendTest {
         MockClientFactory clientFactory = new MockClientFactory("Scope", endpoint, port);
         clientFactory.createStream(streamName, null);
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), new EventWriterConfig(null));
-        long blockingTime = timeWrites(testString, 1000, producer, true);
+        long blockingTime = timeWrites(testString, 200, producer, true);
         long nonBlockingTime = timeWrites(testString, 1000, producer, false);
         System.out.println("Blocking took: " + blockingTime + "ms.");
         System.out.println("Non blocking took: " + nonBlockingTime + "ms.");        

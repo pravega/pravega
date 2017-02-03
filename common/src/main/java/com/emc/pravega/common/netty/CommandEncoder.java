@@ -74,7 +74,6 @@ import lombok.SneakyThrows;
 @NotThreadSafe
 @RequiredArgsConstructor
 public class CommandEncoder extends MessageToByteEncoder<Object> {
-    private static final int MAX_BATCH_TIME_MILLIS = 100;
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
 
     private final AppendBatchSizeTracker blockSizeSupplier;
@@ -120,7 +119,9 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                     segmentBeingAppendedTo = append.segment;
                     writeMessage(new AppendBlock(session.id), out);
                     if (ctx != null) {
-                        ctx.executor().schedule(new Flusher(ctx.channel(), currentBlockSize), MAX_BATCH_TIME_MILLIS, TimeUnit.MILLISECONDS);
+                        ctx.executor().schedule(new Flusher(ctx.channel(), currentBlockSize),
+                                                blockSizeSupplier.getBatchTimeout(),
+                                                TimeUnit.MILLISECONDS);
                     }
                 }
 
