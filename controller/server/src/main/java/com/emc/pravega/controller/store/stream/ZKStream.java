@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.store.stream.tables.Cache;
@@ -31,13 +31,6 @@ import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.SerializationUtils;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.utils.ZKPaths;
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.data.Stat;
-
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
@@ -47,6 +40,12 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.SerializationUtils;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.utils.ZKPaths;
+import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.data.Stat;
 
 /**
  * ZK Stream. It understands the following.
@@ -421,11 +420,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 .thenApply(x -> x.stream()
                         .map(ZKStream::getChildrenPath) // get all transactions on the stream
                         .collect(Collectors.toList()))
-                .thenCompose(FutureCollectionHelper::sequence)
+                .thenCompose(FutureHelpers::allOfWithResults)
                 .thenApply(z -> z.stream().flatMap(Collection::stream).collect(Collectors.toList())) // flatten list<list> to list
                 .thenApply(x -> x.stream()
                         .collect(Collectors.toMap(z -> z, ZKStream::getData)))
-                .thenCompose(FutureCollectionHelper::sequenceMap); // convert Map<string, future<Data>> to future<map<String, Data>>
+                .thenCompose(FutureHelpers::allOfWithResults); // convert Map<string, future<Data>> to future<map<String, Data>>
     }
 
     private static CompletableFuture<Void> setData(final String path, final Data<Integer> data) {

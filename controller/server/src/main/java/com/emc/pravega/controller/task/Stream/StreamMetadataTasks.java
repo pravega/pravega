@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
@@ -41,17 +41,17 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.annotations.VisibleForTesting;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -277,7 +277,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 new SegmentId(scope, stream, segment.getNumber()), segment.getKeyStart(), segment.getKeyEnd());
     }
 
-    private Void notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers) {
+    private Void notifyNewSegments(String scope, String stream, Collection<Segment> segmentNumbers) {
         segmentNumbers
                 .stream()
                 .parallel()
@@ -295,13 +295,12 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     private CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Integer> sealedSegments) {
-        return FutureCollectionHelper.sequence(
+        return FutureHelpers.allOf(
                 sealedSegments
                         .stream()
                         .parallel()
                         .map(number -> notifySealedSegment(scope, stream, number))
-                        .collect(Collectors.toList()))
-                .thenApply(x -> null);
+                        .collect(Collectors.toList()));
     }
 
     @VisibleForTesting
