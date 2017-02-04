@@ -147,7 +147,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 .thenCompose(txId ->
                         streamMetadataStore.getActiveSegments(stream)
                                 .thenCompose(activeSegments ->
-                                        FutureCollectionHelper.sequence(
+                                        FutureHelpers.allOf(
                                                 activeSegments.stream()
                                                         .parallel()
                                                         .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txId))
@@ -159,7 +159,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
         // notify hosts to abort transaction
         return streamMetadataStore.getActiveSegments(stream)
                 .thenCompose(segments ->
-                        FutureCollectionHelper.sequence(
+                        FutureHelpers.allOf(
                                 segments.stream()
                                         .parallel()
                                         .map(segment -> notifyDropToHost(scope, stream, segment.getNumber(), txid))
@@ -172,7 +172,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 .thenCompose(x ->
                         streamMetadataStore.getActiveSegments(stream)
                                 .thenCompose(segments ->
-                                        FutureCollectionHelper.sequence(segments.stream()
+                                        FutureHelpers.allOf(segments.stream()
                                                 .parallel()
                                                 .map(segment ->
                                                         notifyCommitToHost(scope, stream, segment.getNumber(), txid))
