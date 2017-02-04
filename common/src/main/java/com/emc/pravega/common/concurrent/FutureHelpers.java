@@ -183,30 +183,6 @@ public final class FutureHelpers {
     }
 
     /**
-     * A variant of .exceptionally that admits an exception handler returning value of type T in future. Exceptionally
-     * and flatExceptionally can be thought of as analogous to map and flatMap method for transforming Futures.
-     *
-     * @param input            The input future.
-     * @param exceptionHandler Exception handler.
-     * @param <T>              Type parameter.
-     * @return result of exceptionHandler if input completed exceptionally, otherwise input.
-     */
-    public static <T> CompletableFuture<T> flatExceptionally(final CompletableFuture<T> input,
-                                                             final Function<Throwable, CompletableFuture<T>> exceptionHandler) {
-        CompletableFuture<T> result = new CompletableFuture<>();
-        input.whenComplete((r, e) -> {
-            if (e != null) {
-                CompletableFuture<T> f = exceptionHandler.apply(e);
-                f.thenAccept(result::complete);
-                exceptionListener(f, result::completeExceptionally);
-            } else {
-                result.complete(r);
-            }
-        });
-        return result;
-    }
-
-    /**
      * Returns a CompletableFuture that will end when the given future ends, but discards its result. If the given future
      * fails, the returned future will fail with the same exception.
      *
