@@ -55,4 +55,10 @@ public interface SegmentReader<Type> extends AutoCloseable {
      */
     @Override
     void close();
+
+    /**
+     * Returns true if the data can be read from the local buffer without blocking the caller.
+     */
+    boolean canReadWithoutBlocking();
+
 }

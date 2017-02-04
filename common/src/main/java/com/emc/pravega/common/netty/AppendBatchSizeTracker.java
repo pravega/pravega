@@ -15,24 +15,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.impl;
+package com.emc.pravega.common.netty;
 
-import java.util.List;
-
-/**
- * Used to select which event should go next when consuming from multiple segments.
- *
- * @param <Type> The type of events that are in the stream
- */
-public interface Orderer<Type> {
+public interface AppendBatchSizeTracker {
 
     /**
-     * Given a list of segments this reader owns, (which contain their positions) returns the one that
-     * should be read from next. This is done in a consistent way. i.e. Calling this method with the
-     * same readers at the same positions, should yield the same result. (The passed collection is
-     * not modified)
-     *
-     * @param segments The logs to get the next reader for.
+     * Records that an append has been sent.
+     * 
+     * @param eventNumber the number of the event
+     * @param size the size of the event
      */
-    SegmentReader<Type> nextSegment(List<SegmentReader<Type>> segments);
+    void recordAppend(long eventNumber, int size);
+
+    /**
+     * Records that one or more events have been acked.
+     * 
+     * @param eventNumber the number of the last event
+     */
+    void recordAck(long eventNumber);
+
+    /**
+     * Returns the size that should be used for the next append block.
+     */
+    int getAppendBlockSize();
+    
+    /**
+     * Returns the timeout that should be used for append blocks.
+     */
+    int getBatchTimeout();
+
 }

@@ -195,6 +195,32 @@ public final class FutureHelpers {
         return future.thenAccept(FutureHelpers::doNothing);
     }
 
+    /**
+     * Returns a CompletableFuture that will end when the given future ends, expecting a certain
+     * result. If the supplied value is not the same (using .equals() comparison) as the result an
+     * exception from the supplier will be thrown. If the given future fails, the returned future
+     * will fail with the same exception.
+     *
+     * @param <T>                  The type of the value expected
+     * @param <E>                  The type of the exception to be throw if the value is not found.
+     * @param future               the CompletableFuture to attach to.
+     * @param expectedValue        The value expected
+     * @param exceptionConstructor Constructor for an exception in the event there is not a match.
+     * @return A void completable future.
+     */
+    public static <T, E extends Exception> CompletableFuture<Void> toVoidExpecting(CompletableFuture<T> future,
+                                                                                   T expectedValue, Supplier<E> exceptionConstructor) {
+        return future.thenApply(value -> expect(value, expectedValue, exceptionConstructor));
+    }
+
+    @SneakyThrows
+    private static <T, E extends Exception> Void expect(T value, T expected, Supplier<E> exceptionConstructor) {
+        if (!expected.equals(value)) {
+            throw exceptionConstructor.get();
+        }
+        return null;
+    }
+
     private static <T> void doNothing(T ignored) {
         // This method intentionally left blank.
     }

@@ -73,15 +73,15 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
             try {
                 final long currentTime = System.currentTimeMillis();
                 streamMetadataStore.getAllActiveTx().get().stream()
-                                   .forEach(x -> {
-                                       if (currentTime - x.getTxRecord().getTxCreationTimestamp() > TIMEOUT) {
-                                           try {
-                                               dropTx(x.getScope(), x.getStream(), x.getTxid());
-                                           } catch (Exception e) {
-                                               // TODO: log and ignore
-                                           }
-                                       }
-                                   });
+                        .forEach(x -> {
+                            if (currentTime - x.getTxRecord().getTxCreationTimestamp() > TIMEOUT) {
+                                try {
+                                    abortTx(x.getScope(), x.getStream(), x.getTxid());
+                                } catch (Exception e) {
+                                    // TODO: log and ignore
+                                }
+                            }
+                        });
             } catch (Exception e) {
                 // TODO: log! and ignore
             }
@@ -111,19 +111,19 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     }
 
     /**
-     * Drop transaction.
+     * Abort transaction.
      *
      * @param scope  stream scope.
      * @param stream stream name.
      * @param txId   transaction id.
      * @return true/false.
      */
-    @Task(name = "dropTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
-    public CompletableFuture<TxnStatus> dropTx(final String scope, final String stream, final UUID txId) {
+    @Task(name = "abortTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
+    public CompletableFuture<TxnStatus> abortTx(final String scope, final String stream, final UUID txId) {
         return execute(
                 new Resource(scope, stream, txId.toString()),
                 new Serializable[]{scope, stream, txId},
-                () -> dropTxBody(scope, stream, txId));
+                () -> abortTxBody(scope, stream, txId));
     }
 
     /**
@@ -144,64 +144,65 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
 
     private CompletableFuture<UUID> createTxBody(final String scope, final String stream) {
         return streamMetadataStore.createTransaction(scope, stream)
-                                  .thenCompose(txId ->
-                                          streamMetadataStore.getActiveSegments(stream)
-                                                             .thenCompose(activeSegments ->
-                                                                     FutureHelpers.allOf(
-                                                                             activeSegments.stream()
-                                                                                           .parallel()
-                                                                                           .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txId))
-                                                                                           .collect(Collectors.toList())))
-                                                             .thenApply(x -> txId));
+                .thenCompose(txId ->
+                        streamMetadataStore.getActiveSegments(stream)
+                                .thenCompose(activeSegments ->
+                                        FutureCollectionHelper.sequence(
+                                                activeSegments.stream()
+                                                        .parallel()
+                                                        .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txId))
+                                                        .collect(Collectors.toList())))
+                                .thenApply(x -> txId));
     }
 
-    private CompletableFuture<TxnStatus> dropTxBody(final String scope, final String stream, final UUID txid) {
+    private CompletableFuture<TxnStatus> abortTxBody(final String scope, final String stream, final UUID txid) {
         // notify hosts to abort transaction
         return streamMetadataStore.getActiveSegments(stream)
-                                  .thenCompose(segments ->
-                                          FutureHelpers.allOf(
-                                                  segments.stream()
-                                                          .parallel()
-                                                          .map(segment -> notifyDropToHost(scope, stream, segment.getNumber(), txid))
-                                                          .collect(Collectors.toList())))
-                                  .thenCompose(x -> streamMetadataStore.dropTransaction(scope, stream, txid));
+                .thenCompose(segments ->
+                        FutureCollectionHelper.sequence(
+                                segments.stream()
+                                        .parallel()
+                                        .map(segment -> notifyDropToHost(scope, stream, segment.getNumber(), txid))
+                                        .collect(Collectors.toList())))
+                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txid));
     }
 
     private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid) {
         return streamMetadataStore.sealTransaction(scope, stream, txid)
-                                  .thenCompose(x ->
-                                          streamMetadataStore.getActiveSegments(stream)
-                                                             .thenCompose(segments ->
-                                                                     FutureHelpers.allOf(segments.stream()
-                                                                                                 .parallel()
-                                                                                                 .map(segment ->
-                                                                                                         notifyCommitToHost(scope, stream, segment.getNumber(), txid))
-                                                                                                 .collect(Collectors.toList()))))
-                                  .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txid));
+                .thenCompose(x ->
+                        streamMetadataStore.getActiveSegments(stream)
+                                .thenCompose(segments ->
+                                        FutureCollectionHelper.sequence(segments.stream()
+                                                .parallel()
+                                                .map(segment ->
+                                                        notifyCommitToHost(scope, stream, segment.getNumber(), txid))
+                                                .collect(Collectors.toList()))))
+                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txid));
     }
 
     private CompletableFuture<UUID> notifyTxCreation(final String scope, final String stream, final int segmentNumber, final UUID txid) {
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-                    .retryingOn(WireCommandFailedException.class)
-                    .throwingOn(RuntimeException.class)
-                    .runAsync(() -> SegmentHelper.createTransaction(scope,
-                            stream,
-                            segmentNumber,
-                            txid,
-                            this.hostControllerStore,
-                            this.connectionFactory), executor);
+                .retryingOn(WireCommandFailedException.class)
+                .throwingOn(RuntimeException.class)
+                .runAsync(() -> SegmentHelper.createTransaction(scope,
+                                stream,
+                                segmentNumber,
+                                txid,
+                                this.hostControllerStore,
+                                this.connectionFactory), executor);
     }
 
     private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                     .retryingOn(WireCommandFailedException.class)
                     .throwingOn(RuntimeException.class)
-                    .runAsync(() -> SegmentHelper.dropTransaction(scope,
-                            stream,
-                            segmentNumber,
-                            txId,
-                            this.hostControllerStore,
-                            this.connectionFactory), executor);
+                    .runAsync(() -> SegmentHelper.abortTransaction(scope,
+                                                                  stream,
+                                                                  segmentNumber,
+                                                                  txId,
+                                                                  this.hostControllerStore,
+                                                                  this.connectionFactory),
+                              executor);
     }
 
     private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
@@ -209,10 +210,11 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                     .retryingOn(WireCommandFailedException.class)
                     .throwingOn(RuntimeException.class)
                     .runAsync(() -> SegmentHelper.commitTransaction(scope,
-                            stream,
-                            segmentNumber,
-                            txId,
-                            this.hostControllerStore,
-                            this.connectionFactory), executor);
+                                                                    stream,
+                                                                    segmentNumber,
+                                                                    txId,
+                                                                    this.hostControllerStore,
+                                                                    this.connectionFactory),
+                              executor);
     }
 }

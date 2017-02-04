@@ -23,7 +23,7 @@ import java.util.concurrent.CompletableFuture;
  * Defines an OutputStream for a segment.
  * Allows data to be appended to the end of the segment by calling {@link #write(ByteBuffer, CompletableFuture)}
  */
-public abstract class SegmentOutputStream implements AutoCloseable {
+public interface SegmentOutputStream extends AutoCloseable {
     public static final int MAX_WRITE_SIZE = Serializer.MAX_EVENT_SIZE;
 
     /**
