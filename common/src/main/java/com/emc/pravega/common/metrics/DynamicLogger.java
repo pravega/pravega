@@ -38,4 +38,13 @@ public interface DynamicLogger {
      * @param value the value to be reported
      */
     <T extends Number> void reportGaugeValue(String name, T value);
+
+
+    /**
+     * Mark Meter with the occurrence of a given number of events.
+     *
+     * @param name   the name of Meter
+     * @param number the number of events occurrence
+     */
+    void markMeter(String name, long number);
 }

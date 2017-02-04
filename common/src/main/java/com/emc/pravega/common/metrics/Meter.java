@@ -17,28 +17,28 @@
 package com.emc.pravega.common.metrics;
 
 /**
- * A meter metric which measures mean throughput and  * one-, five-,
+ * A meter metric which measures mean throughput and one-, five-,
  * and fifteen-minute exponentially-weighted moving average throughput.
  */
 public interface Meter {
     /**
      * Mark the occurrence of an event.
      */
-    public void mark();
+    void mark();
 
     /**
-     * Mark the occurrence of a given number of events..
+     * Mark the occurrence of a given number of events.
      *
-     * @param n the n
+     * @param n the number of events to mark
      */
-    public void mark(long n);
+    void mark(long n);
 
     /**
      * Returns the number of events which have been marked.
      *
      * @return the count
      */
-    public long getCount();
+    long getCount();
 
     /**
      * Gets name.

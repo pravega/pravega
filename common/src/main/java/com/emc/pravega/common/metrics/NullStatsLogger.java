@@ -29,8 +29,39 @@ public class NullStatsLogger implements StatsLogger {
     private static final String NULLNAME = "";
     private static final NullOpStatsLogger NULLOPSTATSLOGGER = new NullOpStatsLogger();
 
+    @Override
+    public OpStatsLogger createStats(String name) {
+        return NULLOPSTATSLOGGER;
+    }
 
-    static class NullOpStatsLogger implements OpStatsLogger {
+    @Override
+    public Counter createCounter(String name) {
+        return NULLCOUNTER;
+    }
+
+    private static class NullGauge implements Gauge {
+        @Override
+        public String getName() {
+            return NULLNAME;
+        }
+    }
+
+    @Override
+    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value) {
+        return NULLGAUGE;
+    }
+
+    @Override
+    public Meter createMeter(String name) {
+        return NULLMETER;
+    }
+
+    @Override
+    public StatsLogger createScopeLogger(String name) {
+        return this;
+    }
+
+    private static class NullOpStatsLogger implements OpStatsLogger {
         final OpStatsData nullOpStats = new OpStatsData(0, 0, 0, new EnumMap<OpStatsData.Percentile, Long>(OpStatsData.Percentile.class));
 
         @Override
@@ -64,7 +95,7 @@ public class NullStatsLogger implements StatsLogger {
         }
     }
 
-    static class NullCounter implements Counter {
+    private static class NullCounter implements Counter {
         @Override
         public void clear() {
             // nop
@@ -96,7 +127,7 @@ public class NullStatsLogger implements StatsLogger {
         }
     }
 
-    static class NullMeter implements Meter {
+    private static class NullMeter implements Meter {
         @Override
         public void mark() {
             // nop
@@ -117,36 +148,4 @@ public class NullStatsLogger implements StatsLogger {
             return NULLNAME;
         }
     }
-
-    @Override
-    public OpStatsLogger createStats(String name) {
-        return NULLOPSTATSLOGGER;
-    }
-
-    @Override
-    public Counter createCounter(String name) {
-        return NULLCOUNTER;
-    }
-
-    static class NullGauge implements Gauge {
-        public String getName() {
-            return NULLNAME;
-        }
-    }
-
-    @Override
-    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value) {
-        return NULLGAUGE;
-    }
-
-    @Override
-    public Meter createMeter(String name) {
-        return NULLMETER;
-    }
-
-    @Override
-    public StatsLogger createScopeLogger(String name) {
-        return this;
-    }
-
 }

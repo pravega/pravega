@@ -36,6 +36,7 @@ public class YammerDynamicLogger implements DynamicLogger {
     protected final StatsLogger underlying;
     private final Cache<String, Counter> countersCache;
     private final Cache<String, Gauge> gaugesCache;
+    private final Cache<String, Meter> metersCache;
 
     public YammerDynamicLogger(MetricRegistry metrics, StatsLogger statsLogger) {
         Preconditions.checkNotNull(metrics, "metrics");
@@ -56,7 +57,7 @@ public class YammerDynamicLogger implements DynamicLogger {
                 }).
                 build();
 
-         gaugesCache = CacheBuilder.newBuilder().
+        gaugesCache = CacheBuilder.newBuilder().
                 maximumSize(CACHESIZE).
                 expireAfterAccess(TTLSECONDS, TimeUnit.SECONDS).
                 removalListener(new RemovalListener<String, Gauge>() {
@@ -67,6 +68,18 @@ public class YammerDynamicLogger implements DynamicLogger {
                     }
                 }).
                 build();
+
+        metersCache = CacheBuilder.newBuilder().
+            maximumSize(CACHESIZE).
+            expireAfterAccess(TTLSECONDS, TimeUnit.SECONDS).
+            removalListener(new RemovalListener<String, Meter>() {
+                public void onRemoval(RemovalNotification<String, Meter> removal) {
+                    Meter meter = removal.getValue();
+                    metrics.remove(meter.getName());
+                    log.debug("TTL expired, removed Meter: {}.", meter.getName());
+                }
+            }).
+            build();
     }
 
     @Override
@@ -108,7 +121,25 @@ public class YammerDynamicLogger implements DynamicLogger {
         if (null == newGauge) {
             log.error("Unsupported Number type: {}.", value.getClass().getName());
         } else {
-            gaugesCache.put(gaugeName, newGauge);
+            if (null == gaugesCache.getIfPresent(gaugeName)) {
+                gaugesCache.put(gaugeName, newGauge);
+            }
         }
+    }
+
+    @Override
+    public void markMeter(String name, long number) {
+        Exceptions.checkNotNullOrEmpty(name, "name");
+        Preconditions.checkNotNull(number);
+        String meterName = name + ".Meter";
+        Meter meter = metersCache.getIfPresent(meterName);
+        if (null == meter) {
+            Meter newMeter = underlying.createMeter(meterName);
+            metersCache.put(meterName, newMeter);
+            log.debug("Created Meter: {}.", newMeter.getName());
+            newMeter.mark(number);
+            return;
+        }
+        meter.mark(number);
     }
 }

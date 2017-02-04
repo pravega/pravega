@@ -26,13 +26,13 @@ public interface StatsProvider extends AutoCloseable {
      *
      * @param conf Configuration to configure the stats provider.
      */
-    public void start(MetricsConfig conf);
+    void start(MetricsConfig conf);
 
     /**
      * Close the stats provider.
      */
     @Override
-    public void close();
+    void close();
 
     /**
      * Return the StatsLogger instance associated with the given <i>scope</i>.
@@ -40,10 +40,10 @@ public interface StatsProvider extends AutoCloseable {
      * @param scope Scope for the given stats.
      * @return stats logger for the given <i>scope</i>.
      */
-    public StatsLogger createStatsLogger(String scope);
+    StatsLogger createStatsLogger(String scope);
 
     /**
      * Create a dynamic logger.
      */
-    public DynamicLogger createDynamicLogger();
+    DynamicLogger createDynamicLogger();
 }
