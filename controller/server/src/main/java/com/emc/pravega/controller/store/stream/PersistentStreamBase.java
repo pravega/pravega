@@ -398,12 +398,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Void> setMarker(int segmentNumber, long timestamp) {
         return getMarkerData(segmentNumber)
-                .thenAccept(x -> {
+                .thenCompose(x -> {
                     if (x.isPresent()) {
                         final Data<T> data = new Data<>(Utilities.toByteArray(timestamp), x.get().getVersion());
-                        updateMarkerData(segmentNumber, data);
+                        return updateMarkerData(segmentNumber, data);
                     } else {
-                        createMarkerData(segmentNumber, timestamp);
+                        return createMarkerData(segmentNumber, timestamp);
                     }
                 });
     }
@@ -582,11 +582,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     protected Consumer<Throwable> failureHandler() {
         return (e) -> {
-            if (RetryableException.isRetryable(e)) {
-                throw (RetryableException) e;
-            } else {
-                throw new RuntimeException(e);
-            }
+            assert e != null;
+
+            RetryableException.throwRetryableOrElse(e, x -> {
+                throw new RuntimeException(x);
+            });
         };
     }
 

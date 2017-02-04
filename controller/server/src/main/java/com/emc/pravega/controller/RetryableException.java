@@ -17,6 +17,11 @@
  */
 package com.emc.pravega.controller;
 
+import java.util.Optional;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
+
 /**
  * Retryable exception. Throw this when you want to let the caller know that this exception is transient and
  * warrants another retry.
@@ -45,8 +50,8 @@ public class RetryableException extends RuntimeException {
     /**
      * Creates a new instance of RetryableException class.
      *
-     * @param reason  reason for failure
-     * @param cause error cause
+     * @param reason reason for failure
+     * @param cause  error cause
      */
     public RetryableException(final String reason, final Throwable cause) {
         super(reason, cause);
@@ -54,10 +59,40 @@ public class RetryableException extends RuntimeException {
 
     /**
      * Check if the exception is a subclass of retryable.
+     *
      * @param e exception thrown
      * @return whether it can be assigned to Retryable
      */
-    public static boolean isRetryable(Throwable e) {
-        return e.getClass().isAssignableFrom(RetryableException.class);
+    private static boolean isRetryable(Throwable e) {
+        return RetryableException.class.isAssignableFrom(e.getClass());
+    }
+
+    public static void throwRetryableOrElse(Throwable e, Consumer<Throwable> consumer) {
+        if (e != null) {
+            if (RetryableException.isRetryable(e)) {
+                throw (RetryableException) e;
+            } else if (e instanceof ExecutionException || e instanceof CompletionException) {
+                if (RetryableException.isRetryable(e.getCause())) {
+                    throw (RetryableException) e.getCause();
+                }
+            } else {
+                if (consumer != null) {
+                    consumer.accept(e);
+                }
+            }
+        }
+    }
+
+    public static Optional<RetryableException> castRetryable(Throwable e) {
+        if (e != null) {
+            if (RetryableException.isRetryable(e)) {
+                return Optional.of((RetryableException) e);
+            } else if (e instanceof ExecutionException || e instanceof CompletionException) {
+                if (RetryableException.isRetryable(e.getCause())) {
+                    return Optional.of((RetryableException) e.getCause());
+                }
+            }
+        }
+        return Optional.empty();
     }
 }

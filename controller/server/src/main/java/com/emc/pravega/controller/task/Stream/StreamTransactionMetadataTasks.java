@@ -177,7 +177,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                 .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
-                .runAsync(() -> SegmentHelper.createTransaction(scope,
+                .runAsync(() -> SegmentHelper.getSingleton().createTransaction(scope,
                         stream,
                         segmentNumber,
                         txid,
@@ -189,7 +189,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                 .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
-                .runAsync(() -> SegmentHelper.dropTransaction(scope,
+                .runAsync(() -> SegmentHelper.getSingleton().dropTransaction(scope,
                         stream,
                         segmentNumber,
                         txId,
@@ -201,7 +201,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                 .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
-                .runAsync(() -> SegmentHelper.commitTransaction(scope,
+                .runAsync(() -> SegmentHelper.getSingleton().commitTransaction(scope,
                         stream,
                         segmentNumber,
                         txId,

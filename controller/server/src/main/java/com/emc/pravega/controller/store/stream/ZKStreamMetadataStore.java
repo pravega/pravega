@@ -23,7 +23,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.nio.ByteBuffer;
-import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -33,9 +32,6 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 @Slf4j
 public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
-    private static final long INITIAL_DELAY = 1;
-    private static final long PERIOD = Duration.ofHours(1).toMillis();
-    private static final long TIMEOUT = Duration.ofMinutes(10).toMillis();
     private final ScheduledExecutorService executor;
 
     public ZKStreamMetadataStore(ScheduledExecutorService executor) {

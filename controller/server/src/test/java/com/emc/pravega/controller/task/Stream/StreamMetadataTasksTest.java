@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelperMock;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
@@ -51,7 +52,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -68,7 +68,7 @@ public class StreamMetadataTasksTest {
     private TestingServer zkServer;
 
     private StreamMetadataStore streamStorePartialMock;
-    private StreamMetadataTasks streamMetadataTasksPartialMock;
+    private StreamMetadataTasks streamMetadataTasks;
 
     @Before
     public void initialize() throws Exception {
@@ -77,6 +77,7 @@ public class StreamMetadataTasksTest {
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
+        SegmentHelperMock.init();
 
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType
                 .InMemory, executor);
@@ -87,17 +88,14 @@ public class StreamMetadataTasksTest {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(zkClient), executor);
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
 
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStorePartialMock, hostStore,
+        streamMetadataTasks = new StreamMetadataTasks(streamStorePartialMock, hostStore,
                 taskMetadataStore,
                 executor, "host");
-        streamMetadataTasksPartialMock = spy(streamMetadataTasks); //create a partial mock
-        doReturn(CompletableFuture.completedFuture(true)).when(streamMetadataTasksPartialMock).notifySealedSegment(
-                anyString(), anyString(), anyInt()); //mock only the actual calls to Pravega.
 
         TxTimeOutScheduler txTimeOutProcessor = (scope, stream, txid, timeoutPeriod) -> CompletableFuture.completedFuture(null);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStorePartialMock, hostStore, taskMetadataStore, executor, "host", txTimeOutProcessor);
-        consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasksPartialMock,
+        consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks);
 
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
@@ -108,6 +106,8 @@ public class StreamMetadataTasksTest {
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
         streamStorePartialMock.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20, null);
+
+        streamMetadataTasks.scale("", "", null, null, 0L, null);
     }
 
     @After
@@ -120,7 +120,7 @@ public class StreamMetadataTasksTest {
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
 
         //seal a stream.
-        UpdateStreamStatus sealOperationResult = streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1, null).get();
+        UpdateStreamStatus sealOperationResult = streamMetadataTasks.sealStreamBody(SCOPE, stream1, null).get();
         assertEquals(UpdateStreamStatus.SUCCESS, sealOperationResult);
 
         //a sealed stream should have zero active/current segments
@@ -128,14 +128,14 @@ public class StreamMetadataTasksTest {
         assertTrue(streamStorePartialMock.isSealed(SCOPE, stream1, null).get());
 
         //reseal a sealed stream.
-        assertEquals(UpdateStreamStatus.SUCCESS, streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1, null).get());
+        assertEquals(UpdateStreamStatus.SUCCESS, streamMetadataTasks.sealStreamBody(SCOPE, stream1, null).get());
 
         //scale operation on the sealed stream.
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.2);
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.3, 0.4);
         AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.4, 0.5);
 
-        ScaleResponse scaleOpResult = streamMetadataTasksPartialMock.scaleBody(SCOPE, stream1, Collections
+        ScaleResponse scaleOpResult = streamMetadataTasks.scaleBody(SCOPE, stream1, Collections
                         .singletonList(0),
                 Arrays.asList(segment3, segment4, segment5), 30, null).get();
 

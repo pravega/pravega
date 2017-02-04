@@ -104,11 +104,9 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
             Controller controller = new ControllerImpl(CONTROLLER_ADDR, CONTROLLER_PORT);
             FutureHelpers.getAndHandleExceptions(controller.createStream(REQUEST_STREAM_CONFIG), RuntimeException::new);
 
-            EventStreamWriter<ScaleRequest> writer = clientFactory.createEventWriter(STREAM_NAME,
+            this.writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<>(),
                     new EventWriterConfig(null));
-
-            this.writer = writer;
             initialized.set(true);
             return null;
         }, EXECUTOR);

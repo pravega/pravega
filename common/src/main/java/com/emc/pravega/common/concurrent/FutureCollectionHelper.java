@@ -80,24 +80,24 @@ public class FutureCollectionHelper {
         CompletableFuture<Void> allDoneFuture =
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
         return allDoneFuture.thenApply(v ->
-                        futures.stream()
-                                .map(CompletableFuture::join)
-                                .collect(Collectors.<T>toList())
+                futures.stream()
+                        .map(CompletableFuture::join)
+                        .collect(Collectors.<T>toList())
         );
     }
 
     public static <T, U> CompletableFuture<Map<T, U>> sequenceMap(Map<T, CompletableFuture<U>> futureMap) {
         return CompletableFuture.allOf(futureMap.values().toArray(new CompletableFuture[futureMap.size()]))
                 .thenApply(x ->
-                                futureMap.entrySet().stream()
-                                        .map(y -> {
-                                            try {
-                                                return new AbstractMap.SimpleEntry<T, U>(y.getKey(), y.getValue().get());
-                                            } catch (Exception e) {
-                                                throw new RuntimeException(e);
-                                            }
-                                        })
-                                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                        futureMap.entrySet().stream()
+                                .map(y -> {
+                                    try {
+                                        return new AbstractMap.SimpleEntry<T, U>(y.getKey(), y.getValue().get());
+                                    } catch (Exception e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                })
+                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
                 );
     }
 }

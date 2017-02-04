@@ -239,13 +239,13 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return cache.getCachedData(path)
                 .handle((res, ex) -> {
                     if (ex != null) {
-                        if (ex instanceof DataNotFoundException) {
+                        if (ex instanceof DataNotFoundException || ex.getCause() instanceof DataNotFoundException) {
                             return Optional.empty();
-                        } else if (RetryableException.isRetryable(ex)) {
-                            throw (RetryableException) ex;
-                        } else {
-                            throw new RuntimeException(ex);
                         }
+                        RetryableException.throwRetryableOrElse(ex, x -> {
+                            throw new RuntimeException(x);
+                        });
+                        return Optional.empty();
                     } else {
                         return Optional.of(res);
                     }
@@ -444,11 +444,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
     static CompletableFuture<Void> checkpoint(String readerId, String readerGroup, ByteBuffer checkpoint) {
         String path = ZKPaths.makePath(CHECKPOINT_PATH, readerGroup, readerId);
         return checkExists(path)
-                .thenAccept(x -> {
+                .thenCompose(x -> {
                     if (x) {
-                        setData(path, new Data<>(checkpoint.array(), null));
+                        return setData(path, new Data<>(checkpoint.array(), null));
                     } else {
-                        createZNodeIfNotExist(path, checkpoint.array());
+                        return createZNodeIfNotExist(path, checkpoint.array());
                     }
                 });
     }
@@ -458,13 +458,13 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return getData(path)
                 .handle((res, ex) -> {
                     if (ex != null) {
-                        if (ex instanceof DataNotFoundException) {
+                        if (ex instanceof DataNotFoundException || ex.getCause() instanceof DataNotFoundException) {
                             return Optional.empty();
-                        } else if (RetryableException.isRetryable(ex)) {
-                            throw (RetryableException) ex;
-                        } else {
-                            throw new RuntimeException(ex);
                         }
+                        RetryableException.throwRetryableOrElse(ex, x -> {
+                            throw new RuntimeException(x);
+                        });
+                        return Optional.empty();
                     } else {
                         return Optional.of(ByteBuffer.wrap(res.getData()));
                     }

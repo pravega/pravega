@@ -18,11 +18,6 @@
 
 package com.emc.pravega.stream.impl.netty;
 
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.ConnectionFailedException;
@@ -31,13 +26,17 @@ import com.emc.pravega.common.netty.ReplyProcessor;
 import com.emc.pravega.common.netty.WireCommand;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.google.common.base.Preconditions;
-
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.concurrent.ScheduledFuture;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Bridges the gap between netty and the ReplyProcessor on the client.
@@ -68,7 +67,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
             old.cancel(false);
         }
     }
-    
+
     @RequiredArgsConstructor
     private final class KeepAliveTask implements Runnable {
         private final ChannelHandlerContext ctx;
@@ -80,7 +79,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
                     send(new KeepAlive());
                 }
             } catch (Exception e) {
-                log.warn("Keep alive failed, killing connection "+connectionName);
+                log.warn("Keep alive failed, killing connection " + connectionName);
                 ctx.close();
             }
         }
@@ -100,6 +99,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         Reply cmd = (Reply) msg;
+
         log.debug(connectionName + " processing reply: {}", cmd);
         cmd.process(processor);
     }
@@ -123,7 +123,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         recentMessage.set(true);
         FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(cmd), ConnectionFailedException::new);
     }
-    
+
     @Override
     public void send(Append append) throws ConnectionFailedException {
         recentMessage.set(true);

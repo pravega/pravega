@@ -150,22 +150,26 @@ public class Main {
         RESTServer.start(controllerService);
         ClientFactory clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, URI.create(String.format("tcp://localhost:%d", Config.SERVER_PORT)));
 
-        CompletableFuture.runAsync(() -> createStreams(controllerService, executor));
-        CompletableFuture.runAsync(() -> startTxnReader(clientFactory, streamStore, streamTransactionMetadataTasks, executor));
-        CompletableFuture.runAsync(() -> startScaleReader(clientFactory, streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor));
+        CompletableFuture<Void> createStream = new CompletableFuture<>();
+        CompletableFuture<Void> createTxnReader = new CompletableFuture<>();
+        CompletableFuture<Void> createScaleReader = new CompletableFuture<>();
 
+        CompletableFuture.runAsync(() -> createStreams(controllerService, executor, createStream));
+        createStream.thenCompose(x -> CompletableFuture.runAsync(() -> startTxnReader(clientFactory, streamStore, streamTransactionMetadataTasks, executor, createTxnReader)));
+        createTxnReader.thenCompose(x -> CompletableFuture.runAsync(() -> startScaleReader(clientFactory, streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor, createScaleReader)));
     }
 
-    private static void retry(Supplier<Void> supplier, ScheduledExecutorService executor) {
+    private static void retry(Supplier<Void> supplier, ScheduledExecutorService executor, CompletableFuture<Void> result) {
         try {
             supplier.get();
+            result.complete(null);
         } catch (Exception e) {
             // Until we are able to start these readers, keep retrying indefinitely by scheduling it back
-            executor.schedule(() -> retry(supplier, executor), 1, TimeUnit.MINUTES);
+            executor.schedule(() -> retry(supplier, executor, result), 1, TimeUnit.MINUTES);
         }
     }
 
-    private static void createStreams(ControllerService controllerService, ScheduledExecutorService executor) {
+    private static void createStreams(ControllerService controllerService, ScheduledExecutorService executor, CompletableFuture<Void> result) {
         retry(() -> {
             FutureHelpers.await(CompletableFuture.allOf(
                     streamCreationCompletionCallback(
@@ -173,10 +177,10 @@ public class Main {
                     streamCreationCompletionCallback(
                             controllerService.createStream(TXN_TIMER_STREAM_CONFIG, System.currentTimeMillis()))));
             return null;
-        }, executor);
+        }, executor, result);
     }
 
-    private static void startTxnReader(ClientFactory clientFactory, StreamMetadataStore streamStore, StreamTransactionMetadataTasks streamTransactionMetadataTasks, ScheduledExecutorService executor) {
+    private static void startTxnReader(ClientFactory clientFactory, StreamMetadataStore streamStore, StreamTransactionMetadataTasks streamTransactionMetadataTasks, ScheduledExecutorService executor, CompletableFuture<Void> result) {
         retry(() -> {
             final TransactionTimer txnHandler = new TransactionTimer(streamTransactionMetadataTasks);
             final RequestReader<TxTimeoutRequest, TransactionTimer> txnreader = new RequestReader<>(
@@ -186,10 +190,10 @@ public class Main {
                     Config.TXN_READER_GROUP, null, streamStore, txnHandler);
             CompletableFuture.runAsync(txnreader);
             return null;
-        }, executor);
+        }, executor, result);
     }
 
-    private static void startScaleReader(ClientFactory clientFactory, StreamMetadataTasks streamMetadataTasks, StreamMetadataStore streamStore, StreamTransactionMetadataTasks streamTransactionMetadataTasks, ScheduledExecutorService executor) {
+    private static void startScaleReader(ClientFactory clientFactory, StreamMetadataTasks streamMetadataTasks, StreamMetadataStore streamStore, StreamTransactionMetadataTasks streamTransactionMetadataTasks, ScheduledExecutorService executor, CompletableFuture<Void> result) {
         retry(() -> {
             final ScaleRequestHandler handler = new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks);
             final RequestReader<ScaleRequest, ScaleRequestHandler> reader = new RequestReader<>(
@@ -199,7 +203,7 @@ public class Main {
                     Config.SCALE_READER_GROUP, null, streamStore, handler);
             CompletableFuture.runAsync(reader);
             return null;
-        }, executor);
+        }, executor, result);
     }
 
     private static CompletableFuture<CreateStreamStatus> streamCreationCompletionCallback(CompletableFuture<CreateStreamStatus> createFuture) {

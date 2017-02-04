@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelperMock;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -84,7 +85,6 @@ public class TaskTest {
 
     private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
 
-
     private final TaskMetadataStore taskMetadataStore;
 
     private final TestingServer zkServer;
@@ -94,6 +94,8 @@ public class TaskTest {
     public TaskTest() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
+
+        SegmentHelperMock.init();
 
         CuratorFramework cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();

@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream.tables;
 
+import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -44,13 +45,15 @@ public class Cache<T> {
                         new CacheLoader<String, CompletableFuture<Data<T>>>() {
                             @ParametersAreNonnullByDefault
                             public CompletableFuture<Data<T>> load(final String key) {
-                                try {
-                                    return loader.get(key);
-                                } catch (DataNotFoundException d) {
-                                    throw d;
-                                } catch (Exception e) {
-                                    throw new RuntimeException(e);
-                                }
+                                return loader.get(key)
+                                        .whenComplete((res, ex) -> {
+                                            if (ex != null) {
+                                                invalidateCache(key);
+                                                RetryableException.throwRetryableOrElse(ex, x -> {
+                                                    throw new RuntimeException(x);
+                                                });
+                                            }
+                                        });
                             }
                         });
     }

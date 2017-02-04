@@ -19,6 +19,7 @@ package com.emc.pravega.controller.server.v1;
 
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelperMock;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -62,11 +63,11 @@ public class ControllerServiceAsyncImplTest {
 
     private final TestingServer zkServer;
 
-
     public ControllerServiceAsyncImplTest() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
 
+        SegmentHelperMock.init();
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();

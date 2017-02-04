@@ -119,7 +119,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                             .getConfiguration(request.getScope(), request.getStream(), context)
                             .thenApply(StreamConfiguration::getScalingPolicy);
 
-                    if (request.getDirection() == (byte) 0) {
+                    if (request.getDirection() == ScaleRequest.UP) {
                         return policyFuture.thenCompose(policy -> processScaleUp(request, policy, context))
                                 .whenComplete((res, ex) -> {
                                     if (ex != null) {
@@ -205,8 +205,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                                     candidate -> streamMetadataStore.getMarker(request.getScope(),
                                             request.getStream(),
                                             candidate.getNumber(),
-                                            context)
-                                            .thenApply(x -> x.isPresent() && isValid(x.get())))
+                                            context).thenApply(x -> x.map(this::isValid).orElse(false)))
                                     .thenApply(segments -> {
                                         if (maxScaleDownFactor == 1 && segments.size() == 3) {
                                             // Note: sorted by keystart so just pick first two.
@@ -220,8 +219,9 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                         }
                     })
                     .thenCompose(toMerge -> {
-                        if (toMerge != null) {
+                        if (toMerge != null && toMerge.size() > 1) {
                             final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
+                            simpleEntries.add(new AbstractMap.SimpleEntry<Double, Double>(toMerge.get(0).getKeyStart(), toMerge.get(toMerge.size() - 1).getKeyEnd()));
                             final ArrayList<Integer> segments = new ArrayList<>();
                             toMerge.forEach(segment -> segments.add(segment.getNumber()));
                             return executeScaleTask(request, segments, simpleEntries, context);
@@ -255,7 +255,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                         context)
                         .whenComplete((result, e) -> {
                             if (e != null) {
-                                if (e instanceof LockFailedException) {
+                                if (e instanceof LockFailedException || e.getCause() instanceof LockFailedException) {
                                     // lock failure, throw an exception here,
                                     // and that will result in several retries exhausting which the request will be put back
                                     // into request stream.
@@ -263,8 +263,8 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                                     // can lead to flooding of request stream with duplicate messages for this request. This is
                                     // particularly bad during controller instance failover recovery and can also impact other
                                     // requests.
-                                    blockAndSweep(request, context); // block and sweep returns a future, but we dont need any callbacks linked with it.
-                                    throw (LockFailedException) e;
+                                    blockTxCreationAndSweepTimedout(request, context); // block and sweep returns a future, but we dont need any callbacks linked with it.
+                                    throw e instanceof LockFailedException ? (LockFailedException) e : (LockFailedException) e.getCause();
                                 } else {
                                     // We could be here because of two reasons:
                                     // 1. Its a non-retryable Exception
@@ -319,26 +319,22 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                     // if it is retryable exception, do not unblock creation of txn and let scale be attempted again.
                     // However, if its either completed successfully or failed with non-retryable, we need to unblock
                     // creation of transactions.
-                    if (ex != null && RetryableException.isRetryable(ex)) {
-                        throw (RetryableException) ex;
+                    if (ex != null) {
+                        RetryableException.throwRetryableOrElse(ex, RuntimeException::new);
+                        return ex;
                     } else {
-                        if (ex != null) {
-                            return ex;
-                        } else {
-                            return null;
-                        }
+                        return null;
                     }
                 })
                 .thenCompose(ex -> streamMetadataStore.unblockTransactions(request.getScope(), request.getStream(), context)
-                        .handle((res, e) -> {
+                        .whenComplete((res, e) -> {
                             if (ex != null) {
                                 throw new RuntimeException(ex);
                             }
 
-                            if (RetryableException.isRetryable(e)) {
-                                throw (RetryableException) e;
-                            }
-                            return null;
+                            RetryableException.throwRetryableOrElse(ex, x -> {
+                                throw new RuntimeException(x);
+                            });
                         }));
     }
 
@@ -354,7 +350,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
      * @param request scale request
      * @param context stream store context
      */
-    private CompletableFuture<Void> blockAndSweep(ScaleRequest request, OperationContext context) {
+    private CompletableFuture<Void> blockTxCreationAndSweepTimedout(ScaleRequest request, OperationContext context) {
         return streamMetadataStore.blockTransactions(request.getScope(), request.getStream(), context)
                 .thenCompose(x -> streamMetadataStore.getActiveTxns(request.getScope(), request.getStream(), context))
                 .thenCompose(x -> FutureCollectionHelper.sequence(x.entrySet().stream().filter(y ->

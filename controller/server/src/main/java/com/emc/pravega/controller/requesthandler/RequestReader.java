@@ -37,6 +37,7 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
@@ -143,7 +144,9 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                 requestHandler.process(request, executor)
                         .whenComplete((r, e) -> {
                             if (e != null) {
-                                if (RetryableException.isRetryable(e)) {
+                                try {
+                                    RetryableException.throwRetryableOrElse(e, null);
+                                } catch (RetryableException ex) {
                                     putBack(request.getKey(), request);
                                 }
                             }
@@ -228,8 +231,9 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                         FutureHelpers.getAndHandleExceptions(
                                 streamMetadataStore.checkpoint(readerId, readerGroup, serializer.serialize(checkpoint.get())),
                                 e -> {
-                                    if (e instanceof RetryableException) {
-                                        return (RetryableException) e;
+                                    Optional<RetryableException> opt = RetryableException.castRetryable(e);
+                                    if (opt.isPresent()) {
+                                        return opt.get();
                                     } else {
                                         return new RuntimeException(e);
                                     }

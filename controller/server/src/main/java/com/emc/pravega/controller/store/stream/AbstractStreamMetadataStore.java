@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -66,14 +65,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         new CacheLoader<Pair<String, String>, Stream>() {
                             @ParametersAreNonnullByDefault
                             public Stream load(Pair<String, String> input) {
-                                try {
-                                    return newStream(input.getKey(), input.getValue());
-                                } catch (Exception e) {
-                                    if (RetryableException.isRetryable(e)) {
-                                        throw (RetryableException) e;
-                                    }
-                                    throw new RuntimeException(e);
-                                }
+                                return newStream(input.getKey(), input.getValue());
                             }
                         });
     }
@@ -239,6 +231,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             stream = (Stream) context;
             assert stream.getScope().equals(scope);
             assert stream.getName().equals(name);
+
         } else {
             stream = cache.getUnchecked(new ImmutablePair<>(scope, name));
             stream.refresh();
@@ -320,10 +313,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         // 3. all its predecessors completed.
         // shall become current and be added to some position
         List<Integer> newCurrents = successors.stream().filter(x ->
-                        // 2. it is not completed yet, and
-                        !completedSegments.contains(x)
-                                // 3. it is not current in any of the positions
-                                && positions.stream().allMatch(z -> !z.getCurrent().contains(x))
+                // 2. it is not completed yet, and
+                !completedSegments.contains(x)
+                        // 3. it is not current in any of the positions
+                        && positions.stream().allMatch(z -> !z.getCurrent().contains(x))
         ).collect(Collectors.toList());
 
         // 3. all its predecessors completed, and
@@ -341,7 +334,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         List<CompletableFuture<List<Integer>>> predecessors = new ArrayList<>();
         for (Integer number : subset) {
             predecessors.add(stream.getPredecessors(number)
-                            .thenApply(preds -> preds.stream().filter(y -> !completedSegments.contains(y)).collect(Collectors.toList()))
+                    .thenApply(preds -> preds.stream().filter(y -> !completedSegments.contains(y)).collect(Collectors.toList()))
             );
         }
 

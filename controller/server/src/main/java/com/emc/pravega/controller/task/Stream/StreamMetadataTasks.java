@@ -173,9 +173,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
                         return this.streamMetadataStore.getActiveSegments(scope, stream, context)
-                                .thenApply(activeSegments ->
-                                        notifyNewSegments(config.getScope(), stream, activeSegments, context))
-                                .thenApply(y -> CreateStreamStatus.SUCCESS);
+                                .thenCompose(activeSegments -> notifyNewSegments(config.getScope(), stream, activeSegments, context)
+                                        .thenApply(y -> CreateStreamStatus.SUCCESS));
                     } else {
                         return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
                     }
@@ -276,8 +275,9 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                         return notifySealedSegments(scope, stream, sealedSegments)
                                 .thenCompose(results ->
                                         scaleMetadataUpdate(scope, stream, sealedSegments, newRanges, scaleTimestamp, context))
+                                .thenCompose((List<Segment> newSegments) -> notifyNewSegments(scope, stream, newSegments, context)
+                                        .thenApply(z -> newSegments))
                                 .thenApply((List<Segment> newSegments) -> {
-                                    notifyNewSegments(scope, stream, newSegments, context);
                                     ScaleResponse response = new ScaleResponse();
                                     response.setStatus(ScaleStreamStatus.SUCCESS);
                                     response.setSegments(
@@ -327,7 +327,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                                 .runAsync(() ->
                                         streamMetadataStore.getConfiguration(scope, stream, context)
                                                 .thenApply(configuration ->
-                                                        new ImmutablePair<>(SegmentHelper.getSegmentUri(scope, stream, segment.getNumber(), hostControllerStore), configuration))
+                                                        new ImmutablePair<>(SegmentHelper.getSingleton().getSegmentUri(scope, stream, segment.getNumber(), hostControllerStore), configuration))
                                                 .thenCompose(pair ->
                                                         notifyNewSegment(
                                                                 scope,
@@ -348,8 +348,9 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 .collect(Collectors.toList()));
     }
 
-    private CompletableFuture<Boolean> notifyNewSegment(String scope, String stream, int segmentNumber, ScalingPolicy policy, NodeUri uri) {
-        return SegmentHelper.createSegment(scope,
+    @VisibleForTesting
+    CompletableFuture<Boolean> notifyNewSegment(String scope, String stream, int segmentNumber, ScalingPolicy policy, NodeUri uri) {
+        return SegmentHelper.getSingleton().createSegment(scope,
                 stream, segmentNumber, policy, ModelHelper.encode(uri), this.connectionFactory);
     }
 
@@ -369,9 +370,9 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                 .retryingOn(RetryableException.class)
                 .throwingOn(RuntimeException.class)
-                .runAsync(() -> CompletableFuture.completedFuture(SegmentHelper.getSegmentUri(scope, stream, sealedSegment, hostControllerStore))
+                .runAsync(() -> CompletableFuture.completedFuture(SegmentHelper.getSingleton().getSegmentUri(scope, stream, sealedSegment, hostControllerStore))
                                 .thenCompose(uri ->
-                                        SegmentHelper.sealSegment(
+                                        SegmentHelper.getSingleton().sealSegment(
                                                 scope,
                                                 stream,
                                                 sealedSegment,
@@ -381,6 +382,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                                     if (ex != null) {
                                         if (ex instanceof WireCommandFailedException) {
                                             throw new RetryableException(ex);
+                                        } else if (ex.getCause() instanceof WireCommandFailedException) {
+                                            throw new RetryableException(ex.getCause());
                                         } else {
                                             throw new RuntimeException(ex);
                                         }

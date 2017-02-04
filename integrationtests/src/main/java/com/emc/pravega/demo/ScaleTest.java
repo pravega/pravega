@@ -38,12 +38,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-
 import java.util.concurrent.CompletableFuture;
 
 /**
  * End to end scale tests.
- *
  */
 public class ScaleTest {
     @SuppressWarnings("checkstyle:ReturnCount")
@@ -71,8 +69,8 @@ public class ScaleTest {
         Stream stream = new StreamImpl(scope, streamName, config);
 
         System.err.println(String.format("Creating stream (%s, %s)", scope, streamName));
-        CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
-        if (createStatus.get() != CreateStreamStatus.SUCCESS) {
+        CreateStreamStatus createStatus = controller.createStream(config).get();
+        if (createStatus != CreateStreamStatus.SUCCESS) {
             System.err.println("Create stream failed, exiting");
             return;
         }
@@ -114,7 +112,7 @@ public class ScaleTest {
                         streamName));
         scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(3), map);
         scaleResponse = scaleResponseFuture.get();
-        if (scaleResponse.getStatus() != ScaleStreamStatus.PRECONDITION_FAILED) {
+        if (scaleResponse.getStatus() != ScaleStreamStatus.TXN_CONFLICT) {
             System.err.println("Scale stream while transaction is ongoing failed, exiting");
             return;
         }
