@@ -27,9 +27,11 @@ import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 @EqualsAndHashCode
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
+@ToString
 public class RevisionImpl implements Revision, Serializable {
 
     @Getter(value = AccessLevel.PACKAGE)

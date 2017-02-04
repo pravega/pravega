@@ -18,9 +18,9 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.stream.Segment;
-import com.google.common.base.Preconditions;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -34,26 +34,13 @@ public class PositionImpl extends PositionInternal {
 
     private static final long serialVersionUID = 1L;
     private final Map<Segment, Long> ownedSegments;
-    private final Map<FutureSegment, Long> futureOwnedSegments;
 
-    public PositionImpl(Map<Segment, Long> ownedSegments, Map<FutureSegment, Long> futureOwnedSegments) {
-        this.ownedSegments = ownedSegments;
-        this.futureOwnedSegments = futureOwnedSegments;
-        Preconditions.checkArgument(isFutureSegmentsWellFormed(ownedSegments, futureOwnedSegments),
-                                    "Owned and future logs must be coherent: " + this.toString());
+    public PositionImpl(Map<Segment, Long> ownedSegments) {
+        this.ownedSegments = new HashMap<>(ownedSegments);
     }
-
-
-    private boolean isFutureSegmentsWellFormed(Map<Segment, Long> ownedSegments, Map<FutureSegment, Long> futureOwnedSegments) {
-        // every segment in futures should
-        // 1. not be in ownedLogs, and
-        // 2. have a predecessor in ownedLogs
-        Set<Integer> current = ownedSegments.entrySet()
-            .stream()
-            .map(x -> x.getKey().getSegmentNumber())
-            .collect(Collectors.toSet());
-        return futureOwnedSegments.entrySet().stream().allMatch(x -> current.contains(x.getKey().getPrecedingNumber())
-                && !current.contains(x.getKey().getSegmentNumber()));
+    
+    static PositionImpl createEmptyPosition() {
+        return new PositionImpl(new HashMap<>());
     }
 
     @Override
@@ -78,16 +65,6 @@ public class PositionImpl extends PositionInternal {
     @Override
     public Long getOffsetForOwnedSegment(Segment segmentId) {
         return ownedSegments.get(segmentId);
-    }
-
-    @Override
-    public Set<FutureSegment> getFutureOwnedSegments() {
-        return Collections.unmodifiableSet(futureOwnedSegments.keySet());
-    }
-
-    @Override
-    public Map<FutureSegment, Long> getFutureOwnedSegmentsWithOffsets() {
-        return Collections.unmodifiableMap(futureOwnedSegments);
     }
 
     @Override

@@ -49,7 +49,7 @@ public interface RequestProcessor {
 
     void commitTransaction(CommitTransaction commitTransaction);
     
-    void abortTransaction(AbortTransaction dropTransaction);
+    void abortTransaction(AbortTransaction abortTransaction);
 
     void sealSegment(SealSegment sealSegment);
 

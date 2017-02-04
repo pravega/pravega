@@ -18,7 +18,6 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.base.Preconditions;
 
 import lombok.Getter;
@@ -32,16 +31,12 @@ public class StreamImpl implements Stream {
     private final String scope;
     @Getter
     private final String streamName;
-    @Getter
-    private final StreamConfiguration config;
 
-    public StreamImpl(String scope, String streamName, StreamConfiguration config) {
+    public StreamImpl(String scope, String streamName) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(streamName);
-        Preconditions.checkNotNull(config);
         this.scope = scope;
         this.streamName = streamName;
-        this.config = config;
     }
 
     @Override
