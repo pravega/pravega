@@ -41,8 +41,7 @@ public class Cache<T> {
                 .maximumSize(1000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
-                .build(
-                        new CacheLoader<String, CompletableFuture<Data<T>>>() {
+                .build(new CacheLoader<String, CompletableFuture<Data<T>>>() {
                             @ParametersAreNonnullByDefault
                             public CompletableFuture<Data<T>> load(final String key) {
                                 return loader.get(key)

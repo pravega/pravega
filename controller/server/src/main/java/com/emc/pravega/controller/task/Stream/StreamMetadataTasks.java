@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
@@ -169,6 +170,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null)
                 .thenCompose(x -> {
+                    log.debug("{}/{} created in metadata store", scope, stream);
                     if (x) {
                         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
@@ -184,7 +186,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                         if (ex.getCause() instanceof StreamAlreadyExistsException) {
                             return CreateStreamStatus.STREAM_EXISTS;
                         } else {
-                            log.warn("Create stream failed due to ", ex);
+                            log.warn("Create stream failed due to {}", ex);
                             return CreateStreamStatus.FAILURE;
                         }
                     } else {
@@ -221,6 +223,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                                 .thenCompose(v -> streamMetadataStore.setSealed(scope, stream, context))
                                 .handle((result, ex) -> {
                                     if (ex != null) {
+                                        log.warn("Exception thrown in trying to notify sealed segments {}", ex.getMessage());
                                         return handleUpdateStreamError(ex);
                                     } else {
                                         return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
@@ -336,12 +339,20 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                                                                 pair.right.getScalingPolicy(),
                                                                 pair.left))
                                                 .<Boolean>handle((res, ex) -> {
+                                                    Throwable t = ex;
                                                     if (ex != null) {
-                                                        if (ex instanceof WireCommandFailedException) {
-                                                            throw new RetryableException(ex);
-                                                        } else {
-                                                            throw new RuntimeException(ex);
+                                                        log.warn("Exception thrown while notifying host of new segment: {}", ex.getMessage());
+                                                        if (ex instanceof CompletionException || ex instanceof ExecutionException) {
+                                                            t = ex.getCause();
                                                         }
+
+                                                        RetryableException.throwRetryableOrElse(t, z -> {
+                                                            if (z instanceof WireCommandFailedException) {
+                                                                throw new RetryableException(z);
+                                                            } else {
+                                                                throw new RuntimeException(z);
+                                                            }
+                                                        });
                                                     }
                                                     return res;
                                                 }), executor))
@@ -380,6 +391,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                                                 this.connectionFactory))
                                 .handle((res, ex) -> {
                                     if (ex != null) {
+                                        log.warn("Exception thrown while notifying host of sealed segment: {}", ex.getMessage());
                                         if (ex instanceof WireCommandFailedException) {
                                             throw new RetryableException(ex);
                                         } else if (ex.getCause() instanceof WireCommandFailedException) {

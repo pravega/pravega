@@ -26,6 +26,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Sets;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -52,6 +53,7 @@ import static com.emc.pravega.common.concurrent.FutureCollectionHelper.sequence;
  * Abstract Stream metadata store. It implements various read queries using the Stream interface.
  * Implementation of create and update queries are delegated to the specific implementations of this abstract class.
  */
+@Slf4j
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
     private final LoadingCache<Pair<String, String>, Stream> cache;
@@ -59,7 +61,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     protected AbstractStreamMetadataStore() {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(1000000)
-                .refreshAfterWrite(10, TimeUnit.MINUTES)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .build(
                         new CacheLoader<Pair<String, String>, Stream>() {

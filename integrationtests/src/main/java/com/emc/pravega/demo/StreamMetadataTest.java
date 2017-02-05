@@ -191,7 +191,7 @@ public class StreamMetadataTest {
         final StreamConfiguration config6 =
                 new StreamConfigurationImpl(scope1,
                         streamName1,
-                        new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_BYTES, 100L, 2, 2));
+                        new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_KBPS, 100L, 2, 2));
         updateStatus = controller.alterStream(config6);
         System.err.println(String.format("Updating the  type of scaling policy(%s, %s)", scope1, streamName1));
         if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {

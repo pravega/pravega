@@ -29,11 +29,10 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import org.apache.commons.lang.NotImplementedException;
 
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-
-import org.apache.commons.lang.NotImplementedException;
 
 public class MockStreamManager implements StreamManager {
 
@@ -70,9 +69,8 @@ public class MockStreamManager implements StreamManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        FutureHelpers.getAndHandleExceptions(controller
-                        .createStream(new StreamConfigurationImpl(scope, streamName, config.getScalingPolicy())),
-                RuntimeException::new);
+        FutureHelpers.getAndHandleExceptions(controller.createStream(config), RuntimeException::new);
+
         Stream stream = new StreamImpl(scope, streamName, config);
         created.put(streamName, stream);
         return stream;
@@ -80,7 +78,7 @@ public class MockStreamManager implements StreamManager {
 
     @Override
     public void sealStream(String streamName) {
-            FutureHelpers.getAndHandleExceptions(controller.sealStream(scope, streamName), RuntimeException::new);
+        FutureHelpers.getAndHandleExceptions(controller.sealStream(scope, streamName), RuntimeException::new);
     }
 
     @Override

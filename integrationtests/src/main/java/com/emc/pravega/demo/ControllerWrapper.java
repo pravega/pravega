@@ -15,10 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.emc.pravega.demo;
 
+import com.emc.pravega.ClientFactory;
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
@@ -37,15 +39,20 @@ import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.Stream.TxTimeOutScheduler;
+import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.PositionInternal;
 import com.emc.pravega.stream.impl.StreamSegments;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import com.emc.pravega.stream.mock.MockStreamManager;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import lombok.Getter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -63,11 +70,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
+import static com.emc.pravega.controller.requesthandler.RequestHandlersInit.REQUEST_STREAM_CONFIG;
+import static com.emc.pravega.controller.requesthandler.RequestHandlersInit.TXN_TIMER_STREAM_CONFIG;
+
+@Getter
 public class ControllerWrapper implements Controller {
 
     private final ControllerService controller;
+    private final ClientFactory clientFactory;
 
     public ControllerWrapper(String connectionString) {
+        this(connectionString, (scope, stream, txid, timeoutPeriod) -> CompletableFuture.completedFuture(null));
+    }
+
+    public ControllerWrapper(String connectionString, TxTimeOutScheduler scheduler) {
         String hostId;
         try {
             // On each controller process restart, it gets a fresh hostId,
@@ -95,12 +111,35 @@ public class ControllerWrapper implements Controller {
         //2) start RPC server with v1 implementation. Enable other versions if required.
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, hostId);
-        TxTimeOutScheduler txTimeOutProcessor = (scope, stream, txid, timeoutPeriod) -> CompletableFuture.completedFuture(null);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId, txTimeOutProcessor);
+                hostStore, taskMetadataStore, executor, hostId, scheduler);
 
         controller = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+
+        MockStreamManager streamManager = new MockStreamManager("pravega", this);
+
+        clientFactory = new ClientFactoryImpl("pravega",
+                this,
+                new ConnectionFactoryImpl(false),
+                streamManager);
+
+        RequestHandlersInit.bootstrap(controller, Executors.newSingleThreadScheduledExecutor(), clientFactory);
+
+        CompletableFuture.runAsync(() -> internalStreams(streamManager));
     }
+
+    private void internalStreams(MockStreamManager streamManager) {
+        while (true) {
+            try {
+                streamManager.createStream(Config.SCALE_STREAM_NAME, REQUEST_STREAM_CONFIG);
+                streamManager.createStream(Config.TXN_TIMER_STREAM_NAME, TXN_TIMER_STREAM_CONFIG);
+                break;
+            } catch (Exception e) {
+                Exceptions.handleInterrupted(() -> Thread.sleep(1000));
+            }
+        }
+    }
+
 
     @Override
     public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {

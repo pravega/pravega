@@ -24,18 +24,22 @@ import com.emc.pravega.controller.NonRetryableException;
 import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.requests.ControllerRequest;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.PositionComparator;
+import com.emc.pravega.stream.impl.PositionImpl;
 import com.google.common.base.Preconditions;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -109,10 +113,12 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                 new JavaSerializer<>(),
                 new EventWriterConfig(null));
 
+        PositionImpl position = new PositionImpl(Collections.singletonMap(new Segment(Config.INTERNAL_SCOPE, Config.SCALE_STREAM_NAME, 0), 0L), Collections.emptyMap());
+
         reader = clientFactory.createReader(requestStream,
                 new JavaSerializer<>(),
                 new ReaderConfig(),
-                start);
+                start == null ? position : start);
 
         //        reader = clientFactory.createReader(Defaults.READER_GROUP,
         //                "1",
@@ -144,9 +150,12 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                 requestHandler.process(request, executor)
                         .whenComplete((r, e) -> {
                             if (e != null) {
+                                log.error("Processing failed RequestReader {}", e.getMessage());
+
                                 try {
                                     RetryableException.throwRetryableOrElse(e, null);
                                 } catch (RetryableException ex) {
+                                    log.debug("processing failed RequestReader with retryable so putting it back");
                                     putBack(request.getKey(), request);
                                 }
                             }
@@ -158,7 +167,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                 // an exception is thrown while doing reads for next events.
                 // And we should never stop processing of other requests in the queue even if processing a request throws
                 // an exception.
-                log.warn("Exception thrown while processing event", e);
+                log.warn("Exception thrown while processing event. {}. Logging and continuing.", e.getMessage());
             }
         }
     }

@@ -27,6 +27,7 @@ import com.emc.pravega.common.netty.ReplyProcessor;
 import com.emc.pravega.common.netty.WireCommand;
 import com.emc.pravega.common.netty.WireCommandType;
 import com.emc.pravega.common.netty.WireCommands;
+import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.TxnStatus;
@@ -105,19 +106,20 @@ public class SegmentHelper {
             rateType = WireCommands.CreateSegment.NO_SCALE;
         } else {
             desiredRate = policy.getTargetRate();
-            if (policy.getType().equals(ScalingPolicy.Type.BY_RATE_IN_BYTES)) {
+            if (policy.getType().equals(ScalingPolicy.Type.BY_RATE_IN_KBPS)) {
                 rateType = WireCommands.CreateSegment.IN_BYTES;
             } else {
                 rateType = WireCommands.CreateSegment.IN_EVENTS;
             }
         }
 
-        return sendRequestOverNewConnection(
+        whenComplete(sendRequestOverNewConnection(
                 new WireCommands.CreateSegment(Segment.getScopedName(scope, stream, segmentNumber), rateType, desiredRate),
                 replyProcessor,
                 clientCF,
-                uri)
-                .thenCompose(x -> result);
+                uri), result);
+
+        return result;
     }
 
     /**
@@ -163,12 +165,12 @@ public class SegmentHelper {
             }
         };
 
-        return sendRequestOverNewConnection(
+        whenComplete(sendRequestOverNewConnection(
                 new WireCommands.SealSegment(Segment.getScopedName(scope, stream, segmentNumber)),
                 replyProcessor,
                 clientCF,
-                ModelHelper.encode(uri))
-                .thenCompose(x -> result);
+                ModelHelper.encode(uri)), result);
+        return result;
     }
 
     public CompletableFuture<UUID> createTransaction(final String scope,
@@ -199,12 +201,12 @@ public class SegmentHelper {
             }
         };
 
-        return sendRequestOverNewConnection(
+        whenComplete(sendRequestOverNewConnection(
                 new WireCommands.CreateTransaction(Segment.getScopedName(scope, stream, segmentNumber), txId),
                 replyProcessor,
                 clientCF,
-                ModelHelper.encode(uri))
-                .thenCompose(x -> result);
+                ModelHelper.encode(uri)), result);
+        return result;
     }
 
     public CompletableFuture<TxnStatus> commitTransaction(final String scope,
@@ -243,12 +245,12 @@ public class SegmentHelper {
             }
         };
 
-        return sendRequestOverNewConnection(
+        whenComplete(sendRequestOverNewConnection(
                 new WireCommands.CommitTransaction(Segment.getScopedName(scope, stream, segmentNumber), txId),
                 replyProcessor,
                 clientCF,
-                ModelHelper.encode(uri))
-                .thenCompose(x -> result);
+                ModelHelper.encode(uri)), result);
+        return result;
     }
 
     public CompletableFuture<TxnStatus> dropTransaction(final String scope,
@@ -283,12 +285,12 @@ public class SegmentHelper {
             }
         };
 
-        return sendRequestOverNewConnection(
+        whenComplete(sendRequestOverNewConnection(
                 new WireCommands.AbortTransaction(Segment.getScopedName(scope, stream, segmentNumber), txId),
                 replyProcessor,
                 clientCF,
-                ModelHelper.encode(uri))
-                .thenCompose(x -> result);
+                ModelHelper.encode(uri)), result);
+        return result;
     }
 
     private CompletableFuture<Void> sendRequestOverNewConnection(final WireCommand request,
@@ -301,9 +303,20 @@ public class SegmentHelper {
                         connection.send(request);
                     } catch (ConnectionFailedException cfe) {
                         throw new WireCommandFailedException(cfe, request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
                     }
+
                     return null;
                 });
+    }
+
+    private <T> void whenComplete(CompletableFuture<Void> future, CompletableFuture<T> result) {
+        future.whenComplete((res, ex) -> {
+            if (ex != null) {
+                result.completeExceptionally(new RetryableException(ex));
+            }
+        });
     }
 
 }

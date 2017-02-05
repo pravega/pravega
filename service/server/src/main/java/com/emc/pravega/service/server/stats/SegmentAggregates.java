@@ -27,15 +27,15 @@ class SegmentAggregates implements Serializable {
 
     private static final int SECONDS_PER_MINUTE = 60;
 
-    private static final double M2_ALPHA = 1 - StrictMath.exp(-INTERVAL / SECONDS_PER_MINUTE / 2);
-    private static final double M5_ALPHA = 1 - StrictMath.exp(-INTERVAL / SECONDS_PER_MINUTE / 5);
-    private static final double M10_ALPHA = 1 - StrictMath.exp(-INTERVAL / SECONDS_PER_MINUTE / 10);
-    private static final double M20_ALPHA = 1 - StrictMath.exp(-INTERVAL / SECONDS_PER_MINUTE / 20);
+    private static final double M2_ALPHA = 1 - StrictMath.exp((double) -INTERVAL / (double) SECONDS_PER_MINUTE / 2);
+    private static final double M5_ALPHA = 1 - StrictMath.exp((double) -INTERVAL / (double) SECONDS_PER_MINUTE / 5);
+    private static final double M10_ALPHA = 1 - StrictMath.exp((double) -INTERVAL / (double) SECONDS_PER_MINUTE / 10);
+    private static final double M20_ALPHA = 1 - StrictMath.exp((double) -INTERVAL / (double) SECONDS_PER_MINUTE / 20);
 
-    private static final long TWO_MINUTE = Duration.ofMinutes(2).toNanos();
-    private static final long FIVE_MINUTE = Duration.ofMinutes(5).toNanos();
-    private static final long TEN_MINUTE = Duration.ofMinutes(10).toNanos();
-    private static final long TWENTY_MINUTE = Duration.ofMinutes(20).toNanos();
+    private static final long TWO_MINUTE = Duration.ofMinutes(2).toMinutes() * SECONDS_PER_MINUTE;
+    private static final long FIVE_MINUTE = Duration.ofMinutes(5).toMinutes() * SECONDS_PER_MINUTE;
+    private static final long TEN_MINUTE = Duration.ofMinutes(10).toMinutes() * SECONDS_PER_MINUTE;
+    private static final long TWENTY_MINUTE = Duration.ofMinutes(20).toMinutes() * SECONDS_PER_MINUTE;
 
     private static final long TICK_INTERVAL = Duration.ofSeconds(5).toNanos();
 
@@ -51,19 +51,19 @@ class SegmentAggregates implements Serializable {
     /**
      * Rates for Scale up = 24 bytes.
      */
-    private double twoMinuteRate;
-    private double fiveMinuteRate;
-    private double tenMinuteRate;
+    private volatile double twoMinuteRate;
+    private volatile double fiveMinuteRate;
+    private volatile double tenMinuteRate;
 
     /**
      * Rate for Scale down = 8 bytes.
      */
-    private double twentyMinuteRate;
+    private volatile double twentyMinuteRate;
 
     /**
      * 16 bytes.
      */
-    private long lastReportedTime;
+    private volatile long lastReportedTime;
 
     /**
      * Start time and last ticked time.
@@ -71,21 +71,22 @@ class SegmentAggregates implements Serializable {
      */
     private long startTime;
 
-    private long lastTick;
+    private volatile long lastTick;
 
     /**
      * 8 bytes.
      */
     // Note: we are not concurrency protecting this variable for performance reasons
-    private long currentCount;
+    private volatile long currentCount;
 
     SegmentAggregates(long targetRate, byte scaleType) {
         this.targetRate = targetRate;
         this.scaleType = scaleType;
         startTime = System.currentTimeMillis();
+        lastReportedTime = System.currentTimeMillis();
     }
 
-    public void update(long dataLength, int numOfEvents) {
+    void update(long dataLength, int numOfEvents) {
         if (scaleType == WireCommands.CreateSegment.IN_BYTES) {
             currentCount += dataLength;
         } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS) {
@@ -106,54 +107,56 @@ class SegmentAggregates implements Serializable {
         }
     }
 
-    public void updateTx(long dataSize, int numOfEvents, long txnCreationTime) {
+    void updateTx(long dataSize, int numOfEvents, long txnCreationTime) {
         if (scaleType == WireCommands.CreateSegment.IN_BYTES) {
             computeDecay(dataSize, System.currentTimeMillis() - txnCreationTime);
         } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS) {
             computeDecay(numOfEvents, System.currentTimeMillis() - txnCreationTime);
-        } else {
-            return;
         }
     }
 
-    public void setScaleType(byte scaleType) {
+    void setScaleType(byte scaleType) {
         this.scaleType = scaleType;
     }
 
-    public void setTargetRate(long targetRate) {
+    void setTargetRate(long targetRate) {
         this.targetRate = targetRate;
     }
 
-    public byte getScaleType() {
+    byte getScaleType() {
         return scaleType;
     }
 
-    public long getTargetRate() {
+    long getTargetRate() {
         return targetRate;
     }
 
-    public double getTwoMinuteRate() {
+    double getTwoMinuteRate() {
         return twoMinuteRate;
     }
 
-    public double getFiveMinuteRate() {
+    double getFiveMinuteRate() {
         return fiveMinuteRate;
     }
 
-    public double getTenMinuteRate() {
+    double getTenMinuteRate() {
         return tenMinuteRate;
     }
 
-    public double getTwentyMinuteRate() {
+    double getTwentyMinuteRate() {
         return twentyMinuteRate;
     }
 
-    public long getLastReportedTime() {
+    long getLastReportedTime() {
         return lastReportedTime;
     }
 
-    public long getStartTime() {
+    long getStartTime() {
         return startTime;
+    }
+
+    void setLastReportedTime(long lastReportedTime) {
+        this.lastReportedTime = lastReportedTime;
     }
 
     private void computeDecay(long size, long duration) {
@@ -166,7 +169,7 @@ class SegmentAggregates implements Serializable {
         final long requiredTicks = duration / TICK_INTERVAL;
         final long count = size / requiredTicks;
 
-        for (long i = 0; i < requiredTicks - 1; i++) {
+        for (long i = 0; i < requiredTicks; i++) {
             twoMinuteRate = decayingRate(count, twoMinuteRate, M2_ALPHA, TWO_MINUTE);
             fiveMinuteRate = decayingRate(count, fiveMinuteRate, M5_ALPHA, FIVE_MINUTE);
             tenMinuteRate = decayingRate(count, tenMinuteRate, M10_ALPHA, TEN_MINUTE);
@@ -179,7 +182,4 @@ class SegmentAggregates implements Serializable {
         return rate + (alpha * (instantRate - rate));
     }
 
-    public void setLastReportedTime(long lastReportedTime) {
-        this.lastReportedTime = lastReportedTime;
-    }
 }

@@ -26,6 +26,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalListener;
 import com.google.common.collect.Lists;
+import lombok.extern.slf4j.Slf4j;
 
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -33,6 +34,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -43,8 +46,12 @@ import java.util.concurrent.TimeUnit;
  * If an entry is evicted from the cache we move it to disk backed cache.
  * The idea is we only use one copy of data, either in in-memory cache or disk backed cache.
  */
+@Slf4j
 public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     private static final long TWO_MINUTES = Duration.ofMinutes(2).toMillis();
+    private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool();
+    private static final int INITIAL_CAPACITY = 1000;
+    private static final int MAX_CACHE_SIZE = 100000;
 
     private final List<SegmentTrafficMonitor> monitors;
 
@@ -59,8 +66,8 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         diskBackedCache = Optional.ofNullable(diskCache);
 
         this.cache = CacheBuilder.newBuilder()
-                .initialCapacity(1000)
-                .maximumSize(100000)
+                .initialCapacity(INITIAL_CAPACITY)
+                .maximumSize(MAX_CACHE_SIZE)
                 .expireAfterAccess(20, TimeUnit.MINUTES)
                 .removalListener((RemovalListener<String, SegmentAggregates>) notification -> {
                     if (notification.getCause().equals(RemovalCause.EXPIRED) ||
@@ -130,18 +137,23 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
      */
     @Override
     public void record(String streamSegmentName, long dataLength, int numOfEvents) {
-        SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
-        if (aggregates != null) {
-            if (aggregates.getScaleType() != WireCommands.CreateSegment.NO_SCALE) {
-                aggregates.update(dataLength, numOfEvents);
+        try {
+            SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
+            if (aggregates != null) {
+                if (aggregates.getScaleType() != WireCommands.CreateSegment.NO_SCALE) {
+                    aggregates.update(dataLength, numOfEvents);
 
-                if (System.currentTimeMillis() - aggregates.getLastReportedTime() > TWO_MINUTES) {
-                    CompletableFuture.runAsync(() -> monitors.forEach(monitor -> monitor.process(streamSegmentName, aggregates.getTargetRate(), aggregates.getScaleType(), aggregates.getStartTime(),
-                            aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(), aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate())));
-
-                    aggregates.setLastReportedTime(System.currentTimeMillis());
+                    if (System.currentTimeMillis() - aggregates.getLastReportedTime() > TWO_MINUTES) {
+                        CompletableFuture.runAsync(() -> monitors.forEach(monitor -> monitor.process(streamSegmentName,
+                                aggregates.getTargetRate(), aggregates.getScaleType(), aggregates.getStartTime(),
+                                aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(),
+                                aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate())), EXECUTOR);
+                        aggregates.setLastReportedTime(System.currentTimeMillis());
+                    }
                 }
             }
+        } catch (Exception e) {
+            log.error("Record statistic for {} for data: {} and events:{} threw exception", streamSegmentName, dataLength, numOfEvents, e.getMessage());
         }
     }
 

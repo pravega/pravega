@@ -44,6 +44,7 @@ import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -122,7 +123,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Void> checkStreamExists(final Create create) throws StreamAlreadyExistsException {
-
         return checkExists(creationPath)
                 .thenCompose(x -> {
                     if (x) {
@@ -297,7 +297,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
-                }).thenApply(x -> !(x == null || System.currentTimeMillis() - Utilities.toLong(x.getData()) > BLOCK_VALIDITY_PERIOD));
+                }).thenApply(x ->
+                        !(x == null || System.currentTimeMillis() - Utilities.toLong(x.getData()) > BLOCK_VALIDITY_PERIOD));
     }
 
     @Override
@@ -613,6 +614,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         throw new RuntimeException(e);
                     }
                 })
-                .thenApply(x -> x != null);
+                .thenApply(Objects::nonNull);
     }
 }

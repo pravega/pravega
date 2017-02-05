@@ -41,6 +41,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -71,7 +72,6 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamMetadataStore = streamMetadataStore;
         this.streamTxMetadataTasks = streamTxMetadataTasks;
-
     }
 
     @Override
@@ -85,6 +85,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
             log.debug(String.format("Scale Request for stream %s/%s expired", request.getScope(), request.getStream()));
             return CompletableFuture.completedFuture(null);
         }
+
         final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
         final CompletableFuture<Void> result = new CompletableFuture<>();
@@ -123,6 +124,8 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                         return policyFuture.thenCompose(policy -> processScaleUp(request, policy, context))
                                 .whenComplete((res, ex) -> {
                                     if (ex != null) {
+                                        log.error("ScaleRequestHandler process scaleUp for segment {}/{}/{} threw exception", request.getScope(), request.getStream(), request.getSegmentNumber(), ex.getMessage());
+
                                         result.completeExceptionally(ex);
                                     } else {
                                         result.complete(res);
@@ -132,6 +135,8 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                         return policyFuture.thenCompose(policy -> processScaleDown(request, policy, context))
                                 .whenComplete((res, ex) -> {
                                     if (ex != null) {
+                                        log.error("ScaleRequestHandler process scaleDown for segment {}/{}/{} threw exception", request.getScope(), request.getStream(), request.getSegmentNumber(), ex.getMessage());
+
                                         result.completeExceptionally(ex);
                                     } else {
                                         result.complete(res);
@@ -157,10 +162,11 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
         return streamMetadataStore.getSegment(request.getScope(), request.getStream(), request.getSegmentNumber(), context)
                 .thenCompose(segment -> {
                     if (!policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
-                        double delta = (segment.getKeyEnd() - segment.getKeyStart()) / request.getNumOfSplits();
+                        int numOfSplits = Integer.min(request.getNumOfSplits(), policy.getScaleFactor());
+                        double delta = (segment.getKeyEnd() - segment.getKeyStart()) / numOfSplits;
 
                         final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
-                        for (int i = 0; i < request.getNumOfSplits(); i++) {
+                        for (int i = 0; i < numOfSplits; i++) {
                             simpleEntries.add(new AbstractMap.SimpleEntry<>(segment.getKeyStart() + delta * i,
                                     segment.getKeyStart() + (delta * (i + 1))));
                         }
@@ -190,7 +196,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                         } else {
                             final List<Segment> candidates = activeSegments.stream().filter(z -> z.getKeyEnd() == currentOpt.get().getKeyStart() ||
                                     z.getKeyStart() == currentOpt.get().getKeyEnd() || z.getNumber() == request.getSegmentNumber())
-                                    .sorted((x, y) -> Double.compare(x.getKeyStart(), y.getKeyStart()))
+                                    .sorted(Comparator.comparingDouble(Segment::getKeyStart))
                                     .collect(Collectors.toList());
                             return new ImmutablePair<>(candidates, activeSegments.size() - policy.getMinNumSegments());
                         }
@@ -255,6 +261,8 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                         context)
                         .whenComplete((result, e) -> {
                             if (e != null) {
+                                log.warn("Scale failed for request {}/{}/{} with exception", request.getScope(), request.getStream(), request.getSegmentNumber(), e.getMessage());
+
                                 if (e instanceof LockFailedException || e.getCause() instanceof LockFailedException) {
                                     // lock failure, throw an exception here,
                                     // and that will result in several retries exhausting which the request will be put back
@@ -319,7 +327,10 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                     // if it is retryable exception, do not unblock creation of txn and let scale be attempted again.
                     // However, if its either completed successfully or failed with non-retryable, we need to unblock
                     // creation of transactions.
+
                     if (ex != null) {
+                        log.error("scale failed for request {}/{}/{} with exception", request.getScope(), request.getStream(), request.getSegmentNumber(), ex.getMessage());
+
                         RetryableException.throwRetryableOrElse(ex, RuntimeException::new);
                         return ex;
                     } else {
@@ -327,14 +338,19 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                     }
                 })
                 .thenCompose(ex -> streamMetadataStore.unblockTransactions(request.getScope(), request.getStream(), context)
-                        .whenComplete((res, e) -> {
+                        .exceptionally(e -> {
                             if (ex != null) {
-                                throw new RuntimeException(ex);
+                                // if scale operation had failed, we should throw the original exception. This has to be non-retryable as
+                                // scale task has exhausted all its lives
+                                RetryableException.throwRetryableOrElse(ex, x -> {
+                                    throw new RuntimeException(x);
+                                });
+                            } else {
+                                // unblock failed with retryable.
+                                log.warn("Failed to unblock txn creation for stream {}/{}", request.getScope(), request.getStream());
+                                throw new RetryableException(e);
                             }
-
-                            RetryableException.throwRetryableOrElse(ex, x -> {
-                                throw new RuntimeException(x);
-                            });
+                            return null;
                         }));
     }
 
