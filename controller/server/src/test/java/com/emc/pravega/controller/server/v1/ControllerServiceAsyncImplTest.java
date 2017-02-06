@@ -27,6 +27,7 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -54,7 +55,8 @@ import static org.junit.Assert.assertEquals;
  */
 public class ControllerServiceAsyncImplTest {
 
-    private static final String SCOPE = "scope";
+    private static final String SCOPE1 = "scope1";
+    private static final String SCOPE2 = "scope2";
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
     private final ControllerServiceAsyncImpl controllerService;
@@ -92,15 +94,42 @@ public class ControllerServiceAsyncImplTest {
     }
 
     @Test
+    public void createScopeTests() throws TException, ExecutionException, InterruptedException {
+        CreateScopeStatus status;
+
+        // region createScope
+        ThriftAsyncCallback<CreateScopeStatus> result1 = new ThriftAsyncCallback<>();
+        this.controllerService.createScope(SCOPE1, result1);
+        status = result1.getResult().get();
+        assertEquals(status, CreateScopeStatus.SUCCESS);
+
+        ThriftAsyncCallback<CreateScopeStatus> result2 = new ThriftAsyncCallback<>();
+        this.controllerService.createScope(SCOPE2, result2);
+        status = result2.getResult().get();
+        assertEquals(status, CreateScopeStatus.SUCCESS);
+        // endregion
+
+        // region duplicate create scope
+        ThriftAsyncCallback<CreateScopeStatus> result3 = new ThriftAsyncCallback<>();
+        this.controllerService.createScope(SCOPE2, result3);
+        status = result3.getResult().get();
+        assertEquals(status, CreateScopeStatus.SCOPE_EXIST);
+        // endregion
+    }
+
+    @Test
     public void createStreamTests() throws TException, ExecutionException, InterruptedException {
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
-        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
-        final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
+        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE1, stream1, policy1);
+        final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE1, stream2, policy2);
         CreateStreamStatus status;
 
         // region checkStream
         ThriftAsyncCallback<CreateStreamStatus> result1 = new ThriftAsyncCallback<>();
+        ThriftAsyncCallback<CreateScopeStatus> result = new ThriftAsyncCallback<>();
+        this.controllerService.createScope(SCOPE1, result);
+        result.getResult().get();
         this.controllerService.createStream(ModelHelper.decode(configuration1), result1);
         status = result1.getResult().get();
         assertEquals(status, CreateStreamStatus.SUCCESS);

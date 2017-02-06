@@ -26,6 +26,8 @@ import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamNotFoundException;
+import com.emc.pravega.controller.store.stream.ScopeNotFoundException;
+import com.emc.pravega.controller.store.stream.ScopeAlreadyExistsException;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
@@ -107,7 +109,11 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     @Task(name = "createScope", version = "1.0", resource = "{scope}")
     public CompletableFuture<CreateScopeStatus> createScope(String scope) {
-        return  null;
+        return execute(
+                new Resource(scope),
+                new Serializable[]{scope},
+                () -> createScopeBody(scope)
+        );
     }
 
 
@@ -129,7 +135,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     /**
      * Seal a stream.
-     * @param scope scope.
+     *
+     * @param scope  scope.
      * @param stream stream name.
      * @return update status.
      */
@@ -160,10 +167,10 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
-        return this.streamMetadataStore.createStream(stream, config, timestamp)
+        return this.streamMetadataStore.createStream(scope, stream, config, timestamp)
                 .thenCompose(x -> {
                     if (x) {
-                        return this.streamMetadataStore.getActiveSegments(stream)
+                        return this.streamMetadataStore.getActiveSegments(scope, stream)
                                 .thenApply(activeSegments ->
                                         notifyNewSegments(config.getScope(), stream, activeSegments))
                                 .thenApply(y -> CreateStreamStatus.SUCCESS);
@@ -175,6 +182,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                     if (ex != null) {
                         if (ex.getCause() instanceof StreamAlreadyExistsException) {
                             return CreateStreamStatus.STREAM_EXISTS;
+                        } else if (ex.getCause() instanceof ScopeNotFoundException) {
+                            return CreateStreamStatus.FAILURE;
                         } else {
                             log.warn("Create stream failed due to ", ex);
                             return CreateStreamStatus.FAILURE;
@@ -185,8 +194,31 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 });
     }
 
+    private CompletableFuture<CreateScopeStatus> createScopeBody(String scope) {
+        return this.streamMetadataStore.createScope(scope)
+                .thenCompose(x -> {
+                    if (x) {
+                        return CompletableFuture.completedFuture(CreateScopeStatus.SUCCESS);
+                    } else {
+                        return CompletableFuture.completedFuture(CreateScopeStatus.FAILURE);
+                    }
+                })
+                .handle((result, ex) -> {
+                    if (ex != null) {
+                        if (ex.getCause() instanceof ScopeAlreadyExistsException) {
+                            return CreateScopeStatus.SCOPE_EXIST;
+                        } else {
+                            log.debug("Create scope failed due to ", ex);
+                            return CreateScopeStatus.FAILURE;
+                        }
+                    } else {
+                        return result;
+                    }
+                });
+    }
+
     public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream, StreamConfiguration config) {
-        return streamMetadataStore.updateConfiguration(stream, config)
+        return streamMetadataStore.updateConfiguration(scope, stream, config)
                 .handle((result, ex) -> {
                     if (ex != null) {
                         return handleUpdateStreamError(ex);
@@ -197,7 +229,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     public CompletableFuture<UpdateStreamStatus> sealStreamBody(String scope, String stream) {
-        return streamMetadataStore.getActiveSegments(stream)
+        return streamMetadataStore.getActiveSegments(scope, stream)
                 .thenCompose(activeSegments -> {
                     if (activeSegments.isEmpty()) { //if active segments are empty then the stream is sealed.
                         //Do not update the state if the stream is already sealed.
@@ -206,7 +238,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                         List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
                                 collect(Collectors.toList());
                         return notifySealedSegments(scope, stream, segmentsToBeSealed)
-                                .thenCompose(v -> streamMetadataStore.setSealed(stream))
+                                .thenCompose(v -> streamMetadataStore.setSealed(scope, stream))
                                 .handle((result, ex) -> {
                                     if (ex != null) {
                                         return handleUpdateStreamError(ex);
@@ -226,7 +258,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         // 3. Transaction is active on the stream
         // 4. sealedSegments should be a subset of activeSegments.
         CompletableFuture<Boolean> checkValidity =
-                streamMetadataStore.getActiveSegments(stream)
+                streamMetadataStore.getActiveSegments(scope, stream)
                         .thenCompose(activeSegments ->
                                 streamMetadataStore
                                         .isTransactionOngoing(scope, stream)
@@ -256,7 +288,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                         return notifySealedSegments(scope, stream, sealedSegments)
 
                                 .thenCompose(results ->
-                                        streamMetadataStore.scale(stream, sealedSegments, newRanges, scaleTimestamp))
+                                        streamMetadataStore.scale(scope, stream, sealedSegments, newRanges, scaleTimestamp))
 
                                 .thenApply((List<Segment> newSegments) -> {
                                     notifyNewSegments(scope, stream, newSegments);
@@ -318,12 +350,12 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() ->
-                        SegmentHelper.sealSegment(
-                                scope,
-                                stream,
-                                sealedSegment,
-                                this.hostControllerStore,
-                                this.connectionFactory),
+                                SegmentHelper.sealSegment(
+                                        scope,
+                                        stream,
+                                        sealedSegment,
+                                        this.hostControllerStore,
+                                        this.connectionFactory),
                         executor);
     }
 

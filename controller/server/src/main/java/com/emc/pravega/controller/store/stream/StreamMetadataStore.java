@@ -30,24 +30,26 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Stream Metadata.
  */
-//TODO: Add scope to most methods.
 public interface StreamMetadataStore {
 
     /**
      * Creates a new stream with the given name and configuration.
      *
-     * @param name          stream name.
-     * @param configuration stream configuration.
-     * @param createTimestamp stream creation timestamp.
+     * @param scopeName       scope name
+     * @param streamName      stream name
+     * @param configuration   stream configuration
+     * @param createTimestamp stream creation timestamp
      * @return boolean indicating whether the stream was created
      */
-    CompletableFuture<Boolean> createStream(final String name,
+    CompletableFuture<Boolean> createStream(final String scopeName,
+                                            final String streamName,
                                             final StreamConfiguration configuration,
                                             final long createTimestamp);
 
     /**
      * Creates a new scope with the given name.
-     * @param scope     Scope name
+     *
+     * @param scope Scope name
      * @return boolean whether the scope was created
      */
     CompletableFuture<Boolean> createScope(final String scope);
@@ -55,82 +57,96 @@ public interface StreamMetadataStore {
     /**
      * Updates the configuration of an existing stream.
      *
-     * @param name          stream name.
+     * @param scopeName     scope name.
+     * @param streamName    stream name.
      * @param configuration new stream configuration
      * @return boolean indicating whether the stream was updated
      */
-    CompletableFuture<Boolean> updateConfiguration(final String name, final StreamConfiguration configuration);
+    CompletableFuture<Boolean> updateConfiguration(final String scopeName, final String streamName, final StreamConfiguration configuration);
 
     /**
      * Fetches the current stream configuration.
      *
-     * @param name stream name.
+     * @param scopeName  scope name.
+     * @param streamName stream name.
      * @return current stream configuration.
      */
-    CompletableFuture<StreamConfiguration> getConfiguration(final String name);
+    CompletableFuture<StreamConfiguration> getConfiguration(final String scopeName, final String streamName);
 
     /**
      * Set the stream state to sealed.
-     * @param name stream name.
+     *
+     * @param scopeName  scope name.
+     * @param streamName stream name.
      * @return boolean indicating whether the stream was updated.
      */
-    CompletableFuture<Boolean> setSealed(final String name);
+    CompletableFuture<Boolean> setSealed(final String scopeName, final String streamName);
 
     /**
      * Get the stream sealed status.
-     * @param name stream name.
+     *
+     * @param scopeName  scope name.
+     * @param streamName stream name.
      * @return boolean indicating whether the stream is sealed.
      */
-    CompletableFuture<Boolean> isSealed(final String name);
+    CompletableFuture<Boolean> isSealed(final String scopeName, final String streamName);
 
     /**
      * Get Segment.
-     *  @param name   stream name.
-     * @param number segment number.
+     *
+     * @param scopeName  scope name.
+     * @param streamName stream name.
+     * @param number     segment number.
      * @return segment at given number.
      */
-    CompletableFuture<Segment> getSegment(final String name, final int number);
+    CompletableFuture<Segment> getSegment(final String scopeName, final String streamName, final int number);
 
     /**
      * Get active segments.
      *
-     * @param name stream name.
+     * @param scopeName  scope name.
+     * @param streamName stream name.
      * @return currently active segments
      */
-    CompletableFuture<List<Segment>> getActiveSegments(final String name);
+    CompletableFuture<List<Segment>> getActiveSegments(final String scopeName, final String streamName);
 
     /**
      * Get active segments at given timestamp.
      *
-     * @param name      stream name.
-     * @param timestamp point in time.
+     * @param scopeName  scope name.
+     * @param streamName stream name.
+     * @param timestamp  point in time.
      * @return the list of segments active at timestamp.
      */
-    CompletableFuture<SegmentFutures> getActiveSegments(final String name, final long timestamp);
+    CompletableFuture<SegmentFutures> getActiveSegments(final String scopeName, final String streamName, final long timestamp);
 
     /**
      * Get next segments.
      *
-     * @param name              stream name.
+     * @param scopeName         scope name.
+     * @param streamName        stream name.
      * @param completedSegments completely read segments.
      * @param currentSegments   current consumer positions.
      * @return new consumer positions including new (current or future) segments that can be read from.
      */
-    CompletableFuture<List<SegmentFutures>> getNextSegments(final String name,
+    CompletableFuture<List<SegmentFutures>> getNextSegments(final String scopeName,
+                                                            final String streamName,
                                                             final Set<Integer> completedSegments,
                                                             final List<SegmentFutures> currentSegments);
 
     /**
      * Scales in or out the currently set of active segments of a stream.
      *
-     * @param name           stream name.
+     * @param scopeName      scope name.
+     * @param streamName     stream name.
      * @param sealedSegments segments to be sealed
      * @param newRanges      new key ranges to be added to the stream which maps to a new segment per range in the stream
      * @param scaleTimestamp scaling timestamp, all sealed segments shall have it as their end time and
      *                       all new segments shall have it as their start time.
      * @return the list of newly created segments
      */
-    CompletableFuture<List<Segment>> scale(final String name,
+    CompletableFuture<List<Segment>> scale(final String scopeName,
+                                           final String streamName,
                                            final List<Integer> sealedSegments,
                                            final List<SimpleEntry<Double, Double>> newRanges,
                                            final long scaleTimestamp);
@@ -138,59 +154,60 @@ public interface StreamMetadataStore {
     /**
      * Method to create a new transaction on a stream.
      *
-     * @param scope  scope
-     * @param stream stream
+     * @param scopeName  scope
+     * @param streamName stream
      * @return new Transaction Id
      */
-    CompletableFuture<UUID> createTransaction(final String scope, final String stream);
+    CompletableFuture<UUID> createTransaction(final String scopeName, final String streamName);
 
     /**
      * Get transaction status from the stream store.
      *
-     * @param scope  scope
-     * @param stream stream
-     * @param txId   transaction id
+     * @param scopeName  scope
+     * @param streamName stream
+     * @param txId       transaction id
      * @return
      */
-    CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId);
+    CompletableFuture<TxnStatus> transactionStatus(final String scopeName, final String streamName, final UUID txId);
 
     /**
      * Update stream store to mark transaction as committed.
      *
-     * @param scope  scope
-     * @param stream stream
-     * @param txId   transaction id
+     * @param scopeName  scope
+     * @param streamName stream
+     * @param txId       transaction id
      * @return
      */
-    CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId);
+    CompletableFuture<TxnStatus> commitTransaction(final String scopeName, final String streamName, final UUID txId);
 
     /**
      * Update stream store to mark transaction as sealed.
      *
-     * @param scope  scope
-     * @param stream stream
-     * @param txId   transaction id
+     * @param scopeName  scope
+     * @param streamName stream
+     * @param txId       transaction id
      * @return
      */
-    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId);
+    CompletableFuture<TxnStatus> sealTransaction(final String scopeName, final String streamName, final UUID txId);
 
     /**
      * Update stream store to mark the transaction as aborted.
      *
-     * @param scope  scope
-     * @param stream stream
-     * @param txId   transaction id
+     * @param scopeName  scope
+     * @param streamName stream
+     * @param txId       transaction id
      * @return
      */
-    CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final UUID txId);
+    CompletableFuture<TxnStatus> dropTransaction(final String scopeName, final String streamName, final UUID txId);
 
     /**
      * Returns a boolean indicating whether any transaction is active on the specified stream.
-     * @param scope  scope.
-     * @param stream stream.
+     *
+     * @param scopeName  scope.
+     * @param streamName stream.
      * @return boolean indicating whether any transaction is active on the specified stream.
      */
-    CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream);
+    CompletableFuture<Boolean> isTransactionOngoing(final String scopeName, final String streamName);
 
     /**
      * Returns all active transactions for all streams.

@@ -87,18 +87,18 @@ public class ControllerService {
 
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(final String scope, final String stream) {
         // fetch active segments from segment store
-        return streamStore.getActiveSegments(stream)
+        return streamStore.getActiveSegments(scope, stream)
                 .thenApply(activeSegments -> activeSegments
-                                .stream()
-                                .map(segment -> convert(scope, stream, segment))
-                                .collect(Collectors.toList())
+                        .stream()
+                        .map(segment -> convert(scope, stream, segment))
+                        .collect(Collectors.toList())
                 );
     }
 
     public CompletableFuture<List<Position>> getPositions(final String scope, final String stream, final long timestamp, final int count) {
         // first fetch segments active at specified timestamp from the specified stream
         // divide current segments in segmentFutures into at most count positions
-        return streamStore.getActiveSegments(stream, timestamp)
+        return streamStore.getActiveSegments(scope, stream, timestamp)
                 .thenApply(segmentFutures -> shard(scope, stream, segmentFutures, count));
     }
 
@@ -116,7 +116,7 @@ public class ControllerService {
 
         // fetch updated SegmentFutures from stream metadata
         // and finally convert SegmentFutures back to position objects
-        return streamStore.getNextSegments(stream, completedSegments, segmentFutures)
+        return streamStore.getNextSegments(scope, stream, completedSegments, segmentFutures)
                 .thenApply(updatedSegmentFutures ->
                         convertSegmentFuturesToPositions(scope, stream, updatedSegmentFutures, segmentOffsets));
     }
@@ -145,7 +145,7 @@ public class ControllerService {
     public CompletableFuture<Boolean> isSegmentValid(final String scope,
                                                      final String stream,
                                                      final int segmentNumber) throws TException {
-        return streamStore.getActiveSegments(stream)
+        return streamStore.getActiveSegments(scope, stream)
                 .thenApply(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber));
     }
 

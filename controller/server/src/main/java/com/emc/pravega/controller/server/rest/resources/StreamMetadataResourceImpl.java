@@ -128,7 +128,7 @@ public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamConfig");
 
         StreamMetadataStore streamStore = controllerService.getStreamStore();
-        streamStore.getConfiguration(stream)
+        streamStore.getConfiguration(scope, stream)
                 .thenApply(streamConfig -> {
                     return Response.status(Status.OK).entity(ModelHelper.encodeStreamResponse(streamConfig)).build();
                 })

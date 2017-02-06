@@ -32,34 +32,64 @@ import java.util.concurrent.CompletableFuture;
 public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     private final Map<String, InMemoryStream> streams = new HashMap<>();
+    private final Map<String, InMemoryScope> scopes = new HashMap<>();
 
     @Override
-    synchronized Stream newStream(String name) {
-        if (streams.containsKey(name)) {
-            return streams.get(name);
+    synchronized Stream newStream(String streamName) {
+        if (streams.containsKey(streamName)) {
+            return streams.get(streamName);
         } else {
-            throw new StreamNotFoundException(name);
+            throw new StreamNotFoundException(streamName);
         }
     }
 
     @Override
-    public synchronized CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration, long timeStamp) {
-        if (!streams.containsKey(name)) {
-            InMemoryStream stream = new InMemoryStream(name);
-            stream.create(configuration, timeStamp);
-            streams.put(name, stream);
-            return CompletableFuture.completedFuture(true);
+    synchronized Scope newScope(String scopeName) {
+        if (scopes.containsKey(scopeName)) {
+            return scopes.get(scopeName);
+        } else {
+            throw new ScopeNotFoundException(scopeName);
+        }
+    }
+
+    @Override
+    public synchronized CompletableFuture<Boolean> createStream(String scopeName, String streamName,
+                                                                StreamConfiguration configuration, long timeStamp) {
+
+        if (scopes.containsKey(scopeName)) {
+
+            if (!streams.containsKey(new StringBuffer(scopeName).append("/").append(streamName).toString())) {
+                InMemoryStream stream = new InMemoryStream(scopeName, streamName);
+                stream.create(configuration, timeStamp);
+                streams.put(new StringBuffer(scopeName).append("/").append(streamName).toString(), stream);
+                scopes.get(scopeName).addStreamToScope(stream);
+                return CompletableFuture.completedFuture(true);
+            } else {
+                CompletableFuture<Boolean> result = new CompletableFuture<>();
+                result.completeExceptionally(new StreamAlreadyExistsException(streamName));
+                return result;
+            }
+
         } else {
             CompletableFuture<Boolean> result = new CompletableFuture<>();
-            result.completeExceptionally(new StreamAlreadyExistsException(name));
+            result.completeExceptionally(new ScopeNotFoundException(scopeName));
             return result;
         }
     }
 
     @Override
-    public synchronized CompletableFuture<Boolean> createScope(String scope) {
+    public synchronized CompletableFuture<Boolean> createScope(String scopeName) {
 
-        return CompletableFuture.completedFuture(false);
+        if (!scopes.containsKey(scopeName)) {
+            InMemoryScope scope = new InMemoryScope(scopeName);
+            scope.createScope(scopeName);
+            scopes.put(scopeName, scope);
+            return CompletableFuture.completedFuture(true);
+        } else {
+            CompletableFuture<Boolean> result = new CompletableFuture<>();
+            result.completeExceptionally(new ScopeAlreadyExistsException(scopeName));
+            return result;
+        }
     }
 
     @Override

@@ -58,7 +58,8 @@ import java.util.stream.IntStream;
  */
 @Slf4j
 class ZKStream extends PersistentStreamBase<Integer> {
-    private static final String STREAM_PATH = "/streams/%s";
+    private static final String SCOPE_PATH = "/store/%s";
+    private static final String STREAM_PATH = SCOPE_PATH + "/%s";
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";
     private static final String CONFIGURATION_PATH = STREAM_PATH + "/configuration";
     private static final String STATE_PATH = STREAM_PATH + "/state";
@@ -83,20 +84,23 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String indexPath;
     private final String activeTxPath;
     private final String completedTxPath;
+    private final String scopePath;
     private final Cache<Integer> cache;
 
-    public ZKStream(final String name) {
-        super(name);
 
-        creationPath = String.format(CREATION_TIME_PATH, name);
-        configurationPath = String.format(CONFIGURATION_PATH, name);
-        statePath = String.format(STATE_PATH, name);
-        segmentPath = String.format(SEGMENT_PATH, name);
+    public ZKStream(final String scopeName, final String streamName) {
+        super(scopeName, streamName);
+
+        scopePath = String.format(SCOPE_PATH, scopeName);
+        creationPath = String.format(CREATION_TIME_PATH, scopeName, streamName);
+        configurationPath = String.format(CONFIGURATION_PATH, scopeName, streamName);
+        statePath = String.format(STATE_PATH, scopeName, streamName);
+        segmentPath = String.format(SEGMENT_PATH, scopeName, streamName);
         segmentChunkPathTemplate = segmentPath + "/%s";
-        historyPath = String.format(HISTORY_PATH, name);
-        indexPath = String.format(INDEX_PATH, name);
-        activeTxPath = String.format(ACTIVE_TX_PATH, name);
-        completedTxPath = String.format(COMPLETED_TX_PATH, name);
+        historyPath = String.format(HISTORY_PATH, scopeName, streamName);
+        indexPath = String.format(INDEX_PATH, scopeName, streamName);
+        activeTxPath = String.format(ACTIVE_TX_PATH, scopeName, streamName);
+        completedTxPath = String.format(COMPLETED_TX_PATH, scopeName, streamName);
 
         cache = new Cache<>(ZKStream::getData);
     }
@@ -128,6 +132,18 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         throw new StreamAlreadyExistsException(getName());
                     }
                     return null;
+                });
+    }
+
+    public CompletableFuture<Void> checkScopeExists() {
+        return checkExists(scopePath)
+                .thenApply(x -> {
+                    if (x) {
+                        return null;
+                    } else {
+                        log.debug("Scope with name {} not found.", getScopeName());
+                        throw new ScopeNotFoundException(getScopeName());
+                    }
                 });
     }
 
@@ -455,11 +471,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static String extractStreamName(final String path) {
         Preconditions.checkNotNull(path, "path");
         String[] result = path.split("/");
-            if (result.length > 2) {
-                return result[2];
-            } else {
-                return path;
-            }
+        if (result.length > 2) {
+            return result[2];
+        } else {
+            return path;
+        }
     }
 
     private static CompletableFuture<Void> createZNodeIfNotExist(final String path, final byte[] data) {

@@ -34,6 +34,8 @@ interface Stream {
 
     String getName();
 
+    String getScopeName();
+
     /**
      * Create the stream, by creating/modifying underlying data structures.
      *
@@ -41,9 +43,6 @@ interface Stream {
      * @return boolean indicating success.
      */
     CompletableFuture<Boolean> create(final StreamConfiguration configuration, final long createTimestamp);
-
-    CompletableFuture<Boolean> createScope(final String scope);
-
 
     /**
      * Updates the configuration of an existing stream.
@@ -62,12 +61,14 @@ interface Stream {
 
     /**
      * Update the state of the stream.
+     *
      * @return boolean indicating whether the state of stream is updated.
      */
     CompletableFuture<Boolean> updateState(final State state);
 
     /**
-     *  Get the state of the stream.
+     * Get the state of the stream.
+     *
      * @return state othe given stream.
      */
     CompletableFuture<State> getState();
@@ -117,12 +118,14 @@ interface Stream {
 
     /**
      * Method to start new transaction creation
+     *
      * @return
      */
     CompletableFuture<UUID> createTransaction();
 
     /**
      * Seal given transaction
+     *
      * @param txId
      * @return
      */
@@ -130,6 +133,7 @@ interface Stream {
 
     /**
      * Returns transaction's status
+     *
      * @param txId
      * @return
      */
@@ -139,6 +143,7 @@ interface Stream {
      * Commits a transaction
      * If already committed, return TxnStatus.Committed
      * If aborted, throw OperationOnTxNotAllowedException
+     *
      * @param txId
      * @return
      */
@@ -148,6 +153,7 @@ interface Stream {
      * Commits a transaction
      * If already aborted, return TxnStatus.Aborted
      * If committed, throw OperationOnTxNotAllowedException
+     *
      * @param txId
      * @return
      */
@@ -155,6 +161,7 @@ interface Stream {
 
     /**
      * Return whether any transaction is active on the stream.
+     *
      * @return a boolean indicating whether a transaction is active on the stream.
      */
     CompletableFuture<Boolean> isTransactionOngoing();

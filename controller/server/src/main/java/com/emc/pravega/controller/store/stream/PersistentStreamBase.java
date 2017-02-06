@@ -42,16 +42,22 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public abstract class PersistentStreamBase<T> implements Stream {
-    private final String name;
+    private final String streamName;
+    private final String scopeName;
 
-
-    protected PersistentStreamBase(final String name) {
-        this.name = name;
+    protected PersistentStreamBase(final String scopeName, final String name) {
+        this.scopeName = scopeName;
+        this.streamName = name;
     }
 
     @Override
     public String getName() {
-        return this.name;
+        return this.streamName;
+    }
+
+    @Override
+    public String getScopeName() {
+        return this.scopeName;
     }
 
     /***
@@ -72,7 +78,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Boolean> create(final StreamConfiguration configuration, long createTimestamp) {
         final Create create = new Create(createTimestamp, configuration);
-        return checkStreamExists(create)
+
+        return checkScopeExists()
+                .thenCompose(x -> checkStreamExists(create))
                 .thenCompose(x -> storeCreationTime(create))
                 .thenCompose(x -> createConfiguration(create))
                 .thenCompose(x -> createState(State.ACTIVE))
@@ -81,11 +89,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(x -> createHistoryTable(create))
                 .thenCompose(x -> createIndexTable(create))
                 .thenApply(x -> true);
-    }
-
-    @Override
-    public CompletableFuture<Boolean> createScope(final String scope) {
-        return CompletableFuture.completedFuture(false);
     }
 
     /**
@@ -577,4 +580,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Void> removeActiveTxEntry(final UUID txId);
 
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp);
+
+    abstract CompletableFuture<Void> checkScopeExists() throws ScopeNotFoundException;
 }

@@ -35,7 +35,8 @@ import java.util.stream.IntStream;
  * Stream properties
  */
 class InMemoryStream implements Stream {
-    private final String name;
+    private final String streamName;
+    private final String scopeName;
     private StreamConfiguration configuration;
     private State state;
 
@@ -52,8 +53,9 @@ class InMemoryStream implements Stream {
      */
     private final List<Integer> currentSegments = new ArrayList<>();
 
-    InMemoryStream(String name) {
-        this.name = name;
+    InMemoryStream(String scopeName, String streamName) {
+        this.scopeName = scopeName;
+        this.streamName = streamName;
     }
 
     @Override
@@ -74,13 +76,13 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<Boolean> createScope(String scope) {
-        return null;
+    public String getName() {
+        return this.streamName;
     }
 
     @Override
-    public String getName() {
-        return this.name;
+    public String getScopeName() {
+        return this.scopeName;
     }
 
     @Override
