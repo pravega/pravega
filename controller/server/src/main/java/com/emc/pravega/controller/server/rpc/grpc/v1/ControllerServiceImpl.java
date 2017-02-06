@@ -51,8 +51,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     private final ControllerService controllerService;
 
     @Override
-    public void createStream(StreamConfig request,
-            StreamObserver<CreateStreamStatus> responseObserver) {
+    public void createStream(StreamConfig request, StreamObserver<CreateStreamStatus> responseObserver) {
         log.debug("createStream called for stream " + request.getStreamInfo().getScope() + "/" +
                           request.getStreamInfo().getStream());
         processResult(controllerService.createStream(ModelHelper.encode(request), System.currentTimeMillis()),
@@ -60,23 +59,20 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void alterStream(StreamConfig request,
-            StreamObserver<UpdateStreamStatus> responseObserver) {
+    public void alterStream(StreamConfig request, StreamObserver<UpdateStreamStatus> responseObserver) {
         log.debug("alterStream called for stream " + request.getStreamInfo().getScope() + "/" +
                           request.getStreamInfo().getStream());
         processResult(controllerService.alterStream(ModelHelper.encode(request)), responseObserver);
     }
 
     @Override
-    public void sealStream(StreamInfo request,
-            StreamObserver<UpdateStreamStatus> responseObserver) {
+    public void sealStream(StreamInfo request, StreamObserver<UpdateStreamStatus> responseObserver) {
         log.debug("sealStream called for stream " + request.getScope() + "/" + request.getStream());
         processResult(controllerService.sealStream(request.getScope(), request.getStream()), responseObserver);
     }
 
     @Override
-    public void getCurrentSegments(StreamInfo request,
-            StreamObserver<SegmentRanges> responseObserver) {
+    public void getCurrentSegments(StreamInfo request, StreamObserver<SegmentRanges> responseObserver) {
         log.debug("getCurrentSegments called for stream " + request.getScope() + "/" + request.getStream());
         processResult(controllerService.getCurrentSegments(request.getScope(), request.getStream())
                               .thenApply(segmentRanges -> SegmentRanges.newBuilder()
@@ -86,8 +82,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void getPositions(GetPositionRequest request,
-            StreamObserver<Positions> responseObserver) {
+    public void getPositions(GetPositionRequest request, StreamObserver<Positions> responseObserver) {
         log.debug("getPositions called for stream " + request.getStreamInfo().getScope() + "/" +
                           request.getStreamInfo().getStream());
         processResult(controllerService.getPositions(request.getStreamInfo().getScope(),
@@ -99,8 +94,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void updatePositions(UpdatePositionRequest request,
-            StreamObserver<Positions> responseObserver) {
+    public void updatePositions(UpdatePositionRequest request, StreamObserver<Positions> responseObserver) {
         log.debug("updatePositions called for stream " + request.getStreamInfo().getScope() + "/" +
                           request.getStreamInfo().getStream());
         processResult(controllerService.updatePositions(request.getStreamInfo().getScope(),
@@ -111,8 +105,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void scale(ScaleRequest request,
-            StreamObserver<ScaleResponse> responseObserver) {
+    public void scale(ScaleRequest request, StreamObserver<ScaleResponse> responseObserver) {
         log.debug("scale called for stream " + request.getStreamInfo().getScope() + "/" +
                           request.getStreamInfo().getStream());
         processResult(controllerService.scale(request.getStreamInfo().getScope(),
@@ -144,15 +137,13 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void createTransaction(StreamInfo request,
-            StreamObserver<TxnId> responseObserver) {
+    public void createTransaction(StreamInfo request, StreamObserver<TxnId> responseObserver) {
         log.debug("createTransaction called for stream " + request.getScope() + "/" + request.getStream());
         processResult(controllerService.createTransaction(request.getScope(), request.getStream()), responseObserver);
     }
 
     @Override
-    public void commitTransaction(TxnRequest request,
-            StreamObserver<TxnStatus> responseObserver) {
+    public void commitTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
         log.debug("commitTransaction called for stream " + request.getStreamInfo().getScope() + "/" +
                           request.getStreamInfo().getStream() + " txid=" + request.getTxnId());
         processResult(controllerService.commitTransaction(request.getStreamInfo().getScope(),
@@ -162,8 +153,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void dropTransaction(TxnRequest request,
-            StreamObserver<TxnStatus> responseObserver) {
+    public void dropTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
         log.debug("dropTransaction called for stream " + request.getStreamInfo().getScope() + "/" +
                           request.getStreamInfo().getStream() + " txid=" + request.getTxnId());
         processResult(controllerService.dropTransaction(request.getStreamInfo().getScope(),
@@ -174,7 +164,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void checkTransactionState(TxnRequest request, StreamObserver<TxnState> responseObserver) {
-        log.debug("checkTransactionStatus called for stream " + request.getStreamInfo().getScope() + "/" +
+        log.debug("checkTransactionState called for stream " + request.getStreamInfo().getScope() + "/" +
                           request.getStreamInfo().getStream() + " txid=" + request.getTxnId());
         processResult(controllerService.checkTransactionState(request.getStreamInfo().getScope(),
                                                                request.getStreamInfo().getStream(),
@@ -188,6 +178,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     log.debug("result = " + (value == null ? "null" : value.toString()));
 
                     if (ex != null) {
+                        log.warn("Controller api failed with error: {}", ex.getMessage());
                         streamObserver.onError(ex);
                     } else if (value != null) {
                         streamObserver.onNext(value);
@@ -195,5 +186,4 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     }
                 });
     }
-
 }

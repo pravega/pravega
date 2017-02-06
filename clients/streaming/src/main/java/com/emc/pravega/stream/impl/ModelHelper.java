@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
@@ -60,14 +61,14 @@ public final class ModelHelper {
     }
 
     public static final Segment encode(final SegmentId segment) {
-        Preconditions.checkNotNull(segment, "Segment");
+        Preconditions.checkNotNull(segment, "segment");
         return new Segment(segment.getStreamInfo().getScope(),
                            segment.getStreamInfo().getStream(),
                            segment.getSegmentNumber());
     }
 
     public static final com.emc.pravega.stream.impl.FutureSegment encode(final SegmentId segment, int previous) {
-        Preconditions.checkNotNull(segment, "Segment");
+        Preconditions.checkNotNull(segment, "segment");
         return new com.emc.pravega.stream.impl.FutureSegment(segment.getStreamInfo().getScope(),
                                                              segment.getStreamInfo().getStream(),
                                                              segment.getSegmentNumber(),
@@ -75,7 +76,7 @@ public final class ModelHelper {
     }
 
     public static final ScalingPolicy encode(final Controller.ScalingPolicy policy) {
-        Preconditions.checkNotNull(policy, "ScalingPolicy");
+        Preconditions.checkNotNull(policy, "policy");
         return new ScalingPolicy(ScalingPolicy.Type.valueOf(policy.getType().name()),
                                  policy.getTargetRate(),
                                  policy.getScaleFactor(),
@@ -83,23 +84,25 @@ public final class ModelHelper {
     }
 
     public static final StreamConfiguration encode(final StreamConfig config) {
-        Preconditions.checkNotNull(config, "StreamConfig");
+        Preconditions.checkNotNull(config, "config");
         return new StreamConfigurationImpl(config.getStreamInfo().getScope(),
                 config.getStreamInfo().getStream(),
                 encode(config.getPolicy()));
     }
 
     public static final PositionImpl encode(final Position position) {
-        Preconditions.checkNotNull(position, "Position");
+        Preconditions.checkNotNull(position, "position");
         return new PositionImpl(encodeSegmentMap(position.getOwnedSegmentsList()),
                                 encodeFutureSegmentMap(position.getFutureOwnedSegmentsList()));
     }
 
-    public static com.emc.pravega.common.netty.PravegaNodeUri encode(NodeUri uri) {
+    public static final com.emc.pravega.common.netty.PravegaNodeUri encode(final NodeUri uri) {
+        Preconditions.checkNotNull(uri, "uri");
         return new com.emc.pravega.common.netty.PravegaNodeUri(uri.getEndpoint(), uri.getPort());
     }
 
-    public static List<AbstractMap.SimpleEntry<Double, Double>> encode(Map<Double, Double> keyRanges) {
+    public static final List<AbstractMap.SimpleEntry<Double, Double>> encode(final Map<Double, Double> keyRanges) {
+        Preconditions.checkNotNull(keyRanges, "keyRanges");
         return keyRanges
                 .entrySet()
                 .stream()
@@ -107,7 +110,10 @@ public final class ModelHelper {
                 .collect(Collectors.toList());
     }
 
-    public static Transaction.Status encode(TxnState.State state, String logString) {
+    public static final Transaction.Status encode(final TxnState.State state, final String logString) {
+        Preconditions.checkNotNull(state, "state");
+        Exceptions.checkNotNullOrEmpty(logString, "logString");
+
         switch (state) {
             case COMMITTED:
                 return Transaction.Status.COMMITTED;
@@ -124,7 +130,7 @@ public final class ModelHelper {
         }
     }
 
-    public static final TxnId decode(UUID txnId) {
+    public static final TxnId decode(final UUID txnId) {
         Preconditions.checkNotNull(txnId, "txnId");
         return TxnId.newBuilder()
                 .setHighBits(txnId.getMostSignificantBits())
@@ -132,19 +138,18 @@ public final class ModelHelper {
                 .build();
     }
 
-    public static final TxnState.State decode(TxnStatus txnStatus) {
+    public static final TxnState.State decode(final TxnStatus txnStatus) {
         Preconditions.checkNotNull(txnStatus, "txnStatus");
         return TxnState.State.valueOf(txnStatus.name());
     }
 
     public static final SegmentId decode(final Segment segment) {
-        Preconditions.checkNotNull(segment, "Segment");
-        return SegmentId.newBuilder().setStreamInfo(StreamInfo.newBuilder().setScope(segment.getScope()).
-                setStream(segment.getStreamName())).setSegmentNumber(segment.getSegmentNumber()).build();
+        Preconditions.checkNotNull(segment, "segment");
+        return createSegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber());
     }
 
     public static final Controller.ScalingPolicy decode(final ScalingPolicy policyModel) {
-        Preconditions.checkNotNull(policyModel, "Policy");
+        Preconditions.checkNotNull(policyModel, "policyModel");
         return Controller.ScalingPolicy.newBuilder()
                 .setType(Controller.ScalingPolicy.ScalingPolicyType.valueOf(policyModel.getType().name()))
                 .setTargetRate(policyModel.getTargetRate())
@@ -154,33 +159,34 @@ public final class ModelHelper {
     }
 
     public static final StreamConfig decode(final StreamConfiguration configModel) {
-        Preconditions.checkNotNull(configModel, "StreamConfiguration");
-        return StreamConfig.newBuilder().
-                setStreamInfo(StreamInfo.newBuilder().
-                        setScope(configModel.getScope()).
-                        setStream(configModel.getName()).build()).
-                setPolicy(decode(configModel.getScalingPolicy())).build();
+        Preconditions.checkNotNull(configModel, "configModel");
+        return StreamConfig.newBuilder()
+                .setStreamInfo(createStreamInfo(configModel.getScope(), configModel.getName()))
+                .setPolicy(decode(configModel.getScalingPolicy())).build();
     }
 
     public static final Position decode(final PositionInternal position) {
-        Preconditions.checkNotNull(position, "Position");
-        return Position.newBuilder().
-                addAllOwnedSegments(decodeSegmentMap(position.getOwnedSegmentsWithOffsets())).
-                addAllFutureOwnedSegments(decodeFutureSegmentMap(position.getFutureOwnedSegmentsWithOffsets())).
-                build();
+        Preconditions.checkNotNull(position, "position");
+        return Position.newBuilder()
+                .addAllOwnedSegments(decodeSegmentMap(position.getOwnedSegmentsWithOffsets()))
+                .addAllFutureOwnedSegments(decodeFutureSegmentMap(position.getFutureOwnedSegmentsWithOffsets()))
+                .build();
     }
 
-    public static NodeUri decode(PravegaNodeUri uri) {
+    public static final NodeUri decode(final PravegaNodeUri uri) {
+        Preconditions.checkNotNull(uri, "uri");
         return NodeUri.newBuilder().setEndpoint(uri.getEndpoint()).setPort(uri.getPort()).build();
     }
     
-    public static final Set<Integer> getSegmentsFromPositions(List<PositionInternal> positions) {
+    public static final Set<Integer> getSegmentsFromPositions(final List<PositionInternal> positions) {
+        Preconditions.checkNotNull(positions, "positions");
         return positions.stream()
             .flatMap(position -> position.getCompletedSegments().stream().map(Segment::getSegmentNumber))
             .collect(Collectors.toSet());
     }
     
-    public static final Map<Integer, Long> toSegmentOffsetMap(PositionInternal position) {
+    public static final Map<Integer, Long> toSegmentOffsetMap(final PositionInternal position) {
+        Preconditions.checkNotNull(position, "position");
         return position.getOwnedSegmentsWithOffsets()
             .entrySet()
             .stream()
@@ -188,26 +194,33 @@ public final class ModelHelper {
             .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
     }
     
-    public static final Map<Integer, Integer> getFutureSegmentMap(PositionInternal position) {
+    public static final Map<Integer, Integer> getFutureSegmentMap(final PositionInternal position) {
+        Preconditions.checkNotNull(position, "position");
         Map<Integer, Integer> futures = new HashMap<>();
         position.getFutureOwnedSegments().stream().forEach(x -> futures.put(x.getSegmentNumber(),
                                                                             x.getPrecedingNumber()));
         return futures;
     }
 
-    public static StreamInfo createStreamInfo(final String scope, final String stream) {
+    public static final StreamInfo createStreamInfo(final String scope, final String stream) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
         return StreamInfo.newBuilder().setScope(scope).setStream(stream).build();
     }
 
-    public static SegmentId createSegmentId(final String scope, final String stream, final int segmentNumber) {
+    public static final SegmentId createSegmentId(final String scope, final String stream, final int segmentNumber) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
         return SegmentId.newBuilder()
                 .setStreamInfo(createStreamInfo(scope, stream))
                 .setSegmentNumber(segmentNumber)
                 .build();
     }
 
-    public static SegmentRange createSegmentRange(final String scope, final String stream, final int segmentNumber,
-            final double rangeMinKey, final double rangeMaxKey) {
+    public static final SegmentRange createSegmentRange(final String scope, final String stream,
+            final int segmentNumber, final double rangeMinKey, final double rangeMaxKey) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
         return SegmentRange.newBuilder()
                 .setSegmentId(createSegmentId(scope, stream, segmentNumber))
                 .setMinKey(rangeMinKey)
@@ -215,7 +228,7 @@ public final class ModelHelper {
                 .build();
     }
 
-    private static Map<Segment, Long> encodeSegmentMap(final List<Position.OwnedSegmentEntry> segmentList) {
+    private static final Map<Segment, Long> encodeSegmentMap(final List<Position.OwnedSegmentEntry> segmentList) {
         Preconditions.checkNotNull(segmentList);
         HashMap<Segment, Long> result = new HashMap<>();
         for (Position.OwnedSegmentEntry entry : segmentList) {
@@ -224,7 +237,7 @@ public final class ModelHelper {
         return result;
     }
 
-    private static Map<com.emc.pravega.stream.impl.FutureSegment, Long> encodeFutureSegmentMap(
+    private static final Map<com.emc.pravega.stream.impl.FutureSegment, Long> encodeFutureSegmentMap(
             final List<Position.FutureOwnedSegmentsEntry> futureOwnedSegmentsEntryList) {
         Preconditions.checkNotNull(futureOwnedSegmentsEntryList);
         HashMap<com.emc.pravega.stream.impl.FutureSegment, Long> result = new HashMap<>();
@@ -236,7 +249,7 @@ public final class ModelHelper {
         return result;
     }
 
-    private static List<Position.FutureOwnedSegmentsEntry> decodeFutureSegmentMap(
+    private static final List<Position.FutureOwnedSegmentsEntry> decodeFutureSegmentMap(
             final Map<com.emc.pravega.stream.impl.FutureSegment, Long> map) {
         Preconditions.checkNotNull(map);
         List<Position.FutureOwnedSegmentsEntry> result = new ArrayList<>();
@@ -259,7 +272,7 @@ public final class ModelHelper {
         return result;
     }
 
-    private static List<Position.OwnedSegmentEntry> decodeSegmentMap(final Map<Segment, Long> map) {
+    private static final List<Position.OwnedSegmentEntry> decodeSegmentMap(final Map<Segment, Long> map) {
         Preconditions.checkNotNull(map);
         List<Position.OwnedSegmentEntry> result = new ArrayList<>();
         map.forEach((segment, val) -> result.add(Position.OwnedSegmentEntry.newBuilder().

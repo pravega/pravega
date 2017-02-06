@@ -144,14 +144,17 @@ public class ControllerServiceImplTest {
         @Getter
         private T result = null;
 
-        @Override public void onNext(T value) {
+        @Override
+        public void onNext(T value) {
             result = value;
         }
 
-        @Override public void onError(Throwable t) {
+        @Override
+        public void onError(Throwable t) {
         }
 
-        @Override public void onCompleted() {
+        @Override
+        public void onCompleted() {
             synchronized (this) {
                 this.notifyAll();
             }

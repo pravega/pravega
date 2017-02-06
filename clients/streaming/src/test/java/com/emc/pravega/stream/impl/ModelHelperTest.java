@@ -39,8 +39,8 @@ public class ModelHelperTest {
         return new Segment("scope", streamName, number);
     }
 
-    private static com.emc.pravega.stream.impl.FutureSegment createFutureSegmentId(String streamName, int number, int previous) {
-        return new com.emc.pravega.stream.impl.FutureSegment("scope", streamName, number, previous);
+    private static FutureSegment createFutureSegmentId(String streamName, int number, int previous) {
+        return new FutureSegment("scope", streamName, number, previous);
     }
 
     private static ScalingPolicy createScalingPolicy() {
@@ -76,7 +76,7 @@ public class ModelHelperTest {
         Map<Segment, Long> ownedLogs = new HashMap<>();
         ownedLogs.put(createSegmentId("stream", 1), 1L);
 
-        Map<com.emc.pravega.stream.impl.FutureSegment, Long> futureOwnedLogs = new HashMap<>();
+        Map<FutureSegment, Long> futureOwnedLogs = new HashMap<>();
         futureOwnedLogs.put(createFutureSegmentId("stream", 2, 1), 2L);
 
         return new PositionImpl(ownedLogs, futureOwnedLogs);
@@ -91,7 +91,7 @@ public class ModelHelperTest {
     public void decodeSegmentId() {
         final String streamName = "stream1";
 
-        com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId segmentID = ModelHelper.decode(createSegmentId(streamName, 2));
+        SegmentId segmentID = ModelHelper.decode(createSegmentId(streamName, 2));
         assertEquals(streamName, segmentID.getStreamInfo().getStream());
         assertEquals("scope", segmentID.getStreamInfo().getScope());
         assertEquals(2, segmentID.getSegmentNumber());
@@ -112,7 +112,7 @@ public class ModelHelperTest {
 
     @Test // Preceding 
     public void encodeFutureSegmentId() {
-        com.emc.pravega.stream.impl.FutureSegment segment = ModelHelper.encode(ModelHelper.decode(createFutureSegmentId("stream1", 2, 1)), 1);
+        FutureSegment segment = ModelHelper.encode(ModelHelper.decode(createFutureSegmentId("stream1", 2, 1)), 1);
         assertEquals("stream1", segment.getStreamName());
         assertEquals("scope", segment.getScope());
         assertEquals(2, segment.getSegmentNumber());
@@ -202,7 +202,7 @@ public class ModelHelperTest {
     public void encodePosition() {
         PositionInternal position = ModelHelper.encode(ModelHelper.decode(createPosition()));
         Map<Segment, Long> ownedLogs = position.getOwnedSegmentsWithOffsets();
-        Map<com.emc.pravega.stream.impl.FutureSegment, Long> futureOwnedLogs = position.getFutureOwnedSegmentsWithOffsets();
+        Map<FutureSegment, Long> futureOwnedLogs = position.getFutureOwnedSegmentsWithOffsets();
         assertEquals(1, ownedLogs.size());
         assertEquals(1, futureOwnedLogs.size());
         assertEquals(1L, ownedLogs.get(createSegmentId("stream", 1)).longValue());

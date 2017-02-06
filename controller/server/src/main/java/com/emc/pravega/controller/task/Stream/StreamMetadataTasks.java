@@ -31,9 +31,7 @@ import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
@@ -274,12 +272,12 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         );
     }
 
-    private SegmentRange convert(String scope, String stream, com.emc.pravega.controller.store.stream.Segment segment) {
-        return SegmentRange.newBuilder().setSegmentId(
-                SegmentId.newBuilder().setStreamInfo(StreamInfo.newBuilder().setScope(scope).setStream(stream))
-                        .setSegmentNumber(segment.getNumber()))
-                .setMinKey(segment.getKeyStart()).setMaxKey(segment.getKeyEnd())
-                .build();
+    private SegmentRange convert(String scope, String stream, Segment segment) {
+        return ModelHelper.createSegmentRange(scope,
+                                              stream,
+                                              segment.getNumber(),
+                                              segment.getKeyStart(),
+                                              segment.getKeyEnd());
     }
 
     private Void notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers) {

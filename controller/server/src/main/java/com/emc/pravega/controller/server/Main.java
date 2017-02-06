@@ -105,7 +105,7 @@ public class Main {
                 streamTransactionMetadataTasks);
 
         //2. Start the RPC server.
-        log.info("Starting RPC server");
+        log.info("Starting gRPC server");
         GRPCServer.start(controllerService, Config.SERVER_PORT);
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.

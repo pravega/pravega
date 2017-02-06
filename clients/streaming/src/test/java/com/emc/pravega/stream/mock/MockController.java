@@ -134,7 +134,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus> commitTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<TxnStatus> commitTransaction(Stream stream, UUID txId) {
         CompletableFuture<TxnStatus> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 

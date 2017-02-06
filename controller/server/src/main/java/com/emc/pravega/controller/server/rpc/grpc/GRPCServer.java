@@ -35,6 +35,6 @@ public class GRPCServer {
                 .addService(new ControllerServiceImpl(controllerService))
                 .build()
                 .start();
-        log.info("Listening on port " + rpcPort);
+        log.info("gRPC server listening on port: " + rpcPort);
     }
 }
