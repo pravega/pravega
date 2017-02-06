@@ -15,22 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server.rpc.v1;
+package com.emc.pravega.controller.server;
 
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.FutureSegment;
-import com.emc.pravega.controller.stream.api.v1.NodeUri;
-import com.emc.pravega.controller.stream.api.v1.Position;
-import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.SegmentId;
-import com.emc.pravega.controller.stream.api.v1.SegmentRange;
-import com.emc.pravega.controller.stream.api.v1.TxnId;
-import com.emc.pravega.controller.stream.api.v1.TxnState;
-import com.emc.pravega.controller.stream.api.v1.TxnStatus;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.FutureSegment;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Position;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -49,7 +49,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import lombok.Getter;
-import org.apache.thrift.TException;
 
 /**
  * Stream controller RPC server implementation.
@@ -73,15 +72,18 @@ public class ControllerService {
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig, final long createTimestamp) {
-        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, createTimestamp);
+        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, createTimestamp)
+                .thenApply(status -> CreateStreamStatus.newBuilder().setStatus(status).build());
     }
 
     public CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig) {
-        return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getName(), streamConfig);
+        return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getName(), streamConfig)
+                .thenApply(status -> UpdateStreamStatus.newBuilder().setStatus(status).build());
     }
 
     public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String stream) {
-        return streamMetadataTasks.sealStream(scope, stream);
+        return streamMetadataTasks.sealStream(scope, stream)
+                .thenApply(status -> UpdateStreamStatus.newBuilder().setStatus(status).build());
     }
 
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(final String scope, final String stream) {
@@ -128,22 +130,23 @@ public class ControllerService {
         return streamMetadataTasks.scale(scope, stream, new ArrayList<>(sealedSegments), new ArrayList<>(ModelHelper.encode(newKeyRanges)), scaleTimestamp);
     }
 
-    public CompletableFuture<NodeUri> getURI(final SegmentId segment) throws TException {
+    public CompletableFuture<NodeUri> getURI(final SegmentId segment) {
         return CompletableFuture.completedFuture(
-                SegmentHelper.getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(), hostStore)
+                SegmentHelper.getSegmentUri(segment.getStreamInfo().getScope(), segment.getStreamInfo().getStream(),
+                                            segment.getSegmentNumber(), hostStore)
         );
     }
 
     private SegmentRange convert(final String scope,
                                  final String stream,
                                  final com.emc.pravega.controller.store.stream.Segment segment) {
-        return new SegmentRange(
-                new SegmentId(scope, stream, segment.getNumber()), segment.getKeyStart(), segment.getKeyEnd());
+        return ModelHelper.createSegmentRange(
+                scope, stream, segment.getNumber(), segment.getKeyStart(), segment.getKeyEnd());
     }
 
     public CompletableFuture<Boolean> isSegmentValid(final String scope,
                                                      final String stream,
-                                                     final int segmentNumber) throws TException {
+                                                     final int segmentNumber) {
         return streamStore.getActiveSegments(stream)
                 .thenApply(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber));
     }
@@ -180,7 +183,7 @@ public class ControllerService {
             List<SegmentId> current = new ArrayList<>(j);
             for (int k = 0; k < j; k++, counter++) {
                 Integer number = segmentFutures.getCurrent().get(counter);
-                SegmentId segmentId = new SegmentId(scope, stream, number);
+                SegmentId segmentId = ModelHelper.createSegmentId(scope, stream, number);
                 current.add(segmentId);
             }
 
@@ -195,20 +198,35 @@ public class ControllerService {
 
                         // update futures with all segments in segmentFutures.getFutures having x.number as the predecessor
                         // these segments can be found from the inverted segmentFutures.getFutures
-                        int previous = x.getNumber();
+                        int previous = x.getSegmentNumber();
                         if (inverse.containsKey(previous)) {
                             inverse.get(previous).stream().forEach(
                                     y -> {
-                                        SegmentId newSegment = new SegmentId(scope, stream, y);
-                                        SegmentId oldSegment = new SegmentId(scope, stream, previous);
-                                        futureSegments.put(new FutureSegment(newSegment, oldSegment), 0L);
+                                        SegmentId newSegment = ModelHelper.createSegmentId(scope, stream, y);
+                                        SegmentId oldSegment = ModelHelper.createSegmentId(scope, stream, previous);
+                                        futureSegments.put(FutureSegment.newBuilder()
+                                                                   .setFutureSegment(newSegment)
+                                                                   .setPrecedingSegment(oldSegment)
+                                                                   .build(),
+                                                           0L);
                                     }
                             );
                         }
                     }
             );
             // create a new position object with current and futures segments thus computed
-            Position position = new Position(currentSegments, futureSegments);
+            Position position = Position.newBuilder()
+                    .addAllOwnedSegments(currentSegments.entrySet().stream().
+                            map(val -> Position.OwnedSegmentEntry.newBuilder()
+                                    .setSegmentId(val.getKey())
+                                    .setValue(val.getValue())
+                                    .build()).collect(Collectors.toList()))
+                    .addAllFutureOwnedSegments(futureSegments.entrySet().stream().
+                            map(val -> Position.FutureOwnedSegmentsEntry.newBuilder()
+                                    .setFutureSegment(val.getKey())
+                                    .setValue(val.getValue())
+                                    .build()).collect(Collectors.toList()))
+                    .build();
             positions.add(position);
         }
         return positions;
@@ -243,12 +261,31 @@ public class ControllerService {
                     Map<SegmentId, Long> currentSegments = new HashMap<>();
                     Map<FutureSegment, Long> futureSegments = new HashMap<>();
                     future.getCurrent().stream().forEach(
-                            current -> currentSegments.put(new SegmentId(scope, stream, current), segmentOffsets.get(current))
+                            current -> currentSegments.put(ModelHelper.createSegmentId(scope, stream, current),
+                                                           segmentOffsets.get(current))
                     );
                     future.getFutures().entrySet().stream().forEach(
-                            y -> futureSegments.put(new FutureSegment(new SegmentId(scope, stream, y.getKey()), new SegmentId(scope, stream, y.getValue())), 0L)
+                            y -> futureSegments.put(
+                                    FutureSegment.newBuilder()
+                                            .setFutureSegment(ModelHelper.createSegmentId(scope, stream, y.getKey()))
+                                            .setPrecedingSegment(
+                                                    ModelHelper.createSegmentId(scope, stream, y.getValue()))
+                                            .build(),
+                                    0L)
                     );
-                    resultPositions.add(new Position(currentSegments, futureSegments));
+                    Position position = Position.newBuilder()
+                            .addAllOwnedSegments(currentSegments.entrySet().stream().
+                                    map(val -> Position.OwnedSegmentEntry.newBuilder()
+                                            .setSegmentId(val.getKey())
+                                            .setValue(val.getValue())
+                                            .build()).collect(Collectors.toList()))
+                            .addAllFutureOwnedSegments(futureSegments.entrySet().stream().
+                                    map(val -> Position.FutureOwnedSegmentsEntry.newBuilder()
+                                            .setFutureSegment(val.getKey())
+                                            .setValue(val.getValue())
+                                            .build()).collect(Collectors.toList()))
+                            .build();
+                    resultPositions.add(position);
                 }
         );
         return resultPositions;
@@ -264,9 +301,9 @@ public class ControllerService {
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
-                        return TxnStatus.FAILURE;
+                        return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
-                        return TxnStatus.SUCCESS;
+                        return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                     }
                 });
     }
@@ -276,17 +313,17 @@ public class ControllerService {
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
-                        return TxnStatus.FAILURE;
+                        return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
-                        return TxnStatus.SUCCESS;
+                        return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                     }
                 });
     }
 
 
-    public CompletableFuture<TxnState> checkTransactionStatus(final String scope, final String stream, final TxnId
+    public CompletableFuture<TxnState> checkTransactionState(final String scope, final String stream, final TxnId
             txnId) {
         return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId))
-                .thenApply(ModelHelper::decode);
+                .thenApply(res -> TxnState.newBuilder().setState(ModelHelper.decode(res)).build());
     }
 }

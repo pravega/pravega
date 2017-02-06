@@ -1,41 +1,64 @@
 syntax = "proto3";
-package com.emc.pravega.controller.stream.api.v1;
+package com.emc.pravega.controller.stream.api.grpc.v1;
 
 option optimize_for = SPEED;
 
+/*
+ * Producer, Consumer and Admin APIs supported by Stream Controller Service
+ */
+service ControllerService {
+    rpc createStream(StreamConfig) returns (CreateStreamStatus);
+    rpc alterStream(StreamConfig) returns (UpdateStreamStatus);
+    rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
+    rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
+    rpc getPositions(GetPositionRequest) returns (Positions);
+    rpc updatePositions(UpdatePositionRequest) returns (Positions);
+    rpc scale(ScaleRequest) returns (ScaleResponse);
+    rpc getURI(SegmentId) returns (NodeUri);
+    rpc isSegmentValid(SegmentId) returns (SegmentValidityResponse);
+    rpc createTransaction(StreamInfo) returns (TxnId);
+    rpc commitTransaction(TxnRequest) returns (TxnStatus);
+    rpc dropTransaction(TxnRequest) returns (TxnStatus);
+    rpc checkTransactionState(TxnRequest) returns (TxnState);
+}
+
 message CreateStreamStatus {
     enum Status {
-        SUCCESS = 0; FAILURE = 1; STREAM_EXISTS = 2;
+        SUCCESS = 0;
+        FAILURE = 1;
+        STREAM_EXISTS = 2;
     }
     Status status = 1;
 }
 
 message UpdateStreamStatus {
     enum Status {
-        SUCCESS = 0; FAILURE = 1; STREAM_NOT_FOUND = 2;
-    }
-    Status status = 1;
-}
-
-message ScaleStreamStatus {
-    enum Status {
-        SUCCESS = 0; FAILURE = 1; PRECONDITION_FAILED = 2; UPDATE_CONFLICT = 3;
+        SUCCESS = 0;
+        FAILURE = 1;
+        STREAM_NOT_FOUND = 2;
     }
     Status status = 1;
 }
 
 message TxnStatus {
     enum Status {
-        SUCCESS = 0; FAILURE = 1; STREAM_NOT_FOUND = 2; TRANSACTION_NOT_FOUND = 3;
+        SUCCESS = 0;
+        FAILURE = 1;
+        STREAM_NOT_FOUND = 2;
+        TRANSACTION_NOT_FOUND = 3;
     }
     Status status = 1;
 }
 
 message TxnState {
-    enum Status {
-        UNKNOWN = 0; OPEN = 1; SEALED = 2; COMMITTED = 3; ABORTED = 4;
+    enum State {
+        UNKNOWN = 0;
+        OPEN = 1;
+        SEALED = 2;
+        COMMITTED = 3;
+        ABORTED = 4;
     }
-    Status status = 1;
+    State state = 1;
 }
 
 message StreamInfo {
@@ -88,11 +111,11 @@ message Position {
     }
     repeated OwnedSegmentEntry ownedSegments = 1;
 
-    message futureOwnedSegmentsEntry {
+    message FutureOwnedSegmentsEntry {
         FutureSegment futureSegment = 1;
         int64 value = 2;
     }
-    repeated futureOwnedSegmentsEntry futureOwnedSegments = 2;
+    repeated FutureOwnedSegmentsEntry futureOwnedSegments = 2;
 }
 
 message TxnId {
@@ -117,6 +140,12 @@ message ScaleRequest {
 }
 
 message ScaleResponse {
+    enum ScaleStreamStatus {
+        SUCCESS = 0;
+        FAILURE = 1;
+        PRECONDITION_FAILED = 2;
+        UPDATE_CONFLICT = 3;
+    }
     ScaleStreamStatus status = 1;
     repeated SegmentRange segments = 2;
 }
@@ -140,24 +169,6 @@ message UpdatePositionRequest {
     Positions positions = 2;
 }
 
-message BooleanResponse {
+message SegmentValidityResponse {
     bool response = 1;
-}
-/*
- * Producer, Consumer and Admin APIs supported by Stream Controller Service
- */
-service ControllerService {
-    rpc createStream(StreamConfig) returns (CreateStreamStatus);
-    rpc alterStream(StreamConfig) returns (UpdateStreamStatus);
-    rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
-    rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
-    rpc getPositions(GetPositionRequest) returns (Positions);
-    rpc updatePositions(UpdatePositionRequest) returns (Positions);
-    rpc scale(ScaleRequest) returns (ScaleResponse);
-    rpc getURI(SegmentId) returns (NodeUri);
-    rpc isSegmentValid(SegmentId) returns (BooleanResponse);
-    rpc createTransaction(StreamInfo) returns (TxnId);
-    rpc commitTransaction(TxnRequest) returns (TxnStatus);
-    rpc dropTransaction(TxnRequest) returns (TxnStatus);
-    rpc checkTransactionStatus(TxnRequest) returns (TxnState);
 }

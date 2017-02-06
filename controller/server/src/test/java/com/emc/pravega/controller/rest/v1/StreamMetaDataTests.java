@@ -24,11 +24,11 @@ import com.emc.pravega.controller.server.rest.contract.request.UpdateStreamReque
 import com.emc.pravega.controller.server.rest.contract.response.StreamProperty;
 import com.emc.pravega.controller.server.rest.contract.response.StreamResponse;
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -88,13 +88,13 @@ public class StreamMetaDataTests extends JerseyTest {
     private final CompletableFuture<StreamConfiguration> streamConfigFuture = CompletableFuture.supplyAsync(
             () -> streamConfiguration);
     private final CompletableFuture<CreateStreamStatus> createStreamStatus = CompletableFuture.supplyAsync(
-            () -> CreateStreamStatus.SUCCESS);
+            () -> CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.SUCCESS).build());
     private final CompletableFuture<CreateStreamStatus> createStreamStatus2 = CompletableFuture.supplyAsync(
-            () -> CreateStreamStatus.STREAM_EXISTS);
+            () -> CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus = CompletableFuture.supplyAsync(
-            () -> UpdateStreamStatus.SUCCESS);
+            () -> UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.SUCCESS).build());
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus2 = CompletableFuture.supplyAsync(
-            () -> UpdateStreamStatus.STREAM_NOT_FOUND);
+            () -> UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.STREAM_NOT_FOUND).build());
 
     /**
      * Configure resource class.

@@ -22,11 +22,10 @@ import com.emc.pravega.controller.server.rest.ModelHelper;
 import com.emc.pravega.controller.server.rest.contract.request.CreateStreamRequest;
 import com.emc.pravega.controller.server.rest.contract.request.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.v1.ApiV1;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.stream.StreamConfiguration;
 import lombok.extern.slf4j.Slf4j;
 
@@ -60,14 +59,14 @@ public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
         long traceId = LoggerHelpers.traceEnter(log, "createStream");
 
         StreamConfiguration streamConfiguration = ModelHelper.getCreateStreamConfig(createStreamRequest, scope);
-        CompletableFuture<CreateStreamStatus> createStreamStatus = controllerService.createStream(streamConfiguration,
-                System.currentTimeMillis());
+        CompletableFuture<Controller.CreateStreamStatus> createStreamStatus =
+                controllerService.createStream(streamConfiguration, System.currentTimeMillis());
 
         createStreamStatus.thenApply(streamStatus -> {
-                    if (streamStatus == CreateStreamStatus.SUCCESS) {
+                    if (streamStatus.getStatus() == Controller.CreateStreamStatus.Status.SUCCESS) {
                         return Response.status(Status.CREATED).
                                 entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
-                    } else if (streamStatus == CreateStreamStatus.STREAM_EXISTS) {
+                    } else if (streamStatus.getStatus() == Controller.CreateStreamStatus.Status.STREAM_EXISTS) {
                         return Response.status(Status.CONFLICT).build();
                     } else {
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
@@ -96,13 +95,13 @@ public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
         long traceId = LoggerHelpers.traceEnter(log, "updateStreamConfig");
 
         StreamConfiguration streamConfiguration = ModelHelper.getUpdateStreamConfig(updateStreamRequest, scope, stream);
-        CompletableFuture<UpdateStreamStatus> updateStreamStatus = controllerService.alterStream(streamConfiguration);
+        CompletableFuture<Controller.UpdateStreamStatus> updateStreamStatus = controllerService.alterStream(streamConfiguration);
 
         updateStreamStatus.thenApply(streamStatus -> {
-                    if (streamStatus == UpdateStreamStatus.SUCCESS) {
+                    if (streamStatus.getStatus() == Controller.UpdateStreamStatus.Status.SUCCESS) {
                         return Response.status(Status.CREATED).
                                 entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
-                    } else if (streamStatus == UpdateStreamStatus.STREAM_NOT_FOUND) {
+                    } else if (streamStatus.getStatus() == Controller.UpdateStreamStatus.Status.STREAM_NOT_FOUND) {
                         return Response.status(Status.NOT_FOUND).build();
                     } else {
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();

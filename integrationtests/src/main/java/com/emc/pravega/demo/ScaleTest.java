@@ -17,10 +17,10 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.TxnStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -72,7 +72,7 @@ public class ScaleTest {
 
         System.err.println(String.format("Creating stream (%s, %s)", scope, streamName));
         CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
-        if (createStatus.get() != CreateStreamStatus.SUCCESS) {
+        if (createStatus.get().getStatus() != CreateStreamStatus.Status.SUCCESS) {
             System.err.println("Create stream failed, exiting");
             return;
         }
@@ -122,7 +122,7 @@ public class ScaleTest {
         CompletableFuture<TxnStatus> statusFuture = controller.dropTransaction(stream, txId);
         TxnStatus status = statusFuture.get();
 
-        if (status != TxnStatus.SUCCESS) {
+        if (status.getStatus() != TxnStatus.Status.SUCCESS) {
             System.err.println("Drop transaction failed, exiting");
             return;
         }

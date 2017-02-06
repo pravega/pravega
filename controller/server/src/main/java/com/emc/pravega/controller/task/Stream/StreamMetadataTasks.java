@@ -19,8 +19,8 @@ package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.concurrent.FutureCollectionHelper;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
-import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
+import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.server.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
@@ -28,13 +28,13 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamNotFoundException;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.NodeUri;
-import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.SegmentId;
-import com.emc.pravega.controller.stream.api.v1.SegmentRange;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -97,7 +97,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
      * @return creation status.
      */
     @Task(name = "createStream", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
+    public CompletableFuture<CreateStreamStatus.Status> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
         return execute(
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream, config},
@@ -113,7 +113,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
      * @return update status.
      */
     @Task(name = "updateConfig", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<UpdateStreamStatus> alterStream(String scope, String stream, StreamConfiguration config) {
+    public CompletableFuture<UpdateStreamStatus.Status> alterStream(String scope, String stream, StreamConfiguration config) {
         return execute(
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream, config},
@@ -127,7 +127,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
      * @return update status.
      */
     @Task(name = "sealStream", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String stream) {
+    public CompletableFuture<UpdateStreamStatus.Status> sealStream(String scope, String stream) {
         return execute(
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream},
@@ -152,25 +152,25 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp));
     }
 
-    private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
+    private CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
         return this.streamMetadataStore.createStream(stream, config, timestamp)
                 .thenCompose(x -> {
                     if (x) {
                         return this.streamMetadataStore.getActiveSegments(stream)
                                 .thenApply(activeSegments ->
                                         notifyNewSegments(config.getScope(), stream, activeSegments))
-                                .thenApply(y -> CreateStreamStatus.SUCCESS);
+                                .thenApply(y -> CreateStreamStatus.Status.SUCCESS);
                     } else {
-                        return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
+                        return CompletableFuture.completedFuture(CreateStreamStatus.Status.FAILURE);
                     }
                 })
                 .handle((result, ex) -> {
                     if (ex != null) {
                         if (ex.getCause() instanceof StreamAlreadyExistsException) {
-                            return CreateStreamStatus.STREAM_EXISTS;
+                            return CreateStreamStatus.Status.STREAM_EXISTS;
                         } else {
                             log.warn("Create stream failed due to ", ex);
-                            return CreateStreamStatus.FAILURE;
+                            return CreateStreamStatus.Status.FAILURE;
                         }
                     } else {
                         return result;
@@ -178,23 +178,24 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 });
     }
 
-    public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream, StreamConfiguration config) {
+    public CompletableFuture<UpdateStreamStatus.Status> updateStreamConfigBody(String scope, String stream, StreamConfiguration config) {
         return streamMetadataStore.updateConfiguration(stream, config)
                 .handle((result, ex) -> {
                     if (ex != null) {
                         return handleUpdateStreamError(ex);
                     } else {
-                        return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
+                        return result ? UpdateStreamStatus.Status.SUCCESS
+                                : UpdateStreamStatus.Status.FAILURE;
                     }
                 });
     }
 
-    public CompletableFuture<UpdateStreamStatus> sealStreamBody(String scope, String stream) {
+    public CompletableFuture<UpdateStreamStatus.Status> sealStreamBody(String scope, String stream) {
         return streamMetadataStore.getActiveSegments(stream)
                 .thenCompose(activeSegments -> {
                     if (activeSegments.isEmpty()) { //if active segments are empty then the stream is sealed.
                         //Do not update the state if the stream is already sealed.
-                        return CompletableFuture.completedFuture(UpdateStreamStatus.SUCCESS);
+                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.SUCCESS);
                     } else {
                         List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
                                 collect(Collectors.toList());
@@ -204,7 +205,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                                     if (ex != null) {
                                         return handleUpdateStreamError(ex);
                                     } else {
-                                        return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
+                                        return result ? UpdateStreamStatus.Status.SUCCESS
+                                                : UpdateStreamStatus.Status.FAILURE;
                                     }
                                 });
                     }
@@ -253,28 +255,31 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
                                 .thenApply((List<Segment> newSegments) -> {
                                     notifyNewSegments(scope, stream, newSegments);
-                                    ScaleResponse response = new ScaleResponse();
-                                    response.setStatus(ScaleStreamStatus.SUCCESS);
-                                    response.setSegments(
+                                    ScaleResponse.Builder response = ScaleResponse.newBuilder();
+                                    response.setStatus(ScaleResponse.ScaleStreamStatus.SUCCESS);
+                                    response.addAllSegments(
                                             newSegments
                                                     .stream()
                                                     .map(segment -> convert(scope, stream, segment))
                                                     .collect(Collectors.toList()));
-                                    return response;
+                                    return response.build();
                                 });
                     } else {
-                        ScaleResponse response = new ScaleResponse();
-                        response.setStatus(ScaleStreamStatus.PRECONDITION_FAILED);
-                        response.setSegments(Collections.emptyList());
-                        return CompletableFuture.completedFuture(response);
+                        ScaleResponse.Builder response = ScaleResponse.newBuilder();
+                        response.setStatus(ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED);
+                        response.addAllSegments(Collections.emptyList());
+                        return CompletableFuture.completedFuture(response.build());
                     }
                 }
         );
     }
 
     private SegmentRange convert(String scope, String stream, com.emc.pravega.controller.store.stream.Segment segment) {
-        return new SegmentRange(
-                new SegmentId(scope, stream, segment.getNumber()), segment.getKeyStart(), segment.getKeyEnd());
+        return SegmentRange.newBuilder().setSegmentId(
+                SegmentId.newBuilder().setStreamInfo(StreamInfo.newBuilder().setScope(scope).setStream(stream))
+                        .setSegmentNumber(segment.getNumber()))
+                .setMinKey(segment.getKeyStart()).setMaxKey(segment.getKeyEnd())
+                .build();
     }
 
     private Void notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers) {
@@ -320,13 +325,13 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                         executor);
     }
 
-    private UpdateStreamStatus handleUpdateStreamError(Throwable ex) {
+    private UpdateStreamStatus.Status handleUpdateStreamError(Throwable ex) {
         if (ex instanceof StreamNotFoundException ||
                 (ex instanceof CompletionException && ex.getCause() instanceof StreamNotFoundException)) {
-            return UpdateStreamStatus.STREAM_NOT_FOUND;
+            return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
         } else {
             log.warn("Update stream failed due to ", ex);
-            return UpdateStreamStatus.FAILURE;
+            return UpdateStreamStatus.Status.FAILURE;
         }
     }
 }

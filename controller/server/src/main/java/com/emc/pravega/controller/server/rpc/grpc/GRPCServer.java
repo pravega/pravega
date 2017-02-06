@@ -15,33 +15,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server.rpc.v1;
+package com.emc.pravega.controller.server.rpc.grpc;
 
-import com.emc.pravega.common.netty.WireCommandType;
+import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
+import io.grpc.ServerBuilder;
+import lombok.extern.slf4j.Slf4j;
+
+import java.io.IOException;
 
 /**
- * Wire command failed exception.
+ * gRPC based RPC Server for the Controller.
  */
-public class WireCommandFailedException extends RuntimeException {
-
-    public enum Reason {
-        ConnectionDropped,
-        ConnectionFailed,
-        UnknownHost,
-        PreconditionFailed,
-    }
-
-    private final WireCommandType type;
-    private final Reason reason;
-
-    public WireCommandFailedException(Throwable cause, WireCommandType type, Reason reason) {
-        super(cause);
-        this.type = type;
-        this.reason = reason;
-    }
-
-    public WireCommandFailedException(WireCommandType type, Reason reason) {
-        this.type = type;
-        this.reason = reason;
+@Slf4j
+public class GRPCServer {
+    public static void start(ControllerService controllerService, int rpcPort) throws IOException {
+        ServerBuilder
+                .forPort(rpcPort)
+                .addService(new ControllerServiceImpl(controllerService))
+                .build()
+                .start();
+        log.info("Listening on port " + rpcPort);
     }
 }

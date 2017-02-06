@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.stream.impl;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -26,27 +25,32 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-import org.apache.thrift.async.TAsyncClientManager;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.protocol.TProtocolFactory;
-import org.apache.thrift.transport.TNonblockingSocket;
-import org.apache.thrift.transport.TNonblockingTransport;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetPositionRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Position;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Positions;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdatePositionRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.grpc.ManagedChannelBuilder;
 
+import com.emc.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.controller.stream.api.v1.ControllerService;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.SegmentId;
-import com.emc.pravega.controller.stream.api.v1.SegmentRange;
-import com.emc.pravega.controller.stream.api.v1.TxnStatus;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
-import com.emc.pravega.controller.util.ThriftAsyncCallback;
-import com.emc.pravega.controller.util.ThriftHelper;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 
+import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -55,47 +59,56 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ControllerImpl implements Controller {
 
-    private final ControllerService.AsyncClient client;
+    private final ControllerServiceGrpc.ControllerServiceStub client;
 
     public ControllerImpl(final String host, final int port) {
-        try {
-            // initialize transport, protocol factory, and async client manager
-            final TNonblockingTransport transport = new TNonblockingSocket(host, port);
-            final TAsyncClientManager asyncClientManager = new TAsyncClientManager();
-            final TProtocolFactory protocolFactory = new TBinaryProtocol.Factory();
+        // create client
+        client = ControllerServiceGrpc.newStub(
+                ManagedChannelBuilder.forAddress(host, port).usePlaintext(true).build());
+    }
 
-            // create client
-            client = new ControllerService.AsyncClient(protocolFactory, asyncClientManager, transport);
-        } catch (IOException ioe) {
-            log.error("Exception" + ioe.getMessage());
-            throw new RuntimeException(ioe);
+    private static final class RPCAsyncCallback<T> implements StreamObserver<T> {
+        private T result = null;
+        private final CompletableFuture<T> future = new CompletableFuture<>();
+
+        @Override
+        public void onNext(T value) {
+            result = value;
+        }
+
+        @Override
+        public void onError(Throwable t) {
+            future.completeExceptionally(t);
+
+        }
+
+        @Override
+        public void onCompleted() {
+            future.complete(result);
+        }
+
+        public CompletableFuture<T> getFuture() {
+            return future;
         }
     }
+
 
     @Override
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig) {
         log.debug("Invoke AdminService.Client.createStream() with streamConfiguration: {}", streamConfig);
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.createStream_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
-            client.createStream(ModelHelper.decode(streamConfig), callback);
-            return null;
-        });
-        return callback.getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+        RPCAsyncCallback<CreateStreamStatus> callback = new RPCAsyncCallback<>();
+        client.createStream(ModelHelper.decode(streamConfig), callback);
+        return callback.getFuture();
     }
 
     @Override
     public CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig) {
         log.debug("Invoke AdminService.Client.alterStream() with streamConfiguration: {}", streamConfig);
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.alterStream_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
-            client.alterStream(ModelHelper.decode(streamConfig), callback);
-            return null;
-        });
-        return callback.getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+        RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>();
+        client.alterStream(ModelHelper.decode(streamConfig), callback);
+        return callback.getFuture();
     }
 
     @Override
@@ -104,48 +117,46 @@ public class ControllerImpl implements Controller {
                                                         final Map<Double, Double> newKeyRanges) {
         log.debug("Invoke AdminService.Client.scaleStream() for stream: {}", stream);
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.scale_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
-            client.scale(stream.getScope(),
-                    stream.getStreamName(),
-                    sealedSegments,
-                    newKeyRanges,
-                    System.currentTimeMillis(),
-                    callback);
-            return null;
-        });
-        return callback.getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+        RPCAsyncCallback<ScaleResponse> callback = new RPCAsyncCallback<>();
+        client.scale(ScaleRequest.newBuilder()
+                             .setStreamInfo(StreamInfo.newBuilder().setScope(
+                                     stream.getScope()).setStream(stream.getStreamName()))
+                             .addAllSealedSegments(sealedSegments)
+                             .addAllNewKeyRanges(newKeyRanges.entrySet().stream()
+                                                         .map(x -> ScaleRequest.KeyRangeEntry.newBuilder()
+                                                                 .setStart(x.getKey()).setEnd(x.getValue()).build())
+                                                         .collect(Collectors.toList()))
+                             .setScaleTimestamp(System.currentTimeMillis())
+                             .build(),
+                     callback);
+        return callback.getFuture();
     }
 
     @Override
     public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String streamName) {
         log.debug("Invoke AdminService.Client.sealStream() for stream: {}", streamName);
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.alterStream_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
-            client.sealStream(scope, streamName, callback);
-            return null;
-        });
-        return callback.getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+        RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>();
+        client.sealStream(StreamInfo.newBuilder().setScope(scope).setStream(streamName).build(), callback);
+        return callback.getFuture();
     }
 
     @Override
     public CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count) {
         log.debug("Invoke ConsumerService.Client.getPositions() for stream: {}, timestamp: {}, count: {}", stream, timestamp, count);
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.getPositions_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
-            client.getPositions(stream.getScope(), stream.getStreamName(), timestamp, count, callback);
-            return null;
-        });
-        return callback
-                .getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
-                .thenApply(result -> {
-                    log.debug("Received the following data from the controller {}", result);
-                    return result.stream().map(ModelHelper::encode).collect(Collectors.toList());
+        RPCAsyncCallback<Positions> callback = new RPCAsyncCallback<>();
+
+        client.getPositions(GetPositionRequest.newBuilder().setStreamInfo(
+                StreamInfo.newBuilder().setScope(stream.getScope()).setStream(stream.getStreamName()))
+                .setTimestamp(timestamp)
+                .setCount(count)
+                .build(), callback);
+
+        return callback.getFuture()
+                .thenApply(positions -> {
+                    log.debug("Received the following data from the controller {}", positions);
+                    return positions.getPositionsList().stream().map(ModelHelper::encode).collect(Collectors.toList());
                 });
     }
 
@@ -153,20 +164,22 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<List<PositionInternal>> updatePositions(final Stream stream, List<PositionInternal> positions) {
         log.debug("Invoke ConsumerService.Client.updatePositions() for positions: {} ", positions);
 
-        final List<com.emc.pravega.controller.stream.api.v1.Position> transformed =
+        RPCAsyncCallback<Positions> callback = new RPCAsyncCallback<>();
+
+        final List<Position> transformed =
                 positions.stream().map(ModelHelper::decode).collect(Collectors.toList());
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.updatePositions_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
-            client.updatePositions(stream.getScope(), stream.getStreamName(), transformed, callback);
-            return null;
-        });
-        return callback
-                .getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
+            client.updatePositions(UpdatePositionRequest.newBuilder()
+                                           .setStreamInfo(StreamInfo.newBuilder()
+                                                                  .setScope(stream.getScope())
+                                                                  .setStream(stream.getStreamName()))
+                                           .setPositions(Positions.newBuilder().addAllPositions(transformed))
+                                           .build(),
+                                   callback);
+        return callback.getFuture()
                 .thenApply(result -> {
                     log.debug("Received the following data from the controller {}", result);
-                    return result.stream().map(ModelHelper::encode).collect(Collectors.toList());
+                    return result.getPositionsList().stream().map(ModelHelper::encode).collect(Collectors.toList());
                 });
     }
 
@@ -175,16 +188,14 @@ public class ControllerImpl implements Controller {
         //Use RPC client to invoke getPositions
         log.debug("Invoke ProducerService.Client.getCurrentSegments() for stream: {}", stream);
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.getCurrentSegments_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
-            client.getCurrentSegments(scope, stream, callback);
-            return callback.getResult();
-        });
-        return callback.getResult()
-            .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
-            .thenApply((List<SegmentRange> ranges) -> {
+        RPCAsyncCallback<SegmentRanges> callback =
+                new RPCAsyncCallback<>();
+        client.getCurrentSegments(StreamInfo.newBuilder().setScope(scope).setStream(stream).build(), callback);
+
+        return callback.getFuture()
+            .thenApply(ranges -> {
                 NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
-                for (SegmentRange r : ranges) {
+                for (com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange r : ranges.getSegmentRangesList()) {
                     rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
                 }
                 return rangeMap;
@@ -194,83 +205,84 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName) {
-        final ThriftAsyncCallback<ControllerService.AsyncClient.getURI_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
+
+        RPCAsyncCallback<NodeUri> callback = new RPCAsyncCallback<>();
+
             Segment segment = Segment.fromScopedName(qualifiedSegmentName);
-            client.getURI(new SegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber()), callback);
-            return callback.getResult();
-        });
-        return callback
-                .getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
+            client.getURI(SegmentId.newBuilder()
+                                  .setStreamInfo(StreamInfo.newBuilder()
+                                                         .setScope(segment.getScope())
+                                                         .setStream(segment.getStreamName()))
+                                  .setSegmentNumber(segment.getSegmentNumber())
+                                  .build(),
+                          callback);
+        return callback.getFuture()
                 .thenApply(ModelHelper::encode);
     }
 
     @Override
     public CompletableFuture<Boolean> isSegmentValid(final String scope, final String stream, final int segmentNumber) {
-        final ThriftAsyncCallback<ControllerService.AsyncClient.isSegmentValid_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
-            client.isSegmentValid(scope, stream, segmentNumber, callback);
-            return callback.getResult();
-        });
-
-        return callback.getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+        RPCAsyncCallback<SegmentValidityResponse> callback = new RPCAsyncCallback<>();
+        client.isSegmentValid(SegmentId.newBuilder()
+                                      .setStreamInfo(StreamInfo.newBuilder().setScope(scope).setStream(stream))
+                                      .setSegmentNumber(segmentNumber).build(),
+                              callback);
+        return callback.getFuture()
+                .thenApply(bRes -> bRes.getResponse());
     }
 
     @Override
     public CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout) {
         log.debug("Invoke AdminService.Client.createTransaction() with stream: {}", stream);
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.createTransaction_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
-            client.createTransaction(stream.getScope(), stream.getStreamName(), callback);
-            return null;
-        });
-        return callback.getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult)).thenApply(ModelHelper::encode);
+        RPCAsyncCallback<TxnId> callback = new RPCAsyncCallback<>();
+            client.createTransaction(StreamInfo.newBuilder()
+                                             .setScope(stream.getScope()).setStream(stream.getStreamName()).build(),
+                                     callback);
+        return callback.getFuture()
+                .thenApply(ModelHelper::encode);
     }
 
     @Override
-    public CompletableFuture<TxnStatus> commitTransaction(final Stream stream, final UUID txId) {
+    public CompletableFuture<com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus> commitTransaction(final Stream stream, final UUID txId) {
         log.debug("Invoke AdminService.Client.commitTransaction() with stream: {}, txUd: {}", stream, txId);
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.commitTransaction_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
-            client.commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), callback);
-            return null;
-        });
-        return callback.getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+        RPCAsyncCallback<com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus> callback = new RPCAsyncCallback<>();
+        client.commitTransaction(TxnRequest.newBuilder().setStreamInfo(StreamInfo.newBuilder()
+                                                                               .setScope(stream.getScope())
+                                                                               .setStream(stream.getStreamName()))
+                                         .setTxnId(ModelHelper.decode(txId))
+                                         .build(),
+                                 callback);
+        return callback.getFuture();
     }
 
     @Override
-    public CompletableFuture<TxnStatus> dropTransaction(final Stream stream, final UUID txId) {
+    public CompletableFuture<com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus> dropTransaction(final Stream stream, final UUID txId) {
         log.debug("Invoke AdminService.Client.dropTransaction() with stream: {}, txUd: {}", stream, txId);
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.dropTransaction_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
-            client.dropTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), callback);
-            return null;
-        });
-        return callback.getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+        RPCAsyncCallback<com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus> callback = new RPCAsyncCallback<>();
+        client.dropTransaction(TxnRequest.newBuilder().setStreamInfo(StreamInfo.newBuilder()
+                                                                             .setScope(stream.getScope())
+                                                                             .setStream(stream.getStreamName()))
+                                       .setTxnId(ModelHelper.decode(txId))
+                                       .build(),
+                               callback);
+        return callback.getFuture();
     }
 
     @Override
     public CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId) {
         log.debug("Invoke AdminService.Client.checkTransactionStatus() with stream: {}, txUd: {}", stream, txId);
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.checkTransactionStatus_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
-            client.checkTransactionStatus(stream.getScope(),
-                                          stream.getStreamName(),
-                                          ModelHelper.decode(txId),
-                                          callback);
-            return null;
-        });
-        return callback.getResult()
-            .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
-            .thenApply(status -> ModelHelper.encode(status, stream + " " + txId));
+        RPCAsyncCallback<TxnState> callback = new RPCAsyncCallback<>();
+        client.checkTransactionState(TxnRequest.newBuilder().setStreamInfo(StreamInfo.newBuilder()
+                                                                                    .setScope(stream.getScope())
+                                                                                    .setStream(stream.getStreamName()))
+                                              .setTxnId(ModelHelper.decode(txId))
+                                              .build(),
+                                      callback);
+        return callback.getFuture()
+            .thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txId));
     }
 }

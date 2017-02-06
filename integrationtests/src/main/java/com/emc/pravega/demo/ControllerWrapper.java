@@ -19,7 +19,7 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -28,12 +28,12 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.SegmentId;
-import com.emc.pravega.controller.stream.api.v1.SegmentRange;
-import com.emc.pravega.controller.stream.api.v1.TxnStatus;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Position;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.Segment;
@@ -48,7 +48,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
-import org.apache.thrift.TException;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -151,8 +150,8 @@ public class ControllerWrapper implements Controller {
 
     @Override
     public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txnId) {
-        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
-                .thenApply(status -> ModelHelper.encode(status, stream + " " + txnId));
+        return controller.checkTransactionState(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
+                .thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txnId));
     }
 
     @Override
@@ -169,7 +168,7 @@ public class ControllerWrapper implements Controller {
 
     @Override
     public CompletableFuture<List<PositionInternal>> updatePositions(Stream stream, List<PositionInternal> positions) {
-        final List<com.emc.pravega.controller.stream.api.v1.Position> transformed =
+        final List<Position> transformed =
                 positions.stream().map(ModelHelper::decode).collect(Collectors.toList());
 
         return controller.updatePositions(stream.getScope(), stream.getStreamName(), transformed)
@@ -179,21 +178,14 @@ public class ControllerWrapper implements Controller {
     @Override
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         Segment segment = Segment.fromScopedName(qualifiedSegmentName);
-        try {
-            return controller.getURI(new SegmentId(segment.getScope(), segment.getStreamName(),
-                    segment.getSegmentNumber())).thenApply(ModelHelper::encode);
-        } catch (TException e) {
-            throw new RuntimeException(e);
-        }
+        return controller.getURI(ModelHelper.createSegmentId(segment.getScope(), segment.getStreamName(),
+                segment.getSegmentNumber()))
+                .thenApply(ModelHelper::encode);
     }
 
     @Override
     public CompletableFuture<Boolean> isSegmentValid(String scope, String stream, int segmentNumber) {
-        try {
-            return controller.isSegmentValid(scope, stream, segmentNumber);
-        } catch (TException e) {
-            throw new RuntimeException(e);
-        }
+        return controller.isSegmentValid(scope, stream, segmentNumber);
     }
 }
 

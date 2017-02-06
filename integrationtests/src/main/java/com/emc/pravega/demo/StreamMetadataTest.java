@@ -17,8 +17,8 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -63,7 +63,7 @@ public class StreamMetadataTest {
         //CS1:create a stream :given a streamName, scope and config
         System.err.println(String.format("Creating stream (%s, %s)", scope1, streamName1));
         createStatus = controller.createStream(config1);
-        if (createStatus.get() != CreateStreamStatus.SUCCESS) {
+        if (createStatus.get().getStatus() != CreateStreamStatus.Status.SUCCESS) {
             System.err.println("FAILURE: Create stream failed, exiting");
             return;
         } else {
@@ -79,12 +79,12 @@ public class StreamMetadataTest {
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
         System.err.println(String.format("Seal stream  (%s, %s)", scopeSeal, streamNameSeal));
         CreateStreamStatus createStream3Status = controller.createStream(configSeal).get();
-        if ( createStream3Status != CreateStreamStatus.SUCCESS) {
+        if ( createStream3Status.getStatus() != CreateStreamStatus.Status.SUCCESS) {
            System.err.println("FAILURE: Create stream operation failed");
         }
         StreamSegments result = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
         UpdateStreamStatus sealStatus = controller.sealStream(scopeSeal, streamNameSeal).get();
-        if (sealStatus == UpdateStreamStatus.SUCCESS) {
+        if (sealStatus.getStatus() == UpdateStreamStatus.Status.SUCCESS) {
             System.err.println("SUCCESS: Stream Sealed");
             StreamSegments currentSegs = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
             if ( !currentSegs.getSegments().isEmpty()) {
@@ -97,7 +97,7 @@ public class StreamMetadataTest {
 
         //Seal an already sealed stream.
         UpdateStreamStatus reSealStatus = controller.sealStream(scopeSeal, streamNameSeal).get();
-        if (reSealStatus == UpdateStreamStatus.SUCCESS) {
+        if (reSealStatus.getStatus() == UpdateStreamStatus.Status.SUCCESS) {
             StreamSegments currentSegs = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
             if ( !currentSegs.getSegments().isEmpty()) {
                 System.err.println("FAILURE: No active segments should be present in a sealed stream");
@@ -109,16 +109,16 @@ public class StreamMetadataTest {
 
         //Seal a non-existent stream.
         UpdateStreamStatus errSealStatus = controller.sealStream(scopeSeal, "nonExistentStream").get();
-        if (errSealStatus != UpdateStreamStatus.FAILURE) {
+        if (errSealStatus.getStatus() != UpdateStreamStatus.Status.FAILURE) {
             System.err.println("FAILURE: Seal operation on a non-existent stream returned " +errSealStatus );
         }
 
         //CS2:stream duplication not allowed
         System.err.println(String.format("Duplicating stream (%s, %s)", scope1, streamName1));
         createStatus = controller.createStream(config1);
-        if (createStatus.get() == CreateStreamStatus.STREAM_EXISTS) {
+        if (createStatus.get().getStatus() == CreateStreamStatus.Status.STREAM_EXISTS) {
             System.err.println("SUCCESS: Stream duplication not allowed ");
-        } else if (createStatus.get() == CreateStreamStatus.FAILURE) {
+        } else if (createStatus.get().getStatus() == CreateStreamStatus.Status.FAILURE) {
             System.err.println("FAILURE: Create stream failed, exiting");
             return;
         } else {
@@ -134,7 +134,7 @@ public class StreamMetadataTest {
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
         System.err.println(String.format("Creating stream with same stream name (%s) in different scope (%s)", scope2, streamName1));
         createStatus = controller.createStream(config2);
-        if (createStatus.get() != CreateStreamStatus.SUCCESS) {
+        if (createStatus.get().getStatus() != CreateStreamStatus.Status.SUCCESS) {
             System.err.println("FAILURE: Creating stream with same stream name in different scope failed, exiting ");
             return;
         } else {
@@ -149,7 +149,7 @@ public class StreamMetadataTest {
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3));
         System.err.println(String.format("Creating stream with different stream  name (%s) and config in same scope (%s)", scope1, streamName2));
         createStatus = controller.createStream(config3);
-        if (createStatus.get() != CreateStreamStatus.SUCCESS) {
+        if (createStatus.get().getStatus() != CreateStreamStatus.Status.SUCCESS) {
             System.err.println("FAILURE: Create stream  with different stream name and config  in same scope failed, exiting");
             return;
         } else {
@@ -166,7 +166,7 @@ public class StreamMetadataTest {
         CompletableFuture<UpdateStreamStatus> updateStatus;
         updateStatus = controller.alterStream(config4);
         System.err.println(String.format("Updating the stream name (%s, %s)", scope1, "stream4"));
-        if (updateStatus.get() != UpdateStreamStatus.FAILURE) {
+        if (updateStatus.get().getStatus() != UpdateStreamStatus.Status.FAILURE) {
             System.err.println("FAILURE: Stream name updated, exiting");
             return;
         } else {
@@ -180,7 +180,7 @@ public class StreamMetadataTest {
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
         updateStatus = controller.alterStream(config5);
         System.err.println(String.format("Updtaing the scope name (%s, %s)", "scope5", streamName1));
-        if (updateStatus.get() != UpdateStreamStatus.FAILURE) {
+        if (updateStatus.get().getStatus() != UpdateStreamStatus.Status.FAILURE) {
             System.err.println("FAILURE: Scope name updated, exiting");
             return;
         } else {
@@ -194,7 +194,7 @@ public class StreamMetadataTest {
                         new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_BYTES, 100L, 2, 2));
         updateStatus = controller.alterStream(config6);
         System.err.println(String.format("Updating the  type of scaling policy(%s, %s)", scope1, streamName1));
-        if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
+        if (updateStatus.get().getStatus() != UpdateStreamStatus.Status.SUCCESS) {
             System.err.println("FAILURE: Update the  type of scaling policy failed, exiting");
             return;
         } else {
@@ -208,7 +208,7 @@ public class StreamMetadataTest {
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 200L, 2, 2));
         System.err.println(String.format("Updating the target rate (%s, %s)", scope1, streamName1));
         updateStatus = controller.alterStream(config7);
-        if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
+        if (updateStatus.get().getStatus() != UpdateStreamStatus.Status.SUCCESS) {
             System.err.println("FAILURE: Update the target rate failed, exiting");
             return;
         } else {
@@ -222,7 +222,7 @@ public class StreamMetadataTest {
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 3, 2));
         System.err.println(String.format("Updating the scalefactor (%s, %s)", scope1, streamName1));
         updateStatus = controller.alterStream(config8);
-        if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
+        if (updateStatus.get().getStatus() != UpdateStreamStatus.Status.SUCCESS) {
             System.err.println("FAILURE: Update the scalefactor failed, exiting");
             return;
         } else {
@@ -236,7 +236,7 @@ public class StreamMetadataTest {
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3));
         System.err.println(String.format("Updating the min Num segments (%s, %s)", scope1, streamName1));
         updateStatus = controller.alterStream(config9);
-        if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
+        if (updateStatus.get().getStatus() != UpdateStreamStatus.Status.SUCCESS) {
             System.err.println("FAILURE: Update  min Num segments failed, exiting");
             return;
         } else {
@@ -250,9 +250,9 @@ public class StreamMetadataTest {
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 200L, 2, 3));
         System.err.println(String.format("Altering the  configuration of a non-existent stream (%s, %s)", "scope", "streamName"));
         updateStatus = controller.alterStream(config);
-        if (updateStatus.get() ==  UpdateStreamStatus.STREAM_NOT_FOUND) {
+        if (updateStatus.get().getStatus() ==  UpdateStreamStatus.Status.STREAM_NOT_FOUND) {
             System.err.println("SUCCESS: Altering the configuration of a non-existent stream is not allowed");
-        } else if (updateStatus.get() == UpdateStreamStatus.FAILURE) {
+        } else if (updateStatus.get().getStatus() == UpdateStreamStatus.Status.FAILURE) {
             System.err.println("FAILURE: Alter configuration failed, exiting");
             return;
         } else {

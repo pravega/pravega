@@ -31,10 +31,10 @@ import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.TxnStatus;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -73,7 +73,8 @@ public class MockController implements Controller {
     public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {
         Segment segmentId = new Segment(streamConfig.getScope(), streamConfig.getName(), 0);
         createSegment(segmentId.getScopedName(), new PravegaNodeUri(endpoint, port));
-        return CompletableFuture.completedFuture(CreateStreamStatus.SUCCESS);
+        return CompletableFuture.completedFuture(CreateStreamStatus.newBuilder()
+                                                         .setStatus(CreateStreamStatus.Status.SUCCESS).build());
     }
 
     @Override
@@ -133,7 +134,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> commitTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus> commitTransaction(Stream stream, UUID txId) {
         CompletableFuture<TxnStatus> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -149,7 +150,7 @@ public class MockController implements Controller {
 
             @Override
             public void transactionCommitted(TransactionCommitted transactionCommitted) {
-                result.complete(TxnStatus.SUCCESS);
+                result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 
             @Override
@@ -183,7 +184,7 @@ public class MockController implements Controller {
 
             @Override
             public void transactionAborted(TransactionAborted transactionAborted) {
-                result.complete(TxnStatus.SUCCESS);
+                result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
         };
         sendRequestOverNewConnection(new AbortTransaction(Segment.getScopedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);

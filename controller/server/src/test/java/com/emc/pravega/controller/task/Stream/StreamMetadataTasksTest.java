@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
@@ -25,9 +25,9 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
-import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
@@ -118,15 +118,15 @@ public class StreamMetadataTasksTest {
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
 
         //seal a stream.
-        UpdateStreamStatus sealOperationResult = streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1).get();
-        assertEquals(UpdateStreamStatus.SUCCESS, sealOperationResult);
+        UpdateStreamStatus.Status sealOperationResult = streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1).get();
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, sealOperationResult);
 
         //a sealed stream should have zero active/current segments
         assertEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
         assertTrue(streamStorePartialMock.isSealed(stream1).get());
 
         //reseal a sealed stream.
-        assertEquals(UpdateStreamStatus.SUCCESS, streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1).get());
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1).get());
 
         //scale operation on the sealed stream.
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.2);

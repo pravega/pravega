@@ -15,31 +15,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.controller.server;
 
-package com.emc.pravega.controller.util;
-
-import org.apache.thrift.async.AsyncMethodCallback;
-
-import java.util.concurrent.CompletableFuture;
+import com.emc.pravega.common.netty.WireCommandType;
 
 /**
- * Thrift AsyncCallback implementation using CompletableFuture
+ * Wire command failed exception.
  */
-public class ThriftAsyncCallback<T> implements AsyncMethodCallback<T> {
+public class WireCommandFailedException extends RuntimeException {
 
-    private final CompletableFuture<T> result = new CompletableFuture<>();
-
-    @Override
-    public void onComplete(T response) {
-       result.complete(response);
+    public enum Reason {
+        ConnectionDropped,
+        ConnectionFailed,
+        UnknownHost,
+        PreconditionFailed,
     }
 
-    @Override
-    public void onError(Exception exception) {
-        result.completeExceptionally(exception);
+    private final WireCommandType type;
+    private final Reason reason;
+
+    public WireCommandFailedException(Throwable cause, WireCommandType type, Reason reason) {
+        super(cause);
+        this.type = type;
+        this.reason = reason;
     }
 
-    public CompletableFuture<T> getResult() {
-        return result;
+    public WireCommandFailedException(WireCommandType type, Reason reason) {
+        this.type = type;
+        this.reason = reason;
     }
 }

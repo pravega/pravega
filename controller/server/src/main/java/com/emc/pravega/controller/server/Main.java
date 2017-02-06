@@ -25,9 +25,7 @@ import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.server.rest.RESTServer;
-import com.emc.pravega.controller.server.rpc.RPCServer;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
+import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -45,6 +43,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.UUID;
@@ -57,7 +56,7 @@ import java.util.concurrent.ScheduledExecutorService;
 @Slf4j
 public class Main {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         String hostId;
         try {
             //On each controller process restart, it gets a fresh hostId,
@@ -107,7 +106,7 @@ public class Main {
 
         //2. Start the RPC server.
         log.info("Starting RPC server");
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
+        GRPCServer.start(controllerService, Config.SERVER_PORT);
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature

@@ -20,7 +20,7 @@ package com.emc.pravega.controller.server.rest;
 
 import com.emc.pravega.controller.server.rest.resources.PingImpl;
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.server.ControllerService;
 import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
 import org.glassfish.jersey.netty.httpserver.NettyHttpContainerProvider;

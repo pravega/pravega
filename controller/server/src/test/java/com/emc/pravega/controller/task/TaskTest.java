@@ -53,7 +53,7 @@ import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.TestTasks;
 import com.emc.pravega.stream.ScalingPolicy;
@@ -141,9 +141,9 @@ public class TaskTest {
             assertTrue(e.getCause() instanceof StreamAlreadyExistsException);
         }
 
-        CreateStreamStatus result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
+        CreateStreamStatus.Status result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
                 System.currentTimeMillis()).join();
-        assertEquals(result, CreateStreamStatus.SUCCESS);
+        assertEquals(result, CreateStreamStatus.Status.SUCCESS);
     }
 
     @Test
