@@ -107,7 +107,7 @@ public class SegmentHelper {
         } else {
             desiredRate = policy.getTargetRate();
             if (policy.getType().equals(ScalingPolicy.Type.BY_RATE_IN_KBPS)) {
-                rateType = WireCommands.CreateSegment.IN_BYTES;
+                rateType = WireCommands.CreateSegment.IN_KBPS;
             } else {
                 rateType = WireCommands.CreateSegment.IN_EVENTS;
             }
@@ -253,12 +253,12 @@ public class SegmentHelper {
         return result;
     }
 
-    public CompletableFuture<TxnStatus> dropTransaction(final String scope,
-                                                        final String stream,
-                                                        final int segmentNumber,
-                                                        final UUID txId,
-                                                        final HostControllerStore hostControllerStore,
-                                                        final ConnectionFactory clientCF) {
+    public CompletableFuture<TxnStatus> abortTransaction(final String scope,
+                                                                       final String stream,
+                                                                       final int segmentNumber,
+                                                                       final UUID txId,
+                                                                       final HostControllerStore hostControllerStore,
+                                                                       final ConnectionFactory clientCF) {
         final NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.ABORT_TRANSACTION;

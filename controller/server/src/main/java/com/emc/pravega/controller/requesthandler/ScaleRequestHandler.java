@@ -371,7 +371,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                 .thenCompose(x -> streamMetadataStore.getActiveTxns(request.getScope(), request.getStream(), context))
                 .thenCompose(x -> FutureCollectionHelper.sequence(x.entrySet().stream().filter(y ->
                         System.currentTimeMillis() - y.getValue().getTxCreationTimestamp() > Config.TXN_TIMEOUT_IN_SECONDS)
-                        .map(z -> streamTxMetadataTasks.dropTx(request.getScope(), request.getStream(), z.getKey(), null))
+                        .map(z -> streamTxMetadataTasks.abortTx(request.getScope(), request.getStream(), z.getKey(), null))
                         .collect(Collectors.toList())))
                 .handle((res, ex) -> {
                     if (ex != null) {

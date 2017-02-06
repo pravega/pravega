@@ -77,6 +77,9 @@ public class Main {
         ScheduledExecutorService executor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
                 new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
+        ScheduledExecutorService requestExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
+                new ThreadFactoryBuilder().setNameFormat("requestpool-%d").build());
+
         log.info("Creating store client");
         StoreClient storeClient = StoreClientFactory.createStoreClient(
                 StoreClientFactory.StoreType.valueOf(STORE_TYPE));
@@ -129,6 +132,6 @@ public class Main {
         RESTServer.start(controllerService);
         ClientFactory clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, URI.create(String.format("tcp://localhost:%d", Config.SERVER_PORT)));
 
-        RequestHandlersInit.bootstrap(controllerService, executor, clientFactory);
+        RequestHandlersInit.bootstrap(controllerService, requestExecutor, clientFactory);
     }
 }

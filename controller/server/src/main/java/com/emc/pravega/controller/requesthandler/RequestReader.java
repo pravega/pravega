@@ -17,35 +17,27 @@
  */
 package com.emc.pravega.controller.requesthandler;
 
-import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.NonRetryableException;
 import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.requests.ControllerRequest;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
-import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Position;
-import com.emc.pravega.stream.ReaderConfig;
-import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.PositionComparator;
-import com.emc.pravega.stream.impl.PositionImpl;
 import com.google.common.base.Preconditions;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -71,7 +63,6 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class RequestReader<R extends ControllerRequest, H extends RequestHandler<R>> implements Runnable {
-    private static final int CORE_POOL_SIZE = 1000;
     private final String readerId;
     private final String readerGroup;
     private final ConcurrentSkipListSet<Position> running;
@@ -86,13 +77,15 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
     private AtomicBoolean stop = new AtomicBoolean(false);
     private final H requestHandler;
 
-    public RequestReader(final ClientFactory clientFactory,
-                         final String requestStream,
-                         final String readerId,
+    public RequestReader(final String readerId,
                          final String readerGroup,
-                         final Position start,
+                         final EventStreamWriter<R> writer,
+                         final EventStreamReader<R> reader,
                          final StreamMetadataStore streamMetadataStore,
-                         final H requestHandler) {
+                         final H requestHandler,
+                         final ScheduledExecutorService executor) {
+        Preconditions.checkNotNull(writer);
+        Preconditions.checkNotNull(reader);
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(requestHandler);
 
@@ -105,35 +98,17 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
         running = new ConcurrentSkipListSet<>(positionComparator);
         completed = new ConcurrentSkipListSet<>(positionComparator);
 
-        // TODO: create reader in a group instead of a standalone reader.
-        // read request stream name from configuration
-        // read reader group name from configuration
-        // read reader id from configuration
-        writer = clientFactory.createEventWriter(requestStream,
-                new JavaSerializer<>(),
-                new EventWriterConfig(null));
-
-        PositionImpl position = new PositionImpl(Collections.singletonMap(new Segment(Config.INTERNAL_SCOPE, Config.SCALE_STREAM_NAME, 0), 0L), Collections.emptyMap());
-
-        reader = clientFactory.createReader(requestStream,
-                new JavaSerializer<>(),
-                new ReaderConfig(),
-                start == null ? position : start);
-
-        //        reader = clientFactory.createReader(Defaults.READER_GROUP,
-        //                "1",
-        //                new JavaSerializer<>(),
-        //                new ReaderConfig());
+        this.writer = writer;
+        this.reader = reader;
 
         this.checkpoint = new AtomicReference<>();
-        this.checkpoint.set(start);
 
         serializer = new JavaSerializer<>();
 
-        this.executor = new ScheduledThreadPoolExecutor(CORE_POOL_SIZE);
+        this.executor = executor;
 
         // periodic checkpointing - every one minute
-        executor.scheduleAtFixedRate(this::checkpoint, 1, 1, TimeUnit.MINUTES);
+        this.executor.scheduleAtFixedRate(this::checkpoint, 1, 1, TimeUnit.MINUTES);
     }
 
     public void stop() {

@@ -42,9 +42,4 @@ public interface Stream {
      */
     String getScopedName();
 
-    /**
-     * Gets the configuration associated with this stream.
-     */
-    StreamConfiguration getConfig();
-
 }

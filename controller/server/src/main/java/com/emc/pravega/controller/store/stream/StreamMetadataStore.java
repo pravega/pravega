@@ -26,7 +26,6 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -135,18 +134,17 @@ public interface StreamMetadataStore {
     CompletableFuture<SegmentFutures> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context);
 
     /**
-     * Get next segments.
+     * Given a segment return a map containing the numbers of the segments immediately succeeding it
+     * mapped to a list of the segments they succeed.
      *
-     * @param scope             stream scope
-     * @param context           operation context
-     * @param name              stream name.
-     * @param completedSegments completely read segments.
-     * @param currentSegments   current consumer positions.
-     * @return new consumer positions including new (current or future) segments that can be read from.
+     * @param scope         stream scope
+     * @param context       operation context
+     * @param streamName    stream name.
+     * @param segmentNumber the segment number
+     * @return segments that immediately follow the specified segment and the segments they follow.
      */
-    CompletableFuture<List<SegmentFutures>> getNextSegments(final String scope, final String name,
-                                                            final Set<Integer> completedSegments,
-                                                            final List<SegmentFutures> currentSegments, final OperationContext context);
+    public CompletableFuture<Map<Integer, List<Integer>>> getSuccessors(final String scope, final String streamName,
+                                                                        final int segmentNumber, final OperationContext context);
 
     /**
      * Scales in or out the currently set of active segments of a stream.
@@ -217,7 +215,7 @@ public interface StreamMetadataStore {
      * @param context operation context
      * @return
      */
-    CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final UUID txId, final OperationContext context);
+    CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final UUID txId, final OperationContext context);
 
     /**
      * Returns a boolean indicating whether any transaction is active on the specified stream.

@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
-import com.emc.pravega.controller.stream.api.v1.Position;
+
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxnId;
@@ -78,12 +78,9 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
     }
 
     @Override
-    public void updatePositions(final String scope,
-                                final String stream,
-                                final List<Position> positions,
-                                final AsyncMethodCallback resultHandler) throws TException {
-        log.debug("updatePositions called for stream " + scope + "/" + stream);
-        processResult(controllerService.updatePositions(scope, stream, positions), resultHandler);
+    public void getSegmentsImmediatlyFollowing(SegmentId segment, AsyncMethodCallback resultHandler) throws TException {
+        log.debug("getSegmentsImmediatlyFollowing called for segment " + segment);
+        processResult(controllerService.getSegmentsImmediatlyFollowing(segment), resultHandler);
     }
 
     @Override
@@ -130,12 +127,12 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
     }
 
     @Override
-    public void dropTransaction(final String scope,
-                                final String stream,
-                                final TxnId txid,
-                                final AsyncMethodCallback resultHandler) throws TException {
-        log.debug("dropTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
-        processResult(controllerService.dropTransaction(scope, stream, txid), resultHandler);
+    public void abortTransaction(final String scope,
+                                 final String stream,
+                                 final TxnId txid,
+                                 final AsyncMethodCallback resultHandler) throws TException {
+        log.debug("abortTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
+        processResult(controllerService.abortTransaction(scope, stream, txid), resultHandler);
     }
 
     @Override
@@ -159,4 +156,5 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
                     }
                 });
     }
+
 }

@@ -20,7 +20,6 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.stream.Segment;
 import org.junit.Test;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -36,12 +35,12 @@ public class PositionComparatorTest {
         Map<Segment, Long> segments1 = new HashMap<>();
         segments1.put(segments.get(0), 10L);
         segments1.put(segments.get(1), 10L);
-        PositionImpl pos1 = new PositionImpl(segments1, Collections.emptyMap());
+        PositionImpl pos1 = new PositionImpl(segments1);
 
         Map<Segment, Long> segments2 = new HashMap<>();
         segments2.put(segments.get(0), 20L);
         segments2.put(segments.get(1), 10L);
-        PositionImpl pos2 = new PositionImpl(segments2, Collections.emptyMap());
+        PositionImpl pos2 = new PositionImpl(segments2);
 
         assert new PositionComparator().compare(pos1, pos2) < 0;
     }
@@ -53,12 +52,12 @@ public class PositionComparatorTest {
 
         Map<Segment, Long> segments1 = new HashMap<>();
         segments1.put(segments.get(0), 10L);
-        PositionImpl pos1 = new PositionImpl(segments1, Collections.emptyMap());
+        PositionImpl pos1 = new PositionImpl(segments1);
 
         Map<Segment, Long> segments2 = new HashMap<>();
         segments2.put(segments.get(0), 10L);
         segments2.put(segments.get(1), 10L);
-        PositionImpl pos2 = new PositionImpl(segments2, Collections.emptyMap());
+        PositionImpl pos2 = new PositionImpl(segments2);
 
         assert new PositionComparator().compare(pos1, pos2) < 0;
     }
@@ -70,11 +69,11 @@ public class PositionComparatorTest {
 
         Map<Segment, Long> segments1 = new HashMap<>();
         segments1.put(segments.get(0), 10L);
-        PositionImpl pos1 = new PositionImpl(segments1, Collections.emptyMap());
+        PositionImpl pos1 = new PositionImpl(segments1);
 
         Map<Segment, Long> segments2 = new HashMap<>();
         segments2.put(segments.get(1), 10L);
-        PositionImpl pos2 = new PositionImpl(segments2, Collections.emptyMap());
+        PositionImpl pos2 = new PositionImpl(segments2);
 
         assert new PositionComparator().compare(pos1, pos2) < 0;
     }

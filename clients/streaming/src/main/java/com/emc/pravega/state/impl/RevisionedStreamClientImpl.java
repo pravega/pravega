@@ -98,6 +98,14 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             return new StreamIterator(startOffset, endOffset);
         }
     }
+    
+    @Override
+    public Revision fetchRevision() {
+        synchronized (lock) {
+            long streamLength = in.fetchCurrentStreamLength();
+            return new RevisionImpl(segment, streamLength, 0);
+        }
+    }
 
     private class StreamIterator implements Iterator<Entry<Revision, T>> {
         private final AtomicLong offset;
@@ -134,5 +142,4 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             return new AbstractMap.SimpleImmutableEntry<>(revision, serializer.deserialize(data));
         }
     }
-
 }

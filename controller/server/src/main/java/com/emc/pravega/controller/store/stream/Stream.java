@@ -89,6 +89,12 @@ interface Stream extends OperationContext {
      * @return successors of specified segment.
      */
     CompletableFuture<List<Integer>> getSuccessors(final int number);
+    
+    /**
+     * @param number segment number.
+     * @return successors of specified segment mapped to the list of their predecessors
+     */
+    CompletableFuture<Map<Integer, List<Integer>>> getSuccessorsWithPredecessors(final int number);
 
     /**
      * @param number segment number.

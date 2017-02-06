@@ -41,7 +41,7 @@ import java.util.Arrays;
 @Slf4j
 public class EndToEndAutoScaleTest {
     static StreamConfigurationImpl config = new StreamConfigurationImpl("test", "test",
-            new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_KBPS, 10, 1, 3));
+            new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_KBPS, 1, 1, 3));
 
     public static void main(String[] args) throws Exception {
         @Cleanup
@@ -60,10 +60,9 @@ public class EndToEndAutoScaleTest {
         server.startListening();
 
         try {
+            Thread.sleep(1000000);
             controller.createStream(config).get();
             MockClientFactory clientFactory = new MockClientFactory("test", controller);
-
-            clientFactory.createStream("test", config);
 
             // Mocking pravega service by putting scale up and scale down requests for the stream
             EventStreamWriter<String> test = clientFactory.createEventWriter(
@@ -83,7 +82,7 @@ public class EndToEndAutoScaleTest {
                     log.error("test exception writing events {}", e.getMessage());
                 }
 
-                if (System.currentTimeMillis() - start > Duration.ofMinutes(6).toMillis()) {
+                if (System.currentTimeMillis() - start > Duration.ofMinutes(10).toMillis()) {
                     StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
                     assert streamSegments.getSegments().size() > 3;
                     break;

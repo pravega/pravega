@@ -182,7 +182,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     }
 
     @VisibleForTesting
-    public SegmentAggregates getSegmentAggregates(String streamSegmentName) {
+    SegmentAggregates getSegmentAggregates(String streamSegmentName) {
         return getSegmentAggregate(streamSegmentName);
     }
 

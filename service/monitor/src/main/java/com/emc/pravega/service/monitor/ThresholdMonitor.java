@@ -64,6 +64,10 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
     private static final long MUTE_DURATION = Duration.ofMinutes(10).toMillis();
     // Duration for which no scale operation will be performed on a segment after its creation
     private static final long MINIMUM_COOLDOWN_PERIOD = Duration.ofMinutes(5).toMillis();
+    private static final long TWO_MINUTES = Duration.ofMinutes(2).toMillis();
+    private static final long FIVE_MINUTES = Duration.ofMinutes(5).toMillis();
+    private static final long TEN_MINUTES = Duration.ofMinutes(10).toMillis();
+    private static final long TWENTY_MINUTES = Duration.ofMinutes(20).toMillis();
 
     // TODO: read from config
     private static final String STREAM_NAME = "requeststream";
@@ -177,11 +181,12 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
     public void process(String streamSegmentName, long targetRate, byte type, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
         checkAndRun(() -> {
             if (type != WireCommands.CreateSegment.NO_SCALE) {
-                if (System.currentTimeMillis() - startTime > MINIMUM_COOLDOWN_PERIOD) {
+                long currentTime = System.currentTimeMillis();
+                if (currentTime - startTime > MINIMUM_COOLDOWN_PERIOD) {
                     // process to see if a scale operation needs to be performed.
-                    if (twoMinuteRate > 5 * targetRate ||
-                            fiveMinuteRate > 2 * targetRate ||
-                            tenMinuteRate > targetRate) {
+                    if ( (twoMinuteRate > 5 * targetRate && currentTime - startTime > TWO_MINUTES) ||
+                            (fiveMinuteRate > 2 * targetRate && currentTime - startTime > FIVE_MINUTES) ||
+                            (tenMinuteRate > targetRate && currentTime - startTime > TEN_MINUTES)) {
                         int numOfSplits = (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate);
                         triggerScaleUp(streamSegmentName, numOfSplits);
                     }
@@ -189,7 +194,8 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
                     if (twoMinuteRate < targetRate &&
                             fiveMinuteRate < targetRate &&
                             tenMinuteRate < targetRate &&
-                            twentyMinuteRate < targetRate / 2) {
+                            twentyMinuteRate < targetRate / 2 &&
+                            currentTime - startTime > TWENTY_MINUTES) {
                         triggerScaleDown(streamSegmentName);
                     }
                 }

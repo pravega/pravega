@@ -26,7 +26,7 @@ import java.util.function.Supplier;
  * and its usage should be preferred to doing Date arithmetic using the current system time.
  */
 public final class AutoStopwatch {
-    private final long initialMillis;
+    private volatile long initialMillis;
     private final Supplier<Long> getMillis;
 
     /**
@@ -46,11 +46,15 @@ public final class AutoStopwatch {
         this.initialMillis = getMillis.get();
     }
 
+    public void reset() {
+       initialMillis = getMillis.get();
+    }
+    
     /**
      * Gets the elapsed time since the creation of this object.
      */
     public Duration elapsed() {
-        return Duration.ofMillis(this.getMillis.get() - this.initialMillis);
+        return Duration.ofMillis(Math.max(0, this.getMillis.get() - this.initialMillis));
     }
 
     @Override

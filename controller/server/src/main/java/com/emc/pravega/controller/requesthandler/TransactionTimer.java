@@ -69,7 +69,7 @@ public class TransactionTimer implements RequestHandler<TxTimeoutRequest> {
         block(request.getTimeToDrop());
 
         CompletableFuture<Void> result = new CompletableFuture<>();
-        executor.schedule(() -> streamTxMetadataTasks.dropTx(request.getScope(), request.getStream(), UUID.fromString(request.getTxid()), null)
+        executor.schedule(() -> streamTxMetadataTasks.abortTx(request.getScope(), request.getStream(), UUID.fromString(request.getTxid()), null)
                 .whenComplete((status, ex) -> {
                     if (status.equals(TxnStatus.OPEN)) {
                         result.completeExceptionally(new RetryableException("Failed to drop and transaction is still open. Retry."));

@@ -97,7 +97,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     }
 
     /**
-     * Drop transaction.
+     * Abort transaction.
      *
      * @param scope      stream scope.
      * @param stream     stream name.
@@ -105,14 +105,14 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
      * @param contextOpt optional context
      * @return true/false.
      */
-    @Task(name = "dropTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
-    public CompletableFuture<TxnStatus> dropTx(final String scope, final String stream, final UUID txId, final OperationContext contextOpt) {
+    @Task(name = "abortTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
+    public CompletableFuture<TxnStatus> abortTx(final String scope, final String stream, final UUID txId, final OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return execute(
                 new Resource(scope, stream, txId.toString()),
                 new Serializable[]{scope, stream, txId, null},
-                () -> dropTxBody(scope, stream, txId, context));
+                () -> abortTxBody(scope, stream, txId, context));
     }
 
     /**
@@ -148,7 +148,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                                                 .thenApply(y -> txId)));
     }
 
-    private CompletableFuture<TxnStatus> dropTxBody(final String scope, final String stream, final UUID txid, final OperationContext context) {
+    private CompletableFuture<TxnStatus> abortTxBody(final String scope, final String stream, final UUID txid, final OperationContext context) {
         // notify hosts to abort transaction
         return streamMetadataStore.getActiveSegments(scope, stream, context)
                 .thenCompose(segments ->
@@ -157,7 +157,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                                         .parallel()
                                         .map(segment -> notifyDropToHost(scope, stream, segment.getNumber(), txid))
                                         .collect(Collectors.toList())))
-                .thenCompose(x -> streamMetadataStore.dropTransaction(scope, stream, txid, context));
+                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txid, context));
     }
 
     private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid, final OperationContext context) {
@@ -189,7 +189,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                 .retryingOn(RetryableException.class)
                 .throwingOn(RuntimeException.class)
-                .runAsync(() -> SegmentHelper.getSingleton().dropTransaction(scope,
+                .runAsync(() -> SegmentHelper.getSingleton().abortTransaction(scope,
                         stream,
                         segmentNumber,
                         txId,

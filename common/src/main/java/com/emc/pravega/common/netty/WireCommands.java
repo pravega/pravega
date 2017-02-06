@@ -48,7 +48,6 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
 public final class WireCommands {
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
-    public static final int APPEND_BLOCK_SIZE = 32 * 1024;
     public static final int MAX_WIRECOMMAND_SIZE = 0x007FFFFF; // 8MB
     private static final Map<Integer, WireCommandType> MAPPING;
 
@@ -656,7 +655,7 @@ public final class WireCommands {
 
     @Data
     public static final class CreateSegment implements Request, WireCommand {
-        public static final byte IN_BYTES = (byte) 0;
+        public static final byte IN_KBPS = (byte) 0;
         public static final byte IN_EVENTS = (byte) 1;
         public static final byte NO_SCALE = (byte) 2;
 
@@ -940,7 +939,7 @@ public final class WireCommands {
             return new SegmentDeleted(segment);
         }
     }
-
+    
     @Data
     public static final class KeepAlive implements Request, Reply, WireCommand {
         final WireCommandType type = WireCommandType.KEEP_ALIVE;
@@ -962,6 +961,17 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) {
             return new KeepAlive();
+        }
+    }
+    
+    @Data
+    public static final class Flush implements WireCommand {
+        final WireCommandType type = WireCommandType.KEEP_ALIVE;
+        private final int blockSize;
+        
+        @Override
+        public void writeFields(DataOutput out) {
+            throw new IllegalStateException("This command is not sent over the wire.");
         }
     }
 }

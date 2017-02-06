@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SegmentAggregatesTest {
 
-    public static final String STREAM_SEGMENT_NAME = "stream0";
+    private static final String STREAM_SEGMENT_NAME = "stream0";
 
     @Test
     public void testRecorder() {

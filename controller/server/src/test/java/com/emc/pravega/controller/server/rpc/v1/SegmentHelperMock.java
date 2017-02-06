@@ -42,7 +42,7 @@ public class SegmentHelperMock {
         doReturn(CompletableFuture.completedFuture(true)).when(singleton).createSegment(
                 anyString(), anyString(), anyInt(), any(), any(), any());
 
-        doReturn(CompletableFuture.completedFuture(true)).when(singleton).dropTransaction(
+        doReturn(CompletableFuture.completedFuture(true)).when(singleton).abortTransaction(
                 anyString(), anyString(), anyInt(), any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(singleton).commitTransaction(

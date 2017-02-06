@@ -20,6 +20,7 @@ package com.emc.pravega.controller.requesthandler;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.requests.ScaleRequest;
+import com.emc.pravega.controller.requests.TxTimeoutRequest;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -27,12 +28,20 @@ import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.util.Config;
+import com.emc.pravega.stream.EventStreamReader;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -53,9 +62,14 @@ public class RequestHandlersInit {
             new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS, 1000, 2, 1));
 
     private static AtomicReference<TransactionTimer> txnHandler = new AtomicReference<>();
-    private static AtomicReference<RequestReader> txnreader = new AtomicReference<>();
-    private static AtomicReference<ScaleRequestHandler> handler = new AtomicReference<>();
-    private static AtomicReference<RequestReader<ScaleRequest, ScaleRequestHandler>> reader = new AtomicReference<>();
+    private static AtomicReference<RequestReader> txnRequestReader = new AtomicReference<>();
+    private static AtomicReference<EventStreamReader<TxTimeoutRequest>> txnReader = new AtomicReference<>();
+    private static AtomicReference<EventStreamWriter<TxTimeoutRequest>> txnWriter = new AtomicReference<>();
+
+    private static AtomicReference<ScaleRequestHandler> scaleHandler = new AtomicReference<>();
+    private static AtomicReference<EventStreamReader<ScaleRequest>> scaleReader = new AtomicReference<>();
+    private static AtomicReference<EventStreamWriter<ScaleRequest>> scaleWriter = new AtomicReference<>();
+    private static AtomicReference<RequestReader<ScaleRequest, ScaleRequestHandler>> scaleRequestReader = new AtomicReference<>();
 
     public static void bootstrap(ControllerService controllerService, ScheduledExecutorService executor, ClientFactory clientFactory) {
 
@@ -106,32 +120,78 @@ public class RequestHandlersInit {
                 txnHandler.compareAndSet(null, new TransactionTimer(streamTransactionMetadataTasks));
             }
 
-            if (txnreader.get() == null) {
-                txnreader.compareAndSet(null, new RequestReader<>(
-                        clientFactory,
-                        Config.TXN_TIMER_STREAM_NAME,
-                        Config.TXN_READER_ID,
-                        Config.TXN_READER_GROUP, null, streamStore, txnHandler.get()));
+            // PositionImpl position = new PositionImpl(Collections.singletonMap(new Segment(Config.INTERNAL_SCOPE, Config.TXN_TIMER_STREAM_NAME, 0), 0L));
+
+            if (txnReader.get() == null) {
+                txnReader.compareAndSet(null, clientFactory.createReader(Config.TXN_READER_ID,
+                        Config.TXN_READER_GROUP,
+                        new JavaSerializer<>(),
+                        new ReaderConfig()));
+                // txnReader.compareAndSet(null, clientFactory.createReader(Config.TXN_TIMER_STREAM_NAME,
+                //         new JavaSerializer<>(),
+                //         new ReaderConfig(),
+                //         position
+                // ));
             }
-            CompletableFuture.runAsync(txnreader.get(), Executors.newSingleThreadExecutor());
+
+            if (txnWriter.get() == null) {
+                txnWriter.compareAndSet(null, clientFactory.createEventWriter(Config.TXN_TIMER_STREAM_NAME,
+                        new JavaSerializer<>(),
+                        new EventWriterConfig(null)));
+            }
+
+            if (txnRequestReader.get() == null) {
+                txnRequestReader.compareAndSet(null, new RequestReader<>(
+                        Config.TXN_READER_ID,
+                        Config.TXN_READER_GROUP,
+                        txnWriter.get(),
+                        txnReader.get(),
+                        streamStore,
+                        txnHandler.get(),
+                        executor));
+            }
+            CompletableFuture.runAsync(txnRequestReader.get(), Executors.newSingleThreadExecutor());
             return null;
         }, executor, result);
     }
 
     private static void startScaleReader(ClientFactory clientFactory, StreamMetadataTasks streamMetadataTasks, StreamMetadataStore streamStore, StreamTransactionMetadataTasks streamTransactionMetadataTasks, ScheduledExecutorService executor, CompletableFuture<Void> result) {
         retryIndefinitely(() -> {
-            if (handler.get() == null) {
-                handler.compareAndSet(null, new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks));
+            if (scaleHandler.get() == null) {
+                scaleHandler.compareAndSet(null, new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks));
             }
 
-            if (reader.get() == null) {
-                reader.compareAndSet(null, new RequestReader<>(
-                        clientFactory,
-                        Config.SCALE_STREAM_NAME,
-                        Config.SCALE_READER_ID,
-                        Config.SCALE_READER_GROUP, null, streamStore, handler.get()));
+            PositionImpl position = new PositionImpl(Collections.singletonMap(new Segment(Config.INTERNAL_SCOPE, Config.SCALE_STREAM_NAME, 0), 0L));
+
+            if (scaleReader.get() == null) {
+                scaleReader.compareAndSet(null, clientFactory.createReader(Config.SCALE_READER_ID,
+                        Config.SCALE_READER_GROUP,
+                        new JavaSerializer<>(),
+                        new ReaderConfig()));
+                // scaleReader.compareAndSet(null, clientFactory.createReader(Config.SCALE_STREAM_NAME,
+                //         new JavaSerializer<>(),
+                //         new ReaderConfig(),
+                //         position));
             }
-            CompletableFuture.runAsync(reader.get(), Executors.newSingleThreadExecutor());
+
+            if (scaleWriter.get() == null) {
+                scaleWriter.compareAndSet(null, clientFactory.createEventWriter(Config.SCALE_STREAM_NAME,
+                        new JavaSerializer<>(),
+                        new EventWriterConfig(null)));
+            }
+
+            if (scaleRequestReader.get() == null) {
+                scaleRequestReader.compareAndSet(null, new RequestReader<>(
+                        Config.SCALE_READER_ID,
+                        Config.SCALE_READER_GROUP,
+                        scaleWriter.get(),
+                        scaleReader.get(),
+                        streamStore,
+                        scaleHandler.get(),
+                        executor));
+            }
+
+            CompletableFuture.runAsync(scaleRequestReader.get(), Executors.newSingleThreadExecutor());
             return null;
         }, executor, result);
     }
