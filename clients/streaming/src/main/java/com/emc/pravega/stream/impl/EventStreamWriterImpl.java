@@ -218,7 +218,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
         @Override
         public void abort() {
-            FutureHelpers.getAndHandleExceptions(controller.dropTransaction(stream, txId), RuntimeException::new);
+            FutureHelpers.getAndHandleExceptions(controller.abortTransaction(stream, txId), RuntimeException::new);
             closed.set(true);
         }
 

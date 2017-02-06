@@ -52,6 +52,7 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.stream.mock.MockController;
+import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.TestUtils;
 
 import java.nio.ByteBuffer;
@@ -202,7 +203,9 @@ public class AppendTest {
         server.startListening();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory("Scope", endpoint, port);
-        clientFactory.createStream(streamName, null);
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
+        streamManager.createStream(streamName, null);
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), new EventWriterConfig(null));
         Future<Void> ack = producer.writeEvent("RoutingKey", testString);
         ack.get(5, TimeUnit.SECONDS);
@@ -220,7 +223,9 @@ public class AppendTest {
         server.startListening();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory("Scope", endpoint, port);
-        clientFactory.createStream(streamName, null);
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
+        streamManager.createStream(streamName, null);
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), new EventWriterConfig(null));
         long blockingTime = timeWrites(testString, 200, producer, true);
         long nonBlockingTime = timeWrites(testString, 1000, producer, false);

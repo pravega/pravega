@@ -20,7 +20,6 @@ package com.emc.pravega.demo;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -30,16 +29,17 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
-import lombok.Cleanup;
-import org.apache.curator.test.TestingServer;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-
 import java.util.concurrent.CompletableFuture;
+
+import org.apache.curator.test.TestingServer;
+
+import lombok.Cleanup;
 
 /**
  * End to end scale tests.
@@ -68,7 +68,7 @@ public class ScaleTest {
                         streamName,
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 1));
 
-        Stream stream = new StreamImpl(scope, streamName, config);
+        Stream stream = new StreamImpl(scope, streamName);
 
         System.err.println(String.format("Creating stream (%s, %s)", scope, streamName));
         CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
@@ -119,13 +119,8 @@ public class ScaleTest {
             return;
         }
 
-        CompletableFuture<TxnStatus> statusFuture = controller.dropTransaction(stream, txId);
-        TxnStatus status = statusFuture.get();
-
-        if (status != TxnStatus.SUCCESS) {
-            System.err.println("Drop transaction failed, exiting");
-            return;
-        }
+        CompletableFuture<Void> statusFuture = controller.abortTransaction(stream, txId);
+        statusFuture.get();
 
         // Test 4: try scale operation after transaction is dropped
         System.err.println(

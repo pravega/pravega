@@ -33,7 +33,6 @@ import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
@@ -133,8 +132,8 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> commitTransaction(Stream stream, UUID txId) {
-        CompletableFuture<TxnStatus> result = new CompletableFuture<>();
+    public CompletableFuture<Void> commitTransaction(Stream stream, UUID txId) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
@@ -149,7 +148,7 @@ public class MockController implements Controller {
 
             @Override
             public void transactionCommitted(TransactionCommitted transactionCommitted) {
-                result.complete(TxnStatus.SUCCESS);
+                result.complete(null);
             }
 
             @Override
@@ -162,8 +161,8 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> dropTransaction(Stream stream, UUID txId) {
-        CompletableFuture<TxnStatus> result = new CompletableFuture<>();
+    public CompletableFuture<Void> abortTransaction(Stream stream, UUID txId) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
@@ -183,7 +182,7 @@ public class MockController implements Controller {
 
             @Override
             public void transactionAborted(TransactionAborted transactionAborted) {
-                result.complete(TxnStatus.SUCCESS);
+                result.complete(null);
             }
         };
         sendRequestOverNewConnection(new AbortTransaction(Segment.getScopedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
@@ -224,10 +223,10 @@ public class MockController implements Controller {
     public CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count) {
         return CompletableFuture.completedFuture(ImmutableList.<PositionInternal>of(getInitialPosition(stream.getScope(), stream.getStreamName())));
     }
-
+    
     @Override
-    public CompletableFuture<List<PositionInternal>> updatePositions(Stream stream, List<PositionInternal> positions) {
-        return CompletableFuture.completedFuture(positions);
+    public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(Segment segment) {
+        return CompletableFuture.completedFuture(Collections.emptyMap());
     }
 
     @Override
@@ -235,13 +234,8 @@ public class MockController implements Controller {
         return CompletableFuture.completedFuture(new PravegaNodeUri(endpoint, port));
     }
 
-    @Override
-    public CompletableFuture<Boolean> isSegmentValid(String scope, String stream, int segmentNumber) {
-        return CompletableFuture.completedFuture(true);
-    }
-
     private PositionImpl getInitialPosition(String scope, String stream) {
-        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
+        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L));
     }
     
     private void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor) {
@@ -253,5 +247,6 @@ public class MockController implements Controller {
             throw new RuntimeException(e);
         }
     }
+
 }
 
