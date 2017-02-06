@@ -80,6 +80,8 @@ public class RedisClientTest {
     @Test
     //@InstanceCount(3)
     public void redisPingTest() {
+        //Note: host on which redis is running is a private ip and is not accessible when executed locally. It will be
+        // accessible when executed as a marathon test.
         Jedis redisClient = new Jedis(resdisHostURI.getHost(), resdisHostURI.getPort());
         assertEquals("PONG", redisClient.ping());
     }

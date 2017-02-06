@@ -18,7 +18,7 @@
 
 package com.emc.pravega.framework.services;
 
-import com.emc.pravega.framework.marathon.MarathonClientSingleton;
+import com.emc.pravega.framework.marathon.MarathonClientNautilus;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.model.v2.App;
@@ -45,7 +45,7 @@ public class RedisService implements Service {
 
     public RedisService(String id) {
         this.id = id;
-        this.marathonClient = MarathonClientSingleton.INSTANCE.getClient();
+        this.marathonClient = MarathonClientNautilus.getClient();
     }
 
     @Override
@@ -68,7 +68,6 @@ public class RedisService implements Service {
     @Override
     public void stop() {
         log.info("Stopping service: {}", id);
-        Marathon marathon = MarathonClientSingleton.INSTANCE.getClient();
         try {
             marathonClient.deleteApp("redisservice");
         } catch (MarathonException e) {

@@ -49,5 +49,6 @@
     <allow pkg="javax.ws.rs"/>
     <allow pkg="mesosphere.marathon"/>
     <allow pkg="redis.clients"/>
+    <allow pkg="feign"/>
   
 </import-control>
