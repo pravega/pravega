@@ -47,5 +47,7 @@
     <allow pkg="com.readytalk"/>
     <allow pkg="org.glassfish.jersey"/>
     <allow pkg="javax.ws.rs"/>
+    <allow pkg="mesosphere.marathon"/>
+    <allow pkg="redis.clients"/>
   
 </import-control>

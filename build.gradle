@@ -412,6 +412,9 @@ project('systemtests:tests') {
         compile group: 'com.mesosphere', name: 'marathon-client', version: '0.3.0'
         compile project(":clients:streaming")
         compile 'junit:junit:4.12'
+        // https://mvnrepository.com/artifact/redis.clients/jedis
+        compile group: 'redis.clients', name: 'jedis', version: '2.9.0'
+
     }
     //disable the default test task.
     test {
@@ -427,6 +430,17 @@ project('systemtests:tests') {
         }
         from sourceSets.test.output
     }
+
+//    publishing {
+//        publications {
+//            maven(MavenPublication) {
+//                groupId 'pravega'
+//                artifactId 'test-collection'
+//                version = pravegaVersion
+//                from components.java
+//            }
+//        }
+//    }
 
     //This is  used to invoke systemTests
     task systemTest(type: Test) {

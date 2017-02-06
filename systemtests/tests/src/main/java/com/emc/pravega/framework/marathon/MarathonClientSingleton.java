@@ -15,22 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.framework;
 
-import java.net.URI;
-import java.util.List;
+package com.emc.pravega.framework.marathon;
 
-public interface Service {
+import mesosphere.marathon.client.Marathon;
 
-    public void start();
+public enum MarathonClientSingleton {
+    INSTANCE;
 
-    public void stop();
-
-    public void clean();
-
-    public String getID();
-
-    public boolean isRunning();
-
-    public List<URI> getServiceDetails();
+    private final String endpoint = "http://m1.dcos:8080";
+    private final Marathon marathon = mesosphere.marathon.client.MarathonClient.getInstance(endpoint);
+    public Marathon getClient() {
+        return marathon;
+    }
 }
