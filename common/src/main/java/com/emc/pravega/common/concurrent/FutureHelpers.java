@@ -21,8 +21,6 @@ package com.emc.pravega.common.concurrent;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.google.common.base.Preconditions;
-import lombok.Data;
-import lombok.SneakyThrows;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -42,6 +40,9 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import lombok.Data;
+import lombok.SneakyThrows;
 
 /**
  * Extensions to Future and CompletableFuture.
@@ -175,7 +176,7 @@ public final class FutureHelpers {
             }
         });
     }
-
+    
     /**
      * Similar implementation to CompletableFuture.allOf(vararg) but that works on a Collection and that returns another
      * Collection which has the results of the given CompletableFutures.
@@ -424,8 +425,37 @@ public final class FutureHelpers {
      * this future.
      */
     public static <T> CompletableFuture<Void> toVoid(CompletableFuture<T> future) {
-        return future.thenAccept(r -> {
-        });
+        return future.thenAccept(FutureHelpers::doNothing);
+    }
+    
+    private static <T> Void doNothing(T value) {
+        return null;
+    }
+    
+    /**
+     * Returns a CompletableFuture that will end when the given future ends, expecting a certain
+     * result. If the supplied value is not the same (using .equals() comparison) as the result an
+     * exception from the supplier will be thrown. If the given future fails, the returned future
+     * will fail with the same exception.
+     * 
+     * @param <T> The type of the value expected
+     * @param <E> The type of the exception to be throw if the value is not found.
+     * @param future the CompletableFuture to attach to.
+     * @param expectedValue The value expected
+     * @param exceptionConstructor Constructor for an exception in the event there is not a match.
+     * @return A void completable future.
+     */
+    public static <T, E extends Exception> CompletableFuture<Void> toVoidExpecting(CompletableFuture<T> future,
+            T expectedValue, Supplier<E> exceptionConstructor) {
+        return future.thenApply(value -> expect(value, expectedValue, exceptionConstructor));
+    }
+    
+    @SneakyThrows
+    private static <T, E extends Exception> Void expect(T value, T expected, Supplier<E> exceptionConstructor) {
+        if (!expected.equals(value)) {
+            throw exceptionConstructor.get();
+        }
+        return null;
     }
 
     //region Loop Implementation

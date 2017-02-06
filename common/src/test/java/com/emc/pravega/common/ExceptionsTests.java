@@ -18,9 +18,12 @@
 
 package com.emc.pravega.common;
 
-import org.junit.Test;
-
 import com.emc.pravega.testcommon.AssertExtensions;
+
+import java.util.Collections;
+import java.util.List;
+
+import org.junit.Test;
 
 /**
  * Tests the functionality of methods within the Exceptions class.
@@ -31,15 +34,19 @@ public class ExceptionsTests {
      */
     @Test
     public void testCheckNotNullOrEmpty() {
-        AssertExtensions.assertThrows(
-                "Unexpected behavior for checkNotNullOrEmpty with null argument.",
-                () -> Exceptions.checkNotNullOrEmpty(null, "null-arg"),
-                ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows("Unexpected behavior for checkNotNullOrEmpty with null argument.",
+                                      () -> Exceptions.checkNotNullOrEmpty((String) null, "null-arg"),
+                                      ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows("Unexpected behavior for checkNotNullOrEmpty with null argument.",
+                                      () -> Exceptions.checkNotNullOrEmpty((List<String>) null, "null-arg"),
+                                      ex -> ex instanceof NullPointerException);
 
-        AssertExtensions.assertThrows(
-                "Unexpected behavior for checkNotNullOrEmpty with empty string argument.",
-                () -> Exceptions.checkNotNullOrEmpty("", "empty-arg"),
-                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("Unexpected behavior for checkNotNullOrEmpty with empty string argument.",
+                                      () -> Exceptions.checkNotNullOrEmpty("", "empty-arg"),
+                                      ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("Unexpected behavior for checkNotNullOrEmpty with empty string argument.",
+                                      () -> Exceptions.checkNotNullOrEmpty(Collections.emptyList(), "empty-arg"),
+                                      ex -> ex instanceof IllegalArgumentException);
 
         // This should not throw.
         Exceptions.checkNotNullOrEmpty("a", "valid-arg");

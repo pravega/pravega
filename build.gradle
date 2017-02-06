@@ -128,6 +128,12 @@ project('common') {
     publishing {
         publications {
             maven(MavenPublication) {
+                pom.withXml {
+                    asNode().appendNode('repositories', '').appendNode('repository','').
+                            appendNode('id','jcenter').parent().
+                            appendNode('name','JCenter Repository').parent().
+                            appendNode('url','http://jcenter.bintray.com')
+                }
                 groupId 'pravega'
                 artifactId 'common'
                 version = pravegaVersion
@@ -148,7 +154,7 @@ project('clients:streaming') {
 
 project('clients') {
     dependencies {
-        testCompile project(':clients:streaming')
+        compile project(':clients:streaming')
     }
     jar {
         from project(":clients:streaming").sourceSets.main.output
@@ -167,13 +173,13 @@ project('clients') {
 
 project('service') {
     dependencies {
-        testCompile project(':service:contracts')
-        testCompile project(':service:server')
-        testCompile project(':service:server:host')
-        testCompile project(':service:storage')
-        testCompile project(':service:storage:impl')
-        testCompile project(':controller:contract')
-        testCompile project(':controller:server')
+        compile project(':service:contracts')
+        compile project(':service:server')
+        compile project(':service:server:host')
+        compile project(':service:storage')
+        compile project(':service:storage:impl')
+        compile project(':controller:contract')
+        compile project(':controller:server')
     }
     jar {
         from project(":service:contracts").sourceSets.main.output
@@ -331,14 +337,14 @@ project('integrationtests') {
         standardInput = System.in
     }
 
-    task startProducer(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartProducer"
+    task startWriter(type: JavaExec) {
+        main = "com.emc.pravega.demo.StartWriter"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
-    task startConsumer(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartConsumer"
+    task startReader(type: JavaExec) {
+        main = "com.emc.pravega.demo.StartReader"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }

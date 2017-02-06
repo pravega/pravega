@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.stream.impl;
 
-import java.util.Collection;
+import java.util.List;
 
 /**
  * Used to select which event should go next when consuming from multiple segments.
@@ -34,5 +34,5 @@ public interface Orderer<Type> {
      *
      * @param segments The logs to get the next reader for.
      */
-    SegmentReader<Type> nextSegment(Collection<SegmentReader<Type>> segments);
+    SegmentReader<Type> nextSegment(List<SegmentReader<Type>> segments);
 }

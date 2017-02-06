@@ -20,6 +20,8 @@ package com.emc.pravega.stream;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
+import java.io.Serializable;
+
 import lombok.Data;
 import lombok.NonNull;
 
@@ -27,7 +29,7 @@ import lombok.NonNull;
  * An identifier for a segment of a stream.
  */
 @Data
-public class Segment {
+public class Segment implements Serializable {
     private final String scope;
     @NonNull
     private final String streamName;
