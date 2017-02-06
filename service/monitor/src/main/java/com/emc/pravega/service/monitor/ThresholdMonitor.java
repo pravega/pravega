@@ -81,8 +81,10 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
     private static AtomicReference<ThresholdMonitor> singletonMonitor = new AtomicReference<>();
     private static AtomicReference<Controller> controllerRef = new AtomicReference<>();
 
+    @VisibleForTesting
+    final Cache<String, Pair<Long, Long>> cache;
+
     private final AtomicBoolean initialized = new AtomicBoolean(false);
-    private final Cache<String, Pair<Long, Long>> cache;
 
     private EventStreamWriter<ScaleRequest> writer;
 
@@ -102,7 +104,24 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
         CompletableFuture.runAsync(() -> bootstrapRequestStream(clientFactory), EXECUTOR);
     }
 
-    static SegmentTrafficMonitor getMonitorSingleton(ClientFactory clientFactory) {
+    @VisibleForTesting
+    ThresholdMonitor(EventStreamWriter<ScaleRequest> writer) {
+        // Schedule bootstrapRequestStream
+        cache = CacheBuilder.newBuilder()
+                .initialCapacity(INITIAL_CAPACITY)
+                .maximumSize(MAX_CACHE_SIZE)
+                .expireAfterAccess(20, TimeUnit.MINUTES)
+                .removalListener((RemovalListener<String, Pair<Long, Long>>) notification -> {
+                    if (notification.getCause().equals(RemovalCause.EXPIRED)) {
+                        triggerScaleDown(notification.getKey());
+                    }
+                })
+                .build();
+        this.writer = writer;
+        this.initialized.set(true);
+    }
+
+    static ThresholdMonitor getMonitorSingleton(ClientFactory clientFactory) {
         if (singletonMonitor.get() == null) {
             singletonMonitor.compareAndSet(null, new ThresholdMonitor(clientFactory));
         }
@@ -184,7 +203,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
                 long currentTime = System.currentTimeMillis();
                 if (currentTime - startTime > MINIMUM_COOLDOWN_PERIOD) {
                     // process to see if a scale operation needs to be performed.
-                    if ( (twoMinuteRate > 5 * targetRate && currentTime - startTime > TWO_MINUTES) ||
+                    if ((twoMinuteRate > 5 * targetRate && currentTime - startTime > TWO_MINUTES) ||
                             (fiveMinuteRate > 2 * targetRate && currentTime - startTime > FIVE_MINUTES) ||
                             (tenMinuteRate > targetRate && currentTime - startTime > TEN_MINUTES)) {
                         int numOfSplits = (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate);
