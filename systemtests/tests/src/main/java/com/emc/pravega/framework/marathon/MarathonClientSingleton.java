@@ -23,8 +23,11 @@ import mesosphere.marathon.client.Marathon;
 public enum MarathonClientSingleton {
     INSTANCE;
 
+    //TODO: Read this from system properties
     private final String endpoint = "http://m1.dcos:8080";
+
     private final Marathon marathon = mesosphere.marathon.client.MarathonClient.getInstance(endpoint);
+
     public Marathon getClient() {
         return marathon;
     }

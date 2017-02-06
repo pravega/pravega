@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.framework;
+package com.emc.pravega.framework.services;
 
 import com.emc.pravega.framework.marathon.MarathonClientSingleton;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +37,8 @@ import java.util.stream.Collectors;
 
 @Slf4j
 public class RedisService implements Service {
-    public static final String TCP = "tcp://";
+    private static final String TCP = "tcp://";
+
     private String id;
 
     private Marathon marathonClient;

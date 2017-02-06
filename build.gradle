@@ -431,17 +431,6 @@ project('systemtests:tests') {
         from sourceSets.test.output
     }
 
-//    publishing {
-//        publications {
-//            maven(MavenPublication) {
-//                groupId 'pravega'
-//                artifactId 'test-collection'
-//                version = pravegaVersion
-//                from components.java
-//            }
-//        }
-//    }
-
     //This is  used to invoke systemTests
     task systemTest(type: Test) {
         testClassesDir = sourceSets.test.output.classesDir

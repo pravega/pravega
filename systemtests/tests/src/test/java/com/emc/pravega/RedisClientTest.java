@@ -18,8 +18,8 @@
 package com.emc.pravega;
 
 import com.emc.pravega.framework.Environment;
-import com.emc.pravega.framework.RedisService;
-import com.emc.pravega.framework.Service;
+import com.emc.pravega.framework.services.RedisService;
+import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.framework.SystemTestRunner;
 import org.junit.BeforeClass;
 import org.junit.Test;
