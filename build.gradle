@@ -447,6 +447,25 @@ project('systemtests:tests') {
             systemProperty "masterIP ", "localhost"
         }
     }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                groupId 'pravega'
+                artifactId 'systemtests'
+                version = 0.1
+                from components.java
+            }
+        }
+        repositories {
+            maven {
+                credentials {
+                    username "nautilus-dev-deployer"
+                    password "AP2EoXhGuCukoAmQua4iriAfnG3Lv1HYXZbLgt"
+                }
+                url "http://asdrepo.isus.emc.com:8081/artifactory/pravega-testframework"
+            }
+        }
+    }
 }
 
 subprojects {
