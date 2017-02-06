@@ -210,7 +210,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("append", streamSegmentName, data.length, appendContext);
-        CompletableFuture<Void> appendFuture = this.segmentMapper
+        return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, appendContext);
@@ -219,13 +219,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     // Add to Append Context Registry, if needed.
                     this.pendingAppendsCollection.register(operation, result);
                     return FutureHelpers.toVoid(result);
-                });
-
-        // TODO: determine number of events
-        // Forking from data path so that this computation does not affect the append latency
-        appendFuture.thenAccept((Void v) -> statsRecorder.record(streamSegmentName, data.length, 0));
-
-        return appendFuture;
+                }).thenAccept((Void v) -> statsRecorder.record(streamSegmentName, data.length, 0));
     }
 
     @Override

@@ -86,35 +86,6 @@ class SegmentAggregates implements Serializable {
         lastReportedTime = System.currentTimeMillis();
     }
 
-    void update(long dataLength, int numOfEvents) {
-        if (scaleType == WireCommands.CreateSegment.IN_BYTES) {
-            currentCount += dataLength;
-        } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS) {
-            currentCount += numOfEvents;
-        } else {
-            return;
-        }
-
-        final long newTick = System.nanoTime();
-        final long age = newTick - lastTick;
-        if (age > TICK_INTERVAL) {
-            lastTick = newTick;
-
-            final long count = currentCount;
-            currentCount = 0;
-
-            computeDecay(count, age);
-        }
-    }
-
-    void updateTx(long dataSize, int numOfEvents, long txnCreationTime) {
-        if (scaleType == WireCommands.CreateSegment.IN_BYTES) {
-            computeDecay(dataSize, System.currentTimeMillis() - txnCreationTime);
-        } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS) {
-            computeDecay(numOfEvents, System.currentTimeMillis() - txnCreationTime);
-        }
-    }
-
     void setScaleType(byte scaleType) {
         this.scaleType = scaleType;
     }
@@ -159,6 +130,36 @@ class SegmentAggregates implements Serializable {
         this.lastReportedTime = lastReportedTime;
     }
 
+    void update(long dataLength, int numOfEvents) {
+        if (scaleType == WireCommands.CreateSegment.IN_BYTES) {
+            currentCount += dataLength;
+        } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS) {
+            currentCount += numOfEvents;
+        } else {
+            return;
+        }
+
+        final long newTick = System.nanoTime();
+        final long age = newTick - lastTick;
+        if (age > TICK_INTERVAL) {
+            lastTick = newTick;
+
+            final long count = currentCount;
+            currentCount = 0;
+
+            computeDecay(count, age);
+        }
+    }
+
+    void updateTx(long dataSize, int numOfEvents, long txnCreationTime) {
+        if (scaleType == WireCommands.CreateSegment.IN_BYTES) {
+            computeDecay(dataSize, (System.currentTimeMillis() - txnCreationTime) * 1000000);
+        } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS) {
+            computeDecay(numOfEvents, (System.currentTimeMillis() - txnCreationTime) * 1000000);
+        }
+    }
+
+
     private void computeDecay(long size, long duration) {
         // We have two options here --
         // currentCount data can be assumed to be evenly distributed over the tick period.
@@ -166,7 +167,8 @@ class SegmentAggregates implements Serializable {
         // We will go with evenly distributed count as we are also dealing with txns in these updates
         // and they supply their durations whereas regular writes are more expensive.
 
-        final long requiredTicks = duration / TICK_INTERVAL;
+        final long requiredTicks = Math.max(duration / TICK_INTERVAL, 1);
+
         final long count = size / requiredTicks;
 
         for (long i = 0; i < requiredTicks; i++) {

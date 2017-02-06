@@ -218,8 +218,10 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
 
     private static <T> void retryIndefinitely(Supplier<T> supplier, CompletableFuture<Void> promise) {
         try {
-            supplier.get();
-            promise.complete(null);
+            if (!promise.isDone()) {
+                supplier.get();
+                promise.complete(null);
+            }
         } catch (Exception e) {
             // Until we are able to start these readers, keep retrying indefinitely by scheduling it back
             EXECUTOR.schedule(() -> retryIndefinitely(supplier, promise), 10, TimeUnit.SECONDS);

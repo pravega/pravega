@@ -37,7 +37,6 @@ import org.apache.curator.test.TestingServer;
 
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.stream.IntStream;
 
 @Slf4j
 public class EndToEndAutoScaleTest {
@@ -68,7 +67,7 @@ public class EndToEndAutoScaleTest {
 
             // Mocking pravega service by putting scale up and scale down requests for the stream
             EventStreamWriter<String> test = clientFactory.createEventWriter(
-                        "test", new JavaSerializer<>(), new EventWriterConfig(null));
+                    "test", new JavaSerializer<>(), new EventWriterConfig(null));
 
             // keep writing. Scale should happen
             long start = System.currentTimeMillis();
@@ -78,13 +77,11 @@ public class EndToEndAutoScaleTest {
             String str = new String(chars);
 
             while (true) {
-                IntStream.of(100000).boxed().forEach(i -> {
-                    try {
-                        test.writeEvent("1", str + i);
-                    } catch (Exception e) {
-                        log.error("test exception writing events {}", e.getMessage());
-                    }
-                });
+                try {
+                    test.writeEvent("1", str);
+                } catch (Exception e) {
+                    log.error("test exception writing events {}", e.getMessage());
+                }
 
                 if (System.currentTimeMillis() - start > Duration.ofMinutes(6).toMillis()) {
                     StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();

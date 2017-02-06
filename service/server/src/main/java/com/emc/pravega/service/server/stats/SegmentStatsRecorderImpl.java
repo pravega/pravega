@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.stats;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.service.monitor.SegmentTrafficMonitor;
 import com.emc.pravega.stream.Serializer;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
@@ -59,7 +60,13 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     private final Optional<com.emc.pravega.service.storage.Cache> diskBackedCache;
     private final Serializer<SegmentAggregates> serializer;
 
+    private final long reportingDuration;
+
     SegmentStatsRecorderImpl(List<SegmentTrafficMonitor> monitors, com.emc.pravega.service.storage.Cache diskCache, Serializer<SegmentAggregates> serializer) {
+        this(monitors, diskCache, serializer, TWO_MINUTES);
+    }
+
+    SegmentStatsRecorderImpl(List<SegmentTrafficMonitor> monitors, com.emc.pravega.service.storage.Cache diskCache, Serializer<SegmentAggregates> serializer, long reportingDuration) {
         this.serializer = serializer;
         this.monitors = Lists.newArrayList(monitors);
 
@@ -80,6 +87,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                     }
                 })
                 .build();
+        this.reportingDuration = reportingDuration;
     }
 
     private SegmentAggregates getSegmentAggregate(String streamSegmentName) {
@@ -143,7 +151,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                 if (aggregates.getScaleType() != WireCommands.CreateSegment.NO_SCALE) {
                     aggregates.update(dataLength, numOfEvents);
 
-                    if (System.currentTimeMillis() - aggregates.getLastReportedTime() > TWO_MINUTES) {
+                    if (System.currentTimeMillis() - aggregates.getLastReportedTime() > reportingDuration) {
                         CompletableFuture.runAsync(() -> monitors.forEach(monitor -> monitor.process(streamSegmentName,
                                 aggregates.getTargetRate(), aggregates.getScaleType(), aggregates.getStartTime(),
                                 aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(),
@@ -171,6 +179,11 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         if (aggregates != null) {
             aggregates.updateTx(dataLength, numOfEvents, txnCreationTime);
         }
+    }
+
+    @VisibleForTesting
+    public SegmentAggregates getSegmentAggregates(String streamSegmentName) {
+        return getSegmentAggregate(streamSegmentName);
     }
 
     private class Key extends com.emc.pravega.service.storage.Cache.Key {

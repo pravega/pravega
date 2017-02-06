@@ -273,5 +273,21 @@ public class ZkStreamTest {
                 }).get();
 
         assert store.transactionStatus(SCOPE, streamName, UUID.randomUUID(), context).get().equals(TxnStatus.UNKNOWN);
+
+        store.blockTransactions(SCOPE, streamName, null).get();
+        store.createTransaction(SCOPE, streamName, null)
+                .handle((r, ex) -> {
+                    assert ex != null && ex.getCause() instanceof TransactionBlockedException;
+                    return null;
+                }).get();
+
+        store.setMarker(SCOPE, streamName, 0, 1L, null).get();
+
+        assert store.getMarker(SCOPE, streamName, 0, null).get().isPresent();
+
+        store.removeMarker(SCOPE, streamName, 0, null).get();
+
+        assert !store.getMarker(SCOPE, streamName, 0, null).get().isPresent();
+
     }
 }
