@@ -438,12 +438,14 @@ project('systemtests:tests') {
 
         systemProperty "test_collection_jar_path", "$jar.archivePath.path"
         systemProperty "execType", System.getProperty("execType")
-        systemProperty "masterIP", System.getProperty("masterIP")
-        /*if (System.getProperty("execType") == null || System.getProperty("masterIP") == null) {
-            System.err.println("System Test usage:\n" +
-                    "./gradlew -DexecType=Execution_Type -DmasterIP=Mesos_Master/Marathon_IP systemTest")
-            throw new GradleException("Error occurred")
-        }*/
+        systemProperty "masterIP ", System.getProperty("masterIP")
+
+        if (System.getProperty("execType") == null) {
+            systemProperty "execType", "Local"
+        }
+        if (System.getProperty("masterIP") == null) {
+            systemProperty "masterIP ", "localhost"
+        }
     }
 }
 
