@@ -27,7 +27,7 @@ public class FutureSegment extends Segment {
     private final int precedingNumber;
 
     /**
-     * Constructor to intilialize a future segment.
+     * Creates a new instance of the FutureSegment class.
      *
      * @param scope The scope string.
      * @param streamName The stream name that the segment belongs to.

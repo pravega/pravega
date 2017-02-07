@@ -58,7 +58,7 @@ public class ClientFactoryImpl implements ClientFactory {
     private final StreamManager streamManager;
 
     /**
-     * Constructor to initiliaze a Client Factory Implementation.
+     * Creates a new instance of ClientFactory class.
      *
      * @param scope The scope string.
      * @param controllerUri The Controller URI.
@@ -73,12 +73,12 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     /**
-     * Constructor to initiliaze a Client Factory Implementation.
+     Creates a new instance of the ClientFactory class.
      *
      * @param scope The scope string.
      * @param controller The reference to Controller.
      * @param connectionFactory The reference to Connection Factory impl.
-     * @param streamManager The reference to Stream Manageer impl.
+     * @param streamManager The reference to Stream Manager impl.
      */
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,

@@ -26,14 +26,14 @@ public class ConnectionFailedException extends Exception {
     private static final long serialVersionUID = 1L;
 
     /**
-     * Constructor for this exception.
+     * Creates a new instance of the ConnectionFailedException class.
      */
     public ConnectionFailedException() {
         super();
     }
 
     /**
-     * Constructor for this exception with message.
+     * Creates a new instance of the ConnectionFailedException class.
      *
      * @param string exception message
      */
@@ -42,7 +42,7 @@ public class ConnectionFailedException extends Exception {
     }
 
     /**
-     * Constructor for this exception with throwable.
+     * Creates a new instance of the ConnectionFailedException class.
      *
      * @param throwable a throwable object
      */

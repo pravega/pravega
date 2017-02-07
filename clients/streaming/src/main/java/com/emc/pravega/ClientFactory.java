@@ -63,7 +63,7 @@ import java.net.URI;
 public interface ClientFactory {
 
     /**
-     * Construtor for client factory.
+     * Creates a new instance of Client Factory.
      *
      * @param scope The scope string.
      * @param controllerUri The URI for controller.

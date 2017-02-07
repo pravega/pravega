@@ -40,9 +40,10 @@ public class FutureCollectionHelper {
     public interface FuturePredicate<T> {
 
         /**
-         * Predicate that evaluates in future.
-         * @param t The type parameter
-         * @return boolean indicating whether the type has been applied as future completable or not.
+         * Returns a CompletableFuture that will be completed with the result of the evaluation of the given argument.
+         *
+         * @param t The argument to be tested
+         * @return a CompleteableFuture.
          */
         CompletableFuture<Boolean> apply(T t);
     }
@@ -53,7 +54,7 @@ public class FutureCollectionHelper {
      * @param input     Input list.
      * @param predicate Predicate that evaluates in the future.
      * @param <T>       Type parameter.
-     * @return List that evaluates in future.
+     * @return a CompletableFuture that contains a Map of the results of the given Futures.
      */
     public static <T> CompletableFuture<List<T>> filter(List<T> input, FuturePredicate<T> predicate) {
         Preconditions.checkNotNull(input);

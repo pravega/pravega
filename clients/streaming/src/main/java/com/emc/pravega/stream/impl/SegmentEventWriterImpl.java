@@ -41,7 +41,7 @@ public class SegmentEventWriterImpl<Type> implements SegmentEventWriter<Type> {
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     /**
-     * Constructor to initiate an instance of SegmentEventWriter Impl.
+     * Creates a new instance of the SegmentEventWriter class.
      *
      * @param out The segment output stream for writing.
      * @param serializer The serializer to be applied to events.

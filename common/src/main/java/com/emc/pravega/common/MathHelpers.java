@@ -40,11 +40,11 @@ public class MathHelpers {
     }
 
     /**
-     * Returns the value itself if it is between min and max numbers.
+     * Returns itself if it is between min and max, min if the value is less than min, or max if the value is greater than max.
      * @param value actual value
-     * @param min minimum value to check againsts
-     * @param max maximum value to check againsts
-     * @return the given value if it is between min and max, min if the value is less than min, or max if the value is greater than max
+     * @param min minimum value to check against
+     * @param max maximum value to check against
+     * @return the middle value
      */
     public static long minMax(long value, long min, long max) {
         Preconditions.checkArgument(min <= max, "min must be less than or equal to max");

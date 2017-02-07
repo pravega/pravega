@@ -34,7 +34,7 @@ public class Segment {
     private final int segmentNumber;
 
     /**
-     * Constructor to create a segment.
+     * Creates a new instance of Segment class.
      *
      * @param scope The scope string the segment belongs to.
      * @param streamName The stream name that the segment belongs to.

@@ -25,14 +25,15 @@ public class InvalidMessageException extends RuntimeException {
     private static final long serialVersionUID = 1L;
 
     /**
-     * Constructor for exception explaining that occurred message makes no sense.
+     * Creates a new instance of InvalidMessageException class.
      */
     public InvalidMessageException() {
         super();
     }
 
     /**
-     * Constructor with message for exception explaining that occurred message makes no sense.
+     * Creates a new instance of InvalidMessageException class.
+     *
      * @param string Description of exception
      */
     public InvalidMessageException(String string) {
@@ -40,7 +41,8 @@ public class InvalidMessageException extends RuntimeException {
     }
 
     /**
-     * Constructor with throwable itself for exception explaining that occurred message makes no sense.
+     * Creates a new instance of InvalidMessageException class.
+     *
      * @param throwable An exception
      */
     public InvalidMessageException(Throwable throwable) {

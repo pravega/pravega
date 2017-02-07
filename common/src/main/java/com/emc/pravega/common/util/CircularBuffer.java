@@ -37,7 +37,8 @@ public class CircularBuffer {
     private final int capacity;
 
     /**
-     * A constructor with initialize circular buffer with the given capacity.
+     * Creates a new instance of CircularBuffer class.
+     *
      * @param capacity Size of the buffer
      */
     public CircularBuffer(int capacity) {

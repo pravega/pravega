@@ -36,7 +36,7 @@ public class StreamImpl implements Stream {
     private final StreamConfiguration config;
 
     /**
-     * Constructor to initiate Stream instance with given configuration and scope/name.
+     Creates a new instance of the Stream class.
      *
      * @param scope The scope of the stream.
      * @param streamName The name of the stream.

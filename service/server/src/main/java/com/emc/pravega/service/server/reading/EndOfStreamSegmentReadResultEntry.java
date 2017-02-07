@@ -27,8 +27,9 @@ import java.time.Duration;
  * The getContent() method will throw an IllegalStateException if invoked.
  */
 class EndOfStreamSegmentReadResultEntry extends ReadResultEntryBase {
+
     /**
-     * Constructor.
+     * Creates a new instance of the EndOfStreamSegmentReadResultEntry class.
      *
      * @param streamSegmentOffset The offset in the StreamSegment that this entry starts at.
      * @param requestedReadLength The maximum number of bytes requested for read.

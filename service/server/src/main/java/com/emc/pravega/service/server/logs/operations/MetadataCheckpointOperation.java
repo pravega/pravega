@@ -68,7 +68,8 @@ public class MetadataCheckpointOperation extends MetadataOperation {
 
     /**
      * Gets the contents of this MetadataCheckpointOperation.
-     * @return byte array of the content.
+     *
+     * @return the content.
      */
     public ByteArraySegment getContents() {
         return this.contents;

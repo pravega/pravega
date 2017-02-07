@@ -39,7 +39,7 @@ public class StreamManagerImpl implements StreamManager {
     private final ControllerImpl controller;
 
     /**
-     * Contructor to initialize a Stream Manager implementation.
+     * Create a new instance of Stream Manager.
      *
      * @param scope The scope string.
      * @param controllerUri The controller URI.

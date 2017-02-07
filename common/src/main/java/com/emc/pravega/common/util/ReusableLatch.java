@@ -32,14 +32,14 @@ public class ReusableLatch {
     private final Object releasingLock = new Object();
 
     /**
-     * A Constructor with default value of 'false'.
+     * Creates a new instance of ReusableLatch class.
      */
     public ReusableLatch() {
         this(false);
     }
 
     /**
-     * A constructor with given boolean value for startReleased.
+     * Creates a new instance of ReusableLatch class.
      *
      * @param startReleased Whether semaphore should be initialized with max value or zero.
      */

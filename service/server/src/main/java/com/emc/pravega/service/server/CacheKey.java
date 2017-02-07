@@ -99,7 +99,8 @@ public class CacheKey extends Cache.Key {
 
     /**
      * Gets a value representing the Id of the StreamSegment for this Cache Key.
-     * @return Stream segment Id  for the cache.
+     *
+     * @return Stream segment Id for the cache.
      */
     public long getStreamSegmentId() {
         return this.streamSegmentId;

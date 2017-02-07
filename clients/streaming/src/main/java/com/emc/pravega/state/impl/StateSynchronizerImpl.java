@@ -45,7 +45,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     private RevisionImpl initialRevision;
 
     /**
-     * Constructor to initiliase StateSynchronizer.
+     * Creates a new instance of StateSynchronizer class.
      *
      * @param segment The segment.
      * @param client The streaming Client.

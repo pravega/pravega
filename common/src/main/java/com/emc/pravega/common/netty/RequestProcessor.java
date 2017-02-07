@@ -79,7 +79,7 @@ public interface RequestProcessor {
     /**
      * A request to create a transaction.
      *
-     * @param createTransaction A wire command to
+     * @param createTransaction A wire command to create a Transaction
      */
     void createTransaction(CreateTransaction createTransaction);
 

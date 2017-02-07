@@ -22,13 +22,15 @@ package com.emc.pravega.common;
  * Thrown when an object has been closed via AutoCloseable.close().
  */
 public class ObjectClosedException extends IllegalStateException {
+
     /**
-     * 
+     * Verion Id.
      */
     private static final long serialVersionUID = 1L;
 
     /**
-     * Returns description of object closed exception.
+     * Creates a new instance of ObjectClosedException class.
+     *
      * @param object The object that has been closed but tried to get accessed
      */
     public ObjectClosedException(Object object) {
@@ -36,7 +38,8 @@ public class ObjectClosedException extends IllegalStateException {
     }
 
     /**
-     * Returns a exception detail along with cause.
+     * Creates a new instance of ObjectClosedException class.
+     *
      * @param object The object that has been closed but tried to get accessed
      * @param cause Throwable that describes the cause of exception
      */

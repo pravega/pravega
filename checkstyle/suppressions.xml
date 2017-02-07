@@ -23,7 +23,6 @@
   -->
 
 <suppressions>
-    <suppress checks="JavadocStyle" files=".+Tests\.java" />
-    <suppress checks="JavadocMethod" files=".+Tests\.java" />
+    <!-- Ignores all types of checks on files under test folders  -->
     <suppress checks="[a-zA-Z0-9]*" files=".*[\\/]src[\\/]test[\\/]"/>
 </suppressions>

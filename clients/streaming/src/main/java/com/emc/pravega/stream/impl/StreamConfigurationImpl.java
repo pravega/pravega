@@ -34,7 +34,7 @@ public class StreamConfigurationImpl implements StreamConfiguration {
     private final RetentionPolicy retentionPolicy;
 
     /**
-     * Constructor to initiate Stream Configuration instance with the given parameters.
+     * Creates a new instance of the StreamConfiguration class.
      *
      * @param scope The scope of the stream.
      * @param name The name of the stream.
