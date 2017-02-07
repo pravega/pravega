@@ -53,21 +53,22 @@ public class SingleJUnitTestRunner extends BlockJUnit4ClassRunner {
         try {
             SingleJUnitTestRunner runner = new SingleJUnitTestRunner(Class.forName(className), methodName);
             runner.runMethod();
-            return false;
+            return true;
         } catch (Throwable ex) {
             log.error("Error while executing the test", ex);
-            return true;
+            return false;
         }
     }
 
     public static void main(String... args) throws ClassNotFoundException {
         String[] classAndMethod = args[0].split("#");
-        //Request request = Request.method(Class.forName(classAndMethod[0]),
-        //classAndMethod[1]);
-
-        // Result result = new JUnitCore().run(request);
-        // return 0 in case the execution is successful.
-        // return 1 in case the execution is a failure.
+        //        Request request = Request.method(Class.forName(classAndMethod[0]),
+        //                classAndMethod[1]);
+        //
+        //        Result result = new JUnitCore().run(request);
+        //        System.exit(result.wasSuccessful() ? 0 : 1);
+        //        return 0 in case the execution is successful.
+        //        return 1 in case the execution is a failure.
         System.exit(execute(classAndMethod[0], classAndMethod[1]) ? 0 : 1);
     }
 }

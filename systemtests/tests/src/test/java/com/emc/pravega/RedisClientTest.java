@@ -42,9 +42,10 @@ public class RedisClientTest {
 
     private static URI resdisHostURI;
 
+    private static Service redis = new RedisService("redisservice");
+
     @Environment
     public static void setup() {
-        Service redis = new RedisService("redisservice");
         //TODO: set attributes
         if (!redis.isRunning()) {
             redis.start();
@@ -82,7 +83,11 @@ public class RedisClientTest {
     public void redisPingTest() {
         //Note: host on which redis is running is a private ip and is not accessible when executed locally. It will be
         // accessible when executed as a marathon test.
-        Jedis redisClient = new Jedis(resdisHostURI.getHost(), resdisHostURI.getPort());
+        System.out.println("Start execution of redisPingTest");
+        URI redisURI = redis.getServiceDetails().get(0);
+        System.out.println("Redis Service URI: " + redisURI);
+        Jedis redisClient = new Jedis(redisURI.getHost(), redisURI.getPort());
         assertEquals("PONG", redisClient.ping());
+        System.out.println("Test execution completed");
     }
 }

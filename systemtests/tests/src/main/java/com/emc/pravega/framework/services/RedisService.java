@@ -25,13 +25,10 @@ import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.GetAppResponse;
-import mesosphere.marathon.client.model.v2.GetServerInfoResponse;
-import mesosphere.marathon.client.model.v2.Task;
 import mesosphere.marathon.client.utils.MarathonException;
 
 import java.net.URI;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -89,7 +86,7 @@ public class RedisService implements Service {
     public boolean isRunning() {
         try {
             GetAppResponse app = marathonClient.getApp(this.id);
-            log.debug(app.toString());
+            log.debug("App Details: {}", app);
 
             if (app.getApp().getTasksStaged() == 0 && app.getApp().getTasksRunning() != 0) {
                 log.info("App {} is running", this.id);
@@ -103,10 +100,9 @@ public class RedisService implements Service {
                 log.info("App is not running : {}", this.id);
                 return false;
             }
-            throw new RuntimeException("Marathon Exception while deploying RedisService", e);
+            throw new RuntimeException("Marathon Exception while fetching service details", e);
         }
     }
-
 
     private App createRedisApp() {
         App app = new App();
@@ -122,21 +118,6 @@ public class RedisService implements Service {
         app.getContainer().getDocker().setImage("gpetr/redis4mesos");
         app.getContainer().getDocker().setNetwork("HOST");
         return app;
-    }
-
-    public void test() {
-        GetServerInfoResponse info = null;
-        try {
-            info = marathonClient.getServerInfo();
-            System.out.println(info);
-            Collection<Task> tasks = marathonClient.getAppTasks(id).getTasks();
-            tasks.stream().forEach(task -> {
-                System.out.println(task);
-            });
-        } catch (MarathonException e) {
-            throw new RuntimeException("Marathon Exception while deploying RedisService", e);
-        }
-
     }
 
     @Override
