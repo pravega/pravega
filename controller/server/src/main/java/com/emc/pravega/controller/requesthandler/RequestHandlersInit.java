@@ -42,7 +42,6 @@ import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamManagerImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import lombok.extern.slf4j.Slf4j;
 
