@@ -39,7 +39,6 @@ public interface DynamicLogger {
      */
     <T extends Number> void reportGaugeValue(String name, T value);
 
-
     /**
      * Record the occurrence of a given number of events in Meter.
      *
