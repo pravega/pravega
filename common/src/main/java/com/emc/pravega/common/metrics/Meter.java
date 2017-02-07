@@ -17,21 +17,20 @@
 package com.emc.pravega.common.metrics;
 
 /**
- * A meter metric which measures mean throughput and one-, five-,
- * and fifteen-minute exponentially-weighted moving average throughput.
+ * A meter metric which measures mean throughput and exponentially-weighted moving average throughput.
  */
 public interface Meter {
     /**
-     * Mark the occurrence of an event.
+     * Record the occurrence of an event in Meter.
      */
-    void mark();
+    void recordEvent();
 
     /**
-     * Mark the occurrence of a given number of events.
+     * Record the occurrence of a given number of events in Meter.
      *
      * @param n the number of events to mark
      */
-    void mark(long n);
+    void recordEvents(long n);
 
     /**
      * Returns the number of events which have been marked.

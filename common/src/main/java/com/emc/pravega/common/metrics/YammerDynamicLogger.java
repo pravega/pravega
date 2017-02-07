@@ -24,6 +24,8 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 
@@ -87,15 +89,17 @@ public class YammerDynamicLogger implements DynamicLogger {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(delta);
         String counterName = name + ".Counter";
-        Counter counter = countersCache.getIfPresent(counterName);
-        if (null == counter) {
-            Counter newCounter = underlying.createCounter(counterName);
-            countersCache.put(counterName, newCounter);
-            log.debug("Created Counter: {}.", newCounter.getName());
-            newCounter.add(delta);
-            return;
+        try {
+            Counter counter = countersCache.get(counterName, new Callable<Counter>() {
+                @Override
+                public Counter call() throws Exception {
+                    return underlying.createCounter(counterName);
+                }
+            });
+            counter.add(delta);
+        } catch (ExecutionException e) {
+            e.printStackTrace();
         }
-        counter.add(delta);
     }
 
     @Override
@@ -128,18 +132,20 @@ public class YammerDynamicLogger implements DynamicLogger {
     }
 
     @Override
-    public void markMeter(String name, long number) {
+    public void recordMeterEvents(String name, long number) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(number);
         String meterName = name + ".Meter";
-        Meter meter = metersCache.getIfPresent(meterName);
-        if (null == meter) {
-            Meter newMeter = underlying.createMeter(meterName);
-            metersCache.put(meterName, newMeter);
-            log.debug("Created Meter: {}.", newMeter.getName());
-            newMeter.mark(number);
-            return;
+        try {
+            Meter meter = metersCache.get(meterName, new Callable<Meter>() {
+                @Override
+                public Meter call() throws Exception {
+                    return underlying.createMeter(meterName);
+                }
+            });
+            meter.recordEvents(number);
+        } catch (ExecutionException e) {
+            e.printStackTrace();
         }
-        meter.mark(number);
     }
 }

@@ -144,12 +144,12 @@ public class YammerStatsLogger implements StatsLogger {
         }
 
         @Override
-        public void mark() {
+        public void recordEvent() {
             meter.mark();
         }
 
         @Override
-        public void mark(long n) {
+        public void recordEvents(long n) {
             meter.mark(n);
         }
 

@@ -129,12 +129,12 @@ public class NullStatsLogger implements StatsLogger {
 
     private static class NullMeter implements Meter {
         @Override
-        public void mark() {
+        public void recordEvent() {
             // nop
         }
 
         @Override
-        public void mark(long n) {
+        public void recordEvents(long n) {
             // nop
         }
 

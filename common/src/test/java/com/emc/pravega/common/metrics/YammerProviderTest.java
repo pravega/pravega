@@ -77,17 +77,17 @@ public class YammerProviderTest {
     @Test
     public void testMeter() {
         Meter testMeter = statsLogger.createMeter("testMeter");
-        testMeter.mark();
-        testMeter.mark();
+        testMeter.recordEvent();
+        testMeter.recordEvent();
         assertEquals(2, testMeter.getCount());
-        testMeter.mark(27);
+        testMeter.recordEvents(27);
         assertEquals(29, testMeter.getCount());
 
         // test dynamic meter
         int sum = 0;
         for (int i = 1; i < 10; i++) {
             sum += i;
-            dynamicLogger.markMeter("dynamicMeter", i);
+            dynamicLogger.recordMeterEvents("dynamicMeter", i);
             assertEquals(sum, MetricsProvider.YAMMERMETRICS.getMeters().get("DYNAMIC.dynamicMeter.Meter").getCount());
         }
     }

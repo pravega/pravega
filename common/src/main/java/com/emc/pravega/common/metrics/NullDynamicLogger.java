@@ -31,7 +31,7 @@ public class NullDynamicLogger implements DynamicLogger {
     }
 
     @Override
-    public void markMeter(String name, long number) {
+    public void recordMeterEvents(String name, long number) {
         // nop
     }
 }

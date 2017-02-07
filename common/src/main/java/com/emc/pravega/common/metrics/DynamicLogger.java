@@ -41,10 +41,10 @@ public interface DynamicLogger {
 
 
     /**
-     * Mark Meter with the occurrence of a given number of events.
+     * Record the occurrence of a given number of events in Meter.
      *
      * @param name   the name of Meter
      * @param number the number of events occurrence
      */
-    void markMeter(String name, long number);
+    void recordMeterEvents(String name, long number);
 }
