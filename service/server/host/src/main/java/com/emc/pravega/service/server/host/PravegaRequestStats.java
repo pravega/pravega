@@ -30,4 +30,7 @@ public interface PravegaRequestStats {
     // Gauge for pending append bytes
     public final static String PENDING_APPEND_BYTES = "PENDING_APPEND_BYTES";
 
+    //HDFS stats
+
+
 }

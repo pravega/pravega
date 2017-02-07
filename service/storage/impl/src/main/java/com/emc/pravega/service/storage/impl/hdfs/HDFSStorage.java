@@ -113,10 +113,10 @@ class HDFSStorage implements Storage {
 
     //region metrics
     public static class Metrics {
-        static final OpStatsLogger READ_LATENCY = HDFS_LOGGER.createStats("ReadLatency");
-        static final OpStatsLogger WRITE_LATENCY = HDFS_LOGGER.createStats("WriteLatency");
-        static final Counter READ_BYTES = HDFS_LOGGER.createCounter("BytesRead");
-        static final Counter WRITTEN_BYTES = HDFS_LOGGER.createCounter("BytesWritten");
+        static final OpStatsLogger READ_LATENCY = HDFS_LOGGER.createStats("HDFSReadLatency");
+        static final OpStatsLogger WRITE_LATENCY = HDFS_LOGGER.createStats("HDFSWriteLatency");
+        static final Counter READ_BYTES = HDFS_LOGGER.createCounter("HDFSBytesRead");
+        static final Counter WRITTEN_BYTES = HDFS_LOGGER.createCounter("HDFSBytesWritten");
     }
 
     //endregion
