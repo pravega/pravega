@@ -253,7 +253,7 @@ public final class ModelHelper {
      * Converts PravegaNodeURI into NodeURI.
      *
      * @param uri The PravegaNodeURI string.
-     * @return Node URI strong.
+     * @return Node URI string.
      */
     public static NodeUri decode(PravegaNodeUri uri) {
         return new NodeUri(uri.getEndpoint(), uri.getPort());

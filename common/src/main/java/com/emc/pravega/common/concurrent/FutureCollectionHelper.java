@@ -95,7 +95,7 @@ public class FutureCollectionHelper {
     }
 
     /**
-     * Returns a list of all futures.
+     * Returns a CompletableFuture that contains a Map of the results of the given Futures.
      *
      * @param futureMap List of futures.
      * @param <T> Type parameter
