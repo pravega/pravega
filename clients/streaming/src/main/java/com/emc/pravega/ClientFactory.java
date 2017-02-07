@@ -30,6 +30,7 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.RebalancerUtils;
 
 import java.net.URI;
@@ -62,8 +63,12 @@ import java.net.URI;
  */
 public interface ClientFactory {
 
-    public static ClientFactory withScope(String scope, URI controllerUri) {
+    static ClientFactory withScope(String scope, URI controllerUri) {
         return new ClientFactoryImpl(scope, controllerUri);
+    }
+
+    static ClientFactory withScope(String scope, Controller controller) {
+        return new ClientFactoryImpl(scope, controller);
     }
 
     /**

@@ -71,6 +71,16 @@ public class ClientFactoryImpl implements ClientFactory {
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
     }
 
+    public ClientFactoryImpl(String scope, Controller controller) {
+        Preconditions.checkNotNull(scope);
+        Preconditions.checkNotNull(controller);
+        this.scope = scope;
+        this.controller = controller;
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
+        this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
+    }
+
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
         this(scope, controller, new SegmentInputStreamFactoryImpl(controller, connectionFactory),

@@ -48,12 +48,18 @@ public class StreamManagerImpl implements StreamManager {
 
     private final String scope;
     private final ClientFactory clientFactory;
-    private final ControllerImpl controller;
+    private final Controller controller;
 
     public StreamManagerImpl(String scope, URI controllerUri, ClientFactory clientFactory) {
         this.scope = scope;
         this.clientFactory = clientFactory;
         this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
+    }
+
+    public StreamManagerImpl(String scope, Controller controller, ClientFactory clientFactory) {
+        this.scope = scope;
+        this.clientFactory = clientFactory;
+        this.controller = controller;
     }
 
     @Override

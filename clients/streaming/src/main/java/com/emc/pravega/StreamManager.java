@@ -22,6 +22,7 @@ import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamManagerImpl;
 
 import java.net.URI;
@@ -35,7 +36,11 @@ public interface StreamManager extends AutoCloseable {
     public static StreamManager withScope(String scope, URI controllerUri) {
         return new StreamManagerImpl(scope, controllerUri, ClientFactory.withScope(scope, controllerUri));
     }
-    
+
+    public static StreamManager withScope(String scope, Controller controller) {
+        return new StreamManagerImpl(scope, controller, ClientFactory.withScope(scope, controller));
+    }
+
     /**
      * Creates a new ReaderGroup
      * 
