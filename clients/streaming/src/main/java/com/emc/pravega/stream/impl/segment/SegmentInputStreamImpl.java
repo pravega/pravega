@@ -40,7 +40,7 @@ import lombok.Synchronized;
  * 
  * @see SegmentInputStream
  */
-class SegmentInputStreamImpl extends SegmentInputStream {
+class SegmentInputStreamImpl implements SegmentInputStream {
 
     private static final int READ_LENGTH = MAX_WRITE_SIZE;
     static final int BUFFER_SIZE = 2 * READ_LENGTH;

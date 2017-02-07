@@ -145,13 +145,13 @@ public interface ClientFactory {
      * @param <InitT> The type of the initial update used.
      * @param streamName The name of the stream for the synchronizer
      * @param updateSerializer The serializer for updates.
-     * @param initialSerializer The serializer for the initial update.
+     * @param initSerializer The serializer for the initial update.
      * @param config The synchronizer configuration
      */
     <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
     StateSynchronizer<StateT> createStateSynchronizer(String streamName,
                                                       Serializer<UpdateT> updateSerializer,
-                                                      Serializer<InitT> initialSerializer,
+                                                      Serializer<InitT> initSerializer,
                                                       SynchronizerConfig config);
 
 }

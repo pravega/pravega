@@ -28,6 +28,11 @@ import java.util.Map.Entry;
 public interface RevisionedStreamClient<T> {
     
     /**
+     * Returns the latest revision. 
+     */
+    Revision fetchRevision();
+    
+    /**
      * Read from a specified revision to the end of the stream.
      * The iterator returned will stop once it reaches the end of what was in the stream at the time this method was called.
      * 
