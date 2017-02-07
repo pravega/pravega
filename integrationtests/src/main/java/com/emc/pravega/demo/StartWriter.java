@@ -21,12 +21,8 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.JavaSerializer;
-<<<<<<< HEAD:integrationtests/src/main/java/com/emc/pravega/demo/StartProducer.java
-import com.emc.pravega.stream.mock.MockClientFactory;
-=======
 import com.emc.pravega.stream.mock.MockStreamManager;
 
->>>>>>> master:integrationtests/src/main/java/com/emc/pravega/demo/StartWriter.java
 import lombok.Cleanup;
 
 public class StartWriter {

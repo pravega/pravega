@@ -18,20 +18,19 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.StreamManager;
+import com.emc.pravega.common.util.ZipKinTracer;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.StreamManagerImpl;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.common.util.ZipKinTracer;
+import com.emc.pravega.stream.impl.StreamManagerImpl;
 import lombok.Cleanup;
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
@@ -59,8 +58,6 @@ import java.util.function.BiFunction;
  */
 public class TurbineHeatSensor {
 
-
-    private static Stream stream;
     private static PerfStats produceStats, consumeStats;
     private static String controllerUri = "http://10.249.250.154:9090";
     private static int messageSize = 100;
@@ -109,10 +106,11 @@ public class TurbineHeatSensor {
         try {
             @Cleanup
             StreamManager streamManager = null;
-            streamManager = new StreamManagerImpl(StartLocalService.SCOPE, new URI(controllerUri));
+            factory = new ClientFactoryImpl("Scope", new URI(controllerUri));
+            streamManager = new StreamManagerImpl(StartLocalService.SCOPE, new URI(controllerUri), factory);
 
-            stream = streamManager.createStream(streamName,
-                    new StreamConfigurationImpl("hi", streamName,
+            streamManager.createStream(streamName,
+                    new StreamConfigurationImpl("Scope", streamName,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 5,
                                     producerCount)));
         } catch (URISyntaxException e) {
@@ -129,7 +127,7 @@ public class TurbineHeatSensor {
         }
         /* Create producerCount number of threads to simulate sensors. */
         for (int i = 0; i < producerCount; i++) {
-            factory = new ClientFactoryImpl("hi", new URI(controllerUri));
+            factory = new ClientFactoryImpl("Scope", new URI(controllerUri));
 
             TemperatureSensors worker;
             if ( isTransaction ) {

@@ -210,6 +210,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
             ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_PORT,
                     new Integer(zkPort).toString());
 
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ENABLE_ZIPKIN,
+                    "false");
+
             props = new ServiceBuilderConfig(p);
 
             nodeServiceStarter.set(new ServiceStarter(props));

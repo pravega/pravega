@@ -83,11 +83,8 @@ class PerfStats {
         double recsPerSec = 1000.0 * windowCount / (double) elapsed;
         double mbPerSec = 1000.0 * this.windowBytes / (double) elapsed / (1024.0 * 1024.0);
         System.out.printf("%d records sent, %.1f records/sec (%.5f MB/sec), %.1f ms avg latency, %.1f max latency.\n",
-                windowCount,
-                recsPerSec,
-                mbPerSec,
-                windowTotalLatency / ( (double) windowCount * 1000.0 ),
-                (double) windowMaxLatency / 1000.0 );
+                windowCount, recsPerSec, mbPerSec, windowTotalLatency / ((double) windowCount * 1000.0),
+                (double) windowMaxLatency / 1000.0);
     }
 
     private void newWindow(long currentNumber) {
@@ -100,10 +97,12 @@ class PerfStats {
     }
 
     public synchronized void printAll() {
-   /*     for (int i = 0; i < latencies.length; i++) {
+        /*
+        for (int i = 0; i < latencies.length; i++) {
             System.out.printf("%d %d\n", i, latencies[i]);
 
-        }*/
+        }
+        */
     }
 
     public synchronized void printTotal() {
@@ -111,17 +110,11 @@ class PerfStats {
         double recsPerSec = 1000.0 * count / (double) elapsed;
         double mbPerSec = 1000.0 * this.bytes / (double) elapsed / (1024.0 * 1024.0);
         long[] percs = percentiles(this.latencies, 0.5, 0.95, 0.99, 0.999);
-        System.out.printf("%d records sent, %f records/sec (%.5f MB/sec), %.2f ms avg latency, %.2f ms max " +
-                        "latency, %.2f ms 50th, %.2f ms 95th, %.2f ms 99th, %.2f ms 99.9th.\n",
-                count,
-                recsPerSec,
-                mbPerSec,
-                totalLatency / ((double) count * 1000.0 ),
-                (double) maxLatency / 1000.0,
-                percs[0] / 1000.0,
-                percs[1] / 1000.0,
-                percs[2] / 1000.0,
-                percs[3] / 1000.0);
+        System.out.printf(
+                "%d records sent, %f records/sec (%.5f MB/sec), %.2f ms avg latency, %.2f ms max " + "latency, %.2f " +
+                        "ms 50th, %.2f ms 95th, %.2f ms 99th, %.2f ms 99.9th.\n",
+                count, recsPerSec, mbPerSec, totalLatency / ((double) count * 1000.0), (double) maxLatency / 1000.0,
+                percs[0] / 1000.0, percs[1] / 1000.0, percs[2] / 1000.0, percs[3] / 1000.0);
     }
 
     private long[] percentiles(long[] latencies, double... percentiles) {
@@ -135,13 +128,10 @@ class PerfStats {
         return values;
     }
 
-    public CompletableFuture<Void> runAndRecordTime(Supplier<CompletableFuture<Void>> fn,
-                                                    long startTime,
-                                                    int length) {
+    public CompletableFuture<Void> runAndRecordTime(Supplier<CompletableFuture<Void>> fn, long startTime, int length) {
         int iter = this.iteration++;
-        return fn.get().thenAccept( (lmn) -> {
-            record(iter, (int) (System.currentTimeMillis() - startTime) * 1000, length,
-                    System.nanoTime());
+        return fn.get().thenAccept((lmn) -> {
+            record(iter, (int) (System.currentTimeMillis() - startTime) * 1000, length, System.nanoTime());
         });
 
     }
