@@ -92,9 +92,8 @@ public class StreamMetadataTasksTest {
                 taskMetadataStore,
                 executor, "host");
 
-        TxTimeOutScheduler txTimeOutProcessor = (scope, stream, txid, timeoutPeriod) -> CompletableFuture.completedFuture(null);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStorePartialMock, hostStore, taskMetadataStore, executor, "host", txTimeOutProcessor);
+                streamStorePartialMock, hostStore, taskMetadataStore, executor, "host");
         consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks);
 

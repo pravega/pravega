@@ -22,13 +22,15 @@ import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxnId;
 import com.emc.pravega.stream.impl.ModelHelper;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.thrift.TException;
-import org.apache.thrift.async.AsyncMethodCallback;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+
+import org.apache.thrift.TException;
+import org.apache.thrift.async.AsyncMethodCallback;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Asynchronous controller service implementation.

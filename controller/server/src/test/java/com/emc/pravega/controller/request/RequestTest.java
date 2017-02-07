@@ -20,9 +20,7 @@ package com.emc.pravega.controller.request;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.requesthandler.ScaleRequestHandler;
-import com.emc.pravega.controller.requesthandler.TransactionTimer;
 import com.emc.pravega.controller.requests.ScaleRequest;
-import com.emc.pravega.controller.requests.TxTimeoutRequest;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelperMock;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -36,7 +34,6 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.TxnStatus;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -48,7 +45,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -108,7 +104,7 @@ public class RequestTest {
                 executor, hostId);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId, (scope, stream, txid, timeoutPeriod) -> CompletableFuture.completedFuture(null));
+                hostStore, taskMetadataStore, executor, hostId);
 
         // add a host in zk
         // mock pravega
@@ -146,16 +142,5 @@ public class RequestTest {
         assert activeSegments.stream().noneMatch(z -> z.getNumber() == 4);
         assert activeSegments.stream().anyMatch(z -> z.getNumber() == 5);
         assert activeSegments.size() == 3;
-    }
-
-    @Test
-    public void testTxnTimeout() throws ExecutionException, InterruptedException {
-        txid = streamStore.createTransaction(scope, stream, null).get();
-        TransactionTimer timer = new TransactionTimer(streamTransactionMetadataTasks);
-        TxTimeoutRequest request = new TxTimeoutRequest(scope, stream, txid.toString(), System.currentTimeMillis());
-
-        assert FutureHelpers.await(timer.process(request, executor));
-
-        assert streamStore.transactionStatus(scope, stream, txid, null).get().equals(TxnStatus.ABORTED);
     }
 }

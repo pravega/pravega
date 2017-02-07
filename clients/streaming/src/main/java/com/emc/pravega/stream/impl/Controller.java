@@ -58,8 +58,8 @@ public interface Controller {
 
     /**
      * Api to seal stream.
-     * 
-     * @param scope scope
+     *
+     * @param scope      scope
      * @param streamName stream name
      * @return status of update stream operation.
      */
@@ -67,21 +67,21 @@ public interface Controller {
 
     /**
      * API to merge or split stream segments.
-     * 
-     * @param stream stream object.
+     *
+     * @param stream         stream object.
      * @param sealedSegments list of segments to be sealed.
-     * @param newKeyRanges key ranges after scaling the stream.
+     * @param newKeyRanges   key ranges after scaling the stream.
      * @return status of scale operation.
      */
     CompletableFuture<ScaleResponse> scaleStream(final Stream stream, final List<Integer> sealedSegments,
-            final Map<Double, Double> newKeyRanges);
+                                                 final Map<Double, Double> newKeyRanges);
 
     // Controller Apis called by pravega producers for getting stream specific information
 
     /**
      * Api to get list of current segments for the stream to write to.
-     * 
-     * @param scope scope
+     *
+     * @param scope      scope
      * @param streamName stream name
      * @return current stream segments.
      */
@@ -89,8 +89,8 @@ public interface Controller {
 
     /**
      * Api to create a new transaction. The transaction timeout is relative to the creation time.
-     * 
-     * @param stream stream name
+     *
+     * @param stream  stream name
      * @param timeout tx timeout
      * @return transaction identifier.
      */
@@ -100,9 +100,9 @@ public interface Controller {
      * Commits a transaction, atomically committing all events to the stream, subject to the
      * ordering guarantees specified in {@link EventStreamWriter}. Will fail with
      * {@link TxnFailedException} if the transaction has already been committed or aborted.
-     * 
+     *
      * @param stream stream name
-     * @param txId transaction id
+     * @param txId   transaction id
      */
     CompletableFuture<Void> commitTransaction(final Stream stream, final UUID txId);
 
@@ -110,17 +110,17 @@ public interface Controller {
      * Aborts a transaction. No events written to it may be read, and no further events may be
      * written. Will fail with {@link TxnFailedException} if the transaction has already been
      * committed or aborted.
-     * 
+     *
      * @param stream stream name
-     * @param txId transaction id
+     * @param txId   transaction id
      */
     CompletableFuture<Void> abortTransaction(final Stream stream, final UUID txId);
 
     /**
      * Returns the status of the specified transaction.
-     * 
+     *
      * @param stream stream name
-     * @param txId transaction id
+     * @param txId   transaction id
      * @return transaction status.
      */
     CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
@@ -131,9 +131,9 @@ public interface Controller {
      * Given a timestamp and a number of readers, returns a position object for each reader that collectively
      * include all of the segments that exist at that time in the stream.
      *
-     * @param stream name
+     * @param stream    name
      * @param timestamp timestamp for getting position objects
-     * @param count number of position objects
+     * @param count     number of position objects
      * @return list of position objects.
      */
     CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count);
@@ -141,22 +141,22 @@ public interface Controller {
     /**
      * Returns a Map containing each of the segments that are successors to the segment requested mapped to a
      * list of their predecessors.
-     * 
+     * <p>
      * In the event of a scale up the newly created segments contain a subset of the keyspace of the original
      * segment and their only predecessor is the segment that was split. Example: If there are two segments A
      * and B. A scaling event split A into two new segments C and D. The successors of A are C and D. So
      * calling this method with A would return {C -> A, D -> A}
-     * 
+     * <p>
      * In the event of a scale down there would be one segment the succeeds multiple. So it would contain the
      * union of the keyspace of its predecessors. So calling with that segment would map to multiple segments.
      * Example: If there are two segments A and B. A and B are merged into a segment C. The successor of A is
      * C. so calling this method with A would return {C -> {A, B}}
-     * 
+     * <p>
      * If a segment has not been sealed, it may not have successors now even though it might in the future.
      * The successors to a sealed segment are always known and returned. Example: If there is only one segment
      * A and it is not sealed, and no scaling events have occurred calling this with a would return an empty
      * map.
-     * 
+     *
      * @param segment The segment whose successors should be looked up.
      * @return A mapping from Successor to the list of all of the Successor's predecessors
      */
@@ -172,7 +172,7 @@ public interface Controller {
      * unreachable or indicates it is no longer the owner.
      *
      * @param qualifiedSegmentName The name of the segment. Usually obtained from
-     *        {@link Segment#getScopedName()}.
+     *                             {@link Segment#getScopedName()}.
      */
     CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName);
 

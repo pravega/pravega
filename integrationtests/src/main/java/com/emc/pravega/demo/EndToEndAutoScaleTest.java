@@ -18,7 +18,6 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.ClientFactory;
-import com.emc.pravega.controller.requesthandler.TxTimeoutStreamScheduler;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.monitor.MonitorFactory;
 import com.emc.pravega.service.monitor.ThresholdMonitor;
@@ -57,7 +56,6 @@ public class EndToEndAutoScaleTest {
             monitor.setClientFactory(internalCF);
         }
 
-        TxTimeoutStreamScheduler.setClientFactory(internalCF);
         MonitorFactory.setClientFactory(internalCF);
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());

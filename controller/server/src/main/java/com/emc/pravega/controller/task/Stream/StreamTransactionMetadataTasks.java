@@ -29,7 +29,6 @@ import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
-import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import lombok.extern.slf4j.Slf4j;
@@ -58,18 +57,15 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactoryImpl connectionFactory;
 
-    private final TxTimeOutScheduler txTimeOutScheduler;
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final HostControllerStore hostControllerStore,
                                           final TaskMetadataStore taskMetadataStore,
                                           final ScheduledExecutorService executor,
-                                          final String hostId,
-                                          final TxTimeOutScheduler txTimeOutScheduler) {
+                                          final String hostId) {
         super(taskMetadataStore, executor, hostId);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
-        this.txTimeOutScheduler = txTimeOutScheduler;
         this.connectionFactory = new ConnectionFactoryImpl(false);
     }
 
@@ -134,18 +130,18 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     }
 
     private CompletableFuture<UUID> createTxBody(final String scope, final String stream, final OperationContext context) {
-        return streamMetadataStore.createTransaction(scope, stream, context)
-                .thenCompose(txId ->
-                        txTimeOutScheduler.scheduleTimeOut(scope, stream, txId, Config.TXN_TIMEOUT_IN_SECONDS)
-                                .thenCompose(x ->
-                                        streamMetadataStore.getActiveSegments(scope, stream, context)
-                                                .thenCompose(activeSegments ->
-                                                        FutureCollectionHelper.sequence(
-                                                                activeSegments.stream()
-                                                                        .parallel()
-                                                                        .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txId))
-                                                                        .collect(Collectors.toList())))
-                                                .thenApply(y -> txId)));
+        return streamMetadataStore.createTransaction(scope, stream, context);
+        //        .thenCompose(txId ->
+        //                txTimeOutScheduler.scheduleTimeOut(scope, stream, txId, Config.TXN_TIMEOUT_IN_SECONDS)
+        //                        .thenCompose(x ->
+        //                                streamMetadataStore.getActiveSegments(scope, stream, context)
+        //                                        .thenCompose(activeSegments ->
+        //                                                FutureCollectionHelper.sequence(
+        //                                                        activeSegments.stream()
+        //                                                                .parallel()
+        //                                                                .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txId))
+        //                                                                .collect(Collectors.toList())))
+        //                                        .thenApply(y -> txId)));
     }
 
     private CompletableFuture<TxnStatus> abortTxBody(final String scope, final String stream, final UUID txid, final OperationContext context) {

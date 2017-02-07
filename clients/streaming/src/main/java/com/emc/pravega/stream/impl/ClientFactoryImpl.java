@@ -45,12 +45,14 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import lombok.val;
-import org.apache.commons.lang.NotImplementedException;
 
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.apache.commons.lang.NotImplementedException;
+
+import lombok.val;
 
 public class ClientFactoryImpl implements ClientFactory {
 

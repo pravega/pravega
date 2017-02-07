@@ -58,7 +58,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Properties;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -260,7 +259,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 controllerExecutor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, controllerExecutor, hostId, (scope, stream, txid, timeoutPeriod) -> CompletableFuture.completedFuture(null));
+                hostStore, taskMetadataStore, controllerExecutor, hostId);
         RPCServer.start(new ControllerServiceAsyncImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks)));
 

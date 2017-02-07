@@ -151,6 +151,4 @@ public class EmbeddedControllerImpl implements EmbeddedController {
             throw new RuntimeException(e);
         }
     }
-
-
 }

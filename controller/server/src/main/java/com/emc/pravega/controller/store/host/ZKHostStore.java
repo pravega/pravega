@@ -46,7 +46,7 @@ public class ZKHostStore implements HostControllerStore {
     //The supplied curator framework instance.
     private final CuratorFramework zkClient;
 
-    //To coldStart zookeeper on first use.
+    //To bootstrap zookeeper on first use.
     private volatile boolean zkInit = false;
 
     private final SegmentToContainerMapper segmentMapper;
@@ -117,12 +117,12 @@ public class ZKHostStore implements HostControllerStore {
             throw new HostStoreException("Could not find host for container id: " + String.valueOf(containerId));
         }
     }
-    
+
     @Override
     public int getContainerCount() {
         return segmentMapper.getTotalContainerCount();
     }
-    
+
     @Override
     public Host getHostForSegment(String scope, String stream, int segmentNumber) {
         String qualifiedName = Segment.getScopedName(scope, stream, segmentNumber);

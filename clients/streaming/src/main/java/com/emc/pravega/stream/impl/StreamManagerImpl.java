@@ -61,7 +61,6 @@ public class StreamManagerImpl implements StreamManager {
         this.controller = controller;
     }
 
-
     @Override
     public void createStream(String streamName, StreamConfiguration config) {
         createStreamHelper(streamName, config);

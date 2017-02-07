@@ -128,7 +128,7 @@ public final class ModelHelper {
         Preconditions.checkNotNull(policyModel, "Policy");
         return new com.emc.pravega.controller.stream.api.v1.ScalingPolicy()
                 .setType(ScalingPolicyType.valueOf(policyModel.getType().name())).setTargetRate(policyModel.getTargetRate())
-                .setScaleFactor(policyModel.getMaxNumSegments()).setMinNumSegments(policyModel.getMinNumSegments());
+                .setScaleFactor(policyModel.getScaleFactor()).setMinNumSegments(policyModel.getMinNumSegments());
     }
 
     public static final StreamConfig decode(final StreamConfiguration configModel) {

@@ -22,7 +22,6 @@ import com.emc.pravega.controller.embedded.EmbeddedControllerImpl;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
-import com.emc.pravega.controller.requesthandler.TxTimeoutStreamScheduler;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
@@ -106,9 +105,8 @@ public class Main {
 
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, hostId);
-        TxTimeoutStreamScheduler txTimeOutScheduler = new TxTimeoutStreamScheduler();
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId, txTimeOutScheduler);
+                hostStore, taskMetadataStore, executor, hostId);
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks);
 
@@ -131,8 +129,6 @@ public class Main {
         log.info("Starting Pravega REST Service");
         RESTServer.start(controllerService);
         EmbeddedController controller = new EmbeddedControllerImpl(controllerService);
-
-        txTimeOutScheduler.setController(controller);
 
         RequestHandlersInit.coldStart(controller, requestExecutor);
     }

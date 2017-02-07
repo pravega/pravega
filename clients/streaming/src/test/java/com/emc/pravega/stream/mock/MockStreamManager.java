@@ -60,13 +60,6 @@ public class MockStreamManager implements StreamManager {
         this.clientFactory = new MockClientFactory(scope, endpoint, port);
     }
 
-    public MockStreamManager(String scope, Controller controller) {
-        this.scope = scope;
-        this.controller = controller;
-        this.connectionFactory = new ConnectionFactoryImpl(false);
-        this.clientFactory = new MockClientFactory(scope, controller);
-    }
-
     @Override
     public void createStream(String streamName, StreamConfiguration config) {
         if (config == null) {
@@ -83,11 +76,9 @@ public class MockStreamManager implements StreamManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        StreamConfiguration streamConfig = config == null ? new StreamConfigurationImpl(scope,
+        FutureHelpers.getAndHandleExceptions(controller.createStream(new StreamConfigurationImpl(scope,
                 streamName,
-                config.getScalingPolicy()) : config;
-
-        FutureHelpers.getAndHandleExceptions(controller.createStream(streamConfig), RuntimeException::new);
+                config.getScalingPolicy())), RuntimeException::new);
         return new StreamImpl(scope, streamName);
     }
 

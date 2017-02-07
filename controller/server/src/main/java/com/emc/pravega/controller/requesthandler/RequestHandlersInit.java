@@ -23,7 +23,6 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.embedded.EmbeddedController;
 import com.emc.pravega.controller.embedded.EmbeddedControllerImpl;
 import com.emc.pravega.controller.requests.ScaleRequest;
-import com.emc.pravega.controller.requests.TxTimeoutRequest;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
@@ -66,11 +65,6 @@ public class RequestHandlersInit {
             Config.TXN_TIMER_STREAM_NAME,
             new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS, 1000, 2, 1));
 
-    private static AtomicReference<TransactionTimer> txnHandler = new AtomicReference<>();
-    private static AtomicReference<RequestReader> txnRequestReader = new AtomicReference<>();
-    private static AtomicReference<EventStreamReader<TxTimeoutRequest>> txnReader = new AtomicReference<>();
-    private static AtomicReference<EventStreamWriter<TxTimeoutRequest>> txnWriter = new AtomicReference<>();
-
     private static AtomicReference<ScaleRequestHandler> scaleHandler = new AtomicReference<>();
     private static AtomicReference<EventStreamReader<ScaleRequest>> scaleReader = new AtomicReference<>();
     private static AtomicReference<EventStreamWriter<ScaleRequest>> scaleWriter = new AtomicReference<>();
@@ -87,15 +81,11 @@ public class RequestHandlersInit {
         EmbeddedControllerImpl embeddedControllerImpl = (EmbeddedControllerImpl) controller;
 
         CompletableFuture<Void> createStream = new CompletableFuture<>();
-        CompletableFuture<Void> createTxnReader = new CompletableFuture<>();
         CompletableFuture<Void> createScaleReader = new CompletableFuture<>();
 
         CompletableFuture.runAsync(() -> createStreams(embeddedControllerImpl, executor, createStream));
 
-        createStream.thenAccept(x -> startTxnReader(clientFactory, controller.getController().getStreamStore(),
-                controller.getController().getStreamTransactionMetadataTasks(), executor, createTxnReader));
-
-        createTxnReader.thenAccept(x -> startScaleReader(clientFactory, controller.getController().getStreamMetadataTasks(),
+        createStream.thenAccept(x -> startScaleReader(clientFactory, controller.getController().getStreamMetadataTasks(),
                 controller.getController().getStreamStore(), controller.getController().getStreamTransactionMetadataTasks(),
                 executor, createScaleReader));
     }
@@ -122,44 +112,6 @@ public class RequestHandlersInit {
                     requestStreamFuture,
                     txnStreamFuture),
                     RuntimeException::new);
-            return null;
-        }, executor, result);
-    }
-
-    private static void startTxnReader(ClientFactory clientFactory, StreamMetadataStore streamStore, StreamTransactionMetadataTasks streamTransactionMetadataTasks, ScheduledExecutorService executor, CompletableFuture<Void> result) {
-        retryIndefinitely(() -> {
-            ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
-
-            streamManager.createReaderGroup(Config.TXN_READER_GROUP, groupConfig, Lists.newArrayList(Config.TXN_TIMER_STREAM_NAME));
-
-            if (txnHandler.get() == null) {
-                txnHandler.compareAndSet(null, new TransactionTimer(streamTransactionMetadataTasks));
-            }
-
-            if (txnReader.get() == null) {
-                txnReader.compareAndSet(null, clientFactory.createReader(Config.TXN_READER_ID,
-                        Config.TXN_READER_GROUP,
-                        new JavaSerializer<>(),
-                        new ReaderConfig()));
-            }
-
-            if (txnWriter.get() == null) {
-                txnWriter.compareAndSet(null, clientFactory.createEventWriter(Config.TXN_TIMER_STREAM_NAME,
-                        new JavaSerializer<>(),
-                        new EventWriterConfig(null)));
-            }
-
-            if (txnRequestReader.get() == null) {
-                txnRequestReader.compareAndSet(null, new RequestReader<>(
-                        Config.TXN_READER_ID,
-                        Config.TXN_READER_GROUP,
-                        txnWriter.get(),
-                        txnReader.get(),
-                        streamStore,
-                        txnHandler.get(),
-                        executor));
-            }
-            CompletableFuture.runAsync(txnRequestReader.get(), Executors.newSingleThreadExecutor());
             return null;
         }, executor, result);
     }

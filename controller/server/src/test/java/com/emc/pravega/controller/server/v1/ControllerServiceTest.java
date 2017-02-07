@@ -33,17 +33,6 @@ import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-
-import java.io.IOException;
-import java.util.AbstractMap.SimpleEntry;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -52,6 +41,15 @@ import org.apache.thrift.TException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.io.IOException;
+import java.util.AbstractMap.SimpleEntry;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 
@@ -84,7 +82,7 @@ public class ControllerServiceTest {
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, "host");
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, "host", (scope, stream, txid, timeoutPeriod) -> CompletableFuture.completedFuture(null));
+                hostStore, taskMetadataStore, executor, "host");
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 

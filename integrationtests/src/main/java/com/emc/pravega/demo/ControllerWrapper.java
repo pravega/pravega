@@ -20,7 +20,6 @@ package com.emc.pravega.demo;
 
 import com.emc.pravega.controller.embedded.EmbeddedControllerImpl;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
-import com.emc.pravega.controller.requesthandler.TxTimeoutStreamScheduler;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
@@ -77,16 +76,13 @@ public class ControllerWrapper extends EmbeddedControllerImpl {
         //2) start RPC server with v1 implementation. Enable other versions if required.
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, hostId);
-        TxTimeoutStreamScheduler txTimeOutScheduler = new TxTimeoutStreamScheduler();
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId, txTimeOutScheduler);
+                hostStore, taskMetadataStore, executor, hostId);
 
         ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
 
         ControllerWrapper controllerWrapper = new ControllerWrapper(controller);
         RequestHandlersInit.coldStart(controllerWrapper, Executors.newScheduledThreadPool(100));
-
-        txTimeOutScheduler.setController(controllerWrapper);
 
         return controllerWrapper;
     }

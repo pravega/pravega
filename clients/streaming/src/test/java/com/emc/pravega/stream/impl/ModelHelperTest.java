@@ -125,7 +125,7 @@ public class ModelHelperTest {
         ScalingPolicy policy = ModelHelper.encode(ModelHelper.decode(createScalingPolicy()));
         assertEquals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, policy.getType());
         assertEquals(100L, policy.getTargetRate());
-        assertEquals(2, policy.getMaxNumSegments());
+        assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
     }
 
@@ -157,7 +157,7 @@ public class ModelHelperTest {
         ScalingPolicy policy = config.getScalingPolicy();
         assertEquals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, policy.getType());
         assertEquals(100L, policy.getTargetRate());
-        assertEquals(2, policy.getMaxNumSegments());
+        assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
     }
 
