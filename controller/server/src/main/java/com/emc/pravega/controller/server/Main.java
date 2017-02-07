@@ -17,7 +17,8 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.ClientFactory;
+import com.emc.pravega.controller.embedded.EmbeddedController;
+import com.emc.pravega.controller.embedded.EmbeddedControllerImpl;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
@@ -39,12 +40,10 @@ import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
-import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetAddress;
-import java.net.URI;
 import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -107,8 +106,9 @@ public class Main {
 
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, hostId);
+        TxTimeoutStreamScheduler txTimeOutScheduler = new TxTimeoutStreamScheduler();
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId, new TxTimeoutStreamScheduler());
+                hostStore, taskMetadataStore, executor, hostId, txTimeOutScheduler);
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks);
 
@@ -130,8 +130,10 @@ public class Main {
         // 4. Start the REST server.
         log.info("Starting Pravega REST Service");
         RESTServer.start(controllerService);
-        ClientFactory clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, URI.create(String.format("tcp://localhost:%d", Config.SERVER_PORT)));
+        EmbeddedController controller = new EmbeddedControllerImpl(controllerService);
 
-        RequestHandlersInit.bootstrap(controllerService, requestExecutor, clientFactory);
+        txTimeOutScheduler.setController(controller);
+
+        RequestHandlersInit.coldStart(controller, requestExecutor);
     }
 }

@@ -46,7 +46,7 @@ public class ZKHostStore implements HostControllerStore {
     //The supplied curator framework instance.
     private final CuratorFramework zkClient;
 
-    //To bootstrap zookeeper on first use.
+    //To coldStart zookeeper on first use.
     private volatile boolean zkInit = false;
 
     private final SegmentToContainerMapper segmentMapper;

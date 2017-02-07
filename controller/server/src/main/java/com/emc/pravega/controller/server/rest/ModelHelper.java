@@ -89,7 +89,7 @@ public class ModelHelper {
                 new ScalingPolicyCommon(
                         ScalingPolicyCommon.Type.valueOf(streamConfiguration.getScalingPolicy().getType().name()),
                         streamConfiguration.getScalingPolicy().getTargetRate(),
-                        streamConfiguration.getScalingPolicy().getScaleFactor(),
+                        streamConfiguration.getScalingPolicy().getMaxNumSegments(),
                         streamConfiguration.getScalingPolicy().getMinNumSegments()
                 ),
                 new RetentionPolicyCommon(streamConfiguration.getRetentionPolicy().getRetentionTimeMillis())

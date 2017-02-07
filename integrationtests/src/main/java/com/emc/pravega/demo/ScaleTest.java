@@ -48,7 +48,7 @@ public class ScaleTest {
     @SuppressWarnings("checkstyle:ReturnCount")
     public static void main(String[] args) throws Exception {
         TestingServer zkTestServer = new TestingServer();
-        ControllerWrapper controller = new ControllerWrapper(zkTestServer.getConnectString());
+        ControllerWrapper controller = ControllerWrapper.getControllerWrapper(zkTestServer.getConnectString());
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();

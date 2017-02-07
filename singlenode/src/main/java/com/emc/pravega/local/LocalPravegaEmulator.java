@@ -22,7 +22,6 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
-import com.emc.pravega.controller.requesthandler.TxTimeoutStreamScheduler;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
@@ -59,6 +58,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -260,7 +260,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 controllerExecutor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, controllerExecutor, hostId, new TxTimeoutStreamScheduler());
+                hostStore, taskMetadataStore, controllerExecutor, hostId, (scope, stream, txid, timeoutPeriod) -> CompletableFuture.completedFuture(null));
         RPCServer.start(new ControllerServiceAsyncImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks)));
 

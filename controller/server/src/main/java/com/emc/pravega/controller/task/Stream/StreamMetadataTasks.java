@@ -255,23 +255,22 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         // we should stop retrying indefinitely and notify administrator.
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        CompletableFuture<Pair<Boolean, Boolean>> checkValidity =
-                streamMetadataStore.getActiveSegments(scope, stream, context)
-                        .thenCompose(activeSegments -> streamMetadataStore.isTransactionOngoing(scope, stream, context)
-                                .thenApply(active -> {
-                                    boolean result = false;
-                                    Set<Integer> activeNum = activeSegments.stream().mapToInt(Segment::getNumber).boxed().collect(Collectors.toSet());
-                                    if (activeNum.containsAll(sealedSegments)) {
-                                        result = true;
-                                    } else if (activeSegments.size() > 0 && activeSegments
-                                            .stream()
-                                            .mapToLong(Segment::getStart)
-                                            .max()
-                                            .getAsLong() == scaleTimestamp) {
-                                        result = true;
-                                    }
-                                    return new ImmutablePair<>(!active, result);
-                                }));
+        CompletableFuture<Pair<Boolean, Boolean>> checkValidity = streamMetadataStore.getActiveSegments(scope, stream, context)
+                .thenCompose(activeSegments -> streamMetadataStore.isTransactionOngoing(scope, stream, context)
+                        .thenApply(active -> {
+                            boolean result = false;
+                            Set<Integer> activeNum = activeSegments.stream().mapToInt(Segment::getNumber).boxed().collect(Collectors.toSet());
+                            if (activeNum.containsAll(sealedSegments)) {
+                                result = true;
+                            } else if (activeSegments.size() > 0 && activeSegments
+                                    .stream()
+                                    .mapToLong(Segment::getStart)
+                                    .max()
+                                    .getAsLong() == scaleTimestamp) {
+                                result = true;
+                            }
+                            return new ImmutablePair<>(!active, result);
+                        }));
 
         return checkValidity.thenCompose(result -> {
                     if (result.getLeft() && result.getRight()) {

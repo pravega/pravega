@@ -18,11 +18,9 @@
 
 package com.emc.pravega.demo;
 
-import com.emc.pravega.ClientFactory;
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.controller.embedded.EmbeddedControllerImpl;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
+import com.emc.pravega.controller.requesthandler.TxTimeoutStreamScheduler;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
@@ -32,62 +30,26 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
-import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.SegmentId;
-import com.emc.pravega.controller.stream.api.v1.SegmentRange;
-import com.emc.pravega.controller.stream.api.v1.TxnStatus;
-import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.emc.pravega.controller.task.Stream.TxTimeOutScheduler;
-import com.emc.pravega.controller.util.Config;
-import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxnFailedException;
-import com.emc.pravega.stream.impl.Controller;
-import com.emc.pravega.stream.impl.ModelHelper;
-import com.emc.pravega.stream.impl.PositionInternal;
-import com.emc.pravega.stream.impl.StreamSegments;
-import com.emc.pravega.stream.mock.MockClientFactory;
-import com.emc.pravega.stream.mock.MockStreamManager;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import lombok.Getter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
-import org.apache.thrift.TException;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.NavigableMap;
-import java.util.TreeMap;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.stream.Collectors;
 
-import static com.emc.pravega.controller.requesthandler.RequestHandlersInit.REQUEST_STREAM_CONFIG;
-import static com.emc.pravega.controller.requesthandler.RequestHandlersInit.TXN_TIMER_STREAM_CONFIG;
+public class ControllerWrapper extends EmbeddedControllerImpl {
 
-@Getter
-public class ControllerWrapper implements Controller {
-
-    private final ControllerService controller;
-    private final ClientFactory clientFactory;
-
-    public ControllerWrapper(String connectionString) {
-        this(connectionString, (scope, stream, txid, timeoutPeriod) -> CompletableFuture.completedFuture(null));
+    private ControllerWrapper(ControllerService controller) {
+        super(controller);
     }
 
-    public ControllerWrapper(String connectionString, TxTimeOutScheduler scheduler) {
+    public static ControllerWrapper getControllerWrapper(String connectionString) {
         String hostId;
         try {
             // On each controller process restart, it gets a fresh hostId,
@@ -115,128 +77,18 @@ public class ControllerWrapper implements Controller {
         //2) start RPC server with v1 implementation. Enable other versions if required.
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, hostId);
+        TxTimeoutStreamScheduler txTimeOutScheduler = new TxTimeoutStreamScheduler();
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId, scheduler);
+                hostStore, taskMetadataStore, executor, hostId, txTimeOutScheduler);
 
-        controller = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
 
-        MockStreamManager streamManager = new MockStreamManager("pravega", this);
+        ControllerWrapper controllerWrapper = new ControllerWrapper(controller);
+        RequestHandlersInit.coldStart(controllerWrapper, Executors.newScheduledThreadPool(100));
 
-        clientFactory = new MockClientFactory("pravega", this);
+        txTimeOutScheduler.setController(controllerWrapper);
 
-        RequestHandlersInit.bootstrap(controller, Executors.newSingleThreadScheduledExecutor(), clientFactory);
-
-        CompletableFuture.runAsync(() -> internalStreams(streamManager));
+        return controllerWrapper;
     }
-
-    private void internalStreams(MockStreamManager streamManager) {
-        while (true) {
-            try {
-                streamManager.createStream(Config.SCALE_STREAM_NAME, REQUEST_STREAM_CONFIG);
-                streamManager.createStream(Config.TXN_TIMER_STREAM_NAME, TXN_TIMER_STREAM_CONFIG);
-                break;
-            } catch (Exception e) {
-                Exceptions.handleInterrupted(() -> Thread.sleep(1000));
-            }
-        }
-    }
-
-    @Override
-    public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {
-        return controller.createStream(streamConfig, System.currentTimeMillis());
-    }
-
-    @Override
-    public CompletableFuture<UpdateStreamStatus> alterStream(StreamConfiguration streamConfig) {
-        return controller.alterStream(streamConfig);
-    }
-
-    @Override
-    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String streamName) {
-        return controller.sealStream(scope, streamName);
-    }
-
-    @Override
-    public CompletableFuture<ScaleResponse> scaleStream(final Stream stream,
-                                                        final List<Integer> sealedSegments,
-                                                        final Map<Double, Double> newKeyRanges) {
-        return controller.scale(stream.getScope(),
-                stream.getStreamName(),
-                sealedSegments,
-                newKeyRanges,
-                System.currentTimeMillis());
-    }
-
-    @Override
-    public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
-        return controller.getCurrentSegments(scope, stream)
-                .thenApply((List<SegmentRange> ranges) -> {
-                    NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
-                    for (SegmentRange r : ranges) {
-                        rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
-                    }
-                    return rangeMap;
-                })
-                .thenApply(StreamSegments::new);
-    }
-
-    @Override
-    public CompletableFuture<Void> commitTransaction(Stream stream, UUID txId) {
-        return FutureHelpers.toVoidExpecting(controller.commitTransaction(stream.getScope(),
-                stream.getStreamName(),
-                ModelHelper.decode(txId)),
-                TxnStatus.SUCCESS,
-                TxnFailedException::new);
-    }
-
-    @Override
-    public CompletableFuture<Void> abortTransaction(Stream stream, UUID txId) {
-        return FutureHelpers.toVoidExpecting(controller.abortTransaction(stream.getScope(),
-                stream.getStreamName(),
-                ModelHelper.decode(txId)),
-                TxnStatus.SUCCESS,
-                TxnFailedException::new);
-    }
-
-    @Override
-    public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txnId) {
-        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
-                .thenApply(status -> ModelHelper.encode(status, stream + " " + txnId));
-    }
-
-    @Override
-    public CompletableFuture<UUID> createTransaction(Stream stream, long timeout) {
-        return controller.createTransaction(stream.getScope(), stream.getStreamName())
-                .thenApply(ModelHelper::encode);
-    }
-
-    @Override
-    public CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count) {
-        return controller.getPositions(stream.getScope(), stream.getStreamName(), timestamp, count)
-                .thenApply(result -> result.stream().map(ModelHelper::encode).collect(Collectors.toList()));
-    }
-
-    @Override
-    public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(final Segment segment) {
-        return controller.getSegmentsImmediatlyFollowing(ModelHelper.decode(segment)).thenApply(successors -> {
-            Map<Segment, List<Integer>> result = new HashMap<>();
-            for (Entry<SegmentId, List<Integer>> successor : successors.entrySet()) {
-                result.put(ModelHelper.encode(successor.getKey()), successor.getValue());
-            }
-            return result;
-        });
-    }
-
-    @Override
-    public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
-        Segment segment = Segment.fromScopedName(qualifiedSegmentName);
-        try {
-            return controller.getURI(new SegmentId(segment.getScope(), segment.getStreamName(),
-                    segment.getSegmentNumber())).thenApply(ModelHelper::encode);
-        } catch (TException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
 }
 

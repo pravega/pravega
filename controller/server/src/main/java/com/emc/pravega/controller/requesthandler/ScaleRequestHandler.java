@@ -162,7 +162,8 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
         return streamMetadataStore.getSegment(request.getScope(), request.getStream(), request.getSegmentNumber(), context)
                 .thenCompose(segment -> {
                     if (!policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
-                        int numOfSplits = Integer.min(request.getNumOfSplits(), policy.getScaleFactor());
+                        // do go above scale factor. Minimum scale factor is 2 though.
+                        int numOfSplits = request.getNumOfSplits();
                         double delta = (segment.getKeyEnd() - segment.getKeyStart()) / numOfSplits;
 
                         final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();

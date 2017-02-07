@@ -26,11 +26,13 @@ import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
-import java.net.URI;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -49,6 +51,7 @@ import java.util.function.Supplier;
 public class TxTimeoutStreamScheduler implements TxTimeOutScheduler {
 
     private static AtomicReference<ClientFactory> clientFactory = new AtomicReference<>();
+    private final AtomicReference<Controller> controller = new AtomicReference<>();
     private EventStreamWriter<TxTimeoutRequest> writer;
 
     public TxTimeoutStreamScheduler() {
@@ -77,11 +80,17 @@ public class TxTimeoutStreamScheduler implements TxTimeOutScheduler {
                 }));
     }
 
+    public void setController(Controller controller) {
+        this.controller.set(controller);
+    }
+
     private void createWriter(ScheduledExecutorService executor, CompletableFuture<Void> promise) {
         retry(() -> {
+            Preconditions.checkNotNull(controller.get());
+
             if (clientFactory.get() == null) {
                 clientFactory.compareAndSet(null, new ClientFactoryImpl(Config.INTERNAL_SCOPE,
-                        URI.create(String.format("tcp://localhost:%d", Config.SERVER_PORT))));
+                        controller.get(), new ConnectionFactoryImpl(false)));
             }
 
             writer = clientFactory.get().createEventWriter(Config.TXN_TIMER_STREAM_NAME,

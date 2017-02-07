@@ -22,13 +22,8 @@ import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
-import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.Controller;
-import com.emc.pravega.stream.impl.ControllerImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -49,10 +44,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-import static com.emc.pravega.service.monitor.MonitorFactory.CONTROLLER_ADDR;
-import static com.emc.pravega.service.monitor.MonitorFactory.CONTROLLER_PORT;
-import static com.emc.pravega.service.monitor.MonitorFactory.SCOPE;
-
 /**
  * This looks at segment aggregates and determines if a scale operation has to be triggered.
  * If a scale has to be triggered, then it puts a new scale request into the request stream.
@@ -71,52 +62,43 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
 
     // TODO: read from config
     private static final String STREAM_NAME = "requeststream";
-    private static final StreamConfiguration REQUEST_STREAM_CONFIG = new StreamConfigurationImpl(SCOPE, STREAM_NAME,
-            new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS, 1000, 2, 1));
 
     private static final ScheduledExecutorService EXECUTOR = new ScheduledThreadPoolExecutor(100);
     private static final int MAX_CACHE_SIZE = 1000000;
     private static final int INITIAL_CAPACITY = 1000;
 
     private static AtomicReference<ThresholdMonitor> singletonMonitor = new AtomicReference<>();
-    private static AtomicReference<Controller> controllerRef = new AtomicReference<>();
+
+    private final AtomicReference<ClientFactory> clientFactory = new AtomicReference<>();
 
     @VisibleForTesting
-    final Cache<String, Pair<Long, Long>> cache;
+    final Cache<String, Pair<Long, Long>> cache = CacheBuilder.newBuilder()
+            .initialCapacity(INITIAL_CAPACITY)
+            .maximumSize(MAX_CACHE_SIZE)
+            .expireAfterAccess(20, TimeUnit.MINUTES)
+            .removalListener((RemovalListener<String, Pair<Long, Long>>) notification -> {
+                if (notification.getCause().equals(RemovalCause.EXPIRED)) {
+                    triggerScaleDown(notification.getKey());
+                }
+            })
+            .build();
 
     private final AtomicBoolean initialized = new AtomicBoolean(false);
 
     private EventStreamWriter<ScaleRequest> writer;
+    private EventWriterConfig config;
+    private JavaSerializer<ScaleRequest> serializer;
 
     private ThresholdMonitor(ClientFactory clientFactory) {
-        // Schedule bootstrapRequestStream
-        cache = CacheBuilder.newBuilder()
-                .initialCapacity(INITIAL_CAPACITY)
-                .maximumSize(MAX_CACHE_SIZE)
-                .expireAfterAccess(20, TimeUnit.MINUTES)
-                .removalListener((RemovalListener<String, Pair<Long, Long>>) notification -> {
-                    if (notification.getCause().equals(RemovalCause.EXPIRED)) {
-                        triggerScaleDown(notification.getKey());
-                    }
-                })
-                .build();
+        serializer = new JavaSerializer<>();
+        config = new EventWriterConfig(null);
 
-        CompletableFuture.runAsync(() -> bootstrapRequestStream(clientFactory), EXECUTOR);
+        this.clientFactory.set(clientFactory);
+        CompletableFuture.runAsync(() -> bootstrapRequestStream(), EXECUTOR);
     }
 
     @VisibleForTesting
     ThresholdMonitor(EventStreamWriter<ScaleRequest> writer) {
-        // Schedule bootstrapRequestStream
-        cache = CacheBuilder.newBuilder()
-                .initialCapacity(INITIAL_CAPACITY)
-                .maximumSize(MAX_CACHE_SIZE)
-                .expireAfterAccess(20, TimeUnit.MINUTES)
-                .removalListener((RemovalListener<String, Pair<Long, Long>>) notification -> {
-                    if (notification.getCause().equals(RemovalCause.EXPIRED)) {
-                        triggerScaleDown(notification.getKey());
-                    }
-                })
-                .build();
         this.writer = writer;
         this.initialized.set(true);
     }
@@ -129,24 +111,17 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
     }
 
     @Synchronized
-    private void bootstrapRequestStream(ClientFactory clientFactory) {
-        if (controllerRef.get() == null) {
-            controllerRef.compareAndSet(null, new ControllerImpl(CONTROLLER_ADDR, CONTROLLER_PORT));
-        }
+    private void bootstrapRequestStream() {
 
-        CompletableFuture<Void> createStream = new CompletableFuture<>();
         CompletableFuture<Void> createWriter = new CompletableFuture<>();
-        retryIndefinitely(() -> controllerRef.get().createStream(REQUEST_STREAM_CONFIG), createStream);
 
-        createStream.thenAccept(x -> {
-            retryIndefinitely(() -> {
-                this.writer = clientFactory.createEventWriter(STREAM_NAME,
-                        new JavaSerializer<>(),
-                        new EventWriterConfig(null));
-                initialized.set(true);
-                return null;
-            }, createWriter);
-        });
+        retryIndefinitely(() -> {
+            this.writer = clientFactory.get().createEventWriter(STREAM_NAME,
+                    serializer,
+                    config);
+            initialized.set(true);
+            return null;
+        }, createWriter);
     }
 
     private void triggerScaleUp(String streamSegmentName, int numOfSplits) {
@@ -254,8 +229,8 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
     }
 
     @VisibleForTesting
-    public static void setControllerRef(Controller controller) {
-        controllerRef.set(controller);
+    public void setClientFactory(ClientFactory clientFactory) {
+        this.clientFactory.set(clientFactory);
     }
 }
 

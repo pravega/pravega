@@ -17,76 +17,73 @@
  */
 package com.emc.pravega.demo;
 
+import com.emc.pravega.ClientFactory;
+import com.emc.pravega.StreamManager;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.mock.MockClientFactory;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import com.emc.pravega.stream.impl.StreamManagerImpl;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 
-import java.util.concurrent.CompletableFuture;
-
 public class EndToEndTransactionTest {
+
+    static StreamConfigurationImpl config = new StreamConfigurationImpl(StartLocalService.SCOPE, StartLocalService.STREAM_NAME,
+            new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 1, 1, 3));
+
     public static void main(String[] args) throws Exception {
-        @Cleanup
-        TestingServer zkTestServer = new TestingServer();
-        ControllerWrapper controller = new ControllerWrapper(zkTestServer.getConnectString());
+        try {
+            @Cleanup
+            TestingServer zkTestServer = new TestingServer();
+            ControllerWrapper controller = ControllerWrapper.getControllerWrapper(zkTestServer.getConnectString());
 
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize().get();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.PORT, store);
-        server.startListening();
+            ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+            serviceBuilder.initialize().get();
+            StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+            @Cleanup
+            PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
+            server.startListening();
 
-        MockClientFactory clientFactory = new MockClientFactory(StartLocalService.SCOPE, controller);
+            ClientFactory clientFactory = new ClientFactoryImpl(StartLocalService.SCOPE, controller, new ConnectionFactoryImpl(false));
 
-        @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME, new JavaSerializer<>(), new EventWriterConfig(null));
-        Transaction<String> transaction = producer.beginTxn(60000);
+            StreamManager streamManager = new StreamManagerImpl(StartLocalService.SCOPE, controller, clientFactory);
+            streamManager.createStream(StartLocalService.STREAM_NAME, config);
 
-        for (int i = 0; i < 1; i++) {
-            String event = "\n Transactional Publish \n";
-            System.err.println("Producing event: " + event);
-            transaction.writeEvent("", event);
-            transaction.flush();
-            Thread.sleep(500);
-        }
+            @Cleanup
+            EventStreamWriter<String> producer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME, new JavaSerializer<>(), new EventWriterConfig(null));
+            Transaction<String> transaction = producer.beginTxn(60000);
 
-        Transaction<String> transaction2 = producer.beginTxn(60000);
-        for (int i = 0; i < 1; i++) {
-            String event = "\n Transactional Publish \n";
-            System.err.println("Producing event: " + event);
-            transaction2.writeEvent("", event);
-            transaction2.flush();
-            Thread.sleep(500);
-        }
-
-        CompletableFuture<Object> commit = CompletableFuture.supplyAsync(() -> {
-            try {
-                transaction.commit();
-            } catch (Exception e) {
-                e.printStackTrace();
+            for (int i = 0; i < 1; i++) {
+                String event = "\n Transactional Publish \n";
+                System.err.println("Producing event: " + event);
+                transaction.writeEvent("", event);
+                transaction.flush();
+                Thread.sleep(500);
             }
-            return null;
-        });
 
-        CompletableFuture<Object> drop = CompletableFuture.supplyAsync(() -> {
-            try {
-                transaction2.abort();
-            } catch (Exception e) {
-                e.printStackTrace();
+            Transaction<String> transaction2 = producer.beginTxn(60000);
+            for (int i = 0; i < 1; i++) {
+                String event = "\n Transactional Publish \n";
+                System.err.println("Producing event: " + event);
+                transaction2.writeEvent("", event);
+                transaction2.flush();
+                Thread.sleep(500);
             }
-            return null;
-        });
 
-        CompletableFuture.allOf(commit, drop).get();
-
+            transaction.commit();
+            transaction2.abort();
+        } catch (Exception e) {
+            System.exit(-1);
+        }
         System.exit(0);
     }
 }

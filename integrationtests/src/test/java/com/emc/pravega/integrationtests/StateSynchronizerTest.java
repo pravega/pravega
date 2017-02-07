@@ -109,9 +109,9 @@ public class StateSynchronizerTest {
         val a = streamManager.getClientFactory().createStateSynchronizer(stateName, serializer, serializer, new SynchronizerConfig(null, null));
         val b = streamManager.getClientFactory().createStateSynchronizer(stateName, serializer, serializer, new SynchronizerConfig(null, null));
 
-        a.initialize(new TestUpdate("bootstrap"));
+        a.initialize(new TestUpdate("coldStart"));
         b.fetchUpdates();
-        assertEquals("bootstrap", b.getState().value);
+        assertEquals("coldStart", b.getState().value);
         assertEquals(1, update(a, "already up to date 1"));
         assertEquals(2, update(b, "fail Initially 2"));
         assertEquals("already up to date 1", a.getState().value);

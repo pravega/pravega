@@ -15,12 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.task.Stream;
+package com.emc.pravega.controller.embedded;
 
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
+import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.stream.impl.Controller;
 
-@FunctionalInterface
-public interface TxTimeOutScheduler {
-    CompletableFuture<Void> scheduleTimeOut(String scope, String stream, UUID txid, long timeoutPeriod);
+public interface EmbeddedController extends Controller {
+    ControllerService getController();
 }

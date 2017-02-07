@@ -18,10 +18,12 @@
 package com.emc.pravega.controller.requesthandler;
 
 import com.emc.pravega.ClientFactory;
+import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.embedded.EmbeddedController;
+import com.emc.pravega.controller.embedded.EmbeddedControllerImpl;
 import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.controller.requests.TxTimeoutRequest;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
@@ -32,16 +34,19 @@ import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import com.emc.pravega.stream.impl.StreamManagerImpl;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -70,22 +75,29 @@ public class RequestHandlersInit {
     private static AtomicReference<EventStreamReader<ScaleRequest>> scaleReader = new AtomicReference<>();
     private static AtomicReference<EventStreamWriter<ScaleRequest>> scaleWriter = new AtomicReference<>();
     private static AtomicReference<RequestReader<ScaleRequest, ScaleRequestHandler>> scaleRequestReader = new AtomicReference<>();
+    private static StreamManager streamManager;
+    private static ClientFactory clientFactory;
 
-    public static void bootstrap(ControllerService controllerService, ScheduledExecutorService executor, ClientFactory clientFactory) {
+    public static void coldStart(EmbeddedController controller, ScheduledExecutorService executor) {
+
+        clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, controller, new ConnectionFactoryImpl(false));
+
+        streamManager = new StreamManagerImpl(Config.INTERNAL_SCOPE, controller, clientFactory);
+
+        EmbeddedControllerImpl embeddedControllerImpl = (EmbeddedControllerImpl) controller;
 
         CompletableFuture<Void> createStream = new CompletableFuture<>();
         CompletableFuture<Void> createTxnReader = new CompletableFuture<>();
         CompletableFuture<Void> createScaleReader = new CompletableFuture<>();
 
-        CompletableFuture.runAsync(() -> createStreams(controllerService, executor, createStream));
+        CompletableFuture.runAsync(() -> createStreams(embeddedControllerImpl, executor, createStream));
 
-        createStream.thenAccept(x -> startTxnReader(clientFactory,
-                controllerService.getStreamStore(), controllerService.getStreamTransactionMetadataTasks(),
-                executor, createTxnReader));
+        createStream.thenAccept(x -> startTxnReader(clientFactory, controller.getController().getStreamStore(),
+                controller.getController().getStreamTransactionMetadataTasks(), executor, createTxnReader));
 
-        createTxnReader.thenAccept(x -> startScaleReader(clientFactory,
-                controllerService.getStreamMetadataTasks(), controllerService.getStreamStore(),
-                controllerService.getStreamTransactionMetadataTasks(), executor, createScaleReader));
+        createTxnReader.thenAccept(x -> startScaleReader(clientFactory, controller.getController().getStreamMetadataTasks(),
+                controller.getController().getStreamStore(), controller.getController().getStreamTransactionMetadataTasks(),
+                executor, createScaleReader));
     }
 
     private static void retryIndefinitely(Supplier<Void> supplier, ScheduledExecutorService executor, CompletableFuture<Void> result) {
@@ -98,13 +110,13 @@ public class RequestHandlersInit {
         }
     }
 
-    private static void createStreams(ControllerService controllerService, ScheduledExecutorService executor, CompletableFuture<Void> result) {
+    private static void createStreams(EmbeddedControllerImpl controller, ScheduledExecutorService executor, CompletableFuture<Void> result) {
         retryIndefinitely(() -> {
 
             CompletableFuture<CreateStreamStatus> requestStreamFuture = streamCreationCompletionCallback(
-                    controllerService.createStream(REQUEST_STREAM_CONFIG, System.currentTimeMillis()));
+                    controller.getController().createStream(REQUEST_STREAM_CONFIG, System.currentTimeMillis()));
             CompletableFuture<CreateStreamStatus> txnStreamFuture = streamCreationCompletionCallback(
-                    controllerService.createStream(TXN_TIMER_STREAM_CONFIG, System.currentTimeMillis()));
+                    controller.getController().createStream(TXN_TIMER_STREAM_CONFIG, System.currentTimeMillis()));
 
             FutureHelpers.getAndHandleExceptions(CompletableFuture.allOf(
                     requestStreamFuture,
@@ -116,22 +128,19 @@ public class RequestHandlersInit {
 
     private static void startTxnReader(ClientFactory clientFactory, StreamMetadataStore streamStore, StreamTransactionMetadataTasks streamTransactionMetadataTasks, ScheduledExecutorService executor, CompletableFuture<Void> result) {
         retryIndefinitely(() -> {
+            ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+
+            streamManager.createReaderGroup(Config.TXN_READER_GROUP, groupConfig, Lists.newArrayList(Config.TXN_TIMER_STREAM_NAME));
+
             if (txnHandler.get() == null) {
                 txnHandler.compareAndSet(null, new TransactionTimer(streamTransactionMetadataTasks));
             }
-
-            // PositionImpl position = new PositionImpl(Collections.singletonMap(new Segment(Config.INTERNAL_SCOPE, Config.TXN_TIMER_STREAM_NAME, 0), 0L));
 
             if (txnReader.get() == null) {
                 txnReader.compareAndSet(null, clientFactory.createReader(Config.TXN_READER_ID,
                         Config.TXN_READER_GROUP,
                         new JavaSerializer<>(),
                         new ReaderConfig()));
-                // txnReader.compareAndSet(null, clientFactory.createReader(Config.TXN_TIMER_STREAM_NAME,
-                //         new JavaSerializer<>(),
-                //         new ReaderConfig(),
-                //         position
-                // ));
             }
 
             if (txnWriter.get() == null) {
@@ -157,21 +166,20 @@ public class RequestHandlersInit {
 
     private static void startScaleReader(ClientFactory clientFactory, StreamMetadataTasks streamMetadataTasks, StreamMetadataStore streamStore, StreamTransactionMetadataTasks streamTransactionMetadataTasks, ScheduledExecutorService executor, CompletableFuture<Void> result) {
         retryIndefinitely(() -> {
+            // TODO: what should be starting position? to be read from checkpoint?
+            ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+
+            streamManager.createReaderGroup(Config.SCALE_READER_GROUP, groupConfig, Lists.newArrayList(Config.SCALE_STREAM_NAME));
+
             if (scaleHandler.get() == null) {
                 scaleHandler.compareAndSet(null, new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks));
             }
-
-            PositionImpl position = new PositionImpl(Collections.singletonMap(new Segment(Config.INTERNAL_SCOPE, Config.SCALE_STREAM_NAME, 0), 0L));
 
             if (scaleReader.get() == null) {
                 scaleReader.compareAndSet(null, clientFactory.createReader(Config.SCALE_READER_ID,
                         Config.SCALE_READER_GROUP,
                         new JavaSerializer<>(),
                         new ReaderConfig()));
-                // scaleReader.compareAndSet(null, clientFactory.createReader(Config.SCALE_STREAM_NAME,
-                //         new JavaSerializer<>(),
-                //         new ReaderConfig(),
-                //         position));
             }
 
             if (scaleWriter.get() == null) {
@@ -207,5 +215,4 @@ public class RequestHandlersInit {
             }
         });
     }
-
 }

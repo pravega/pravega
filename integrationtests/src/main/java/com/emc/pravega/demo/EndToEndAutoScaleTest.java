@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.demo;
 
+import com.emc.pravega.ClientFactory;
 import com.emc.pravega.controller.requesthandler.TxTimeoutStreamScheduler;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.monitor.MonitorFactory;
@@ -27,9 +28,11 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamSegments;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -47,10 +50,15 @@ public class EndToEndAutoScaleTest {
         @Cleanup
         TestingServer zkTestServer = new TestingServer();
 
-        ControllerWrapper controller = new ControllerWrapper(zkTestServer.getConnectString(), new TxTimeoutStreamScheduler());
-        ThresholdMonitor.setControllerRef(controller);
-        TxTimeoutStreamScheduler.setClientFactory(controller.getClientFactory());
-        MonitorFactory.setClientFactory(controller.getClientFactory());
+        ControllerWrapper controller = ControllerWrapper.getControllerWrapper(zkTestServer.getConnectString());
+        ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
+        ThresholdMonitor monitor = (ThresholdMonitor) MonitorFactory.createMonitor(MonitorFactory.MonitorType.ThresholdMonitor);
+        if (monitor != null) {
+            monitor.setClientFactory(internalCF);
+        }
+
+        TxTimeoutStreamScheduler.setClientFactory(internalCF);
+        MonitorFactory.setClientFactory(internalCF);
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
@@ -60,7 +68,6 @@ public class EndToEndAutoScaleTest {
         server.startListening();
 
         try {
-            Thread.sleep(1000000);
             controller.createStream(config).get();
             MockClientFactory clientFactory = new MockClientFactory("test", controller);
 
@@ -82,9 +89,13 @@ public class EndToEndAutoScaleTest {
                     log.error("test exception writing events {}", e.getMessage());
                 }
 
-                if (System.currentTimeMillis() - start > Duration.ofMinutes(10).toMillis()) {
+                if (System.currentTimeMillis() - start > Duration.ofMinutes(3).toMillis()) {
                     StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
-                    assert streamSegments.getSegments().size() > 3;
+                    if (streamSegments.getSegments().size() > 3) {
+                        System.err.println("Success");
+                    } else {
+                        System.out.println("Failure");
+                    }
                     break;
                 }
                 // check if scale has happened
