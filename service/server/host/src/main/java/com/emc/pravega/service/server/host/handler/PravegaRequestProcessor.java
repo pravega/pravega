@@ -321,9 +321,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void commitTransaction(CommitTransaction commitTx) {
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
         segmentStore.sealStreamSegment(transactionName, TIMEOUT).thenApply((Long length) -> {
-            CompletableFuture<Long> mergeFuture = segmentStore.mergeTransaction(transactionName, TIMEOUT);
-
-            mergeFuture.thenApply((Long offset) -> {
+            segmentStore.mergeTransaction(transactionName, TIMEOUT).thenApply((Long offset) -> {
                 connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));
                 return null;
             }).exceptionally((Throwable e) -> {

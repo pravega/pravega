@@ -65,7 +65,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
     static AtomicLong pendBytes = new AtomicLong();
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
-
     static {
         STATS_LOGGER.registerGauge(PENDING_APPEND_BYTES, pendBytes::get);
     }
@@ -147,7 +146,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 ByteBuf[] toAppend = new ByteBuf[appends.size()];
                 Append last = null;
                 int i = -1;
-                for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext(); ) {
+                for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext();) {
                     Append a = iterator.next();
                     if (a.isConditional()) {
                         break;
@@ -180,7 +179,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else {
             future = store.append(segment, bytes, context, TIMEOUT);
         }
-
         future.handle(new BiFunction<Void, Throwable, Void>() {
             @Override
             public Void apply(Void t, Throwable u) {
@@ -206,7 +204,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             handleException(segment, u);
                         }
                     } else {
-                        connection.send(new DataAppended(context.getClientId(), context.getEventNumber()));
+                        connection.send(new DataAppended(context.getClientId(),  context.getEventNumber()));
                     }
                     pauseOrResumeReading();
                     performNextWrite();

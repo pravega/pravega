@@ -55,14 +55,8 @@ import java.util.function.Supplier;
 
 @Slf4j
 public class RequestHandlersInit {
-    @VisibleForTesting
-    public static final StreamConfiguration REQUEST_STREAM_CONFIG = new StreamConfigurationImpl(Config.INTERNAL_SCOPE,
+    private static final StreamConfiguration REQUEST_STREAM_CONFIG = new StreamConfigurationImpl(Config.INTERNAL_SCOPE,
             Config.SCALE_STREAM_NAME,
-            new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS, 1000, 2, 1));
-
-    @VisibleForTesting
-    public static final StreamConfiguration TXN_TIMER_STREAM_CONFIG = new StreamConfigurationImpl(Config.INTERNAL_SCOPE,
-            Config.TXN_TIMER_STREAM_NAME,
             new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS, 1000, 2, 1));
 
     private static AtomicReference<ScaleRequestHandler> scaleHandler = new AtomicReference<>();
@@ -105,13 +99,8 @@ public class RequestHandlersInit {
 
             CompletableFuture<CreateStreamStatus> requestStreamFuture = streamCreationCompletionCallback(
                     controller.getController().createStream(REQUEST_STREAM_CONFIG, System.currentTimeMillis()));
-            CompletableFuture<CreateStreamStatus> txnStreamFuture = streamCreationCompletionCallback(
-                    controller.getController().createStream(TXN_TIMER_STREAM_CONFIG, System.currentTimeMillis()));
 
-            FutureHelpers.getAndHandleExceptions(CompletableFuture.allOf(
-                    requestStreamFuture,
-                    txnStreamFuture),
-                    RuntimeException::new);
+            FutureHelpers.getAndHandleExceptions(requestStreamFuture, RuntimeException::new);
             return null;
         }, executor, result);
     }

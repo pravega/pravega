@@ -28,7 +28,6 @@ import java.util.concurrent.CompletableFuture;
 /**
  * In-memory stream store.
  */
-@Deprecated
 public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     private final Map<String, InMemoryStream> streams = new HashMap<>();

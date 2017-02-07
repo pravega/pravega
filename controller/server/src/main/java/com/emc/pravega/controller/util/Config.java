@@ -87,15 +87,10 @@ public final class Config {
 
     // Request Stream Configuration
     public static final String SCALE_STREAM_NAME = CONFIG.getString("config.controller.server.internal.scale.streamName");
-    public static final String TXN_TIMER_STREAM_NAME = CONFIG.getString("config.controller.server.internal.txn.streamName");
 
     // Request Stream readerGroup
     public static final String SCALE_READER_GROUP = CONFIG.getString("config.controller.server.internal.scale.readerGroup.name");
     public static final String SCALE_READER_ID = CONFIG.getString("config.controller.server.internal.scale.readerGroup.readerId");
-
-    // Txn reader group
-    public static final String TXN_READER_GROUP = CONFIG.getString("config.controller.server.internal.txn.readerGroup.name");
-    public static final String TXN_READER_ID = CONFIG.getString("config.controller.server.internal.txn.readerGroup.readerId");
 
     public static void setZKURL(String replaceZKURL) {
         zKURL = replaceZKURL;
