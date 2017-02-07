@@ -19,7 +19,6 @@
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.ObjectClosedException;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;

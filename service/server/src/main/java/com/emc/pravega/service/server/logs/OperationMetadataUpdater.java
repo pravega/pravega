@@ -21,7 +21,6 @@ package com.emc.pravega.service.server.logs;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.io.EnhancedByteArrayOutputStream;
 import com.emc.pravega.common.util.CollectionHelpers;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.BadEventNumberException;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentException;
@@ -44,18 +43,12 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
+import java.util.*;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
@@ -759,7 +752,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
         private final UpdateableSegmentMetadata baseMetadata;
         private final boolean isRecoveryMode;
-        private final AbstractMap<UUID, AppendContext> lastCommittedAppends;
+        private final Map<UUID, Long> updatedAttributeValues;
         private long currentDurableLogLength;
         private boolean sealed;
         private boolean merged;
@@ -784,7 +777,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             this.sealed = this.baseMetadata.isSealed();
             this.merged = this.baseMetadata.isMerged();
             this.deleted = this.baseMetadata.isDeleted();
-            this.lastCommittedAppends = new HashMap<>();
+            this.updatedAttributeValues = new HashMap<>();
         }
 
         //endregion
@@ -856,14 +849,17 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         @Override
-        public AppendContext getLastAppendContext(UUID clientId) {
-            AppendContext result = this.lastCommittedAppends.getOrDefault(clientId, null);
-            return result != null ? result : this.baseMetadata.getLastAppendContext(clientId);
+        public long getAttributeValue(UUID attributeId, long defaultValue) {
+            if (this.updatedAttributeValues.containsKey(attributeId)) {
+                return this.updatedAttributeValues.get(attributeId);
+            } else {
+                return this.baseMetadata.getAttributeValue(attributeId, defaultValue);
+            }
         }
 
         @Override
-        public Collection<UUID> getKnownClientIds() {
-            return this.lastCommittedAppends.keySet();
+        public Map<UUID, Long> getAttributes() {
+            return Collections.unmodifiableMap(this.updatedAttributeValues);
         }
 
         //endregion
@@ -1096,7 +1092,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             // Apply to base metadata.
-            this.lastCommittedAppends.values().forEach(this.baseMetadata::recordAppendContext);
+            this.baseMetadata.setAttributes(this.updatedAttributeValues);
             this.baseMetadata.setDurableLogLength(this.currentDurableLogLength);
             if (this.isSealed()) {
                 this.baseMetadata.markSealed();

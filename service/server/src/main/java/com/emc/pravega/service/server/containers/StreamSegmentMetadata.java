@@ -19,18 +19,12 @@
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.google.common.base.Preconditions;
+import java.util.*;
 import lombok.extern.slf4j.Slf4j;
-
-import java.util.AbstractMap;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.UUID;
 
 /**
  * Metadata for a particular Stream Segment.
@@ -44,7 +38,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private final long streamSegmentId;
     private final long parentStreamSegmentId;
     private final int containerId;
-    private final AbstractMap<UUID, AppendContext> lastCommittedAppends;
+    private final Map<UUID, Long> attributes;
     private long storageLength;
     private long durableLogLength;
     private boolean sealed;
@@ -94,7 +88,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.merged = false;
         this.storageLength = -1;
         this.durableLogLength = -1;
-        this.lastCommittedAppends = new HashMap<>();
+        this.attributes = new HashMap<>();
         this.lastModified = new Date(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
     }
 
@@ -167,13 +161,13 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public AppendContext getLastAppendContext(UUID clientId) {
-        return this.lastCommittedAppends.getOrDefault(clientId, null);
+    public Map<UUID, Long> getAttributes() {
+        return Collections.unmodifiableMap(this.attributes);
     }
 
     @Override
-    public Collection<UUID> getKnownClientIds() {
-        return this.lastCommittedAppends.keySet();
+    public long getAttributeValue(UUID attributeId, long defaultValue) {
+        return this.attributes.getOrDefault(attributeId, defaultValue);
     }
 
     @Override
@@ -245,8 +239,10 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void recordAppendContext(AppendContext appendContext) {
-        this.lastCommittedAppends.put(appendContext.getClientId(), appendContext);
+    public void setAttributes(Map<UUID, Long> attributes) {
+        for (Map.Entry<UUID, Long> av : attributes.entrySet()) {
+            this.attributes.put(av.getKey(), av.getValue());
+        }
     }
 
     @Override
@@ -259,9 +255,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         setStorageLength(base.getStorageLength());
         setDurableLogLength(base.getDurableLogLength());
         setLastModified(base.getLastModified());
-        for (UUID clientId : base.getKnownClientIds()) {
-            recordAppendContext(base.getLastAppendContext(clientId));
-        }
+        setAttributes(base.getAttributes());
 
         if (base.isSealed()) {
             markSealed();

@@ -20,7 +20,6 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.PropertyBag;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;

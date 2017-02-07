@@ -31,7 +31,6 @@ import com.emc.pravega.common.netty.WireCommands.SegmentDeleted;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;

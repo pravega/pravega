@@ -41,7 +41,6 @@ import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 

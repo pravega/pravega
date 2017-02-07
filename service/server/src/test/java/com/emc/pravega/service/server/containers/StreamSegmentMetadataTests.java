@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.containers;
 
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.testcommon.AssertExtensions;
 

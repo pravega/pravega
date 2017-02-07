@@ -19,7 +19,6 @@
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.common.io.StreamHelpers;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
 

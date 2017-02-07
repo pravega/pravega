@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.BadEventNumberException;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;

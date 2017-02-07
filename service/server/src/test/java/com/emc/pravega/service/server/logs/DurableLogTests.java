@@ -22,7 +22,6 @@ import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.PropertyBag;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;

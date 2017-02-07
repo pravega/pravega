@@ -21,7 +21,6 @@ package com.emc.pravega.service.selftest;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;

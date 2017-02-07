@@ -20,7 +20,6 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.util.SequencedItemList;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.server.ContainerMetadata;

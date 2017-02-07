@@ -19,6 +19,7 @@
 package com.emc.pravega.service.contracts;
 
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * General properties about a StreamSegment.
@@ -48,5 +49,14 @@ public interface SegmentProperties {
      * Gets a value indicating the full, readable length of the StreamSegment.
      */
     long getLength();
+
+    /**
+     * Gets the value for the given attribute.
+     *
+     * @param attributeId  The Id of the attribute to get the value for.
+     * @param defaultValue Default value.
+     * @return The value of the attribute, or defaultValue if this attribute is not defined.
+     */
+    long getAttributeValue(UUID attributeId, long defaultValue);
 }
 

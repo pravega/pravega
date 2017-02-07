@@ -22,11 +22,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.service.contracts.AppendContext;
-import com.emc.pravega.service.contracts.ReadResult;
-import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.contracts.StreamSegmentInformation;
-import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.contracts.*;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLog;
@@ -50,6 +46,7 @@ import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
+import java.util.Collection;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -192,15 +189,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //region StreamSegmentStore Implementation
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeValue> attributes, Duration timeout) {
         ensureRunning();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        logRequest("append", streamSegmentName, data.length, appendContext);
+        logRequest("append", streamSegmentName, data.length);
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamSegmentId -> {
-                    StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, appendContext);
+                    StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, attributes);
                     CompletableFuture<Long> result = this.durableLog.add(operation, timer.getRemaining());
 
                     // Add to Append Context Registry, if needed.
@@ -210,15 +207,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeValue> attributes, Duration timeout) {
         ensureRunning();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        logRequest("appendWithOffset", streamSegmentName, data.length, appendContext);
+        logRequest("appendWithOffset", streamSegmentName, data.length);
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamSegmentId -> {
-                    StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, appendContext);
+                    StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, attributes);
                     CompletableFuture<Long> result = this.durableLog.add(operation, timer.getRemaining());
 
                     // Add to Append Context Registry, if needed.
@@ -248,6 +245,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenApply(streamSegmentId -> {
                     SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+                    // TODO: fill in attributes
                     return new StreamSegmentInformation(streamSegmentName,
                             sm.getDurableLogLength(),
                             sm.isSealed(),
@@ -257,21 +255,19 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeValue> attributes, Duration timeout) {
         ensureRunning();
 
         logRequest("createStreamSegment", streamSegmentName);
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper.createNewStreamSegment(streamSegmentName, timer.getRemaining());
+        return this.segmentMapper.createNewStreamSegment(streamSegmentName, attributes, timeout);
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStreamName, UUID transactionId, Duration timeout) {
+    public CompletableFuture<String> createTransaction(String parentSegmentName, UUID transactionId, Collection<AttributeValue> attributes,  Duration timeout) {
         ensureRunning();
 
-        logRequest("createTransaction", parentStreamName);
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper.createNewTransactionStreamSegment(parentStreamName, transactionId, timer.getRemaining());
+        logRequest("createTransaction", parentSegmentName);
+        return this.segmentMapper.createNewTransactionStreamSegment(parentSegmentName, transactionId, attributes, timeout);
     }
 
     @Override
@@ -331,28 +327,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     return this.durableLog.add(operation.get(), timer.getRemaining());
                 })
                 .thenApply(seqNo -> operation.get().getStreamSegmentOffset());
-    }
-
-    @Override
-    public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId, Duration timeout) {
-        ensureRunning();
-
-        logRequest("getLastAppendContext", streamSegmentName, clientId);
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenCompose(streamSegmentId -> {
-                    CompletableFuture<AppendContext> result = this.pendingAppendsCollection.get(streamSegmentId, clientId);
-                    if (result == null) {
-                        // No appends pending for this StreamSegment/ClientId combination; check metadata.
-                        SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-                        if (segmentMetadata != null) {
-                            result = CompletableFuture.completedFuture(segmentMetadata.getLastAppendContext(clientId));
-                        }
-                    }
-
-                    return result;
-                });
     }
 
     //endregion

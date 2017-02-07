@@ -19,7 +19,6 @@
 package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ContainerNotFoundException;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;

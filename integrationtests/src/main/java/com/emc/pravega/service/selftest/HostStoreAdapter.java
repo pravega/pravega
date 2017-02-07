@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.selftest;
 
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;

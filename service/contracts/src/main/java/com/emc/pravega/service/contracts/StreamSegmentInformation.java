@@ -20,19 +20,28 @@ package com.emc.pravega.service.contracts;
 
 import java.util.Date;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 import lombok.Data;
+import lombok.Getter;
 
 /**
  * General Stream Segment Information.
  */
-@Data
 public class StreamSegmentInformation implements SegmentProperties {
 
+    @Getter
     private final String name;
+    @Getter
     private final long length;
+    @Getter
     private final boolean sealed;
+    @Getter
     private final boolean deleted;
+    @Getter
     private final Date lastModified;
+    private final Map<UUID, Long> attributes;
 
     /**
      * Creates a new instance of the StreamSegmentInformation class.
@@ -49,11 +58,16 @@ public class StreamSegmentInformation implements SegmentProperties {
         this.sealed = isSealed;
         this.deleted = isDeleted;
         this.lastModified = lastModified;
+        this.attributes = new HashMap<>(); //TODO: populate.
+    }
+
+    @Override
+    public long getAttributeValue(UUID attributeId, long defaultValue) {
+        return this.attributes.getOrDefault(attributeId, defaultValue);
     }
 
     @Override
     public String toString() {
         return String.format("Name = %s, Length = %d, Sealed = %s, Deleted = %s, LastModified = %s", getName(), getLength(), isSealed(), isDeleted(), getLastModified());
     }
-
 }

@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.testcommon.AssertExtensions;
 import java.util.UUID;
 import org.junit.Assert;

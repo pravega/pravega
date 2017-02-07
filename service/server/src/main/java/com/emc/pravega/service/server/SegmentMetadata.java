@@ -18,10 +18,8 @@
 
 package com.emc.pravega.service.server;
 
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.SegmentProperties;
-
-import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -65,16 +63,9 @@ public interface SegmentMetadata extends SegmentProperties {
     long getDurableLogLength();
 
     /**
-     * Gets the Append Context for the Last Committed Append related to the given client.
-     * Note that this may not be available for appends that occurred long in the past (this data is not persisted with
-     * the metadata).
+     * Gets a Map of AttributeId-Values for this Segment.
      *
-     * @param clientId The Client Id to inquire for.
+     * @return The map.
      */
-    AppendContext getLastAppendContext(UUID clientId);
-
-    /**
-     * Gets a collection of all known Client Ids (mapped to AppendContexts).
-     */
-    Collection<UUID> getKnownClientIds();
+    Map<UUID, Long> getAttributes();
 }
