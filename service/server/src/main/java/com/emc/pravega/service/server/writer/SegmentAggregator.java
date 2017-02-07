@@ -56,6 +56,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -1289,6 +1290,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     /**
      * Thin wrapper for a simple Queue[StorageOperation] that provides thread synchronization.
      */
+    @ThreadSafe
     private static class OperationQueue {
         @GuardedBy("this")
         private final ArrayDeque<StorageOperation> queue = new ArrayDeque<>();

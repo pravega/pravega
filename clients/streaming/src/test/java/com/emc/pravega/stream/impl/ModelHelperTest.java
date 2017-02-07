@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.controller.stream.api.v1.FutureSegment;
 import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
@@ -37,10 +36,6 @@ public class ModelHelperTest {
 
     private static Segment createSegmentId(String streamName, int number) {
         return new Segment("scope", streamName, number);
-    }
-
-    private static com.emc.pravega.stream.impl.FutureSegment createFutureSegmentId(String streamName, int number, int previous) {
-        return new com.emc.pravega.stream.impl.FutureSegment("scope", streamName, number, previous);
     }
 
     private static ScalingPolicy createScalingPolicy() {
@@ -75,11 +70,7 @@ public class ModelHelperTest {
     private static PositionInternal createPosition() {
         Map<Segment, Long> ownedLogs = new HashMap<>();
         ownedLogs.put(createSegmentId("stream", 1), 1L);
-
-        Map<com.emc.pravega.stream.impl.FutureSegment, Long> futureOwnedLogs = new HashMap<>();
-        futureOwnedLogs.put(createFutureSegmentId("stream", 2, 1), 2L);
-
-        return new PositionImpl(ownedLogs, futureOwnedLogs);
+        return new PositionImpl(ownedLogs);
     }
 
     @Test(expected = NullPointerException.class)
@@ -99,24 +90,15 @@ public class ModelHelperTest {
 
     @Test(expected = NullPointerException.class)
     public void encodeSegmentIdNullInput() {
-        ModelHelper.encode((com.emc.pravega.controller.stream.api.v1.SegmentId) null, 0);
+        ModelHelper.encode((com.emc.pravega.controller.stream.api.v1.SegmentId) null);
     }
 
     @Test
     public void encodeSegmentId() {
-        Segment segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("stream1", 2)), 1);
+        Segment segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("stream1", 2)));
         assertEquals("stream1", segment.getStreamName());
         assertEquals("scope", segment.getScope());
         assertEquals(2, segment.getSegmentNumber());
-    }
-
-    @Test // Preceding 
-    public void encodeFutureSegmentId() {
-        com.emc.pravega.stream.impl.FutureSegment segment = ModelHelper.encode(ModelHelper.decode(createFutureSegmentId("stream1", 2, 1)), 1);
-        assertEquals("stream1", segment.getStreamName());
-        assertEquals("scope", segment.getScope());
-        assertEquals(2, segment.getSegmentNumber());
-        assertEquals(1, segment.getPrecedingNumber());
     }
 
     @Test(expected = NullPointerException.class)
@@ -188,12 +170,10 @@ public class ModelHelperTest {
     public void decodePosition() {
         com.emc.pravega.controller.stream.api.v1.Position position = ModelHelper.decode(createPosition());
         assertEquals(1, position.getOwnedSegments().size());
-        assertEquals(1, position.getFutureOwnedSegments().size());
         SegmentId id = ModelHelper.decode(createSegmentId("stream", 1));
         assertEquals(1L, position.getOwnedSegments().get(id).longValue());
-        SegmentId future = ModelHelper.decode(createSegmentId("stream", 2));
-        Long val = position.getFutureOwnedSegments().get(new FutureSegment(future, id));
-        assertEquals(2L, val.longValue());
+        SegmentId id2 = ModelHelper.decode(createSegmentId("stream", 2));
+        assertEquals(2L, id2.getNumber());
     }
 
     @Test(expected = NullPointerException.class)
@@ -205,10 +185,7 @@ public class ModelHelperTest {
     public void encodePosition() {
         PositionInternal position = ModelHelper.encode(ModelHelper.decode(createPosition()));
         Map<Segment, Long> ownedLogs = position.getOwnedSegmentsWithOffsets();
-        Map<com.emc.pravega.stream.impl.FutureSegment, Long> futureOwnedLogs = position.getFutureOwnedSegmentsWithOffsets();
         assertEquals(1, ownedLogs.size());
-        assertEquals(1, futureOwnedLogs.size());
         assertEquals(1L, ownedLogs.get(createSegmentId("stream", 1)).longValue());
-        assertEquals(2L, futureOwnedLogs.get(createFutureSegmentId("stream", 2, 1)).longValue());
     }
 }

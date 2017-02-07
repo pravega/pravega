@@ -37,11 +37,11 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.ModelHelper;
 
-import org.apache.commons.lang.NotImplementedException;
-import org.apache.thrift.TException;
-
 import java.util.List;
 import java.util.Map;
+
+import org.apache.commons.lang.NotImplementedException;
+import org.apache.thrift.TException;
 
 /**
  * Synchronous controller service implementation.
@@ -99,8 +99,8 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
     }
 
     @Override
-    public List<Position> updatePositions(final String scope, final String stream, final List<Position> positions) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.updatePositions(scope, stream, positions), RuntimeException::new);
+    public Map<SegmentId, List<Integer>> getSegmentsImmediatlyFollowing(SegmentId segment) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.getSegmentsImmediatlyFollowing(segment), RuntimeException::new);
     }
 
     @Override
@@ -120,8 +120,8 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
     }
 
     @Override
-    public TxnStatus dropTransaction(final String scope, final String stream, final TxnId txnid) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.dropTransaction(scope, stream, txnid), RuntimeException::new);
+    public TxnStatus abortTransaction(final String scope, final String stream, final TxnId txnid) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.abortTransaction(scope, stream, txnid), RuntimeException::new);
     }
 
     @Override

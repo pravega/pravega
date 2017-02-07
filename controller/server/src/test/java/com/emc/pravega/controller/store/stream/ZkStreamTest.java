@@ -254,7 +254,7 @@ public class ZkStreamTest {
         assert store.transactionStatus(scopeName, streamName, tx).get().equals(TxnStatus.SEALED);
 
         CompletableFuture<TxnStatus> f1 = store.commitTransaction(scopeName, streamName, tx);
-        CompletableFuture<TxnStatus> f2 = store.dropTransaction(scopeName, streamName, tx2);
+        CompletableFuture<TxnStatus> f2 = store.abortTransaction(scopeName, streamName, tx2);
 
         CompletableFuture.allOf(f1, f2).get();
 
@@ -270,7 +270,7 @@ public class ZkStreamTest {
                     }
                 }).get();
 
-        assert store.dropTransaction(scopeName, streamName, UUID.randomUUID())
+        assert store.abortTransaction(scopeName, streamName, UUID.randomUUID())
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof TransactionNotFoundException) {
                         return true;

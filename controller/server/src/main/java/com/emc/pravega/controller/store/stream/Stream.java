@@ -23,6 +23,7 @@ import com.emc.pravega.stream.impl.TxnStatus;
 
 import java.util.AbstractMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -86,6 +87,12 @@ interface Stream {
      * @return successors of specified segment.
      */
     CompletableFuture<List<Integer>> getSuccessors(final int number);
+    
+    /**
+     * @param number segment number.
+     * @return successors of specified segment mapped to the list of their predecessors
+     */
+    CompletableFuture<Map<Integer, List<Integer>>> getSuccessorsWithPredecessors(final int number);
 
     /**
      * @param number segment number.

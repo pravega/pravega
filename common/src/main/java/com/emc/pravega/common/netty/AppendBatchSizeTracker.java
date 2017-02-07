@@ -15,18 +15,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.common.netty;
 
-package com.emc.pravega.common.util;
+public interface AppendBatchSizeTracker {
 
-/**
- * Defines a generic entry into an Index.
- *
- * @param <K> The Type of the key.
- */
-public interface IndexEntry<K> {
     /**
-     * Gets a value representing the key of the entry. The Key should not change for the lifetime of the entry and
-     * should be very cheap to return (as it is used very frequently).
+     * Records that an append has been sent.
+     * 
+     * @param eventNumber the number of the event
+     * @param size the size of the event
      */
-    K key();
+    void recordAppend(long eventNumber, int size);
+
+    /**
+     * Records that one or more events have been acked.
+     * 
+     * @param eventNumber the number of the last event
+     */
+    void recordAck(long eventNumber);
+
+    /**
+     * Returns the size that should be used for the next append block.
+     */
+    int getAppendBlockSize();
+    
+    /**
+     * Returns the timeout that should be used for append blocks.
+     */
+    int getBatchTimeout();
+
 }

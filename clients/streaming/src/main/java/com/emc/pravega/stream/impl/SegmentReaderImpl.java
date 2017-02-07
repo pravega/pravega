@@ -19,6 +19,8 @@ package com.emc.pravega.stream.impl;
 
 import java.nio.ByteBuffer;
 
+import javax.annotation.concurrent.GuardedBy;
+
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
@@ -30,6 +32,7 @@ import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 public class SegmentReaderImpl<Type> implements SegmentReader<Type> {
 
     private final Segment segmentId;
+    @GuardedBy("in")
     private final SegmentInputStream in;
     private final Serializer<Type> deserializer;
 
@@ -72,5 +75,12 @@ public class SegmentReaderImpl<Type> implements SegmentReader<Type> {
     @Override
     public Segment getSegmentId() {
         return segmentId;
+    }
+    
+    @Override
+    public boolean canReadWithoutBlocking() {
+        synchronized (in) {
+            return in.canReadWithoutBlocking();
+        }
     }
 }
