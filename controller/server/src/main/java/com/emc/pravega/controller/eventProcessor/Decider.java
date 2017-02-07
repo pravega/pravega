@@ -35,8 +35,8 @@ public interface Decider {
      * and Restarts it otherwise.
      */
     Decider DEFAULT_DECIDER = (Throwable y) -> {
-        if (y instanceof EventProcessorInitializationException ||
-                y instanceof EventProcessorReinitializationException) {
+        if (y instanceof EventProcessorInitException ||
+                y instanceof EventProcessorReinitException) {
             return Decider.Directive.Stop;
         } else {
             return Decider.Directive.Restart;
