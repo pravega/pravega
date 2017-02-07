@@ -126,7 +126,7 @@ public class LocalController implements Controller {
     public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(Segment segment) {
         return controller.getSegmentsImmediatlyFollowing(ModelHelper.decode(segment))
                 .thenApply(x -> {
-                    Map map = new HashMap<Segment, List<Integer>>();
+                    Map<Segment, List<Integer>> map = new HashMap<>();
                     x.forEach((segmentId, list) -> map.put(ModelHelper.encode(segmentId), list));
                     return map;
                 });

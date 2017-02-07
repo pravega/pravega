@@ -77,8 +77,7 @@ public class ControllerWrapper {
                 hostStore, taskMetadataStore, executor, hostId);
 
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
-        LocalController controller = new LocalController(controllerService);
-        return controller;
+        return new LocalController(controllerService);
     }
 }
 
