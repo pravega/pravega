@@ -22,6 +22,7 @@ import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExcept
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
+import com.emc.pravega.common.util.RetriesExhaustedException;
 import org.apache.commons.lang.NotImplementedException;
 
 import com.emc.pravega.common.netty.ConnectionFailedException;
@@ -30,7 +31,6 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
-import com.emc.pravega.common.util.RetriesExaustedException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.ConnectionClosedException;
 import com.emc.pravega.stream.impl.Controller;
@@ -90,7 +90,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
         SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, UUID.randomUUID());
         try {
             result.getConnection();
-        } catch (RetriesExaustedException e) {
+        } catch (RetriesExhaustedException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
         return result;
