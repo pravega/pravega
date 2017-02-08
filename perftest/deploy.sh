@@ -12,7 +12,7 @@ set -x
 #ssh $ip docker -H unix:///var/run/docker.sock run -e HOST=$ip -e PORT=3181 -e PORT_3181=3181 -e PORTS=3181 -e ZK=master.mesos:2181 -e PORT0=3181 -e LIBPROCESS_IP=$ip -v /mnt/bkj/:/bk/journal/ -v /mnt/bki/:/bk/index/ -v /mnt/bkl/:/bk/ledgers/ --net host -e DLOG_EXTRA_OPTS=-Xms512m -d  arvindkandhare/bookkeeper
 #done
 
-export PUBLIC_ZOOKEEPER_ADDRESSES=master.mesos
+export PUBLIC_ZOOKEEPER_ADDRESSES=10.249.250.151
 ~/distributedlog-service/bin/dlog admin bind -dlzr $PUBLIC_ZOOKEEPER_ADDRESSES -dlzw $PUBLIC_ZOOKEEPER_ADDRESSES -s $PUBLIC_ZOOKEEPER_ADDRESSES -bkzr $PUBLIC_ZOOKEEPER_ADDRESSES        -l /messaging/bookkeeper/ledgers -i false -r true -c distributedlog://$PUBLIC_ZOOKEEPER_ADDRESSES/messaging/distributedlog/mynamespace
 
 ssh 10.249.250.153 "naucli marathon group add PravegaGroup.json"

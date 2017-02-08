@@ -424,6 +424,13 @@ project('controller:server') {
     }
 
     dependencies {
+      compile('com.twitter:distributedlog-core:0.3.51-RC1') {
+            exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+        }
+        compile('com.twitter:distributedlog-client:0.3.51-RC1') {
+            exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+        }
+
         compile project(':common')
         compile project(":controller:contract")
         compile project(":clients:streaming")
