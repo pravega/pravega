@@ -18,8 +18,8 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.Cache;
-import com.emc.pravega.controller.store.stream.tables.Create;
 import com.emc.pravega.controller.store.stream.tables.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
@@ -27,6 +27,7 @@ import org.apache.zookeeper.data.Stat;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+@Slf4j
 public class ZKScope implements Scope {
 
     private static final String SCOPE_PATH = "/store/%s";
@@ -68,33 +69,27 @@ public class ZKScope implements Scope {
         cache.invalidateAll();
     }
 
-    CompletableFuture<Void> checkScopeExists(String scopeName) throws ScopeAlreadyExistsException {
-        return checkExists(scopePath)
-                .thenApply(x -> {
-                    if (x) {
-                        throw new ScopeAlreadyExistsException(scopeName);
-                    }
-                    return null;
-                });
-    }
-
-    private static CompletableFuture<Boolean> checkExists(final String path) {
+    CompletableFuture<Void> checkScopeExists(String scopeName) {
         return CompletableFuture.supplyAsync(
                 () -> {
                     try {
-                        return client.checkExists().forPath(path);
+                        return client.checkExists().forPath(scopePath);
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
-                })
-                .thenApply(x -> x != null);
+                }).thenAccept(
+                (x) -> {
+                    if (x != null) {
+                        throw new ScopeAlreadyExistsException(scopeName);
+                    }
+                });
     }
 
     public static void initialize(final CuratorFramework cf) {
         client = cf;
     }
 
-    private static CompletableFuture<Data<Integer>> getData(final String path) throws DataNotFoundException {
+    private static CompletableFuture<Data<Integer>> getData(final String path) {
         return checkExists(path)
                 .thenApply(x -> {
                     if (x) {
@@ -110,20 +105,27 @@ public class ZKScope implements Scope {
                 });
     }
 
-    CompletableFuture<Void> createScopePath(final Create create) {
-        return createZNodeIfNotExist(scopePath);
-    }
-
     private static CompletableFuture<Void> createZNodeIfNotExist(final String path) {
-        return CompletableFuture.supplyAsync(() -> {
+        return CompletableFuture.runAsync(() -> {
             try {
-                return client.create().creatingParentsIfNeeded().forPath(path);
+                client.create().creatingParentsIfNeeded().forPath(path);
             } catch (KeeperException.NodeExistsException e) {
-                // ignore
-                return null;
+                log.debug("Exception occurred in createZNodeIfNotExist, Exception: {}" + e);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        }).thenApply(x -> null);
+        });
+    }
+
+    private static CompletableFuture<Boolean> checkExists(final String path) {
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    try {
+                        return client.checkExists().forPath(path);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .thenApply(x -> x != null);
     }
 }

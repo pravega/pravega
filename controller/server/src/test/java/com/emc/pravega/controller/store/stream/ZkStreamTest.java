@@ -38,6 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
@@ -65,6 +66,24 @@ public class ZkStreamTest {
     public void stopZookeeper() throws Exception {
         cli.close();
         zkTestServer.close();
+    }
+
+    @Test
+    public void TestZkScope() throws Exception {
+
+        // create new scope test
+        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
+        final String scopeName = "Scope1";
+        CompletableFuture<Boolean> createScopeStatus = store.createScope(scopeName);
+        assertEquals("Create new scope :", true, createScopeStatus.get());
+
+        // create duplicate scope test
+        createScopeStatus = store.createScope(scopeName);
+        try {
+            createScopeStatus.get();
+        } catch (ExecutionException e) {
+            assertEquals("Create duplicate scope ", "Scope Scope1 already exists.", e.getCause().getMessage());
+        }
     }
 
     @Test

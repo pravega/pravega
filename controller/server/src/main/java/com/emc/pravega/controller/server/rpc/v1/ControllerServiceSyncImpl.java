@@ -132,11 +132,11 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
 
     @Override
     public CreateScopeStatus createScope(String scope) throws TException {
-        return null;
+        return FutureHelpers.getAndHandleExceptions(controllerService.createScope(scope), RuntimeException::new);
     }
 
     @Override
     public DeleteScopeStatus deleteScope(String scope) throws TException {
-        return null;
+        throw new NotImplementedException();
     }
 }

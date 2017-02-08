@@ -63,7 +63,6 @@ public class ControllerServiceAsyncImplTest {
 
     private final TestingServer zkServer;
 
-
     public ControllerServiceAsyncImplTest() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
@@ -113,7 +112,7 @@ public class ControllerServiceAsyncImplTest {
         ThriftAsyncCallback<CreateScopeStatus> result3 = new ThriftAsyncCallback<>();
         this.controllerService.createScope(SCOPE2, result3);
         status = result3.getResult().get();
-        assertEquals(status, CreateScopeStatus.SCOPE_EXIST);
+        assertEquals(status, CreateScopeStatus.SCOPE_EXISTS);
         // endregion
     }
 

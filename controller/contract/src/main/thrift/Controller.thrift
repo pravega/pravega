@@ -43,7 +43,7 @@ enum ScalingPolicyType {
 enum CreateScopeStatus {
     SUCCESS,
     FAILURE,
-    SCOPE_EXIST
+    SCOPE_EXISTS
 }
 
 enum DeleteScopeStatus {

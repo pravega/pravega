@@ -196,24 +196,19 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     private CompletableFuture<CreateScopeStatus> createScopeBody(String scope) {
         return this.streamMetadataStore.createScope(scope)
-                .thenCompose(x -> {
-                    if (x) {
-                        return CompletableFuture.completedFuture(CreateScopeStatus.SUCCESS);
-                    } else {
-                        return CompletableFuture.completedFuture(CreateScopeStatus.FAILURE);
-                    }
-                })
                 .handle((result, ex) -> {
-                    if (ex != null) {
-                        if (ex.getCause() instanceof ScopeAlreadyExistsException) {
-                            return CreateScopeStatus.SCOPE_EXIST;
+                    if (result != null) {
+                        return CreateScopeStatus.SUCCESS;
+                    } else if (ex != null) {
+                        if (ex.getCause() instanceof ScopeAlreadyExistsException ||
+                                ex instanceof ScopeAlreadyExistsException) {
+                            return CreateScopeStatus.SCOPE_EXISTS;
                         } else {
                             log.debug("Create scope failed due to ", ex);
                             return CreateScopeStatus.FAILURE;
                         }
-                    } else {
-                        return result;
                     }
+                    return CreateScopeStatus.FAILURE;
                 });
     }
 

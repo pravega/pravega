@@ -25,7 +25,6 @@ public class InMemoryScope implements Scope {
 
     private final String scopeName;
 
-    //private final Map<InMemoryScope, List<InMemoryStream>> scopesToStreamMap = new HashMap<>();
     private List<InMemoryStream> streamsInScope;
 
     InMemoryScope(String scopeName) {

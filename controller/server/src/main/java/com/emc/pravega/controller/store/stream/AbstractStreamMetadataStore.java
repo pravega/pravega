@@ -45,10 +45,10 @@ import static com.emc.pravega.common.concurrent.FutureCollectionHelper.sequence;
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
     private final LoadingCache<String, Scope> scopeCache;
-    private final LoadingCache<String, Stream> cache;
+    private final LoadingCache<String, Stream> streamCache;
 
     protected AbstractStreamMetadataStore() {
-        cache = CacheBuilder.newBuilder()
+        streamCache = CacheBuilder.newBuilder()
                 .maximumSize(1000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
@@ -94,7 +94,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public synchronized CompletableFuture<Boolean> createScope(String scopeName) {
+    public CompletableFuture<Boolean> createScope(String scopeName) {
         return getScope(scopeName).createScope(scopeName);
     }
 
@@ -195,7 +195,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     private Stream getStream(final String scopeName, final String streamName) {
 
-        Stream stream = cache.getUnchecked(getScopedStreamName(scopeName, streamName));
+        Stream stream = streamCache.getUnchecked(getScopedStreamName(scopeName, streamName));
         stream.refresh();
         return stream;
     }
