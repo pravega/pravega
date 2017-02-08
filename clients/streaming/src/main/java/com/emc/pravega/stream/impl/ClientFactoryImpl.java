@@ -43,7 +43,6 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import java.net.URI;
