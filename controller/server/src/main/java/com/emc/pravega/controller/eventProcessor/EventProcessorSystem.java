@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
-import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.stream.EventStreamWriter;
 
 /**
@@ -47,7 +46,7 @@ public interface EventProcessorSystem {
      * @param <T> Stream Event type parameter.
      * @return ActorGroup reference.
      */
-    <T extends StreamEvent> EventStreamWriter<T> actorOf(Props<T> props);
+    <T extends StreamEvent> EventStreamWriter<T> createEventProcessorGroup(Props<T> props);
 
     /**
      * Notify a host failure to ActorGroups managed by the ActorSystem.
@@ -56,5 +55,11 @@ public interface EventProcessorSystem {
      * existing hosts.
      * @param host Failed host's identifier.
      */
-    void notifyHostFailure(Host host);
+    void notifyHostFailure(String host);
+
+    /**
+     * Stops all EventProcessors belonging to EventProcessorGroup created
+     * under the EventProcessorSystem.
+     */
+    void stop();
 }

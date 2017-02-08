@@ -18,20 +18,15 @@
 package com.emc.pravega.controller.eventProcessor;
 
 import com.emc.pravega.stream.EventStreamWriter;
-import lombok.AccessLevel;
-import lombok.Getter;
 
 /**
  * Actor interface.
  */
 public abstract class EventProcessor<T extends StreamEvent> {
 
-    @Getter(AccessLevel.PACKAGE)
-    private EventProcessorSystem actorSystem;
     private EventStreamWriter<T> self;
 
-    void setup(EventProcessorSystem system, EventStreamWriter<T> self) {
-        this.actorSystem = system;
+    void setup(EventStreamWriter<T> self) {
         this.self = self;
     }
 
@@ -39,7 +34,7 @@ public abstract class EventProcessor<T extends StreamEvent> {
      * AbstractActor initialization hook that is called before actor starts receiving events.
      * @throws Exception Exception thrown from user defined preStart method.
      */
-    protected void preStart() throws Exception { }
+    protected void beforeStart() throws Exception { }
 
     /**
      * User defined event processing logic.
@@ -52,7 +47,7 @@ public abstract class EventProcessor<T extends StreamEvent> {
      * AbstractActor shutdown hook that is called on shut down.
      * @throws Exception Exception thrown from user defined preStart method.
      */
-    protected void postStop() throws Exception { }
+    protected void afterStop() throws Exception { }
 
     /**
      * AbstractActor preRestart hook that is called before actor restarts
@@ -62,7 +57,7 @@ public abstract class EventProcessor<T extends StreamEvent> {
      * @param event Event being processed when error is thrown.
      * @throws Exception Exception thrown from user defined preStart method.
      */
-    protected void preRestart(Throwable t, T event) throws Exception { }
+    protected void beforeRestart(Throwable t, T event) throws Exception { }
 
     /**
      * Get a reference of the ActorGroup it is part of.

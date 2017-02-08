@@ -66,7 +66,7 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
         return this.scope;
     }
 
-    public <T extends StreamEvent> EventStreamWriter<T> actorOf(Props<T> props) {
+    public <T extends StreamEvent> EventStreamWriter<T> createEventProcessorGroup(Props<T> props) {
         synchronized (actorGroups) {
             EventProcessorGroupImpl<T> actorGroup;
 
@@ -82,13 +82,21 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
     }
 
     @Override
-    public void notifyHostFailure(Host host) {
+    public void notifyHostFailure(String host) {
         Preconditions.checkNotNull(host);
-        if (host.equals(this.host)) {
-            this.actorGroups.forEach(EventProcessorGroupImpl::stopAsync);
-        } else {
-            // Notify all registered actor groups of host failure
-            this.actorGroups.forEach(group -> group.notifyHostFailure(host));
+        synchronized (actorGroups) {
+            if (host.equals(this.host)) {
+                this.actorGroups.forEach(EventProcessorGroupImpl::stopAsync);
+            } else {
+                // Notify all registered actor groups of host failure
+                this.actorGroups.forEach(group -> group.notifyHostFailure(host));
+            }
+        }
+    }
+
+    public void stop() {
+        synchronized (actorGroups) {
+            this.actorGroups.forEach(group -> group.stopAll());
         }
     }
 }

@@ -21,8 +21,6 @@ import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.common.util.concurrent.Service;
-import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.InvocationTargetException;
@@ -32,13 +30,12 @@ public class EventProcessorCell<T extends StreamEvent> {
 
     private final EventProcessorSystem actorSystem;
 
-    private final EventProcessorGroup actorGroup;
+    private final EventProcessorGroup<T> actorGroup;
 
     private final EventStreamReader<T> reader;
 
     private final String readerId;
 
-    @Getter(AccessLevel.PACKAGE)
     private final Props<T> props;
 
     private EventProcessor<T> actor;
@@ -56,7 +53,7 @@ public class EventProcessorCell<T extends StreamEvent> {
         @Override
         protected final void startUp() {
             try {
-                actor.preStart();
+                actor.beforeStart();
             } catch (Throwable t) {
                 log.warn("Failed while executing preStart for Actor " + this, t);
                 handleException(new EventProcessorInitException(actor, t));
@@ -89,7 +86,7 @@ public class EventProcessorCell<T extends StreamEvent> {
         @Override
         protected final void shutDown() throws Exception {
             try {
-                actor.postStop();
+                actor.afterStop();
             } catch (Throwable t) {
                 // Error encountered while cleanup is just logged.
                 // AbstractExecutionThreadService shall transition the service to failed state.
@@ -101,10 +98,10 @@ public class EventProcessorCell<T extends StreamEvent> {
         private void restart(Throwable error, T event) {
             try {
 
-                actor.preRestart(error, event);
+                actor.beforeRestart(error, event);
 
                 // Now clean up the actor state by re-creating it and then invoke startUp.
-                actor = createAndSetupActor(props, actorSystem, actorGroup);
+                actor = createAndSetupActor(props, actorGroup);
                 startUp();
 
             } catch (Exception e) {
@@ -132,7 +129,7 @@ public class EventProcessorCell<T extends StreamEvent> {
     }
 
     EventProcessorCell(final EventProcessorSystem actorSystem,
-                       final EventProcessorGroup actorGroup,
+                       final EventProcessorGroup<T> actorGroup,
                        final Props<T> props,
                        final EventStreamReader<T> reader,
                        final String readerId) {
@@ -142,7 +139,7 @@ public class EventProcessorCell<T extends StreamEvent> {
         this.reader = reader;
         this.readerId = readerId;
         this.props = props;
-        this.actor = createAndSetupActor(props, actorSystem, actorGroup);
+        this.actor = createAndSetupActor(props, actorGroup);
         this.delegate = new Delegate();
     }
 
@@ -164,12 +161,11 @@ public class EventProcessorCell<T extends StreamEvent> {
     }
 
     private EventProcessor<T> createAndSetupActor(final Props<T> props,
-                                                  final EventProcessorSystem actorSystem,
-                                                  final EventProcessorGroup actorGroup) {
+                                                  final EventProcessorGroup<T> actorGroup) {
         EventProcessor<T> temp;
         try {
             temp = props.getConstructor().newInstance(props.getArgs());
-            temp.setup(actorSystem, actorGroup.getSelf());
+            temp.setup(actorGroup.getSelf());
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException("Error instantiating Actor");
         }

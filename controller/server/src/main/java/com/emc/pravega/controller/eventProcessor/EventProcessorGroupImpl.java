@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
-import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -27,18 +26,21 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
 import com.google.common.util.concurrent.AbstractService;
 import org.apache.commons.lang.NotImplementedException;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
-public final class EventProcessorGroupImpl<T extends StreamEvent> extends AbstractService implements EventProcessorGroup {
+public final class EventProcessorGroupImpl<T extends StreamEvent> extends AbstractService implements EventProcessorGroup<T> {
 
     private final EventProcessorSystemImpl actorSystem;
 
     private final Props<T> props;
 
+    @GuardedBy("actors")
     private final List<EventProcessorCell<T>> actors;
 
     private final EventStreamWriter<T> ref;
@@ -82,8 +84,8 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
                             new ReaderConfig());
 
             // create a new actor, and add it to the list
-            EventProcessorCell<T> actor = new EventProcessorCell<>(actorSystem, this, props, reader, readerId);
-            actors.add(actor);
+            EventProcessorCell<T> actorCell = new EventProcessorCell<>(actorSystem, this, props, reader, readerId);
+            actors.add(actorCell);
             // todo: persist the readerIds against this host in the persister
         }
     }
@@ -93,34 +95,42 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
         // If an exception is thrown while starting an actor, it will be
         // processed by the ActorFailureListener. Current ActorFailureListener
         // just logs failures encountered while starting.
-        actors.stream().forEach(EventProcessorCell::startAsync);
+        synchronized (actors) {
+            actors.stream().forEach(EventProcessorCell::startAsync);
+        }
     }
 
     @Override
     final protected void doStop() {
         // If an exception is thrown while stopping an actor, it will be processed by the ActorFailureListener.
         // Current ActorFailureListener just logs failures encountered while stopping.
-        actors.stream().forEach(EventProcessorCell::stopAsync);
+        synchronized (actors) {
+            actors.stream().forEach(EventProcessorCell::stopAsync);
+        }
     }
 
     final protected void awaitStopped() {
-        actors.stream().forEach(EventProcessorCell::awaitStopped);
+        synchronized (actors) {
+            actors.stream().forEach(EventProcessorCell::awaitStopped);
+        }
     }
 
     @Override
-    public void notifyHostFailure(Host host) {
+    public void notifyHostFailure(String host) {
         throw new NotImplementedException();
     }
 
     @Override
-    public void changeActorCount(int count) {
-        if (count <= 0) {
-            throw new NotImplementedException();
-        } else {
-            try {
-                createActors(count);
-            }  catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
-                throw new RuntimeException("Error instantiating Actors");
+    public void changeEventProcessorCount(int count) {
+        synchronized (actors) {
+            if (count <= 0) {
+                throw new NotImplementedException();
+            } else {
+                try {
+                    createActors(count);
+                } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
+                    throw new RuntimeException("Error instantiating Actors");
+                }
             }
         }
     }
@@ -128,5 +138,14 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
     @Override
     public EventStreamWriter<T> getSelf() {
         return this.ref;
+    }
+
+    public Set<String> getHosts() {
+        return readerGroup.getOnlineReaders();
+    }
+
+    public void stopAll() {
+        this.doStop();
+        this.awaitStopped();
     }
 }
