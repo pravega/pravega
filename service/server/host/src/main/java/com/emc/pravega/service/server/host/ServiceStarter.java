@@ -192,11 +192,9 @@ public final class ServiceStarter {
     }
 
     private CuratorFramework createZKClient() {
-        CuratorFramework zkClient = CuratorFrameworkFactory.builder()
-                .connectString(this.serviceConfig.getZkHostName() + ":" + this.serviceConfig.getZkPort())
-                .namespace("pravega/" + this.serviceConfig.getClusterName())
-                .retryPolicy(new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()))
-                .build();
+        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(this.serviceConfig.getZkHostName() +
+                        ":" +this.serviceConfig.getZkPort(), new ExponentialBackoffRetry(this.serviceConfig
+                .getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()));
         zkClient.start();
         return zkClient;
     }
