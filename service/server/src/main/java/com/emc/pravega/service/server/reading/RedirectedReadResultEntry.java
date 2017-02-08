@@ -25,13 +25,12 @@ import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiFunction;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * A ReadResultEntry that wraps an inner Entry, but allows for offset adjustment. Useful for returning read results
@@ -171,7 +170,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
                 // After all checks are done, update the internal state to use the new entry.
                 newEntry.setCompletionCallback(this.firstEntry.getCompletionCallback());
                 this.secondEntry = newEntry;
-                this.secondEntry.getContent().whenComplete((r, ex2) -> FutureHelpers.complete(this.result, r, ex2));
+                setOutcomeAfterSecondEntry();
                 return true;
             }
         }
@@ -196,7 +195,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
 
         if (success) {
             // We were able to switch; tie the outcome of our result to the outcome of the new entry's getContent().
-            this.secondEntry.getContent().whenComplete((r, ex3) -> FutureHelpers.complete(this.result, r, ex3));
+            setOutcomeAfterSecondEntry();
         } else {
             // Unable to switch.
             this.result.completeExceptionally(ex);
@@ -216,6 +215,12 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
 
     private CompletableReadResultEntry getActiveEntry() {
         return this.secondEntry != null ? this.secondEntry : this.firstEntry;
+    }
+
+    private void setOutcomeAfterSecondEntry() {
+        CompletableFuture<ReadResultEntryContents> sourceFuture = this.secondEntry.getContent();
+        sourceFuture.thenAccept(this.result::complete);
+        FutureHelpers.exceptionListener(sourceFuture, this.result::completeExceptionally);
     }
 
     @Override
