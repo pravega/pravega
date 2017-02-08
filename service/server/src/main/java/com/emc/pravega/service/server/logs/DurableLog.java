@@ -466,9 +466,10 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             // Trigger all of them (no need to unregister them; the unregister handle is already wired up).
             for (TailRead tr : toTrigger) {
+                tr.future.complete(FutureHelpers.runOrFail(() -> {
+                    return this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount);                    
+                }, tr.future));
                 try {
-                    Iterator<Operation> logReadResult = this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount);
-                    tr.future.complete(logReadResult);
                 } catch (Throwable ex) {
                     if (ExceptionHelpers.mustRethrow(ex)) {
                         throw ex;

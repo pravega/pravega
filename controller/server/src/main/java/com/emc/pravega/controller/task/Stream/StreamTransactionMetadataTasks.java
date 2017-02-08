@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
  * Any update to the task method signature should be avoided, since it can cause problems during upgrade.
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
-public class StreamTransactionMetadataTasks extends TaskBase implements Cloneable {
+public class StreamTransactionMetadataTasks extends TaskBase {
     private static final long INITIAL_DELAY = 1;
     private static final long PERIOD = 1;
     private static final long TIMEOUT = 60 * 60 * 1000;
@@ -63,7 +63,15 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                                           final TaskMetadataStore taskMetadataStore,
                                           final ScheduledExecutorService executor,
                                           final String hostId) {
-        super(taskMetadataStore, executor, hostId);
+        this(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, new Context(hostId));
+    }
+    
+    private StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
+            final HostControllerStore hostControllerStore,
+            final TaskMetadataStore taskMetadataStore,
+            final ScheduledExecutorService executor,
+            final Context context) {
+        super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.connectionFactory = new ConnectionFactoryImpl(false);
@@ -89,11 +97,6 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
             // find completed transactions to be gc'd
         }, INITIAL_DELAY, PERIOD, TimeUnit.HOURS);
 
-    }
-
-    @Override
-    public StreamTransactionMetadataTasks clone() throws CloneNotSupportedException {
-        return (StreamTransactionMetadataTasks) super.clone();
     }
 
     /**
@@ -217,5 +220,14 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                                                                     this.hostControllerStore,
                                                                     this.connectionFactory),
                               executor);
+    }
+
+    @Override
+    public TaskBase copyWithContext(Context context) {
+        return new StreamTransactionMetadataTasks(streamMetadataStore,
+                                                  hostControllerStore,
+                                                  taskMetadataStore,
+                                                  executor,
+                                                  context);
     }
 }

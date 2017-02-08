@@ -216,13 +216,7 @@ public class Consumer extends Actor {
                 this.segmentName,
                 (length, sealed) ->
                         this.storageVerificationQueue.queue(() -> {
-                            try {
-                                return storageSegmentChangedHandler(length, sealed, result);
-                            } catch (Throwable ex) {
-                                // Make sure we catch sync exceptions; otherwise this will be stuck in a loop forever.
-                                result.completeExceptionally(ex);
-                                throw ex;
-                            }
+                            return FutureHelpers.runOrFail(() -> storageSegmentChangedHandler(length, sealed, result), result);
                         }));
         this.store.getStorageAdapter().registerListener(listener);
 

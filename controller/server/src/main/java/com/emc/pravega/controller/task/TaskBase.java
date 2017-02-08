@@ -38,7 +38,7 @@ import java.util.concurrent.ScheduledExecutorService;
  * Actual tasks are implemented in sub-classes of TaskBase and annotated with @Task annotation.
  */
 @Slf4j
-public class TaskBase implements Cloneable {
+public abstract class TaskBase {
 
     public interface FutureOperation<T> {
         CompletableFuture<T> apply();
@@ -68,24 +68,21 @@ public class TaskBase implements Cloneable {
 
     protected final ScheduledExecutorService executor;
 
-    private Context context;
+    protected final Context context;
 
-    private final TaskMetadataStore taskMetadataStore;
+    protected final TaskMetadataStore taskMetadataStore;
 
     public TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor, final String hostId) {
+        this(taskMetadataStore, executor, new Context(hostId));
+    }
+
+    protected TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor, Context context) {
         this.taskMetadataStore = taskMetadataStore;
         this.executor = executor;
-        context = new Context(hostId);
-    }
-
-    @Override
-    public TaskBase clone() throws CloneNotSupportedException {
-        return (TaskBase) super.clone();
-    }
-
-    public void setContext(final Context context) {
         this.context = context;
     }
+    
+    public abstract TaskBase copyWithContext(Context context);
 
     public Context getContext() {
         return this.context;

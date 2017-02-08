@@ -109,7 +109,7 @@ class Producer extends Actor {
         CompletableFuture<Void> result;
         try {
             result = executeOperation(op);
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             // Catch and handle sync errors.
             op.completed(timer.getElapsed());
             if (handleOperationError(ex, op)) {
@@ -198,9 +198,8 @@ class Producer extends Actor {
                     SegmentProperties sp = this.store.getStreamSegmentInfo(operation.getTarget(), timer.getRemaining())
                                                      .get(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS);
                     reconciled = sp.isSealed() || sp.isDeleted();
-                } catch (Throwable ex2) {
-                    ex2 = ExceptionHelpers.getRealException(ex2);
-                    reconciled = isPossibleEndOfSegment(ex2);
+                } catch (Exception ex2) {
+                    reconciled = isPossibleEndOfSegment(ExceptionHelpers.getRealException(ex2));
                 }
             }
         }

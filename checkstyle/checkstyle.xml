@@ -31,6 +31,7 @@
         <property name="file" value="checkstyle/suppressions.xml"/>
   </module>
   <module name="SuppressWarningsFilter"/>
+  <module name="FileTabCharacter"/>
   <module name="TreeWalker">
     <module name="SuppressWarningsHolder" />
     <module name="SuppressWarnings"/>
@@ -39,6 +40,11 @@
     <module name="RedundantImport"/>
     <module name="IllegalImport" />
     <module name="EqualsHashCode"/>
+	<module name="NoClone"/>
+	<module name="IllegalThrows">
+		<property name="illegalClassNames" value="java.lang.Throwable, java.lang.Error, java.lang.RuntimeException, PravegaException"/>
+	</module>
+	<module name="FallThrough"/>
     <module name="SimplifyBooleanExpression"/>
     <module name="OneStatementPerLine"/>
     <module name="UnnecessaryParentheses" />
@@ -51,9 +57,11 @@
         <property name="maxForVoid" value="4"/>
         <property name="max" value="4"/>
     </module>
-    <module name="StringLiteralEquality"/>
+	<module name="StringLiteralEquality"/>
+	
 
     <!-- style -->
+	<module name="NoLineWrap"/>
     <module name="DefaultComesLast"/>
     <module name="EmptyStatement"/>
     <module name="ArrayTypeStyle"/>
@@ -119,6 +127,14 @@
       <property name="checkEmptyJavadoc" value="true"/>
       <property name="checkHtml" value="true"/>
     </module>
+	<module name="MissingOverride"/>
+	<module name="MissingDeprecated"/>
+	<module name="AnnotationLocation">
+		<property name="allowSamelineMultipleAnnotations" value="false"/>
+		<property name="allowSamelineSingleParameterlessAnnotation" value="false"/>
+		<property name="allowSamelineParameterizedAnnotation" value="false"/>
+		<property name="tokens" value="VARIABLE_DEF, PARAMETER_DEF"/>
+	</module>
     <module name="JavadocMethod">
       <property name="scope" value="protected"/>
       <property name="validateThrows" value="true"/>

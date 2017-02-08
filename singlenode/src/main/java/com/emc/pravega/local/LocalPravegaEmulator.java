@@ -18,8 +18,6 @@
 
 package com.emc.pravega.local;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
@@ -33,9 +31,9 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
+import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.emc.pravega.service.server.host.ServiceStarter;
@@ -48,10 +46,6 @@ import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.twitter.distributedlog.LocalDLMEmulator;
 import com.twitter.distributedlog.admin.DistributedLogAdmin;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.bookkeeper.util.IOUtils;
-import org.apache.commons.io.FileUtils;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.net.InetAddress;
@@ -62,7 +56,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.emc.pravega.controller.util.Config.*;
+import org.apache.bookkeeper.util.IOUtils;
+import org.apache.commons.io.FileUtils;
+import org.slf4j.LoggerFactory;
+
+import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class LocalPravegaEmulator implements AutoCloseable {
@@ -210,7 +212,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
             props = new ServiceBuilderConfig(p);
 
             nodeServiceStarter.set(new ServiceStarter(props));
-        } catch (Throwable e) {
+        } catch (Exception e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
         }

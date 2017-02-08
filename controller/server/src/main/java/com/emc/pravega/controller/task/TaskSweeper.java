@@ -172,8 +172,10 @@ public class TaskSweeper {
 
                 // find the method and object
                 Method method = methodMap.get(key);
-                TaskBase o = objectMap.get(key).clone();
-                o.setContext(new Context(hostId, oldHostId, taggedResource.getTag(), taggedResource.getResource()));
+                TaskBase o = objectMap.get(key).copyWithContext(new Context(hostId,
+                                                                            oldHostId,
+                                                                            taggedResource.getTag(),
+                                                                            taggedResource.getResource()));
 
                 // finally execute the task by invoking corresponding method and return its result
                 return (CompletableFuture<Object>) method.<CompletableFuture<Object>>invoke(o, (Object[]) taskData.getParameters());
