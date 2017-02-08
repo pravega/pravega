@@ -230,7 +230,7 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         return segmentData;
     }
 
-    private class TestStorage implements ReadOnlyStorage {
+    private static class TestStorage implements ReadOnlyStorage {
         Supplier<CompletableFuture<Integer>> readImplementation;
 
         @Override

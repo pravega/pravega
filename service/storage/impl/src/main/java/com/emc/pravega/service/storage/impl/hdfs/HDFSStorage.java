@@ -21,13 +21,24 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.function.RunnableWithException;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.time.Duration;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -38,16 +49,7 @@ import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.IOUtils;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.time.Duration;
-import java.util.Date;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Storage adapter for a backing HDFS Store which does lock implementation based on file permissions.
@@ -185,7 +187,7 @@ class HDFSStorage implements Storage {
                 0,
                 false,
                 false,
-                new Date());
+                new ImmutableDate());
     }
 
     /**
@@ -259,7 +261,7 @@ class HDFSStorage implements Storage {
                 status.getLen(),
                 status.getPermission().getUserAction() == FsAction.READ,
                 false,
-                new Date(status.getModificationTime()));
+                new ImmutableDate(status.getModificationTime()));
     }
 
     private void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName) throws IOException, BadOffsetException, StreamSegmentSealedException {

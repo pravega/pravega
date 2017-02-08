@@ -68,7 +68,7 @@ public class ZkStreamTest {
     }
 
     @Test
-    public void TestZkStream() throws Exception {
+    public void testZkStream() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
@@ -180,7 +180,7 @@ public class ZkStreamTest {
 
     @Ignore("run manually")
     //    @Test
-    public void TestZkStreamChukning() throws Exception {
+    public void testZkStreamChukning() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 6);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
@@ -225,7 +225,7 @@ public class ZkStreamTest {
     }
 
     @Test
-    public void TestTransaction() throws Exception {
+    public void testTransaction() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);

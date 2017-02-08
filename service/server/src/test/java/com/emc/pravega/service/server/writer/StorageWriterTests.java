@@ -625,7 +625,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
     private byte[] getAppendData(String segmentName, long segmentId, int segmentAppendSeq, int writeId) {
         // NOTE: the data returned by this should be deterministic (not random) since the recovery test relies on it being that way.
-        return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d\n", segmentName, segmentId, segmentAppendSeq, writeId).getBytes();
+        return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d%n", segmentName, segmentId, segmentAppendSeq, writeId).getBytes();
     }
 
     private String getSegmentName(int i) {

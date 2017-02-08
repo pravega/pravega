@@ -63,7 +63,7 @@ public class AppendEncodeDecodeTest {
     }
 
     @RequiredArgsConstructor
-    private final class FixedBatchSizeTracker implements AppendBatchSizeTracker {
+    private static final class FixedBatchSizeTracker implements AppendBatchSizeTracker {
         private final int appendBlockSize;  
 
         @Override
@@ -87,7 +87,7 @@ public class AppendEncodeDecodeTest {
         
     }
     
-    private final class FakeLengthDecoder extends LengthFieldBasedFrameDecoder {
+    private static final class FakeLengthDecoder extends LengthFieldBasedFrameDecoder {
         FakeLengthDecoder() {
             super(1024 * 1024, 4, 4);
         }
@@ -144,7 +144,7 @@ public class AppendEncodeDecodeTest {
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         ArrayList<Object> received = setupAppend(segment, connectionId, fakeNetwork);
         for (int i = 0; i < numEvents; i++) {
-            append(segment, connectionId, eventSize * (i + 1), i, eventSize, fakeNetwork);
+            append(segment, connectionId, eventSize * (i + 1L), i, eventSize, fakeNetwork);
             read(fakeNetwork, received);
         }
         KeepAlive keepAlive = new KeepAlive();

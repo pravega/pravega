@@ -19,18 +19,21 @@
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
 
 import java.util.AbstractMap;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.UUID;
+
+import lombok.Getter;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Metadata for a particular Stream Segment.
@@ -51,7 +54,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private boolean sealedInStorage;
     private boolean deleted;
     private boolean merged;
-    private Date lastModified;
+    @Getter @Setter
+    private ImmutableDate lastModified;
 
     //endregion
 
@@ -95,7 +99,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.storageLength = -1;
         this.durableLogLength = -1;
         this.lastCommittedAppends = new HashMap<>();
-        this.lastModified = new Date(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
+        this.lastModified = new ImmutableDate(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
     }
 
     //endregion
@@ -120,11 +124,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public long getLength() {
         return this.durableLogLength; // ReadableLength is essentially DurableLogLength.
-    }
-
-    @Override
-    public Date getLastModified() {
-        return this.lastModified;
     }
 
     //endregion
@@ -236,12 +235,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
         log.trace("{}: Merged = true.", this.traceObjectId);
         this.merged = true;
-    }
-
-    @Override
-    public void setLastModified(Date date) {
-        this.lastModified = date;
-        log.trace("{}: LastModified = {}.", this.lastModified);
     }
 
     @Override

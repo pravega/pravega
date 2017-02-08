@@ -118,7 +118,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                         FileUtils.deleteDirectory(zkDir);
                         System.out.println("ByeBye!");
                     } catch (Exception e) {
-                        // do nothing
+                        log.warn("Caught an exception shutting down", e);
                     }
                 }
             });
@@ -200,14 +200,14 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_HOSTNAME, "localhost");
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_PORT,
-                    new Integer(zkPort).toString());
+                                     Integer.toString(zkPort));
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT,
-                    new Integer(hostPort).toString());
+                                     Integer.toString(hostPort));
 
             ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_HOSTNAME,
                     "localhost");
             ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_PORT,
-                    new Integer(zkPort).toString());
+                                     Integer.toString(zkPort));
 
             props = new ServiceBuilderConfig(p);
 

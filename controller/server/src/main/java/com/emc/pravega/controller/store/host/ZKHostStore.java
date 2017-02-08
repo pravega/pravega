@@ -97,7 +97,7 @@ public class ZKHostStore implements HostControllerStore {
         tryInit();
 
         try {
-            zkClient.setData().forPath(zkPath, SerializationUtils.serialize((HashMap) newMapping));
+            zkClient.setData().forPath(zkPath, SerializationUtils.serialize(new HashMap<>(newMapping)));
             log.info("Successfully updated segment container map");
         } catch (Exception e) {
             throw new HostStoreException("Failed to persist segment container map to zookeeper", e);

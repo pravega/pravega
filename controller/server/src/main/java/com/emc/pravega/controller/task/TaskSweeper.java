@@ -41,7 +41,7 @@ public class TaskSweeper {
     private final String hostId;
 
     @Data
-    public class Result {
+    public static class Result {
         private final TaggedResource taggedResource;
         private final Object value;
         private final Throwable error;
