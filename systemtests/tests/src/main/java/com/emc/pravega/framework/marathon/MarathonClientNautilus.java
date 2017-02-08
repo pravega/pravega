@@ -18,53 +18,28 @@
 
 package com.emc.pravega.framework.marathon;
 
-import feign.Feign;
-import feign.RequestLine;
-import feign.Response;
+import com.emc.pravega.framework.NautilusLoginClient;
 import feign.auth.BasicAuthRequestInterceptor;
-import feign.gson.GsonEncoder;
 import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.MarathonClient;
 import mesosphere.marathon.client.auth.TokenAuthRequestInterceptor;
 
-import java.util.Collection;
+import static com.emc.pravega.framework.NautilusLoginClient.MESOS_URL;
 
 public class MarathonClientNautilus {
 
-    public static final String TOKEN_HEADER_NAME = "X-AUTH-TOKEN";
+    private static final String TOKEN_HEADER_NAME = "X-AUTH-TOKEN";
 
-    //TODO: Read this from system properties
-    private static final String ENDPOINT = "http://10.240.124.4/marathon";
-    private static final String LOGIN_URL = "http://10.240.124.4/auth/v1";
+    private static final String ENDPOINT = MESOS_URL + "/marathon";
+    private static final String LOGIN_URL = MESOS_URL + "/auth/v1";
 
     public static Marathon getClient() {
         return createMarathonClient();
     }
 
-    private interface LoginClient {
-        @RequestLine("POST /login")
-        Response login();
-    }
-
     private static Marathon createMarathonClient() {
         final BasicAuthRequestInterceptor requestInterceptor = new BasicAuthRequestInterceptor("admin", "password");
-        String token = getAuthToken(requestInterceptor);
+        String token = NautilusLoginClient.getAuthToken(LOGIN_URL, requestInterceptor);
         return MarathonClient.getInstance(ENDPOINT, new TokenAuthRequestInterceptor(token));
-    }
-
-    private static String getAuthToken(BasicAuthRequestInterceptor requestInterceptor) {
-        LoginClient client = Feign.builder()
-                .encoder(new GsonEncoder())
-                .requestInterceptor(requestInterceptor)
-                .target(LoginClient.class, LOGIN_URL);
-
-        Response response = client.login();
-
-        if (response.status() == 200) {
-            Collection<String> headers = response.headers().get(TOKEN_HEADER_NAME);
-            return headers.toArray(new String[headers.size()])[0];
-        } else {
-            throw new RuntimeException("Exception while logging into the nautilus cluster");
-        }
     }
 }
