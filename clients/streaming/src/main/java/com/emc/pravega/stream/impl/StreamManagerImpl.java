@@ -28,7 +28,6 @@ import com.emc.pravega.stream.ScalingPolicy.Type;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
-import org.apache.commons.lang.NotImplementedException;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -36,6 +35,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+
+import org.apache.commons.lang.NotImplementedException;
 
 import static com.emc.pravega.common.concurrent.FutureHelpers.allOfWithResults;
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
@@ -87,13 +88,13 @@ public class StreamManagerImpl implements StreamManager {
     public void close() throws Exception {
 
     }
-
+    
     @Override
     public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, List<String> streams) {
         createStreamHelper(groupName,
-                new StreamConfigurationImpl(scope,
-                        groupName,
-                        new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0, 1)));
+                           new StreamConfigurationImpl(scope,
+                                   groupName,
+                                   new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0, 1)));
         SynchronizerConfig synchronizerConfig = new SynchronizerConfig(null, null);
         ReaderGroupImpl result = new ReaderGroupImpl(scope,
                 groupName,
@@ -107,13 +108,13 @@ public class StreamManagerImpl implements StreamManager {
         for (String stream : streams) {
             CompletableFuture<List<PositionInternal>> future = controller.getPositions(new StreamImpl(scope, stream), 0, 1);
             futures.add(future.thenApply(list -> list.stream()
-                    .flatMap(pos -> pos.getOwnedSegmentsWithOffsets().entrySet().stream())
-                    .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()))));
+                                         .flatMap(pos -> pos.getOwnedSegmentsWithOffsets().entrySet().stream())
+                                         .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()))));
         }
         Map<Segment, Long> segments = getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
             return listOfMaps.stream()
-                    .flatMap(map -> map.entrySet().stream())
-                    .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
+                             .flatMap(map -> map.entrySet().stream())
+                             .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
         }), RuntimeException::new);
         result.initializeGroup(segments);
         return result;
