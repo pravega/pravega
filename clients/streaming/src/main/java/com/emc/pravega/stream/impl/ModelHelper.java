@@ -146,13 +146,13 @@ public final class ModelHelper {
     public static NodeUri decode(PravegaNodeUri uri) {
         return new NodeUri(uri.getEndpoint(), uri.getPort());
     }
-
+    
     public static final Map<Integer, Long> toSegmentOffsetMap(PositionInternal position) {
         return position.getOwnedSegmentsWithOffsets()
-                .entrySet()
-                .stream()
-                .map(e -> new SimpleEntry<>(e.getKey().getSegmentNumber(), e.getValue()))
-                .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+            .entrySet()
+            .stream()
+            .map(e -> new SimpleEntry<>(e.getKey().getSegmentNumber(), e.getValue()))
+            .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
     }
 
     private static Map<Segment, Long> encodeSegmentMap(final Map<SegmentId, Long> map) {
