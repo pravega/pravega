@@ -98,7 +98,7 @@ public class YammerDynamicLogger implements DynamicLogger {
             });
             counter.add(delta);
         } catch (ExecutionException e) {
-            e.printStackTrace();
+            log.error("Error while countersCache create counter", e);
         }
     }
 
@@ -145,7 +145,7 @@ public class YammerDynamicLogger implements DynamicLogger {
             });
             meter.recordEvents(number);
         } catch (ExecutionException e) {
-            e.printStackTrace();
+            log.error("Error while metersCache create meter", e);
         }
     }
 }
