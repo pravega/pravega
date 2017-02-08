@@ -29,4 +29,9 @@ public class NullDynamicLogger implements DynamicLogger {
     public <T extends Number> void reportGaugeValue(String name, T value) {
         // nop
     }
+
+    @Override
+    public void recordMeterEvents(String name, long number) {
+        // nop
+    }
 }

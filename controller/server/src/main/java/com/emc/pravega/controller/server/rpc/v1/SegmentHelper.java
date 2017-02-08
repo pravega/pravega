@@ -221,7 +221,7 @@ public class SegmentHelper {
                 .thenCompose(x -> result);
     }
 
-    public static CompletableFuture<TxnStatus> dropTransaction(final String scope,
+    public static CompletableFuture<TxnStatus> abortTransaction(final String scope,
                                                                        final String stream,
                                                                        final int segmentNumber,
                                                                        final UUID txId,

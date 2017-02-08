@@ -18,7 +18,6 @@
 package com.emc.pravega.state.impl;
 
 import com.emc.pravega.state.InitialUpdate;
-import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Update;
 
@@ -30,18 +29,15 @@ import lombok.Data;
 class UpdateOrInit<StateT extends Revisioned> {
     private final List<? extends Update<StateT>> updates;
     private final InitialUpdate<StateT> init;
-    private final Revision initRevision;
 
     UpdateOrInit(List<? extends Update<StateT>> updates) {
         this.updates = updates;
         this.init = null;
-        this.initRevision = null;
     }
 
-    UpdateOrInit(InitialUpdate<StateT> init, Revision revision) {
+    UpdateOrInit(InitialUpdate<StateT> init) {
         this.updates = null;
         this.init = init;
-        this.initRevision = revision;
     }
 
     boolean isInit() {

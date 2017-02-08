@@ -30,12 +30,13 @@ import com.emc.pravega.stream.impl.PositionInternal;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.StreamSegments;
-import lombok.Cleanup;
-import org.apache.curator.test.TestingServer;
-
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+
+import org.apache.curator.test.TestingServer;
+
+import lombok.Cleanup;
 
 public class StreamMetadataTest {
     @SuppressWarnings("checkstyle:ReturnCount")
@@ -286,7 +287,7 @@ public class StreamMetadataTest {
         //get  positions at a given time stamp
 
         //PS1:get  positions at a given time stamp:given stream, time stamp, count
-        Stream stream1 = new StreamImpl(scope1, streamName1, config1);
+        Stream stream1 = new StreamImpl(scope1, streamName1);
         final int count1 = 10;
         CompletableFuture<List<PositionInternal>> getPositions;
         System.err.println(String.format("Fetching positions at given time stamp of (%s,%s)", scope1, streamName1));
@@ -310,7 +311,7 @@ public class StreamMetadataTest {
         }
 
         //PS3:get positions of a different stream at a given time stamp
-        Stream stream2 = new StreamImpl(scope1, streamName2, config3);
+        Stream stream2 = new StreamImpl(scope1, streamName2);
         System.err.println(String.format("Fetching positions at given time stamp of (%s, %s)", scope1, stream2));
         getPositions  =  controller.getPositions(stream2, System.currentTimeMillis(), count1);
         if (getPositions.get().isEmpty()) {
@@ -321,7 +322,7 @@ public class StreamMetadataTest {
         }
 
         //PS4:get positions at a given timestamp for non-existent stream.
-        Stream stream = new StreamImpl("scope", "streamName", config);
+        Stream stream = new StreamImpl("scope", "streamName");
         System.err.println(String.format("Fetching positions at given time stamp for non existent stream (%s, %s)", "scope", "streamName"));
         getPositions   =  controller.getPositions(stream, System.currentTimeMillis(), count1);
         if (getPositions.get().isEmpty()) {
