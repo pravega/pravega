@@ -21,9 +21,9 @@ import com.emc.pravega.ClientFactory;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Serializer;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.hadoop.shaded.com.google.common.base.Preconditions;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
@@ -153,7 +153,7 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
         this.pravegaWriter.writeEvent(this.eventRouter.getRoutingKey(event), event)
                 .whenComplete((aVoid, throwable) -> {
                     if (throwable != null) {
-                        log.warn("Detected a write failure: ", throwable);
+                        log.warn("Detected a write failure: {}", throwable);
 
                         // We will record only the first error detected, since this will mostly likely help with
                         // finding the root cause. Storing all errors will not be feasible.
