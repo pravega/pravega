@@ -27,7 +27,7 @@ allprojects {
     apply plugin: 'maven'
     apply plugin: 'signing'
     apply plugin: 'checkstyle'
-	apply plugin: 'findbugs'
+    apply plugin: 'findbugs'
     apply plugin: 'com.bmuschko.docker-java-application'
     apply plugin: 'maven-publish'
 
@@ -39,18 +39,18 @@ allprojects {
         failOnError = false
         exclude  "**/impl/**";
     }
-	tasks.withType(FindBugs) {
-		effort = "default"
-		includeFilter = file("$rootDir/checkstyle/findbugs-include.xml")
-		excludeFilter = file("$rootDir/checkstyle/findbugs-exclude.xml")
-		reports {
-			xml.enabled false
-			html.enabled true
-		}
-	}
-	compileJava { 
-		options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror" 
-	} 
+    tasks.withType(FindBugs) {
+        effort = "default"
+        includeFilter = file("$rootDir/checkstyle/findbugs-include.xml")
+        excludeFilter = file("$rootDir/checkstyle/findbugs-exclude.xml")
+        reports {
+            xml.enabled false
+            html.enabled true
+        }
+    }
+    compileJava { 
+        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror" 
+    } 
     docker {
         url = dockerUrl
     }
