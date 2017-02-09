@@ -22,6 +22,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 class PerfStats {
+    private final int messageSize;
     private long windowStartTime;
     private long start;
     private long windowStart;
@@ -39,7 +40,7 @@ class PerfStats {
     private long windowBytes;
     private long reportingInterval;
 
-    public PerfStats(long numRecords, int reportingInterval) {
+    public PerfStats(long numRecords, int reportingInterval, int messageSize) {
         this.start = System.currentTimeMillis();
         this.windowStartTime = System.currentTimeMillis();
         this.windowStart = 0;
@@ -56,6 +57,7 @@ class PerfStats {
         this.windowBytes = 0;
         this.totalLatency = 0;
         this.reportingInterval = reportingInterval;
+        this.messageSize = messageSize;
     }
 
     public synchronized void record(int iter, int latencyMicro, int bytes, long time) {
@@ -114,6 +116,10 @@ class PerfStats {
                 "%d records sent, %f records/sec (%.5f MB/sec), %.2f ms avg latency, %.2f ms max " + "latency, %.2f " +
                         "ms 50th, %.2f ms 95th, %.2f ms 99th, %.2f ms 99.9th.\n",
                 count, recsPerSec, mbPerSec, totalLatency / ((double) count * 1000.0), (double) maxLatency / 1000.0,
+                percs[0] / 1000.0, percs[1] / 1000.0, percs[2] / 1000.0, percs[3] / 1000.0);
+        System.out.printf(
+                " FINAL: %d, %.5f MB/sec, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f\n",
+                messageSize, mbPerSec, totalLatency / ((double) count * 1000.0), (double) maxLatency / 1000.0,
                 percs[0] / 1000.0, percs[1] / 1000.0, percs[2] / 1000.0, percs[3] / 1000.0);
     }
 

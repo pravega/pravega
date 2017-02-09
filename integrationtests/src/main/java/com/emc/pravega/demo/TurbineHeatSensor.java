@@ -118,10 +118,10 @@ public class TurbineHeatSensor {
             System.exit(1);
         }
 
-        produceStats = new PerfStats(producerCount * eventsPerSec * runtimeSec, 200);
+        produceStats = new PerfStats(producerCount * eventsPerSec * runtimeSec, 200, messageSize);
 
         if ( !onlyWrite ) {
-            consumeStats = new PerfStats(producerCount * eventsPerSec * runtimeSec, 2);
+            consumeStats = new PerfStats(producerCount * eventsPerSec * runtimeSec, 2, messageSize);
             SensorReader reader = new SensorReader(producerCount * eventsPerSec * runtimeSec);
             executor.execute(reader);
         }
