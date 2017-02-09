@@ -54,7 +54,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private boolean sealedInStorage;
     private boolean deleted;
     private boolean merged;
-    @Getter @Setter
+    @Getter
+    @Setter
     private ImmutableDate lastModified;
 
     //endregion
