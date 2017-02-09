@@ -118,7 +118,7 @@ class PerfStats {
                 count, recsPerSec, mbPerSec, totalLatency / ((double) count * 1000.0), (double) maxLatency / 1000.0,
                 percs[0] / 1000.0, percs[1] / 1000.0, percs[2] / 1000.0, percs[3] / 1000.0);
         System.out.printf(
-                " FINAL: %d, %.5f MB/sec, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f\n",
+                " FINAL:, %d, %.5f MB/sec, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f\n",
                 messageSize, mbPerSec, totalLatency / ((double) count * 1000.0), (double) maxLatency / 1000.0,
                 percs[0] / 1000.0, percs[1] / 1000.0, percs[2] / 1000.0, percs[3] / 1000.0);
     }
