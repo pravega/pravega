@@ -99,7 +99,7 @@ class MemoryStateUpdater {
      *                                 append operations out of order.
      */
     void process(Operation operation) throws DataCorruptionException {
-        if(!operation.canSerialize()){
+        if (!operation.canSerialize()) {
             // Nothing to do.
             return;
         }

@@ -941,52 +941,6 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         /**
-         * Pre-processes a collection of attributes.
-         * After this method returns, all AttributeUpdates in the given collection will have the actual (and updated) value
-         * of that attribute in the Segment.
-         *
-         * @param attributeUpdates The Updates to process (if any).
-         * @throws BadAttributeUpdateException If any of the given AttributeUpdates is invalid given the current state of
-         *                                     the segment.
-         */
-        void preProcessAttributes(Collection<AttributeUpdate> attributeUpdates) throws BadAttributeUpdateException {
-            if (attributeUpdates == null) {
-                return;
-            }
-
-            for (AttributeUpdate u : attributeUpdates) {
-                Attribute.UpdateType updateType = u.getAttribute().getUpdateType();
-                long previousValue = getAttributeValue(u.getAttribute().getId(), NULL_ATTRIBUTE_VALUE);
-
-                // Perform validation, and set the AttributeUpdate.value to the updated value, if necessary.
-                switch (updateType) {
-                    case ReplaceIfGreater:
-                        // Verify value against existing value, if any.
-                        if (previousValue != NULL_ATTRIBUTE_VALUE && u.getValue() <= previousValue) {
-                            throw new BadAttributeUpdateException(this.baseMetadata.getName(), u,
-                                    String.format("Expected greater than '%s'.", previousValue));
-                        }
-
-                        break;
-                    case None:
-                        // Attribute cannot be updated once set.
-                        if (previousValue != NULL_ATTRIBUTE_VALUE) {
-                            throw new BadAttributeUpdateException(this.baseMetadata.getName(), u,
-                                    String.format("Attribute value already exists and cannot be updated (%s).", previousValue));
-                        }
-
-                        break;
-                    case Accumulate:
-                        if (previousValue != NULL_ATTRIBUTE_VALUE) {
-                            u.setValue(previousValue + u.getValue());
-                        }
-
-                        break;
-                }
-            }
-        }
-
-        /**
          * Pre-processes a StreamSegmentSealOperation.
          * After this method returns, the operation will have its StreamSegmentLength property set to the current length of the StreamSegment.
          *
@@ -1075,6 +1029,52 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
         }
 
+        /**
+         * Pre-processes a collection of attributes.
+         * After this method returns, all AttributeUpdates in the given collection will have the actual (and updated) value
+         * of that attribute in the Segment.
+         *
+         * @param attributeUpdates The Updates to process (if any).
+         * @throws BadAttributeUpdateException If any of the given AttributeUpdates is invalid given the current state of
+         *                                     the segment.
+         */
+        void preProcessAttributes(Collection<AttributeUpdate> attributeUpdates) throws BadAttributeUpdateException {
+            if (attributeUpdates == null) {
+                return;
+            }
+
+            for (AttributeUpdate u : attributeUpdates) {
+                Attribute.UpdateType updateType = u.getAttribute().getUpdateType();
+                long previousValue = getAttributeValue(u.getAttribute().getId(), NULL_ATTRIBUTE_VALUE);
+
+                // Perform validation, and set the AttributeUpdate.value to the updated value, if necessary.
+                switch (updateType) {
+                    case ReplaceIfGreater:
+                        // Verify value against existing value, if any.
+                        if (previousValue != NULL_ATTRIBUTE_VALUE && u.getValue() <= previousValue) {
+                            throw new BadAttributeUpdateException(this.baseMetadata.getName(), u,
+                                    String.format("Expected greater than '%s'.", previousValue));
+                        }
+
+                        break;
+                    case None:
+                        // Attribute cannot be updated once set.
+                        if (previousValue != NULL_ATTRIBUTE_VALUE) {
+                            throw new BadAttributeUpdateException(this.baseMetadata.getName(), u,
+                                    String.format("Attribute value already exists and cannot be updated (%s).", previousValue));
+                        }
+
+                        break;
+                    case Accumulate:
+                        if (previousValue != NULL_ATTRIBUTE_VALUE) {
+                            u.setValue(previousValue + u.getValue());
+                        }
+
+                        break;
+                }
+            }
+        }
+
         //endregion
 
         //region AcceptOperation
@@ -1095,21 +1095,6 @@ class OperationMetadataUpdater implements ContainerMetadata {
             this.currentDurableLogLength += operation.getData().length;
             acceptAttributes(operation.getAttributeUpdates());
             this.isChanged = true;
-        }
-
-        /**
-         * Accepts a collection of AttributeUpdates in the metadata.
-         *
-         * @param attributeUpdates The Attribute updates to accept.
-         */
-        void acceptAttributes(Collection<AttributeUpdate> attributeUpdates) {
-            if (attributeUpdates == null) {
-                return;
-            }
-
-            for (AttributeUpdate au : attributeUpdates) {
-                this.updatedAttributeValues.put(au.getAttribute().getId(), au.getValue());
-            }
         }
 
         /**
@@ -1165,6 +1150,21 @@ class OperationMetadataUpdater implements ContainerMetadata {
             this.sealed = true;
             this.merged = true;
             this.isChanged = true;
+        }
+
+        /**
+         * Accepts a collection of AttributeUpdates in the metadata.
+         *
+         * @param attributeUpdates The Attribute updates to accept.
+         */
+        void acceptAttributes(Collection<AttributeUpdate> attributeUpdates) {
+            if (attributeUpdates == null) {
+                return;
+            }
+
+            for (AttributeUpdate au : attributeUpdates) {
+                this.updatedAttributeValues.put(au.getAttribute().getId(), au.getValue());
+            }
         }
 
         //endregion

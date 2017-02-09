@@ -23,11 +23,19 @@ import com.emc.pravega.common.netty.RequestProcessor;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
+import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
+import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
+import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
+import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.service.contracts.Attribute;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.BadOffsetException;
+import com.emc.pravega.service.contracts.StreamSegmentExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
+import com.emc.pravega.service.contracts.WrongHostException;
 import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -38,6 +46,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
@@ -157,7 +166,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         ByteBuf buf = Unpooled.unmodifiableBuffer(toWrite.getData());
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
-        val attributes = Collections.singletonList(new AttributeUpdate(
+        val attributes = Collections.singleton(new AttributeUpdate(
                 Attribute.dynamic(toWrite.getConnectionId(), Attribute.UpdateType.ReplaceIfGreater),
                 toWrite.getEventNumber()));
 
@@ -205,7 +214,28 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     }
 
     private void handleException(String segment, Throwable u) {
-        PravegaRequestProcessor.handleException(segment, "append", connection, u);
+        if (u == null) {
+            IllegalStateException exception = new IllegalStateException("Neither offset nor exception!?");
+            log.error("Error on segment: " + segment, exception);
+            throw exception;
+        }
+        if (u instanceof CompletionException) {
+            u = u.getCause();
+        }
+        if (u instanceof StreamSegmentExistsException) {
+            connection.send(new SegmentAlreadyExists(segment));
+        } else if (u instanceof StreamSegmentNotExistsException) {
+            connection.send(new NoSuchSegment(segment));
+        } else if (u instanceof StreamSegmentSealedException) {
+            connection.send(new SegmentIsSealed(segment));
+        } else if (u instanceof WrongHostException) {
+            WrongHostException wrongHost = (WrongHostException) u;
+            connection.send(new WrongHost(wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
+        } else {
+            // TODO: don't know what to do here...
+            connection.close();
+            log.error("Unknown exception on append for segment " + segment, u);
+        }
     }
 
     /**

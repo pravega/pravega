@@ -268,18 +268,13 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
         try {
             // Update Metadata and Operations with any missing data (offsets, lengths, etc) - the Metadata Updater has all the knowledge for that task.
             this.metadataUpdater.preProcessOperation(entry);
-        } catch (Exception ex) {
-            // This entry was not accepted (due to external error) or some processing error occurred. Our only option is to fail it now, before trying to commit it.
-            operation.fail(ex);
-            return false;
-        }
 
-        // Entry is ready to be serialized; assign a sequence number.
-        entry.setSequenceNumber(this.metadataUpdater.nextOperationSequenceNumber());
+            // Entry is ready to be serialized; assign a sequence number.
+            entry.setSequenceNumber(this.metadataUpdater.nextOperationSequenceNumber());
 
-        log.trace("{}: DataFrameBuilder.Append {}.", this.traceObjectId, operation.getOperation());
-        try {
+            log.trace("{}: DataFrameBuilder.Append {}.", this.traceObjectId, operation.getOperation());
             dataFrameBuilder.append(operation.getOperation());
+            this.metadataUpdater.acceptOperation(entry);
         } catch (Exception ex) {
             operation.fail(ex);
             Throwable cause = ExceptionHelpers.getRealException(ex);
@@ -289,14 +284,6 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
                 throw (DataCorruptionException) cause;
             }
 
-            return false;
-        }
-
-        try {
-            this.metadataUpdater.acceptOperation(entry);
-        } catch (MetadataUpdateException ex) {
-            // This is an internal error. This shouldn't happen. The entry has been committed, but we couldn't update the metadata due to a bug.
-            operation.fail(ex);
             return false;
         }
 

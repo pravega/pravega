@@ -269,10 +269,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private void handleException(String segment, String operation, Throwable u) {
-        handleException(segment, operation, connection, u);
-    }
-
-    static void handleException(String segment, String operation, ServerConnection connection, Throwable u) {
         if (u == null) {
             throw new IllegalStateException("Neither offset nor exception!?");
         }

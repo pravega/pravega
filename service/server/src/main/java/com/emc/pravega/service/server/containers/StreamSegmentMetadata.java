@@ -23,7 +23,11 @@ import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.google.common.base.Preconditions;
-import java.util.*;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 
 /**
