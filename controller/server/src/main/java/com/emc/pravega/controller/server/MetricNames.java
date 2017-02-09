@@ -32,6 +32,6 @@ public interface MetricNames {
     public final static String OPEN_TRANSACTIONS = "OPEN_TRANSACTIONS"; // Gauge
     
     static String nameFromStream(String metric, String scope, String stream) {
-        return metric + ":" + scope + "/" + stream;
+        return metric + "." + scope + "." + stream;
     }
 }

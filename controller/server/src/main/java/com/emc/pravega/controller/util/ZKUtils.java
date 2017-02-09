@@ -17,7 +17,11 @@
  */
 package com.emc.pravega.controller.util;
 
+import com.emc.pravega.common.metrics.MetricsConfig;
 import com.google.common.base.Preconditions;
+
+import java.util.Properties;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -33,7 +37,7 @@ public final class ZKUtils {
     /**
      * Helper utility to lazily create and fetch only one instance of the Curator client to be used by the controller.
      */
-    public enum CuratorSingleton {
+    private enum CuratorSingleton {
         CURATOR_INSTANCE;
 
         //Single instance of the curator client which we want to be used in all of the controller code.
@@ -48,10 +52,10 @@ public final class ZKUtils {
                     .build();
             zkClient.start();
         }
-
-        public CuratorFramework getCuratorClient() {
-            return zkClient;
-        }
+    }
+    
+    public static CuratorFramework getCuratorClient() {
+        return CuratorSingleton.CURATOR_INSTANCE.zkClient;
     }
 
     /**
@@ -99,5 +103,9 @@ public final class ZKUtils {
         } catch (Exception e) {
             throw new RuntimeException("Exception while creating znode: " + basePath, e);
         }
+    }
+
+    public static MetricsConfig getMetricsConfig() {
+        return Config.getMetricsConfig(); 
     }
 }

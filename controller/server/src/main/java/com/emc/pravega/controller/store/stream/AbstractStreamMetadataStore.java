@@ -22,6 +22,7 @@ import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.OpStatsLogger;
 import com.emc.pravega.common.metrics.StatsLogger;
+import com.emc.pravega.common.metrics.StatsProvider;
 import com.emc.pravega.controller.server.MetricNames;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -54,8 +55,9 @@ import static com.emc.pravega.controller.server.MetricNames.nameFromStream;
  */
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
+    protected static final StatsProvider METRICS_PROVIDER = MetricsProvider.getMetricsProvider();
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
-    private static final StatsLogger STATS_LOGGER = MetricsProvider.getMetricsProvider().createStatsLogger("Controller");
+    private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("Controller");
     private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricNames.CREATE_STREAM);
     private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricNames.SEAL_STREAM);
     private final LoadingCache<String, Stream> cache;
