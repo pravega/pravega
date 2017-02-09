@@ -17,8 +17,7 @@
  */
 package com.emc.pravega.framework;
 
-import com.emc.pravega.framework.marathon.TestExecutorFactory;
-import com.emc.pravega.framework.marathon.TestExecutorFactory.TestExecutorType;
+import com.emc.pravega.framework.TestExecutorFactory.TestExecutorType;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.internal.runners.model.EachTestNotifier;
 import org.junit.internal.runners.statements.RunBefores;

@@ -18,9 +18,9 @@
 package com.emc.pravega;
 
 import com.emc.pravega.framework.Environment;
+import com.emc.pravega.framework.SystemTestRunner;
 import com.emc.pravega.framework.services.RedisService;
 import com.emc.pravega.framework.services.Service;
-import com.emc.pravega.framework.SystemTestRunner;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -34,7 +34,6 @@ import java.util.concurrent.TimeoutException;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-//@FreshSetup -- this is used to indicate the Setup needs to be created afresh.
 @RunWith(SystemTestRunner.class)
 public class RedisClientTest {
     private final static String STREAM_NAME = "testStream";
@@ -44,6 +43,8 @@ public class RedisClientTest {
 
     private static Service redis = new RedisService("redisservice");
 
+    private static String beforeClassVariable;
+
     @Environment
     public static void setup() {
         //TODO: set attributes
@@ -51,27 +52,15 @@ public class RedisClientTest {
             redis.start();
         }
         List<URI> uris = redis.getServiceDetails();
+        System.out.println("Redis service details:" + uris);
         assertTrue(uris.size() == 1);
+
         resdisHostURI = uris.get(0);
-
-        /*  Service zk = TF.serviceFactory().getZKService();
-        zk.setCPU(2.0);
-        zk.instanceCount(3);
-        zk.start(false);
-
-        Service pravega = TF.serviceFactory().getPravega();
-        pravega.setInstanceCount(3);
-        pravega.start(false);
-
-        Service controller = TF.serviceFactory().getController();
-        controller.setInstanceCount(3);
-        controller.start(false);
-        */
     }
 
     @BeforeClass
     public static void BeforeClass() throws InterruptedException, ExecutionException, TimeoutException {
-
+        // This is the placeholder to perform any operation on the services before executing the system tests
     }
 
     /*
@@ -81,13 +70,41 @@ public class RedisClientTest {
     @Test
     //@InstanceCount(3)
     public void redisPingTest() {
-        //Note: host on which redis is running is a private ip and is not accessible when executed locally. It will be
-        // accessible when executed as a marathon test.
         System.out.println("Start execution of redisPingTest");
+        //Fetch the service details
         URI redisURI = redis.getServiceDetails().get(0);
         System.out.println("Redis Service URI: " + redisURI);
+
+        //Perform test
         Jedis redisClient = new Jedis(redisURI.getHost(), redisURI.getPort());
         assertEquals("PONG", redisClient.ping());
+
         System.out.println("Test execution completed");
     }
+
+    @Test
+    public void redisFailPingTest() {
+        //Test to simulate a failed system test.
+        System.out.println("Test a failed system test");
+        URI redisURI = redis.getServiceDetails().get(0);
+        System.out.println("Redis Service URI: " + redisURI);
+
+        Jedis redisClient = new Jedis(redisURI.getHost(), redisURI.getPort());
+        assertEquals("INVALID", redisClient.ping()); // this assertion fails
+
+        System.out.println("Test execution completed");
+    }
+
+    @Test
+    public void redisGetTest() {
+        System.out.println("Test a failed system test");
+        URI redisURI = redis.getServiceDetails().get(0);
+        System.out.println("Redis Service URI: " + redisURI);
+
+        Jedis redisClient = new Jedis(redisURI.getHost(), redisURI.getPort());
+        redisClient.set("Key1", "Value1");
+
+        assertEquals("Value1", redisClient.get("Key1"));
+    }
+
 }

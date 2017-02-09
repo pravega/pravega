@@ -14,67 +14,59 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.framework.metronome;
+package com.emc.pravega.framework;
 
-import com.emc.pravega.framework.NautilusLoginClient;
+import com.emc.pravega.framework.metronome.Metronome;
+import com.emc.pravega.framework.metronome.MetronomeClientNautilus;
+import com.emc.pravega.framework.metronome.MetronomeException;
 import com.emc.pravega.framework.metronome.model.v1.Artifact;
 import com.emc.pravega.framework.metronome.model.v1.Job;
 import com.emc.pravega.framework.metronome.model.v1.Restart;
 import com.emc.pravega.framework.metronome.model.v1.Run;
-import feign.auth.BasicAuthRequestInterceptor;
-import mesosphere.marathon.client.auth.TokenAuthRequestInterceptor;
+import feign.Response;
 
+import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
-import static com.emc.pravega.framework.NautilusLoginClient.MESOS_URL;
+public class RemoteSequential implements TestExecutor {
+    private static Metronome client = MetronomeClientNautilus.getClient();
 
-public class MetronomeClientNautilus {
-
-    private static final String TOKEN_HEADER_NAME = "X-AUTH-TOKEN";
-
-    //TODO: Read this from system properties
-    private static final String ENDPOINT = MESOS_URL + "/service/metronome";
-    private static final String LOGIN_URL = MESOS_URL + "/auth/v1";
-
-    public static Metronome getClient() {
-        return createMetronomeClient();
-    }
-
-
-    private static Metronome createMetronomeClient() {
-        final BasicAuthRequestInterceptor requestInterceptor = new BasicAuthRequestInterceptor("admin", "password");
-        String token = NautilusLoginClient.getAuthToken(LOGIN_URL, requestInterceptor);
-        return MetronomeClient.getInstance(ENDPOINT, new TokenAuthRequestInterceptor(token));
-    }
-
-    public static void main(String[] args) throws MetronomeException, InterruptedException {
-
-        Metronome client = createMetronomeClient();
-        deleteAllJobs(client);
-
-        //        final String id = "learn-11";
-        //        client.createJob(newJob(id, "com.emc.pravega.RedisClientTest", "redisPingTest"));
-        //        client.triggerJobRun(id);
-        //        TimeUnit.SECONDS.sleep(3);
-        //        Job jobDetails = client.getJob(id);
-        //        //        TimeUnit.SECONDS.sleep(20);
-        //        System.out.println(jobDetails);
-        //        System.out.println("hw");
-
-    }
-
-    private static void deleteAllJobs(Metronome client) throws MetronomeException {
-        List<Job> list = client.getJobs();
-        list.forEach(job -> {
-            try {
-                client.deleteJob(job.getId());
-            } catch (MetronomeException e) {
-                e.printStackTrace();
+    @Override
+    public CompletableFuture<String> startTestExecution(Method method) {
+        System.out.println(method);
+        String className = method.getDeclaringClass().getName();
+        String methodName = method.getName();
+        String jobId = (methodName + ".testJob.01").toLowerCase();
+        try {
+            Job job = client.createJob(newJob(jobId, className, methodName));
+            Response response = client.triggerJobRun(jobId);
+            if (response.status() != 201) {
+                throw new RuntimeException("Error while executing test" + method.toString());
             }
-        });
+
+            //wait until the test is complete.
+            while (isTestRunning(jobId)) {
+                TimeUnit.SECONDS.sleep(3);
+            }
+            if (client.getJob(jobId).getHistory().getFailureCount() != 0) {
+                throw new AssertionError("Error while executing Test" + methodName);
+            }
+
+        } catch (MetronomeException | InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+            deleteJob(jobId);
+        }
+        return CompletableFuture.completedFuture("completed");
+    }
+
+    @Override
+    public CompletableFuture<String> stopTestExcecution(String testID) {
+        return null;
     }
 
     private static Job newJob(String id, String className, String methodName) {
@@ -86,7 +78,7 @@ public class MetronomeClientNautilus {
         env.put("env2", "value102");
 
         Artifact art = new Artifact();
-        art.setCache(true);
+        art.setCache(false);
         art.setExecutable(false);
         art.setExtract(false);
         art.setUri("http://asdrepo.isus.emc.com:8081/artifactory/pravega-testframework/pravega/systemtests/0.2" +
@@ -125,4 +117,24 @@ public class MetronomeClientNautilus {
 
         return j;
     }
+
+    private boolean isTestRunning(String jobId) throws MetronomeException {
+        Job jobStatus = client.getJob(jobId);
+        boolean isRunning = false;
+        if (jobStatus.getHistory() == null) {
+            isRunning = true;
+        } else if ((jobStatus.getHistory().getSuccessCount() == 0) && (jobStatus.getHistory().getFailureCount() == 0)) {
+            isRunning = true;
+        }
+        return isRunning;
+    }
+
+    private void deleteJob(String jobId) {
+        try {
+            client.deleteJob(jobId);
+        } catch (MetronomeException e) {
+            e.printStackTrace();
+        }
+    }
 }
+
