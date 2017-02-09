@@ -150,6 +150,7 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
             }
         }
 
+        this.pendingWritesCount.incrementAndGet();
         this.pravegaWriter.writeEvent(this.eventRouter.getRoutingKey(event), event)
                 .whenComplete((aVoid, throwable) -> {
                     if (throwable != null) {
@@ -166,7 +167,6 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
                         }
                     }
                 });
-        this.pendingWritesCount.incrementAndGet();
     }
 
     @Override
