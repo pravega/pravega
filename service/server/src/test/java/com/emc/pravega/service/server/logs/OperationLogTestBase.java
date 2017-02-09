@@ -34,6 +34,7 @@ import com.emc.pravega.service.server.containers.StreamSegmentMapper;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
+import com.emc.pravega.service.server.logs.operations.ProbeOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.pravega.service.storage.Storage;
@@ -237,8 +238,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     }
 
     private void addProbe(Collection<Operation> operations) {
-        // TODO: this seems to inconvenience a lot of tests. check them out. But first fix testTailReads.
-        //operations.add(new ProbeOperation());
+        operations.add(new ProbeOperation());
     }
 
     //endregion

@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.ObjectClosedException;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.StreamSegmentException;
@@ -28,7 +29,6 @@ import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.ReadIndex;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.service.server.TruncationMarkerRepository;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -36,6 +36,7 @@ import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.OperationComparer;
 import com.emc.pravega.service.server.logs.operations.OperationFactory;
+import com.emc.pravega.service.server.logs.operations.ProbeOperation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
@@ -56,12 +57,14 @@ import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import lombok.Cleanup;
 import org.junit.Assert;
@@ -408,6 +411,37 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // There is no point in performing metadata checks. A DataCorruptionException means the Metadata (and the general
         // state of the Container) is in an undefined state.
+    }
+
+    /**
+     * Tests the ability of the OperationProcessor to handle a single ProbeOperation (this is because it's a non-serializable
+     * operation, so there is no commit to DurableDataLog - we need to verify the operation is properly completed in this
+     * case).
+     */
+    @Test
+    public void testWithSingleProbeOperation() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext();
+
+        // Generate some test data.
+        ProbeOperation operation = new ProbeOperation();
+
+        // Setup an OperationProcessor and start it.
+        @Cleanup
+        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
+        dataLog.initialize(TIMEOUT);
+        @Cleanup
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy(), executorService());
+        operationProcessor.startAsync().awaitRunning();
+
+        // Process all generated operations.
+        OperationWithCompletion completionFuture = processOperations(Collections.singleton(operation), operationProcessor).get(0);
+
+        // Wait for the ProbeOperation to complete (without exception). This is all we need to verify.
+        completionFuture.completion.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Stop the processor.
+        operationProcessor.stopAsync().awaitTerminated();
     }
 
     private List<OperationWithCompletion> processOperations(Collection<Operation> operations, OperationProcessor operationProcessor) {

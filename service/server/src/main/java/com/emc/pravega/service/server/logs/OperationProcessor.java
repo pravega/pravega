@@ -33,15 +33,13 @@ import com.emc.pravega.service.storage.DurableDataLog;
 import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.Collection;
-import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Predicate;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -208,6 +206,11 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
             // Close the DataFrameBuilder, which makes sure that the last set of operations are properly flushed and
             // completed.
             dataFrameBuilder.close();
+            if (state.hasPending()) {
+                // Usually we reach this state if the only operation we had as a ProbeOperation (i.e. non-serializable),
+                // which wouldn't have triggered a state.commit on its own.
+                completeNonSerializableOperations(state);
+            }
         } catch (Throwable ex) {
             handleIterationException(ex, state, operations);
         }
@@ -257,10 +260,8 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
         Preconditions.checkState(!operation.isDone(), "The Operation has already been processed.");
 
         Operation entry = operation.getOperation();
-        System.out.println("OP.Process: "+entry);
         if (!entry.canSerialize()) {
             // This operation cannot be serialized, so don't bother doing anything with it.
-            System.out.println("OP.BailOut: "+entry);
             return true;
         }
 
@@ -300,6 +301,24 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
         }
 
         return true;
+    }
+
+    /**
+     * Completes all operations in the given state that are non-serializable (if any are left).
+     */
+    private void completeNonSerializableOperations(QueueProcessingState state) {
+        state.forEachPending(op -> {
+            boolean canComplete = !op.getOperation().canSerialize();
+            if (canComplete) {
+                op.complete();
+            }
+
+            return canComplete;
+        });
+
+        // We need to ensure that the only possible pending operations are those that are non-serializable; otherwise
+        // we have a problem.
+        assert !state.hasPending() : "QueueProcessingState still has pending items after closing the DataFrameBuilder.";
     }
 
     /**
@@ -386,8 +405,14 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
          * @param operation The operation to append.
          */
         void addPending(CompletableOperation operation) {
-            System.out.println("OP.addPending: "+operation.getOperation());
             this.pendingOperations.add(operation);
+        }
+
+        /**
+         * Gets a value indicating whether there exist any pending operations in this state.
+         */
+        boolean hasPending() {
+            return !this.pendingOperations.isEmpty();
         }
 
         /**
@@ -397,7 +422,6 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
          * @throws DataCorruptionException When the operation has been committed, but failed to be accepted into the In-Memory log.
          */
         public void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) throws Exception {
-            System.out.println("OP.commit");
             log.debug("{}: CommitSuccess (OperationCount = {}).", this.traceObjectId, this.pendingOperations.size());
 
             // Record the Truncation marker and then commit any changes to metadata.
@@ -436,6 +460,10 @@ class OperationProcessor extends AbstractThreadPoolService implements Container 
             // Fail all pending entries.
             this.pendingOperations.forEach(e -> e.fail(ex));
             this.pendingOperations.clear();
+        }
+
+        public void forEachPending(Predicate<CompletableOperation> inspector) {
+            this.pendingOperations.removeIf(inspector);
         }
     }
 

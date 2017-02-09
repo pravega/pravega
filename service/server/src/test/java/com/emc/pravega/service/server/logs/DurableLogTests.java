@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.StreamSegmentException;
@@ -32,7 +33,6 @@ import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.ReadIndex;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.service.server.TestDurableDataLogFactory;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
@@ -158,11 +158,8 @@ public class DurableLogTests extends OperationLogTestBase {
         durableLog.startAsync().awaitRunning();
 
         // Empty log.
-        System.out.println(1);
         CompletableFuture<Void> emptyLogBarrier = durableLog.operationProcessingBarrier(TIMEOUT);
-        System.out.println(2);
         emptyLogBarrier.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        System.out.println(3);
         Assert.assertTrue("Barrier for empty log did not complete successfully.", FutureHelpers.isSuccessful(emptyLogBarrier));
 
         // Add a few operations, and verify the "barrier" is always completed after them.
@@ -170,31 +167,18 @@ public class DurableLogTests extends OperationLogTestBase {
         List<Operation> operations = generateOperations(streamSegmentIds, Collections.emptyMap(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
         // Process all generated operations.
-        List<Integer> completionOrder = new ArrayList<>();
         List<OperationWithCompletion> completionFutures = processOperations(operations, durableLog);
 
         CompletableFuture<Void> afterBarrier = durableLog
-                .operationProcessingBarrier(TIMEOUT)
-                .thenAccept(v -> {
-                    synchronized (completionOrder) {
-                        completionOrder.add(2);
-                    }
-                });
+                .operationProcessingBarrier(TIMEOUT);
 
         // Wait for all such operations to complete. If any of them failed, this will fail too and report the exception.
-        OperationWithCompletion
-                .allOf(completionFutures)
-                .thenAccept(v -> {
-                    synchronized (completionOrder) {
-                        completionOrder.add(1);
-                    }
-                }).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        CompletableFuture<Void> allOtherOperations = OperationWithCompletion.allOf(completionFutures);
 
+        // Wait for barrier to complete.
         afterBarrier.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertTrue("barrier for non-empty log did not complete successfully.", FutureHelpers.isSuccessful(afterBarrier));
-
-        Assert.assertEquals("Unexpected number of items in completionOrder.", 2, completionOrder.size());
-        AssertExtensions.assertGreaterThan("afterBarrier did not complete after all operations.", completionOrder.get(0), completionOrder.get(1));
+        Assert.assertTrue("barrie was completed before its previous operations were completed.", FutureHelpers.isSuccessful(allOtherOperations));
 
         // Stop the processor.
         durableLog.stopAsync().awaitTerminated();
@@ -640,6 +624,7 @@ public class DurableLogTests extends OperationLogTestBase {
         OperationWithCompletion.allOf(completionFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         List<Operation> readOperations = readAllDurableLog(durableLog);
 
+        // Count the number of injected MetadataCheckpointOperations.
         int injectedOperationCount = 0;
         for (Operation o : readOperations) {
             if (o instanceof MetadataCheckpointOperation) {
@@ -647,12 +632,14 @@ public class DurableLogTests extends OperationLogTestBase {
             }
         }
 
-        Assert.assertEquals("Unexpected operations were injected. Expected only MetadataCheckpointOperations.", readOperations.size() - operations.size(), injectedOperationCount);
+        // Calculate how many we were expecting.
+        int expectedCheckpoints = readOperations.size() - (int) operations.stream().filter(Operation::canSerialize).count();
+
+        Assert.assertEquals("Unexpected operations were injected. Expected only MetadataCheckpointOperations.", expectedCheckpoints, injectedOperationCount);
 
         // We expect at least 2 injected operations (one is the very first one (checked above), and then at least
         // one more based on written data.
         AssertExtensions.assertGreaterThan("Insufficient number of injected operations.", 1, injectedOperationCount);
-        System.out.println(8);
 
         // Stop the processor.
         durableLog.stopAsync().awaitTerminated();
