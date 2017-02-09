@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.framework;
 
+import org.apache.commons.lang.NotImplementedException;
+
 public class TestExecutorFactory {
     public static TestExecutor marathonSequentialExecutor = new RemoteSequential();
 
@@ -30,6 +32,8 @@ public class TestExecutorFactory {
         switch (type) {
             case REMOTE_SEQUENTIAL:
                 return marathonSequentialExecutor;
+            case REMOTE_DISTRIBUTED:
+                throw new NotImplementedException("Distributed execution not implemented");
             default:
                 throw new IllegalArgumentException("Invalid Executor specified: " + type);
         }

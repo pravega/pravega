@@ -67,7 +67,7 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
         }
     }
 
-    private CompletableFuture<String> execute(TestExecutorType type, Method method) throws Exception {
+    private CompletableFuture<Boolean> execute(TestExecutorType type, Method method) throws Exception {
         return TestExecutorFactory.getTestExecutor(type).startTestExecution(method);
     }
 

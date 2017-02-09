@@ -16,6 +16,9 @@
 
 package com.emc.pravega.framework.metronome;
 
+/**
+ * Exceptions while accessing Metronome.
+ */
 public class MetronomeException extends Exception {
     private static final long serialVersionUID = 1L;
     private int status;

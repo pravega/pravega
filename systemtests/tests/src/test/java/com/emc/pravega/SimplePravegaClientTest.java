@@ -32,6 +32,7 @@ import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import lombok.Cleanup;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -48,6 +49,7 @@ import static org.junit.Assert.assertNotNull;
 
 //@FreshSetup -- this is used to indicate the Setup needs to be created afresh.
 @RunWith(SystemTestRunner.class)
+@Ignore
 public class SimplePravegaClientTest {
     private final static String STREAM_NAME = "testStream";
     private final static String STREAM_SCOPE = "testScope";

@@ -18,53 +18,37 @@
 
 package com.emc.pravega.framework.services;
 
-import com.emc.pravega.framework.marathon.MarathonClientNautilus;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
-import mesosphere.marathon.client.model.v2.GetAppResponse;
 import mesosphere.marathon.client.utils.MarathonException;
 
-import java.net.URI;
 import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Slf4j
-public class RedisService implements Service {
-    private static final String TCP = "tcp://";
+public class RedisService extends MarathonBasedService {
 
-    private String id;
-
-    private Marathon marathonClient;
-
-    public RedisService(String id) {
-        this.id = id;
-        this.marathonClient = MarathonClientNautilus.getClient();
+    public RedisService(final String id) {
+        super(id);
     }
 
     @Override
-    public void start() {
-        log.info("Starting service: {}", id);
+    public void start(final boolean wait) {
+        log.info("Starting service: {}", getID());
         try {
             marathonClient.createApp(createRedisApp());
+            if (wait) {
+                waitUntilServiceRunning();
+            }
         } catch (MarathonException e) {
             handleMarathonException(e);
         }
     }
 
-    private void handleMarathonException(MarathonException e) {
-        if (e.getStatus() == 404) {
-            log.info("App is not running : {}", this.id);
-        }
-        throw new RuntimeException("Marathon Exception while fetching details of RedisService", e);
-    }
-
     @Override
     public void stop() {
-        log.info("Stopping service: {}", id);
+        log.info("Stopping service: {}", getID());
         try {
             marathonClient.deleteApp("redisservice");
         } catch (MarathonException e) {
@@ -74,34 +58,7 @@ public class RedisService implements Service {
 
     @Override
     public void clean() {
-
-    }
-
-    @Override
-    public String getID() {
-        return this.id;
-    }
-
-    @Override
-    public boolean isRunning() {
-        try {
-            GetAppResponse app = marathonClient.getApp(this.id);
-            log.debug("App Details: {}", app);
-
-            if (app.getApp().getTasksStaged() == 0 && app.getApp().getTasksRunning() != 0) {
-                log.info("App {} is running", this.id);
-                return true;
-            } else {
-                log.info("App {} is getting staged or no tasks are running", this.id);
-                return false;
-            }
-        } catch (MarathonException e) {
-            if (e.getStatus() == 404) {
-                log.info("App is not running : {}", this.id);
-                return false;
-            }
-            throw new RuntimeException("Marathon Exception while fetching service details", e);
-        }
+        //TODO: Clean up to be performed after stopping the service.
     }
 
     private App createRedisApp() {
@@ -118,17 +75,5 @@ public class RedisService implements Service {
         app.getContainer().getDocker().setImage("gpetr/redis4mesos");
         app.getContainer().getDocker().setNetwork("HOST");
         return app;
-    }
-
-    @Override
-    public List<URI> getServiceDetails() {
-        try {
-            return marathonClient.getAppTasks(id).getTasks().stream()
-                    .flatMap(task -> task.getPorts().stream()
-                            .map(port -> URI.create(TCP + task.getHost() + ":" + port)))
-                    .collect(Collectors.toList());
-        } catch (MarathonException e) {
-            throw new RuntimeException("Marathon Exception while fetching service details", e);
-        }
     }
 }

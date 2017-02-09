@@ -26,9 +26,10 @@ import mesosphere.marathon.client.auth.TokenAuthRequestInterceptor;
 
 import static com.emc.pravega.framework.NautilusLoginClient.MESOS_URL;
 
+/**
+ * Marathon client with Nautilus authentication enabled.
+ */
 public class MarathonClientNautilus {
-
-    private static final String TOKEN_HEADER_NAME = "X-AUTH-TOKEN";
 
     private static final String ENDPOINT = MESOS_URL + "/marathon";
     private static final String LOGIN_URL = MESOS_URL + "/auth/v1";
@@ -38,6 +39,7 @@ public class MarathonClientNautilus {
     }
 
     private static Marathon createMarathonClient() {
+        //TODO: Remove username and password hardcoding.
         final BasicAuthRequestInterceptor requestInterceptor = new BasicAuthRequestInterceptor("admin", "password");
         String token = NautilusLoginClient.getAuthToken(LOGIN_URL, requestInterceptor);
         return MarathonClient.getInstance(ENDPOINT, new TokenAuthRequestInterceptor(token));

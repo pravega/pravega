@@ -36,26 +36,20 @@ import static org.junit.Assert.assertTrue;
 
 @RunWith(SystemTestRunner.class)
 public class RedisClientTest {
-    private final static String STREAM_NAME = "testStream";
-    private final static String STREAM_SCOPE = "testScope";
-
-    private static URI resdisHostURI;
 
     private static Service redis = new RedisService("redisservice");
 
-    private static String beforeClassVariable;
-
+    /*
+        This is used to setup the various services required by the system test framework.
+     */
     @Environment
     public static void setup() {
-        //TODO: set attributes
         if (!redis.isRunning()) {
-            redis.start();
+            redis.start(true);
         }
         List<URI> uris = redis.getServiceDetails();
         System.out.println("Redis service details:" + uris);
         assertTrue(uris.size() == 1);
-
-        resdisHostURI = uris.get(0);
     }
 
     @BeforeClass
@@ -68,7 +62,6 @@ public class RedisClientTest {
      * The test fails incase of exceptions while writing to the stream.
      */
     @Test
-    //@InstanceCount(3)
     public void redisPingTest() {
         System.out.println("Start execution of redisPingTest");
         //Fetch the service details
@@ -106,5 +99,4 @@ public class RedisClientTest {
 
         assertEquals("Value1", redisClient.get("Key1"));
     }
-
 }

@@ -27,11 +27,10 @@ import java.util.List;
 /**
  * REST client for https://github.com/dcos/metronome , this project is the replacement for Chronos (No active
  * developmented is happening on Chronos).
- * Note: Not all REST endpoints have been enabled. This can be done in future.
+ * Note: Not all REST endpoints have been enabled. This can be done as a future task..
  */
 public interface Metronome {
 
-    // Apps
     @RequestLine("GET /v1/jobs")
     @Headers("Content-Type: application/json")
     List<Job> getJobs() throws MetronomeException;

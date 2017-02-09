@@ -24,6 +24,8 @@ import com.emc.pravega.framework.metronome.model.v1.Job;
 import com.emc.pravega.framework.metronome.model.v1.Restart;
 import com.emc.pravega.framework.metronome.model.v1.Run;
 import feign.Response;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.NotImplementedException;
 
 import java.lang.reflect.Method;
 import java.util.Collections;
@@ -32,15 +34,19 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 public class RemoteSequential implements TestExecutor {
     private static Metronome client = MetronomeClientNautilus.getClient();
 
     @Override
-    public CompletableFuture<String> startTestExecution(Method method) {
-        System.out.println(method);
+    public CompletableFuture<Boolean> startTestExecution(Method method) {
+
+        log.debug("Starting test execution for method: {}", method);
+
         String className = method.getDeclaringClass().getName();
         String methodName = method.getName();
-        String jobId = (methodName + ".testJob.01").toLowerCase();
+        String jobId = (methodName + ".testJob").toLowerCase();
+
         try {
             Job job = client.createJob(newJob(jobId, className, methodName));
             Response response = client.triggerJobRun(jobId);
@@ -57,65 +63,62 @@ public class RemoteSequential implements TestExecutor {
             }
 
         } catch (MetronomeException | InterruptedException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Error while starting test ", e);
         } finally {
             deleteJob(jobId);
         }
-        return CompletableFuture.completedFuture("completed");
+        return CompletableFuture.completedFuture(true);
     }
 
     @Override
-    public CompletableFuture<String> stopTestExcecution(String testID) {
-        return null;
+    public CompletableFuture<Boolean> stopTestExcecution(String testID) {
+        throw new NotImplementedException("Stop Execution is not used for Remote sequential execution");
     }
 
-    private static Job newJob(String id, String className, String methodName) {
+    private Job newJob(String id, String className, String methodName) {
         Map<String, String> labels = new HashMap<>(1);
-        labels.put("label1", "value1");
+        labels.put("testMethodName", methodName);
 
+        //This can be used to set environment variables while executing the job on Metronome.
         Map<String, String> env = new HashMap<>(2);
         env.put("env1", "value101");
         env.put("env2", "value102");
 
         Artifact art = new Artifact();
-        art.setCache(false);
-        art.setExecutable(false);
+        art.setCache(false); // It caches the artifacts, disabling it for now.
+        art.setExecutable(false); // jar is not executable.
         art.setExtract(false);
         art.setUri("http://asdrepo.isus.emc.com:8081/artifactory/pravega-testframework/pravega/systemtests/0.2" +
                 "/systemtests-0.2.jar");
 
         Restart restart = new Restart();
-        restart.setActiveDeadlineSeconds(120);
+        restart.setActiveDeadlineSeconds(120); // the tests are expected to finish in 2 mins, this can be changed to
+        // a higher value if required.
         restart.setPolicy("NEVER");
 
-        Run r = new Run();
-        r.setArtifacts(Collections.singletonList(art));
+        Run run = new Run();
+        run.setArtifacts(Collections.singletonList(art));
 
-        r.setCmd("docker run --rm --name=\"testCase-1\" -v $(pwd):/data cogniteev/oracle-java:latest java -cp " +
+        run.setCmd("docker run --rm --name=\"testCase-1\" -v $(pwd):/data cogniteev/oracle-java:latest java -cp " +
                 "/data/systemtests-0.2.jar com.emc.pravega.SingleJUnitTestRunner " +
                 className + "#" + methodName + " > server.log 2>&1" +
                 "; exit $?");
-        //        r.setCmd("docker run --lrm -it --name=\\\"testCase\\\" -v $(pwd):/data cogniteev/oracle-java:latest
-        // java
-        // -cp " +
-        //                "/data/systemtests-0.1.jar com.emc.pravega.SingleJUnitTestRunner " +
-        //                className + "#" + methodName +
-        //                "; echo \"Testingmmmmmmmmmmmm\" ; exit $?");
-        r.setCpus(0.5);
-        r.setMem(64.0);
-        r.setDisk(50.0);
-        r.setEnv(env);
-        r.setMaxLaunchDelay(3600);
-        r.setRestart(restart);
-        r.setUser("root");
 
-        Job j = new Job();
-        j.setId(id);
-        j.setDescription("job-1 first ");
-        j.setLabels(labels);
-        j.setRun(r);
+        run.setCpus(0.5);
+        run.setMem(64.0);
+        run.setDisk(50.0);
+        run.setEnv(env);
+        run.setMaxLaunchDelay(3600);
+        run.setRestart(restart);
+        run.setUser("root");
 
-        return j;
+        Job job = new Job();
+        job.setId(id);
+        job.setDescription(id);
+        job.setLabels(labels);
+        job.setRun(run);
+
+        return job;
     }
 
     private boolean isTestRunning(String jobId) throws MetronomeException {
@@ -133,8 +136,7 @@ public class RemoteSequential implements TestExecutor {
         try {
             client.deleteJob(jobId);
         } catch (MetronomeException e) {
-            e.printStackTrace();
+            throw new RuntimeException("Error while deletting the test run job", e);
         }
     }
 }
-

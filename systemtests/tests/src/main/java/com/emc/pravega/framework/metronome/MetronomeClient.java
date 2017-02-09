@@ -29,14 +29,14 @@ import mesosphere.marathon.client.auth.TokenAuthRequestInterceptor;
 import static java.util.Arrays.asList;
 
 public class MetronomeClient {
-    static class MetronomeHeadersInterceptor implements RequestInterceptor {
+    private static class MetronomeHeadersInterceptor implements RequestInterceptor {
         @Override
         public void apply(RequestTemplate template) {
             template.header("Accept", "application/json");
         }
     }
 
-    static class MetronomeErrorDecoder implements ErrorDecoder {
+    private static class MetronomeErrorDecoder implements ErrorDecoder {
         @Override
         public Exception decode(String methodKey, Response response) {
             return new MetronomeException(response.status(), response.reason());

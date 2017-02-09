@@ -20,10 +20,13 @@ package com.emc.pravega.framework.services;
 
 import java.net.URI;
 import java.util.List;
-//TODO: Add comments
+
+/**
+ * Service abstraction for the test framework.
+ */
 public interface Service {
 
-    public void start();
+    public void start(final boolean wait);
 
     public void stop();
 

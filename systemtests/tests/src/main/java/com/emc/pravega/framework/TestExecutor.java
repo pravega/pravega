@@ -26,8 +26,8 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface TestExecutor {
 
-    CompletableFuture<String> startTestExecution(Method method);
+    CompletableFuture<Boolean> startTestExecution(Method method);
 
-    CompletableFuture<String> stopTestExcecution(String testID);
+    CompletableFuture<Boolean> stopTestExcecution(String testID);
 
 }

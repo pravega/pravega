@@ -25,10 +25,13 @@ import org.junit.runners.model.Statement;
 
 import java.lang.reflect.Method;
 
+/**
+ * Helper runner used to run an individual test case.
+ */
 @Slf4j
 public class SingleJUnitTestRunner extends BlockJUnit4ClassRunner {
     /**
-     * Creates a BlockJUnit4ClassRunner to run {@code klass}
+     * Creates a BlockJUnit4ClassRunner to run {@code klass}.
      *
      * @param klass
      * @throws InitializationError if the test class is malformed.
@@ -62,13 +65,8 @@ public class SingleJUnitTestRunner extends BlockJUnit4ClassRunner {
 
     public static void main(String... args) throws ClassNotFoundException {
         String[] classAndMethod = args[0].split("#");
-        //        Request request = Request.method(Class.forName(classAndMethod[0]),
-        //                classAndMethod[1]);
-        //
-        //        Result result = new JUnitCore().run(request);
-        //        System.exit(result.wasSuccessful() ? 0 : 1);
-        //        return 0 in case the execution is successful.
-        //        return 1 in case the execution is a failure.
+        //The return value is used to update the mesos task execution status. The mesos task is set to failed state when
+        // return value is non-zero.
         System.exit(execute(classAndMethod[0], classAndMethod[1]) ? 0 : 1);
     }
 }

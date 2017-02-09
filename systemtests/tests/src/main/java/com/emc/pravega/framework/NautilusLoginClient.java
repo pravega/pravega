@@ -25,12 +25,11 @@ import feign.gson.GsonEncoder;
 import java.util.Collection;
 
 public class NautilusLoginClient {
-    //TODO: Read this from system properties
-    public static final String MESOS_MASTER = "10.240.124.139";
+
+    public static final String MESOS_MASTER = System.getProperty("masterIP", "10.240.124.139");
     public static final String MESOS_URL = String.format("http://%s", MESOS_MASTER);
 
     static final String TOKEN_HEADER_NAME = "X-AUTH-TOKEN";
-
 
     private interface Login {
         @RequestLine("POST /login")

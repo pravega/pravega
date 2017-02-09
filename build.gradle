@@ -432,7 +432,7 @@ project('systemtests:tests') {
     }
 
     //This is  used to invoke systemTests
-    task systemTest(type: Test) {
+    task startSystemTests(type: Test) {
         testClassesDir = sourceSets.test.output.classesDir
         classpath = sourceSets.test.runtimeClasspath
 
@@ -441,10 +441,10 @@ project('systemtests:tests') {
         systemProperty "masterIP ", System.getProperty("masterIP")
 
         if (System.getProperty("execType") == null) {
-            systemProperty "execType", "Local"
+            systemProperty "execType", "REMOTE_SEQUENTIAL"
         }
         if (System.getProperty("masterIP") == null) {
-            systemProperty "masterIP ", "localhost"
+            systemProperty "masterIP ", "10.240.124.139"
         }
     }
     publishing {
