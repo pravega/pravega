@@ -15,8 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.eventProcessor;
+package com.emc.pravega.controller.eventProcessor.impl;
 
+import com.emc.pravega.controller.eventProcessor.StreamEvent;
 import com.emc.pravega.stream.EventStreamWriter;
 
 /**

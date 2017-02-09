@@ -15,18 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.eventProcessor;
+package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.StreamManager;
-import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
+import com.emc.pravega.controller.eventProcessor.Props;
+import com.emc.pravega.controller.eventProcessor.StreamEvent;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.google.common.base.Preconditions;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,13 +40,12 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
     protected final StreamManager streamManager;
 
     private final String name;
-    private final Host host;
-    @GuardedBy("actorGroups")
+    private final String host;
     private final List<EventProcessorGroupImpl> actorGroups;
 
     private final String scope;
 
-    public EventProcessorSystemImpl(String name, Host host, String scope, Controller controller) {
+    public EventProcessorSystemImpl(String name, String host, String scope, Controller controller) {
         this.name = name;
         this.host = host;
         this.actorGroups = new ArrayList<>();
@@ -66,37 +67,39 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
         return this.scope;
     }
 
+    @Override
+    public String getHost() {
+        return this.host;
+    }
+
+    @Synchronized
     public <T extends StreamEvent> EventStreamWriter<T> createEventProcessorGroup(Props<T> props) {
-        synchronized (actorGroups) {
-            EventProcessorGroupImpl<T> actorGroup;
+        EventProcessorGroupImpl<T> actorGroup;
 
-            // Create the actor group, add it to the list of actor groups, and start it.
-            actorGroup = new EventProcessorGroupImpl<>(this, props);
+        // Create the actor group, add it to the list of actor groups, and start it.
+        actorGroup = new EventProcessorGroupImpl<>(this, props);
 
-            actorGroups.add(actorGroup);
+        actorGroups.add(actorGroup);
 
-            actorGroup.startAsync();
+        actorGroup.startAsync();
 
-            return actorGroup.getSelf();
-        }
+        return actorGroup.getSelf();
     }
 
     @Override
+    @Synchronized
     public void notifyHostFailure(String host) {
         Preconditions.checkNotNull(host);
-        synchronized (actorGroups) {
-            if (host.equals(this.host)) {
-                this.actorGroups.forEach(EventProcessorGroupImpl::stopAsync);
-            } else {
-                // Notify all registered actor groups of host failure
-                this.actorGroups.forEach(group -> group.notifyHostFailure(host));
-            }
+        if (host.equals(this.host)) {
+            this.actorGroups.forEach(EventProcessorGroupImpl::stopAsync);
+        } else {
+            // Notify all registered actor groups of host failure
+            this.actorGroups.forEach(group -> group.notifyHostFailure(host));
         }
     }
 
+    @Synchronized
     public void stop() {
-        synchronized (actorGroups) {
-            this.actorGroups.forEach(group -> group.stopAll());
-        }
+        this.actorGroups.forEach(EventProcessorGroupImpl::stopAll);
     }
 }

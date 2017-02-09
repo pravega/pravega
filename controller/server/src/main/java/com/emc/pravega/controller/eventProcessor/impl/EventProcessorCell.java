@@ -15,10 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.eventProcessor;
+package com.emc.pravega.controller.eventProcessor.impl;
 
+import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
+import com.emc.pravega.controller.eventProcessor.CheckpointStore;
+import com.emc.pravega.controller.eventProcessor.Decider;
+import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
+import com.emc.pravega.controller.eventProcessor.EventProcessorInitException;
+import com.emc.pravega.controller.eventProcessor.EventProcessorReinitException;
+import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
+import com.emc.pravega.controller.eventProcessor.Props;
+import com.emc.pravega.controller.eventProcessor.StreamEvent;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
+import com.emc.pravega.stream.Position;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.common.util.concurrent.Service;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.lang.reflect.InvocationTargetException;
 
 @Slf4j
-public class EventProcessorCell<T extends StreamEvent> {
+class EventProcessorCell<T extends StreamEvent> {
 
     private final EventProcessorSystem actorSystem;
 
@@ -38,6 +48,8 @@ public class EventProcessorCell<T extends StreamEvent> {
 
     private final Props<T> props;
 
+    private final CheckpointStore checkpointStore;
+
     private EventProcessor<T> actor;
 
     /**
@@ -45,7 +57,7 @@ public class EventProcessorCell<T extends StreamEvent> {
      * thread of execution for the actor. This prevents sub-classes of Actor from controlling Actor's lifecycle.
      */
     private Service delegate;
-    private int count = 0;
+    private CheckpointState state;
     private EventRead<T> event;
 
     private class Delegate extends AbstractExecutionThreadService {
@@ -67,15 +79,13 @@ public class EventProcessorCell<T extends StreamEvent> {
             while (isRunning()) {
                 try {
                     event = reader.readNextEvent(defaultTimeout);
+
+                    // invoke the user specified event processing method
                     actor.receive(event.getEvent());
 
-                    // persist reader position if persistenceFrequency number of events are processed
-                    count++;
-                    //if (props.getPersister() != null && count % props.getConfig().getCheckpointFrequency() == 0) {
-                    //    props.getPersister()
-                    //            .setPosition(props.getConfig().getReaderGroupName(), readerId, event.getPosition())
-                    //            .join();
-                    //}
+                    // possibly persist event position
+                    state.store(event.getPosition());
+
                 } catch (Throwable t) {
                     handleException(t);
                 }
@@ -128,19 +138,56 @@ public class EventProcessorCell<T extends StreamEvent> {
         }
     }
 
+    private class CheckpointState {
+        private int count;
+        private int previousCheckpointIndex;
+        private long previousCheckpointTimestamp;
+
+        CheckpointState() {
+            count = 0;
+            previousCheckpointIndex = 0;
+            previousCheckpointTimestamp = System.currentTimeMillis();
+        }
+
+        void store(Position position) {
+            count++;
+            final long timestamp = System.currentTimeMillis();
+
+            final int countInterval = count - previousCheckpointIndex;
+            final long timeInterval = timestamp - previousCheckpointTimestamp;
+            final CheckpointConfig.CheckpointPeriod config =
+                    props.getConfig().getCheckpointConfig().getCheckpointPeriod();
+
+            if (countInterval >= config.getNumEvents() || timeInterval >= 1000 * config.getNumSeconds()) {
+                try {
+                    checkpointStore.setPosition(actorSystem.getHost(),
+                            props.getConfig().getReaderGroupName(), readerId, position);
+                    previousCheckpointIndex = count;
+                    previousCheckpointTimestamp = timestamp;
+                } catch (RuntimeException e) {
+                    // log the exception. ignore it
+                    // do not increment previous count or timestamp, after next event, checkpoint shall be retried
+                }
+            }
+        }
+    }
+
     EventProcessorCell(final EventProcessorSystem actorSystem,
                        final EventProcessorGroup<T> actorGroup,
                        final Props<T> props,
                        final EventStreamReader<T> reader,
-                       final String readerId) {
+                       final String readerId,
+                       final CheckpointStore checkpointStore) {
 
         this.actorSystem = actorSystem;
         this.actorGroup = actorGroup;
         this.reader = reader;
         this.readerId = readerId;
         this.props = props;
+        this.checkpointStore = checkpointStore;
         this.actor = createAndSetupActor(props, actorGroup);
         this.delegate = new Delegate();
+        this.state = new CheckpointState();
     }
 
     final void startAsync() {

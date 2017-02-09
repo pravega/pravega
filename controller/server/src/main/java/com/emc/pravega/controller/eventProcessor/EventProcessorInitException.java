@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
+import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
+
 /**
  * Wrapper for exceptions thrown from Actor's preStart initialization hook.
  */
@@ -24,17 +26,17 @@ public class EventProcessorInitException extends Exception {
 
     private final EventProcessor actor;
 
-    EventProcessorInitException(final EventProcessor actor, final String message) {
+    public EventProcessorInitException(final EventProcessor actor, final String message) {
         super(message);
         this.actor = actor;
     }
 
-    EventProcessorInitException(final EventProcessor actor, final String message, final Throwable throwable) {
+    public EventProcessorInitException(final EventProcessor actor, final String message, final Throwable throwable) {
         super(message, throwable);
         this.actor = actor;
     }
 
-    EventProcessorInitException(final EventProcessor actor, final Throwable throwable) {
+    public EventProcessorInitException(final EventProcessor actor, final Throwable throwable) {
         super(throwable);
         this.actor = actor;
     }

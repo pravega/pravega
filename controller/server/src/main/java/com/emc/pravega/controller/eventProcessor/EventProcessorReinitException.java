@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
+import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
+
 /**
  * Wrapper for exceptions thrown from Actor's preRestart reinitialization hook.
  */
@@ -24,17 +26,17 @@ public class EventProcessorReinitException extends Exception {
 
     private final EventProcessor actor;
 
-    EventProcessorReinitException(final EventProcessor actor, final String message) {
+    public EventProcessorReinitException(final EventProcessor actor, final String message) {
         super(message);
         this.actor = actor;
     }
 
-    EventProcessorReinitException(final EventProcessor actor, final String message, final Throwable throwable) {
+    public EventProcessorReinitException(final EventProcessor actor, final String message, final Throwable throwable) {
         super(message, throwable);
         this.actor = actor;
     }
 
-    EventProcessorReinitException(final EventProcessor actor, final Throwable throwable) {
+    public EventProcessorReinitException(final EventProcessor actor, final Throwable throwable) {
         super(throwable);
         this.actor = actor;
     }

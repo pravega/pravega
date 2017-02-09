@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
+import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
+
 /**
  * Wrapper for exceptions thrown from Actor's postStop cleanup hook.
  */

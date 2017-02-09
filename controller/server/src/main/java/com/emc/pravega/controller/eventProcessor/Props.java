@@ -17,13 +17,13 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
+import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.stream.Serializer;
-import lombok.Builder;
 import lombok.Data;
-import lombok.Singular;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import java.util.Optional;
 
 /**
@@ -36,12 +36,10 @@ public class Props<T extends StreamEvent> {
     private final Decider decider;
     private final Serializer<T> serializer;
     private final Class<? extends EventProcessor<T>> clazz;
-    @Singular
     private final Object[] args;
     private final Constructor<? extends EventProcessor<T>> constructor;
 
-    @Builder
-    public Props(final EventProcessorGroupConfig config,
+    private Props(final EventProcessorGroupConfig config,
                  final Decider decider,
                  final Serializer<T> serializer,
                  final Class<? extends EventProcessor<T>> clazz,
@@ -84,4 +82,56 @@ public class Props<T extends StreamEvent> {
         }
     }
 
+    public static <T extends StreamEvent> Props.PropsBuilder<T> builder() {
+        return new Props.PropsBuilder<>();
+    }
+
+    /**
+     * PropsBuilder.
+     * @param <T> Type parameter
+     */
+    public static class PropsBuilder<T extends StreamEvent> {
+        private EventProcessorGroupConfig config;
+        private Decider decider;
+        private Serializer<T> serializer;
+        private Class<? extends EventProcessor<T>> clazz;
+        private Object[] args;
+
+        PropsBuilder() {
+        }
+
+        public Props.PropsBuilder<T> config(EventProcessorGroupConfig config) {
+            this.config = config;
+            return this;
+        }
+
+        public Props.PropsBuilder<T> decider(Decider decider) {
+            this.decider = decider;
+            return this;
+        }
+
+        public Props.PropsBuilder<T> serializer(Serializer<T> serializer) {
+            this.serializer = serializer;
+            return this;
+        }
+
+        public Props.PropsBuilder<T> clazz(Class<? extends EventProcessor<T>> clazz) {
+            this.clazz = clazz;
+            return this;
+        }
+
+        public Props.PropsBuilder<T> args(Object... args) {
+            this.args = args;
+            return this;
+        }
+
+        public Props<T> build() {
+            return new Props<>(this.config, this.decider, this.serializer, this.clazz, this.args);
+        }
+
+        public String toString() {
+            return "Props.PropsBuilder(config=" + this.config + ", decider=" + this.decider + ", serializer=" +
+                    this.serializer + ", clazz=" + this.clazz + ", args=" + Arrays.deepToString(this.args) + ")";
+        }
+    }
 }

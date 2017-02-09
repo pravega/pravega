@@ -40,6 +40,12 @@ public interface EventProcessorSystem {
     String getScope();
 
     /**
+     * Returns the host on which the event processor system runs.
+     * @return host name.
+     */
+    String getHost();
+
+    /**
      * Creates an ActorGroup and returns a reference to it.
      * @param props Properties of the AbstractActor to be instantiated
      *              in the ActorGroup.

@@ -17,31 +17,24 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
-import lombok.Builder;
-import lombok.Data;
+import com.emc.pravega.stream.Position;
 
-@Data
-public class EventProcessorGroupConfigImpl implements EventProcessorGroupConfig {
+import java.util.Map;
 
-    private final String streamName;
+/**
+ * Store to map
+ * 1. Process to (readerGroup, reader), and
+ * 2. Readers to their last position
+ */
+public interface CheckpointStore {
 
-    private final String readerGroupName;
-
-    private final int actorCount;
-
-    private final int checkpointFrequency;
-
-    @Builder
-    public EventProcessorGroupConfigImpl(final String streamName,
-                                final String readerGroupName,
-                                final int actorCount,
-                                final int checkpointFrequency) {
-        if (checkpointFrequency <= 0) {
-            throw new IllegalArgumentException("checkpointFrequency");
-        }
-        this.streamName = streamName;
-        this.readerGroupName = readerGroupName;
-        this.actorCount = actorCount;
-        this.checkpointFrequency = checkpointFrequency;
+    enum StoreType {
+        InMemory,
+        Zookeeper,
+        StateSynchronizer
     }
+
+    void setPosition(final String host, final String readerGroup, final String readerId, final Position position);
+
+    Map<String, Position> getPositions(final String host, final String readerGroup);
 }
