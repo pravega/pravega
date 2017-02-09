@@ -17,8 +17,8 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
 import com.emc.pravega.controller.RetryableException;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
@@ -120,7 +120,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return getConfigurationData();
     }
 
-
     @Override
     public CompletableFuture<Boolean> updateState(final State state) {
         return setStateData(state).thenApply(x -> true);
@@ -170,7 +169,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     private CompletableFuture<List<Segment>> findOverlapping(Segment segment, List<Integer> candidates) {
-        return FutureCollectionHelper.sequence(candidates.stream().map(this::getSegment).collect(Collectors.toList()))
+        return FutureHelpers.allOfWithResults(candidates.stream().map(this::getSegment).collect(Collectors.toList()))
                 .thenApply(successorCandidates -> successorCandidates.stream()
                         .filter(x -> x.overlaps(segment))
                         .collect(Collectors.toList()));
@@ -205,7 +204,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 result.add(findOverlapping(successor, candidates).thenApply(list -> new SimpleImmutableEntry<>(
                         successor, candidates)));
             }
-            return FutureCollectionHelper.sequence(result);
+            return FutureHelpers.allOfWithResults(result);
         }).thenApply(list -> {
             return list.stream().collect(Collectors.toMap(e -> e.getKey().getNumber(), e -> e.getValue()));
         });
@@ -452,10 +451,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                        final int startingSegmentNumber) {
         final List<CompletableFuture<Segment>> segments = IntStream.range(startingSegmentNumber,
                 startingSegmentNumber + count)
-                .boxed()
-                .map(this::getSegment)
-                .collect(Collectors.<CompletableFuture<Segment>>toList());
-        return FutureCollectionHelper.sequence(segments);
+                                                                   .boxed()
+                                                                   .map(this::getSegment)
+                                                                   .collect(Collectors.<CompletableFuture<Segment>>toList());
+        return FutureHelpers.allOfWithResults(segments);
     }
 
     @Override
@@ -577,8 +576,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
         segments.addAll(
                 IntStream.range(startingSegmentNumber,
                         startingSegmentNumber + scale.getNewRanges().size())
-                        .boxed()
-                        .collect(Collectors.toList()));
+                         .boxed()
+                         .collect(Collectors.toList()));
         return segments;
     }
 

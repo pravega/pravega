@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -38,9 +39,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import static com.emc.pravega.common.concurrent.FutureCollectionHelper.filter;
-import static com.emc.pravega.common.concurrent.FutureCollectionHelper.sequence;
 
 /**
  * Abstract Stream metadata store. It implements various read queries using the Stream interface.
@@ -123,9 +121,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             } else {
                 return stream.getActiveSegments();
             }
-        }).thenCompose(currentSegments -> {
-            return sequence(currentSegments.stream().map(stream::getSegment).collect(Collectors.toList()));
-        });
+        }).thenCompose(currentSegments -> FutureHelpers.allOfWithResults(currentSegments.stream().map(stream::getSegment).collect(Collectors.toList())));
     }
 
     @Override
@@ -228,7 +224,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         List<CompletableFuture<List<Integer>>> list =
                 activeSegments.stream().map(number -> getDefaultFutures(stream, number)).collect(Collectors.toList());
 
-        CompletableFuture<List<List<Integer>>> futureDefaultFutures = sequence(list);
+        CompletableFuture<List<List<Integer>>> futureDefaultFutures = FutureHelpers.allOfWithResults(list);
         return futureDefaultFutures
                 .thenApply(futureList -> {
                             for (int i = 0; i < futureList.size(); i++) {
@@ -256,7 +252,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private CompletableFuture<List<Integer>> getDefaultFutures(final Stream stream, final int number) {
         CompletableFuture<List<Integer>> futureSuccessors = stream.getSuccessors(number);
         return futureSuccessors.thenCompose(
-                list -> filter(list, elem -> stream.getPredecessors(elem).thenApply(x -> x.size() == 1)));
+                list -> FutureHelpers.filter(list, elem -> stream.getPredecessors(elem).thenApply(x -> x.size() == 1)));
     }
 
 }

@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.requesthandler;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.NonRetryableException;
 import com.emc.pravega.controller.RetryableException;
@@ -208,7 +208,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                             final int maxScaleDownFactor = input.getRight();
 
                             // fetch their cold status for all candidates
-                            return FutureCollectionHelper.filter(candidates,
+                            return FutureHelpers.filter(candidates,
                                     candidate -> streamMetadataStore.getMarker(request.getScope(),
                                             request.getStream(),
                                             candidate.getNumber(),
@@ -370,7 +370,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
     private CompletableFuture<Void> blockTxCreationAndSweepTimedout(ScaleRequest request, OperationContext context) {
         return streamMetadataStore.blockTransactions(request.getScope(), request.getStream(), context)
                 .thenCompose(x -> streamMetadataStore.getActiveTxns(request.getScope(), request.getStream(), context))
-                .thenCompose(x -> FutureCollectionHelper.sequence(x.entrySet().stream().filter(y ->
+                .thenCompose(x -> FutureHelpers.allOfWithResults(x.entrySet().stream().filter(y ->
                         System.currentTimeMillis() - y.getValue().getTxCreationTimestamp() > Config.TXN_TIMEOUT_IN_SECONDS)
                         .map(z -> streamTxMetadataTasks.abortTx(request.getScope(), request.getStream(), z.getKey(), null))
                         .collect(Collectors.toList())))
@@ -383,6 +383,6 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
     }
 
     private CompletableFuture<List<Void>> clearMarkers(final String scope, final String stream, final ArrayList<Integer> segments, final OperationContext context) {
-        return FutureCollectionHelper.sequence(segments.stream().parallel().map(x -> streamMetadataStore.removeMarker(scope, stream, x, context)).collect(Collectors.toList()));
+        return FutureHelpers.allOfWithResults(segments.stream().parallel().map(x -> streamMetadataStore.removeMarker(scope, stream, x, context)).collect(Collectors.toList()));
     }
 }

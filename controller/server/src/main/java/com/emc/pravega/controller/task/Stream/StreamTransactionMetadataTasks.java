@@ -18,7 +18,7 @@
 
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
@@ -130,25 +130,23 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     }
 
     private CompletableFuture<UUID> createTxBody(final String scope, final String stream, final OperationContext context) {
-        return streamMetadataStore.createTransaction(scope, stream, context);
-        //        .thenCompose(txId ->
-        //                txTimeOutScheduler.scheduleTimeOut(scope, stream, txId, Config.TXN_TIMEOUT_IN_SECONDS)
-        //                        .thenCompose(x ->
-        //                                streamMetadataStore.getActiveSegments(scope, stream, context)
-        //                                        .thenCompose(activeSegments ->
-        //                                                FutureCollectionHelper.sequence(
-        //                                                        activeSegments.stream()
-        //                                                                .parallel()
-        //                                                                .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txId))
-        //                                                                .collect(Collectors.toList())))
-        //                                        .thenApply(y -> txId)));
+        return streamMetadataStore.createTransaction(scope, stream, context)
+                .thenCompose(txId ->
+                        streamMetadataStore.getActiveSegments(scope, stream, context)
+                                .thenCompose(activeSegments ->
+                                        FutureHelpers.allOf(
+                                                activeSegments.stream()
+                                                        .parallel()
+                                                        .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txId))
+                                                        .collect(Collectors.toList())))
+                                .thenApply(y -> txId));
     }
 
     private CompletableFuture<TxnStatus> abortTxBody(final String scope, final String stream, final UUID txid, final OperationContext context) {
         // notify hosts to abort transaction
         return streamMetadataStore.getActiveSegments(scope, stream, context)
                 .thenCompose(segments ->
-                        FutureCollectionHelper.sequence(
+                        FutureHelpers.allOf(
                                 segments.stream()
                                         .parallel()
                                         .map(segment -> notifyDropToHost(scope, stream, segment.getNumber(), txid))
@@ -161,7 +159,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 .thenCompose(x ->
                         streamMetadataStore.getActiveSegments(scope, stream, context)
                                 .thenCompose(segments ->
-                                        FutureCollectionHelper.sequence(segments.stream()
+                                        FutureHelpers.allOf(segments.stream()
                                                 .parallel()
                                                 .map(segment ->
                                                         notifyCommitToHost(scope, stream, segment.getNumber(), txid))

@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.NonRetryableException;
 import com.emc.pravega.controller.RetryableException;
@@ -231,6 +231,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                                 });
                     }
                 }).exceptionally(this::handleUpdateStreamError);
+
     }
 
     @VisibleForTesting
@@ -241,7 +242,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         // in newRanges (todo) -- ScaleStreamStatus.CONFLICT
         // 3. Transaction is active on the stream
         // 4. sealedSegments should be a subset of activeSegments.
-
+        //
         // If there is intermittent network issue before during precondition check (e.g. for metadata store reads) we will throw
         // exception and fail the task.
         // However, once preconditions pass and scale task starts, all steps are wrapped inside Retry block
@@ -319,7 +320,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     private CompletableFuture<List<Boolean>> notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers, OperationContext context) {
-        return FutureCollectionHelper.sequence(segmentNumbers
+        return FutureHelpers.allOfWithResults(segmentNumbers
                 .stream()
                 .parallel()
                 .map(segment ->
@@ -365,13 +366,12 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     private CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Integer> sealedSegments) {
-        return FutureCollectionHelper.sequence(
+        return FutureHelpers.allOf(
                 sealedSegments
                         .stream()
                         .parallel()
                         .map(number -> notifySealedSegment(scope, stream, number))
-                        .collect(Collectors.toList()))
-                .thenApply(x -> null);
+                        .collect(Collectors.toList()));
     }
 
     @VisibleForTesting

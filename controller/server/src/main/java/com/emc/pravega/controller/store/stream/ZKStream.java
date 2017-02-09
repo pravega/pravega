@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Cache;
@@ -127,7 +127,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 .thenCompose(x -> {
                     if (x) {
                         return cache.getCachedData(creationPath)
-                                .thenApply(creationTime -> Utilities.toLong(creationTime.getData()) != create.getEventTime());
+                                    .thenApply(creationTime -> Utilities.toLong(creationTime.getData()) != create.getEventTime());
                     } else {
                         return CompletableFuture.completedFuture(false);
                     }
@@ -200,9 +200,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
         final int startingSegmentNumber = 0;
         final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = IntStream.range(0, numSegments)
-                .boxed()
-                .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
-                .collect(Collectors.toList());
+                                                                                 .boxed()
+                                                                                 .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
+                                                                                 .collect(Collectors.toList());
         final int toCreate = newRanges.size();
 
         final byte[] segmentTable = TableHelper.updateSegmentTable(startingSegmentNumber,
@@ -309,7 +309,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     public CompletableFuture<Map<String, Data<Integer>>> getCurrentTxns() {
         return getChildren(activeTxPath)
-                .thenCompose(txIds -> FutureCollectionHelper.sequenceMap(txIds.stream().collect(
+                .thenCompose(txIds -> FutureHelpers.allOfWithResults(txIds.stream().collect(
                         Collectors.toMap(txId -> txId, txId -> cache.getCachedData(ZKPaths.makePath(activeTxPath, txId)))
                 )));
     }
@@ -378,7 +378,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     public CompletableFuture<StreamConfiguration> getConfigurationData() {
         return cache.getCachedData(configurationPath)
-                .thenApply(x -> (StreamConfiguration) SerializationUtils.deserialize(x.getData()));
+                    .thenApply(x -> (StreamConfiguration) SerializationUtils.deserialize(x.getData()));
     }
 
     @Override
@@ -390,7 +390,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<State> getStateData() {
         return cache.getCachedData(statePath)
-                .thenApply(x -> (State) SerializationUtils.deserialize(x.getData()));
+                    .thenApply(x -> (State) SerializationUtils.deserialize(x.getData()));
     }
 
     @Override
