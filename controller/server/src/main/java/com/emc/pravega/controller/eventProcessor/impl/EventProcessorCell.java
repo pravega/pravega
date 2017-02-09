@@ -160,7 +160,7 @@ class EventProcessorCell<T extends StreamEvent> {
 
             if (countInterval >= config.getNumEvents() || timeInterval >= 1000 * config.getNumSeconds()) {
                 try {
-                    checkpointStore.setPosition(actorSystem.getHost(),
+                    checkpointStore.setPosition(actorSystem.getProcess(),
                             props.getConfig().getReaderGroupName(), readerId, position);
                     previousCheckpointIndex = count;
                     previousCheckpointTimestamp = timestamp;

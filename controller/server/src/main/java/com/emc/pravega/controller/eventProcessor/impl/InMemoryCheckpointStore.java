@@ -35,8 +35,8 @@ public class InMemoryCheckpointStore implements CheckpointStore {
     }
 
     @Override
-    public void setPosition(String host, String readerGroup, String readerId, Position position) {
-        String key = getKey(host, readerGroup);
+    public void setPosition(String process, String readerGroup, String readerId, Position position) {
+        String key = getKey(process, readerGroup);
         if (map.containsKey(key)) {
             map.get(key).put(readerId, position);
         } else {
@@ -47,11 +47,11 @@ public class InMemoryCheckpointStore implements CheckpointStore {
     }
 
     @Override
-    public Map<String, Position> getPositions(String host, String readerGroup) {
-        return map.get(getKey(host, readerGroup));
+    public Map<String, Position> getPositions(String process, String readerGroup) {
+        return map.get(getKey(process, readerGroup));
     }
 
-    private String getKey(String host, String readerGroup) {
-        return host + ":" + readerGroup;
+    private String getKey(String process, String readerGroup) {
+        return process + ":" + readerGroup;
     }
 }

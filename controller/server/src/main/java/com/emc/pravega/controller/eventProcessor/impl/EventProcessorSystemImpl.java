@@ -40,14 +40,14 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
     protected final StreamManager streamManager;
 
     private final String name;
-    private final String host;
+    private final String process;
     private final List<EventProcessorGroupImpl> actorGroups;
 
     private final String scope;
 
-    public EventProcessorSystemImpl(String name, String host, String scope, Controller controller) {
+    public EventProcessorSystemImpl(String name, String process, String scope, Controller controller) {
         this.name = name;
-        this.host = host;
+        this.process = process;
         this.actorGroups = new ArrayList<>();
 
         this.scope = scope;
@@ -68,8 +68,8 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
     }
 
     @Override
-    public String getHost() {
-        return this.host;
+    public String getProcess() {
+        return this.process;
     }
 
     @Synchronized
@@ -88,13 +88,13 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
 
     @Override
     @Synchronized
-    public void notifyHostFailure(String host) {
-        Preconditions.checkNotNull(host);
-        if (host.equals(this.host)) {
+    public void notifyProcessFailure(String process) {
+        Preconditions.checkNotNull(process);
+        if (process.equals(this.process)) {
             this.actorGroups.forEach(EventProcessorGroupImpl::stopAsync);
         } else {
             // Notify all registered actor groups of host failure
-            this.actorGroups.forEach(group -> group.notifyHostFailure(host));
+            this.actorGroups.forEach(group -> group.notifyProcessFailure(process));
         }
     }
 

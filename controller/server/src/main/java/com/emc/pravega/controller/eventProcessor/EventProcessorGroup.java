@@ -22,33 +22,33 @@ import com.emc.pravega.stream.EventStreamWriter;
 import java.util.Set;
 
 /**
- * ActorGroup Interface. It provides mechanism to manage Actors
- * processing events from a Pravega Stream by participating in
+ * EventProcessor group interface. It provides mechanism to manage event
+ * processors processing events from a Pravega Stream by participating in
  * the same Pravega ReaderGroup.
  */
 public interface EventProcessorGroup<T extends StreamEvent> {
 
     /**
-     * Notifies Pravega ReaderGroup about failure of a host
+     * Notifies Pravega ReaderGroup about failure of a process
      * participating in the Reader Group.
-     * @param host Failed host.
+     * @param process Failed process's identifier.
      */
-    void notifyHostFailure(String host);
+    void notifyProcessFailure(String process);
 
     /**
-     * Increase/decrease the number of Actors reading from the Pravega
+     * Increase/decrease the number of event processors reading from the Pravega
      * Stream and participating in the ReaderGroup. This method may be
      * invoked if the number of active segments in the Pravega Stream
      * increases/decreased on account of a Scale event due to increased/
      * decreased event throughput.
-     * @param count Number of Actors to add. Negative number indicates
+     * @param count Number of event processors to add. Negative number indicates
      *              decreasing the Actor count.
      */
     void changeEventProcessorCount(int count);
 
     /**
      * Returns a reference to self.
-     * @return ActorGroupRef of this actor group.
+     * @return writer reference of this event processor group.
      */
     EventStreamWriter<T> getSelf();
 
@@ -58,7 +58,7 @@ public interface EventProcessorGroup<T extends StreamEvent> {
      * @returns list of physical representations of processes participating
      *          in the Logical EventProcessorGroup.
      */
-    Set<String> getHosts();
+    Set<String> getProcesses();
 
     /**
      * Initiates stop on all event processors in this group and waits for

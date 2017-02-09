@@ -64,7 +64,7 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
                         props.getSerializer(),
                         new EventWriterConfig(new SegmentOutputConfiguration()));
 
-        // todo: properly instantiate ReaderGroupConfig passed as null in the following statement.
+        // todo: check whether ReaderGroupConfig is initialized properly to 0 in the following statement.
         readerGroup = createIfNotExists(
                 actorSystem.streamManager,
                 props.getConfig().getReaderGroupName(),
@@ -133,8 +133,8 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
     }
 
     @Override
-    public void notifyHostFailure(String host) {
-        checkpointStore.getPositions(host, this.readerGroup.getGroupName())
+    public void notifyProcessFailure(String process) {
+        checkpointStore.getPositions(process, this.readerGroup.getGroupName())
                 .entrySet()
                 // todo handle errors/exceptions
                 .forEach(entry -> readerGroup.readerOffline(entry.getKey(), entry.getValue()));
@@ -159,7 +159,8 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
         return this.ref;
     }
 
-    public Set<String> getHosts() {
+    @Override
+    public Set<String> getProcesses() {
         return readerGroup.getOnlineReaders();
     }
 

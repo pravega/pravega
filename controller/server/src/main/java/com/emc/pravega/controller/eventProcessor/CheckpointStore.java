@@ -22,9 +22,9 @@ import com.emc.pravega.stream.Position;
 import java.util.Map;
 
 /**
- * Store to map
- * 1. Process to (readerGroup, reader), and
- * 2. Readers to their last position
+ * Store to mapping (readerId, position) of readers running in a process and participating
+ * in a reader group. Schema of each entry in the map is as follows.
+ * (ProcessId, ReaderGroupName) -> Map (readerId, position)
  */
 public interface CheckpointStore {
 
@@ -34,7 +34,22 @@ public interface CheckpointStore {
         StateSynchronizer
     }
 
-    void setPosition(final String host, final String readerGroup, final String readerId, final Position position);
+    /**
+     * Store position of the specified reader that belongs the the specified readerGroup and created
+     * in the specified process.
+     * @param process Process identifier.
+     * @param readerGroup Reader group name.
+     * @param readerId Reader identifier.
+     * @param position Position of reader in the stream.
+     */
+    void setPosition(final String process, final String readerGroup, final String readerId, final Position position);
 
-    Map<String, Position> getPositions(final String host, final String readerGroup);
+    /**
+     * Returns the map of readers to their respective positions running in the specified
+     * process and participating in the specified reader group.
+     * @param process Process identifier.
+     * @param readerGroup Reader group name.
+     * @return Map of readers to their respective positions.
+     */
+    Map<String, Position> getPositions(final String process, final String readerGroup);
 }

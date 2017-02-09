@@ -20,15 +20,14 @@ package com.emc.pravega.controller.eventProcessor;
 import com.emc.pravega.stream.EventStreamWriter;
 
 /**
- * It acts as the manager and wrapper around Actors and ActorGroups
- * processing events from Pravega Streams belonging to a specific scope
- * and hosted at specific location. It provides the only mechanism
- * to create ActorGroups.
+ * It acts as the manager and wrapper around EventProcessor groups
+ * processing events from Pravega Streams belonging to a specific scope.
+ * It provides the only mechanism to create EventProcessor groups.
  */
 public interface EventProcessorSystem {
 
     /**
-     * Returns the name of the ActorSystem.
+     * Returns the name of the EventProcessorSystem.
      * @return name.
      */
     String getName();
@@ -40,28 +39,28 @@ public interface EventProcessorSystem {
     String getScope();
 
     /**
-     * Returns the host on which the event processor system runs.
-     * @return host name.
+     * Returns the process in which the event processor system runs. Process identifier is
+     * is a combination of host id and process id within the host.
+     * @return process identifier.
      */
-    String getHost();
+    String getProcess();
 
     /**
-     * Creates an ActorGroup and returns a reference to it.
-     * @param props Properties of the AbstractActor to be instantiated
-     *              in the ActorGroup.
+     * Creates an EventProcessorGroup and returns a reference to it.
+     * @param props Properties of the EventProcessor to be instantiated
+     *              in the EventProcessorGroup.
      * @param <T> Stream Event type parameter.
-     * @return ActorGroup reference.
+     * @return EventProcessorGroup reference.
      */
     <T extends StreamEvent> EventStreamWriter<T> createEventProcessorGroup(Props<T> props);
 
     /**
-     * Notify a host failure to ActorGroups managed by the ActorSystem.
-     * The ActorGroup may send a notification to the Pravega ReaderGroup
-     * so that the orphaned Stream Segments can be redistributed among
-     * existing hosts.
-     * @param host Failed host's identifier.
+     * Notify process failure to EventProcessorGroups managed by the EventProcessorSystem.
+     * EventProcessorGroups may send a notification to the Pravega ReaderGroup
+     * so that the orphaned stream segments can be redistributed among existing hosts.
+     * @param process Failed process's identifier.
      */
-    void notifyHostFailure(String host);
+    void notifyProcessFailure(String process);
 
     /**
      * Stops all EventProcessors belonging to EventProcessorGroup created
