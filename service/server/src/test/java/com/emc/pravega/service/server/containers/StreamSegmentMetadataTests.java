@@ -18,16 +18,15 @@
 
 package com.emc.pravega.service.server.containers;
 
-import com.emc.pravega.service.server.SegmentMetadata;
+import com.emc.pravega.service.server.SegmentMetadataComparer;
 import com.emc.pravega.testcommon.AssertExtensions;
-
-import org.junit.Assert;
-import org.junit.Test;
-
-import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
+import lombok.val;
+import org.junit.Test;
 
 /**
  * Unit tests for StreamSegmentMetadata class.
@@ -37,36 +36,41 @@ public class StreamSegmentMetadataTests {
     private static final long SEGMENT_ID = 1;
     private static final long PARENT_SEGMENT_ID = 2;
     private static final int CONTAINER_ID = 1234567;
+    private static final int ATTRIBUTE_COUNT = 100;
 
     /**
-     * Tests the fact that AppendContexts are properly recorded and returned, when queried.
+     * Tests that Attributes are properly recorded and updated
      */
     @Test
-    public void testAppendContexts() {
-        final int clientCount = 20;
-        final int contextsPerClient = 10;
-        HashMap<UUID, AppendContext> lastContexts = new HashMap<>();
-        for (int i = 0; i < clientCount; i++) {
-            lastContexts.put(UUID.randomUUID(), null);
+    public void testAttributes() {
+        StreamSegmentMetadata metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
+
+        // Step 1: initial set of attributes.
+        Random rnd = new Random(0);
+        val expectedAttributes = generateAttributes(rnd);
+
+        metadata.updateAttributes(expectedAttributes);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after initial set.", expectedAttributes, metadata);
+
+        // Step 2: Update half of attributes and add 50% more.
+        int count = 0;
+        val keyIterator = expectedAttributes.keySet().iterator();
+        val attributeUpdates = new HashMap<UUID, Long>();
+
+        // Update
+        while (count < ATTRIBUTE_COUNT / 2 && keyIterator.hasNext()) {
+            attributeUpdates.put(keyIterator.next(), rnd.nextLong());
+            count++;
         }
 
-        StreamSegmentMetadata m = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
-        for (int i = 0; i < contextsPerClient; i++) {
-            for (UUID clientId : lastContexts.keySet()) {
-                AppendContext c = new AppendContext(clientId, i);
-                lastContexts.put(clientId, c);
-                m.recordAppendContext(c);
-            }
-
-            for (UUID clientId : lastContexts.keySet()) {
-                AppendContext expected = lastContexts.get(clientId);
-                AppendContext actual = m.getLastAppendContext(clientId);
-                Assert.assertEquals("Unexpected AppendContext", expected, actual);
-            }
+        // Now add a few more.
+        while (attributeUpdates.size() < ATTRIBUTE_COUNT) {
+            attributeUpdates.put(UUID.randomUUID(), rnd.nextLong());
         }
 
-        Collection<UUID> recordedClients = m.getKnownClientIds();
-        AssertExtensions.assertContainsSameElements("Unexpected collection of Client Ids", lastContexts.keySet(), recordedClients);
+        attributeUpdates.forEach(expectedAttributes::put);
+        metadata.updateAttributes(attributeUpdates);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after update.", expectedAttributes, metadata);
     }
 
     /**
@@ -75,10 +79,7 @@ public class StreamSegmentMetadataTests {
     @Test
     public void testCopyFrom() {
         StreamSegmentMetadata baseMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
-        final int clientCount = 20;
-        for (int i = 0; i < clientCount; i++) {
-            baseMetadata.recordAppendContext(new AppendContext(UUID.randomUUID(), 1));
-        }
+        baseMetadata.updateAttributes(generateAttributes(new Random(0)));
         baseMetadata.setStorageLength(1233);
         baseMetadata.setDurableLogLength(3235342);
         baseMetadata.setLastModified(new Date());
@@ -89,7 +90,7 @@ public class StreamSegmentMetadataTests {
         // Normal metadata copy.
         StreamSegmentMetadata newMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
         newMetadata.copyFrom(baseMetadata);
-        assertEquals("Normal metadata copy:", baseMetadata, newMetadata);
+        SegmentMetadataComparer.assertEquals("Normal metadata copy:", baseMetadata, newMetadata);
 
         // Verify we cannot copy from different StreamSegments.
         AssertExtensions.assertThrows(
@@ -108,17 +109,12 @@ public class StreamSegmentMetadataTests {
                 ex -> ex instanceof IllegalArgumentException);
     }
 
-    private static void assertEquals(String message, SegmentMetadata expected, SegmentMetadata actual) {
-        Assert.assertEquals(message + " StorageLength differs.", expected.getStorageLength(), actual.getStorageLength());
-        Assert.assertEquals(message + " DurableLogLength differs.", expected.getDurableLogLength(), actual.getDurableLogLength());
-        Assert.assertEquals(message + " isDeleted differs.", expected.isDeleted(), actual.isDeleted());
-        Assert.assertEquals(message + " isSealed differs.", expected.isSealed(), actual.isSealed());
-        Assert.assertEquals(message + " isMerged differs.", expected.isMerged(), actual.isMerged());
-        AssertExtensions.assertContainsSameElements(message + " KnownClientIds differ.", expected.getKnownClientIds(), actual.getKnownClientIds());
-        for (UUID clientId : expected.getKnownClientIds()) {
-            AppendContext expectedContext = expected.getLastAppendContext(clientId);
-            AppendContext actualContext = actual.getLastAppendContext(clientId);
-            Assert.assertEquals(message + " getLastAppendContext differs.", expectedContext, actualContext);
+    private Map<UUID, Long> generateAttributes(Random rnd) {
+        val result = new HashMap<UUID, Long>();
+        for (int i = 0; i < ATTRIBUTE_COUNT; i++) {
+            result.put(UUID.randomUUID(), rnd.nextLong());
         }
+
+        return result;
     }
 }

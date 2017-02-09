@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.selftest;
 
+import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
@@ -28,8 +29,8 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.impl.ByteArraySerializer;
 import com.emc.pravega.stream.mock.MockStreamManager;
-
 import java.time.Duration;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -107,7 +108,7 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
         ensureInitializedAndNotClosed();
         return CompletableFuture.runAsync(() -> {
             if (this.producers.containsKey(streamSegmentName)) {
@@ -117,8 +118,8 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
             streamManager.createStream(streamSegmentName, null);
             EventStreamWriter<byte[]> producer = streamManager.getClientFactory()
                                                               .createEventWriter(streamSegmentName,
-                                                                                 new ByteArraySerializer(),
-                                                                                 new EventWriterConfig(null));
+                                                                      new ByteArraySerializer(),
+                                                                      new EventWriterConfig(null));
             this.producers.putIfAbsent(streamSegmentName, producer);
         }, this.testExecutor);
     }
@@ -130,7 +131,7 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext context, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         ensureInitializedAndNotClosed();
         return CompletableFuture.runAsync(() -> {
             EventStreamWriter<byte[]> producer = this.producers.getOrDefault(streamSegmentName, null);
@@ -170,7 +171,7 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, Duration timeout) {
+    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
         ensureInitializedAndNotClosed();
         throw new UnsupportedOperationException("transactions are not supported.");
     }

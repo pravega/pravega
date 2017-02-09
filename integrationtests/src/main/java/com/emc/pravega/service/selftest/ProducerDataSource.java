@@ -213,7 +213,7 @@ class ProducerDataSource {
             final int segmentId = i;
             String name = String.format("Segment_%s", segmentId);
             segmentFutures.add(
-                    this.store.createStreamSegment(name, this.config.getTimeout())
+                    this.store.createStreamSegment(name, null, this.config.getTimeout())
                               .thenRun(() -> {
                                   this.state.recordNewSegmentName(name);
                                   this.appendGenerators.put(name, new AppendContentGenerator(segmentId, true));

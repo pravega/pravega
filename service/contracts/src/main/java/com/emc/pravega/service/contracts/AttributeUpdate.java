@@ -1,14 +1,20 @@
 package com.emc.pravega.service.contracts;
 
-import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * Represents an Attribute-Value pair.
  */
-@Data
-public class AttributeValue {
+@AllArgsConstructor
+@Getter
+@Setter
+@EqualsAndHashCode(of = {"attribute", "value"})
+public class AttributeUpdate {
     private final Attribute attribute;
-    private final long value;
+    private long value;
 
     @Override
     public String toString() {

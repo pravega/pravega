@@ -19,13 +19,15 @@
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.service.contracts.Attribute;
+import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.UUID;
+import java.util.ArrayList;
+import java.util.Collection;
 
 /**
  * Log Operation that represents a StreamSegment Append. This operation, as opposed from CachedStreamSegmentAppendOperation,
@@ -39,7 +41,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     private static final byte CURRENT_VERSION = 0;
     private long streamSegmentOffset;
     private byte[] data;
-    private AppendContext appendContext;
+    private Collection<AttributeUpdate> attributeUpdates;
 
     //endregion
 
@@ -50,10 +52,10 @@ public class StreamSegmentAppendOperation extends StorageOperation {
      *
      * @param streamSegmentId The Id of the StreamSegment to append to.
      * @param data            The payload to append.
-     * @param appendContext   Append Context for this append.
+     * @param attributeUpdates      (Optional) The attributeUpdates to update with this append.
      */
-    public StreamSegmentAppendOperation(long streamSegmentId, byte[] data, AppendContext appendContext) {
-        this(streamSegmentId, NO_OFFSET, data, appendContext);
+    public StreamSegmentAppendOperation(long streamSegmentId, byte[] data, Collection<AttributeUpdate> attributeUpdates) {
+        this(streamSegmentId, NO_OFFSET, data, attributeUpdates);
     }
 
     /**
@@ -62,16 +64,15 @@ public class StreamSegmentAppendOperation extends StorageOperation {
      * @param streamSegmentId The Id of the StreamSegment to append to.
      * @param offset          The offset to append at.
      * @param data            The payload to append.
-     * @param appendContext   Append Context for this append.
+     * @param attributeUpdates      (Optional) The attributeUpdates to update with this append.
      */
-    public StreamSegmentAppendOperation(long streamSegmentId, long offset, byte[] data, AppendContext appendContext) {
+    public StreamSegmentAppendOperation(long streamSegmentId, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates) {
         super(streamSegmentId);
         Preconditions.checkNotNull(data, "data");
-        Preconditions.checkNotNull(appendContext, "appendContext");
 
         this.data = data;
         this.streamSegmentOffset = offset;
-        this.appendContext = appendContext;
+        this.attributeUpdates = attributeUpdates;
     }
 
     protected StreamSegmentAppendOperation(OperationHeader header, DataInputStream source) throws SerializationException {
@@ -102,12 +103,12 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     }
 
     /**
-     * Gets the AppendContext for this StreamSegmentAppendOperation, if any.
+     * Gets the Attribute updates for this StreamSegmentAppendOperation, if any.
      *
-     * @return The AppendContext, or null if no such context was defined.
+     * @return A Collection of Attribute updates, or null if no updates are available.
      */
-    public AppendContext getAppendContext() {
-        return this.appendContext;
+    public Collection<AttributeUpdate> getAttributeUpdates() {
+        return this.attributeUpdates;
     }
 
     //endregion
@@ -136,12 +137,17 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         target.writeByte(CURRENT_VERSION);
         target.writeLong(getStreamSegmentId());
         target.writeLong(this.streamSegmentOffset);
-        UUID clientId = this.appendContext.getClientId();
-        target.writeLong(clientId.getMostSignificantBits());
-        target.writeLong(clientId.getLeastSignificantBits());
-        target.writeLong(this.appendContext.getEventNumber());
         target.writeInt(data.length);
         target.write(data, 0, data.length);
+
+        // Attributes.
+        target.writeShort(this.attributeUpdates == null ? 0 : this.attributeUpdates.size());
+        if (this.attributeUpdates != null) {
+            for (AttributeUpdate au : this.attributeUpdates) {
+                au.getAttribute().serialize(target);
+                target.writeLong(au.getValue());
+            }
+        }
     }
 
     @Override
@@ -149,24 +155,31 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         readVersion(source, CURRENT_VERSION);
         setStreamSegmentId(source.readLong());
         this.streamSegmentOffset = source.readLong();
-        long clientIdMostSig = source.readLong();
-        long clientIdLeastSig = source.readLong();
-        UUID clientId = new UUID(clientIdMostSig, clientIdLeastSig);
-        long clientOffset = source.readLong();
-        this.appendContext = new AppendContext(clientId, clientOffset);
         int dataLength = source.readInt();
         this.data = new byte[dataLength];
         int bytesRead = StreamHelpers.readAll(source, this.data, 0, this.data.length);
         assert bytesRead == this.data.length : "StreamHelpers.readAll did not read all the bytes requested.";
+
+        // Read attributeUpdates.
+        short attributeCount = source.readShort();
+        if (attributeCount > 0) {
+            this.attributeUpdates = new ArrayList<>(attributeCount);
+            for (int i = 0; i < attributeCount; i++) {
+                Attribute attribute = Attribute.deserialize(source);
+                long value = source.readLong();
+                this.attributeUpdates.add(new AttributeUpdate(attribute, value));
+            }
+        }
     }
 
     @Override
     public String toString() {
         return String.format(
-                "%s, Offset = %s, Length = %d",
+                "%s, Offset = %s, Length = %d, Attributes = %d",
                 super.toString(),
                 toString(this.streamSegmentOffset, -1),
-                this.data.length);
+                this.data.length,
+                this.attributeUpdates == null ? 0 : this.attributeUpdates.size());
     }
 
     //endregion

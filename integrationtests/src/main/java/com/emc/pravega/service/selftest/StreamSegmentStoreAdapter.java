@@ -20,6 +20,7 @@ package com.emc.pravega.service.selftest;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.ExecutorServiceHelpers;
+import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
@@ -31,8 +32,8 @@ import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
-
 import java.time.Duration;
+import java.util.Collection;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -131,15 +132,15 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext context, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.append(streamSegmentName, data, context, timeout);
+        return this.streamSegmentStore.append(streamSegmentName, data, attributeUpdates, timeout);
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.getStreamSegmentInfo(streamSegmentName, timeout);
+        return this.streamSegmentStore.getStreamSegmentInfo(streamSegmentName, false, timeout);
     }
 
     @Override
@@ -149,15 +150,15 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.createStreamSegment(streamSegmentName, timeout);
+        return this.streamSegmentStore.createStreamSegment(streamSegmentName, attributes, timeout);
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, Duration timeout) {
+    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.createTransaction(parentStreamSegmentName, UUID.randomUUID(), timeout);
+        return this.streamSegmentStore.createTransaction(parentStreamSegmentName, UUID.randomUUID(), attributes, timeout);
     }
 
     @Override

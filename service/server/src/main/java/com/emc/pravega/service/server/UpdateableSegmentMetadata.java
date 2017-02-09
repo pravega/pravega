@@ -69,7 +69,7 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
      *
      * @param attributeValues The values to set/update.
      */
-    void setAttributes(Map<UUID, Long> attributeValues);
+    void updateAttributes(Map<UUID, Long> attributeValues);
 
     /**
      * Sets the Last Modified date.

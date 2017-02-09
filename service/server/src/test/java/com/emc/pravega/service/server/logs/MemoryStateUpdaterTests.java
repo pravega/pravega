@@ -43,7 +43,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import lombok.Cleanup;
@@ -137,6 +136,7 @@ public class MemoryStateUpdaterTests {
      * Tests the functionality of the flush() method, and that it can trigger future reads on the ReadIndex.
      */
     @Test
+    @SuppressWarnings("unchecked")
     public void testFlush() throws Exception {
         int segmentCount = 10;
         int operationCountPerType = 5;
@@ -171,10 +171,11 @@ public class MemoryStateUpdaterTests {
         long offset = 0;
         for (int i = 0; i < segmentCount; i++) {
             for (int j = 0; j < operationCountPerType; j++) {
-                StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation("a", i * j, false, false, new Date()));
+                StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(
+                        new StreamSegmentInformation("a", i * j, false, false, null, new Date()));
                 mapOp.setStreamSegmentId(i);
                 operations.add(mapOp);
-                StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(i, Integer.toString(i).getBytes(), new AppendContext(UUID.randomUUID(), i * j));
+                StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(i, Integer.toString(i).getBytes(), null);
                 appendOp.setStreamSegmentOffset(offset);
                 offset += appendOp.getData().length;
                 operations.add(appendOp);

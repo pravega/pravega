@@ -18,6 +18,10 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
+import com.emc.pravega.service.contracts.AttributeUpdate;
+import java.util.Collection;
+import java.util.stream.Collectors;
+import lombok.val;
 import org.junit.Assert;
 
 /**
@@ -118,18 +122,37 @@ public class OperationComparer {
 
     private void assertSame(String message, StreamSegmentAppendOperation expected, StreamSegmentAppendOperation actual) {
         Assert.assertEquals(message + " Unexpected StreamSegmentOffset.", expected.getStreamSegmentOffset(), actual.getStreamSegmentOffset());
-        Assert.assertEquals(message + " Unexpected AppendContext.ClientId", expected.getAppendContext().getClientId(), actual.getAppendContext().getClientId());
-        Assert.assertEquals(message + " Unexpected AppendContext.EventNumber", expected.getAppendContext().getEventNumber(), actual.getAppendContext().getEventNumber());
         Assert.assertArrayEquals(message + " Unexpected Data. ", expected.getData(), actual.getData());
+        assertSame(message + " Unexpected attributes:", expected.getAttributeUpdates(), actual.getAttributeUpdates());
     }
 
     private void assertSame(String message, StreamSegmentAppendOperation expected, CachedStreamSegmentAppendOperation cachedActual) {
         Assert.assertEquals(message + " Unexpected StreamSegmentOffset.", expected.getStreamSegmentOffset(), cachedActual.getStreamSegmentOffset());
         Assert.assertEquals(message + " Unexpected Length.", expected.getData().length, cachedActual.getLength());
+        assertSame(message + " Unexpected attributes:", expected.getAttributeUpdates(), cachedActual.getAttributeUpdates());
     }
 
     private void assertSame(String message, CachedStreamSegmentAppendOperation expected, CachedStreamSegmentAppendOperation actual) {
         Assert.assertEquals(message + " Unexpected Length.", expected.getLength(), actual.getLength());
+        assertSame(message + " Unexpected attributes:", expected.getAttributeUpdates(), actual.getAttributeUpdates());
+    }
+
+    private void assertSame(String message, Collection<AttributeUpdate> expected, Collection<AttributeUpdate> actual) {
+        if (expected == null) {
+            Assert.assertNull(message + " Not expecting attributes.", actual);
+            return;
+        } else {
+            Assert.assertNotNull(message + " Expected attributes, but none found.", actual);
+        }
+
+        Assert.assertEquals(message + " Unexpected number of attributes.", expected.size(), actual.size());
+        val expectedIndexed = expected.stream().collect(Collectors.toMap(AttributeUpdate::getAttribute, AttributeUpdate::getValue));
+        for (AttributeUpdate au : actual) {
+
+            Assert.assertTrue(message + " Found extra AttributeUpdate: " + au, expectedIndexed.containsKey(au.getAttribute()));
+            long expectedValue = expectedIndexed.get(au.getAttribute());
+            Assert.assertEquals(message + " Unexpected value for AttributeUpdate: " + au, expectedValue, au.getValue());
+        }
     }
 
     private void assertSame(String message, MergeTransactionOperation expected, MergeTransactionOperation actual) {

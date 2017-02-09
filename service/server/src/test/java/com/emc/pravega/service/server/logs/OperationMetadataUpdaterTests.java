@@ -18,7 +18,9 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.service.contracts.BadEventNumberException;
+import com.emc.pravega.service.contracts.Attribute;
+import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.BadAttributeUpdateException;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
@@ -26,6 +28,7 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
+import com.emc.pravega.service.server.SegmentMetadataComparer;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
@@ -40,11 +43,16 @@ import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -62,8 +70,10 @@ public class OperationMetadataUpdaterTests {
     private static final long SEALED_TRANSACTION_LENGTH = 12;
     private static final long SEGMENT_LENGTH = 1234567;
     private static final byte[] DEFAULT_APPEND_DATA = "hello".getBytes();
-    private final AtomicLong nextEventNumber = new AtomicLong();
-    private final Supplier<AppendContext> nextAppendContext = () -> new AppendContext(UUID.randomUUID(), nextEventNumber.incrementAndGet());
+    private static final Attribute[] DEFAULT_ATTRIBUTES = new Attribute[]{
+            Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.Replace),
+            Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.Accumulate)};
+    private static final Supplier<Long> NEXT_ATTRIBUTE_VALUE = System::nanoTime;
 
     //region StreamSegmentAppendOperation
 
@@ -99,7 +109,7 @@ public class OperationMetadataUpdaterTests {
         Assert.assertEquals("preProcess(Append) seems to have changed the metadata.", SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
 
         // When StreamSegment is merged (via transaction).
-        StreamSegmentAppendOperation transactionAppendOp = new StreamSegmentAppendOperation(SEALED_TRANSACTION_ID, DEFAULT_APPEND_DATA, nextAppendContext.get());
+        StreamSegmentAppendOperation transactionAppendOp = new StreamSegmentAppendOperation(SEALED_TRANSACTION_ID, DEFAULT_APPEND_DATA, null);
         MergeTransactionOperation mergeOp = createMerge();
         updater.preProcessOperation(mergeOp);
         updater.acceptOperation(mergeOp);
@@ -204,36 +214,120 @@ public class OperationMetadataUpdaterTests {
     }
 
     /**
-     * Tests the ability of the OperationMetadataUpdater to reject StreamSegmentAppends with out-of-order EventNumbers.
+     * Tests the ability of the OperationMetadataUpdater to handle StreamSegmentAppends with valid Attribute Updates.
      */
     @Test
-    public void testStreamSegmentAppendWithBadEventNumbers() throws Exception {
+    public void testStreamSegmentAppendWithAttributes() throws Exception {
+        final Attribute attributeNoUpdate = Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.None);
+        final Attribute attributeAccumulate = Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.Accumulate);
+        final Attribute attributeReplace = Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.Replace);
+        final Attribute attributeReplaceIfGreater = Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.ReplaceIfGreater);
+
         UpdateableContainerMetadata metadata = createMetadata();
         OperationMetadataUpdater updater = createUpdater(metadata);
 
         // Append #1.
-        StreamSegmentAppendOperation appendOp = createAppendNoOffset();
+        Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
+        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, 1)); // Initial add, so it's ok.
+        attributeUpdates.add(new AttributeUpdate(attributeAccumulate, 1));
+        attributeUpdates.add(new AttributeUpdate(attributeReplace, 1));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, 1));
+        val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(au -> au.getAttribute().getId(), AttributeUpdate::getValue));
+
+        StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates);
         updater.preProcessOperation(appendOp);
         updater.acceptOperation(appendOp);
 
-        // Append #2 (same context as Append #1)
-        StreamSegmentAppendOperation badAppendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, appendOp.getAppendContext());
-        AssertExtensions.assertThrows(
-                "preProcessOperation accepted a StreamSegmentAppendOperation with an out-of-order Event Number. (test #1)",
-                () -> updater.preProcessOperation(badAppendOp),
-                ex -> ex instanceof BadEventNumberException);
+        // Verify that the AttributeUpdates still have the same values (there was nothing there prior) and that the updater
+        // has internalized the attribute updates.
+        verifyAttributeUpdates("after acceptOperation (1)", updater, attributeUpdates, expectedValues);
 
-        // Append #3 (same EventNumber, but different clientId).
-        StreamSegmentAppendOperation differentClientAppend = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, new AppendContext(UUID.randomUUID(), appendOp.getAppendContext().getEventNumber()));
-        updater.preProcessOperation(differentClientAppend);
-        updater.acceptOperation(differentClientAppend);
+        // Append #2: update all attributes that can be updated.
+        attributeUpdates.clear();
+        attributeUpdates.add(new AttributeUpdate(attributeAccumulate, 1)); // 1 + 1 = 2
+        attributeUpdates.add(new AttributeUpdate(attributeReplace, 2));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, 2));
+        expectedValues.put(attributeAccumulate.getId(), 2L);
+        expectedValues.put(attributeReplace.getId(), 2L);
+        expectedValues.put(attributeReplaceIfGreater.getId(), 2L);
 
-        // Append #4 (same context as Append #3).
-        StreamSegmentAppendOperation badAppendOp2 = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, differentClientAppend.getAppendContext());
+        appendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates);
+        updater.preProcessOperation(appendOp);
+        updater.acceptOperation(appendOp);
+
+        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, 1)); // This is still in the transaction, so we need to add it for comparison sake.
+        verifyAttributeUpdates("after acceptOperation (2)", updater, attributeUpdates, expectedValues);
+
+        // Append #3: after commit, verify that attributes are committed when they need to.
+        val previousAcceptedValues = new HashMap<UUID, Long>(expectedValues);
+        updater.commit();
+        attributeUpdates.clear();
+        attributeUpdates.add(new AttributeUpdate(attributeAccumulate, 1)); // 2 + 1 = 3
+        attributeUpdates.add(new AttributeUpdate(attributeReplace, 3));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, 3));
+        expectedValues.put(attributeAccumulate.getId(), 3L);
+        expectedValues.put(attributeReplace.getId(), 3L);
+        expectedValues.put(attributeReplaceIfGreater.getId(), 3L);
+
+        appendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates);
+        updater.preProcessOperation(appendOp);
+        updater.acceptOperation(appendOp);
+
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in segment metadata after commit+acceptOperation, but prior to second commit.",
+                previousAcceptedValues, metadata.getStreamSegmentMetadata(SEGMENT_ID));
+        verifyAttributeUpdates("after commit+acceptOperation", updater, attributeUpdates, expectedValues);
+
+        // Final step: commit Append #3, and verify final segment metadata.
+        updater.commit();
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in segment metadata after final commit.",
+                expectedValues, metadata.getStreamSegmentMetadata(SEGMENT_ID));
+    }
+
+    /**
+     * Tests the ability of the OperationMetadataUpdater to reject StreamSegmentAppends with invalid Attribute Updates.
+     */
+    @Test
+    public void testStreamSegmentAppendWithBadAttributes() throws Exception {
+        final Attribute attributeNoUpdate = Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.None);
+        final Attribute attributeReplaceIfGreater = Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.ReplaceIfGreater);
+
+        UpdateableContainerMetadata metadata = createMetadata();
+        OperationMetadataUpdater updater = createUpdater(metadata);
+
+        // Append #1.
+        Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
+        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, 2)); // Initial add, so it's ok.
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, 2));
+        val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(au -> au.getAttribute().getId(), AttributeUpdate::getValue));
+
+        StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates);
+        updater.preProcessOperation(appendOp);
+        updater.acceptOperation(appendOp);
+
+        // Append #2: Try to update attribute that cannot be updated.
+        attributeUpdates.clear();
+        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, 3));
         AssertExtensions.assertThrows(
-                "preProcessOperation accepted a StreamSegmentAppendOperation with an out-of-order Event Number. (test #2)",
-                () -> updater.preProcessOperation(badAppendOp2),
-                ex -> ex instanceof BadEventNumberException);
+                "preProcessOperation accepted a StreamSegmentAppendOperation that was trying to update an unmodifiable attribute.",
+                () -> updater.preProcessOperation(new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates)),
+                ex -> ex instanceof BadAttributeUpdateException);
+
+        // Append #3: Try to update attribute with bad value for ReplaceIfGreater attribute.
+        attributeUpdates.clear();
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, 1));
+        AssertExtensions.assertThrows(
+                "preProcessOperation accepted a StreamSegmentAppendOperation that was trying to update an attribute with the wrong value for ReplaceIfGreater.",
+                () -> updater.preProcessOperation(new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates)),
+                ex -> ex instanceof BadAttributeUpdateException);
+
+        // Reset the attribute update list to its original state so we can do the final verification.
+        attributeUpdates.clear();
+        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, 2));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, 2));
+        verifyAttributeUpdates("after rejected appends", updater, attributeUpdates, expectedValues);
+        updater.commit();
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in segment metadata after commit.",
+                expectedValues, metadata.getStreamSegmentMetadata(SEGMENT_ID));
     }
 
     //endregion
@@ -579,9 +673,10 @@ public class OperationMetadataUpdaterTests {
         assertMetadataEquals("Unexpected metadata before any operation.", metadata, checkpointedMetadata);
 
         // Map another StreamSegment, and add an append
-        StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation(newSegmentName, SEGMENT_LENGTH, false, false, new Date()));
+        StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(
+                new StreamSegmentInformation(newSegmentName, SEGMENT_LENGTH, false, false, null, new Date()));
         processOperation(mapOp, updater, seqNo::incrementAndGet);
-        processOperation(new StreamSegmentAppendOperation(mapOp.getStreamSegmentId(), DEFAULT_APPEND_DATA, nextAppendContext.get()), updater, seqNo::incrementAndGet);
+        processOperation(new StreamSegmentAppendOperation(mapOp.getStreamSegmentId(), DEFAULT_APPEND_DATA, createAttributeUpdates()), updater, seqNo::incrementAndGet);
         processOperation(checkpoint2, updater, seqNo::incrementAndGet);
 
         // Checkpoint 2 should have Checkpoint 1 + New StreamSegment + Append.
@@ -838,11 +933,16 @@ public class OperationMetadataUpdaterTests {
     }
 
     private StreamSegmentAppendOperation createAppendNoOffset() {
-        return new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, nextAppendContext.get());
+        return new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, createAttributeUpdates());
     }
 
     private StreamSegmentAppendOperation createAppendWithOffset(long offset) {
-        return new StreamSegmentAppendOperation(SEGMENT_ID, offset, DEFAULT_APPEND_DATA, nextAppendContext.get());
+        return new StreamSegmentAppendOperation(SEGMENT_ID, offset, DEFAULT_APPEND_DATA, createAttributeUpdates());
+    }
+
+    private Collection<AttributeUpdate> createAttributeUpdates() {
+        return Arrays.stream(DEFAULT_ATTRIBUTES).map(a -> new AttributeUpdate(a, NEXT_ATTRIBUTE_VALUE.get()))
+                     .collect(Collectors.toList());
     }
 
     private StreamSegmentSealOperation createSeal() {
@@ -858,7 +958,7 @@ public class OperationMetadataUpdaterTests {
     }
 
     private StreamSegmentMapOperation createMap(String name) {
-        return new StreamSegmentMapOperation(new StreamSegmentInformation(name, SEGMENT_LENGTH, true, false, new Date()));
+        return new StreamSegmentMapOperation(new StreamSegmentInformation(name, SEGMENT_LENGTH, true, false, null, new Date()));
     }
 
     private TransactionMapOperation createTransactionMap(long parentId) {
@@ -866,7 +966,7 @@ public class OperationMetadataUpdaterTests {
     }
 
     private TransactionMapOperation createTransactionMap(long parentId, String name) {
-        return new TransactionMapOperation(parentId, new StreamSegmentInformation(name, SEALED_TRANSACTION_LENGTH, true, false, new Date()));
+        return new TransactionMapOperation(parentId, new StreamSegmentInformation(name, SEALED_TRANSACTION_LENGTH, true, false, null, new Date()));
     }
 
     private MetadataCheckpointOperation createMetadataPersisted() {
@@ -911,25 +1011,20 @@ public class OperationMetadataUpdaterTests {
             SegmentMetadata expectedSegmentMetadata = expected.getStreamSegmentMetadata(streamSegmentId);
             SegmentMetadata actualSegmentMetadata = actual.getStreamSegmentMetadata(streamSegmentId);
             Assert.assertNotNull(message + " No metadata for StreamSegment " + streamSegmentId, actualSegmentMetadata);
-            assertSegmentMetadataEquals(message, expectedSegmentMetadata, actualSegmentMetadata);
+            SegmentMetadataComparer.assertEquals(message, expectedSegmentMetadata, actualSegmentMetadata);
         }
     }
 
-    /**
-     * Verifies that the given SegmentMetadata objects contain the same data.
-     */
-    private void assertSegmentMetadataEquals(String message, SegmentMetadata expected, SegmentMetadata actual) {
-        String idPrefix = message + " SegmentId " + expected.getId();
-        Assert.assertEquals(idPrefix + " getId() mismatch.", expected.getId(), actual.getId());
-        Assert.assertEquals(idPrefix + " getParentId() mismatch.", expected.getParentId(), actual.getParentId());
-        Assert.assertEquals(idPrefix + " getName() isDeleted.", expected.isDeleted(), actual.isDeleted());
-        Assert.assertEquals(idPrefix + " getStorageLength() mismatch.", expected.getStorageLength(), actual.getStorageLength());
-        Assert.assertEquals(idPrefix + " getDurableLogLength() mismatch.", expected.getDurableLogLength(), actual.getDurableLogLength());
-        Assert.assertEquals(idPrefix + " getName() mismatch.", expected.getName(), actual.getName());
-        Assert.assertEquals(idPrefix + " isSealed() mismatch.", expected.isSealed(), actual.isSealed());
-        Assert.assertEquals(idPrefix + " isMerged() mismatch.", expected.isMerged(), actual.isMerged());
-
-        // getLastModified is not tested (yet). Unsure as of this moment if it is required for testing or not.
+    private void verifyAttributeUpdates(String stepName, ContainerMetadata containerMetadata, Collection<AttributeUpdate> attributeUpdates, Map<UUID, Long> expectedValues) {
+        // Verify that the Attribute Updates have their expected values and that the updater has internalized the attribute updates.
+        val transactionMetadata = containerMetadata.getStreamSegmentMetadata(SEGMENT_ID);
+        val expectedTransactionAttributes = attributeUpdates.stream().collect(Collectors.toMap(au -> au.getAttribute().getId(), AttributeUpdate::getValue));
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in transaction metadata " + stepName + ".",
+                expectedTransactionAttributes, transactionMetadata);
+        for (AttributeUpdate au : attributeUpdates) {
+            Assert.assertEquals("Unexpected updated value for AttributeUpdate[" + au.getAttribute().getUpdateType() + "] " + stepName,
+                    (long) expectedValues.get(au.getAttribute().getId()), au.getValue());
+        }
     }
 
     //endregion

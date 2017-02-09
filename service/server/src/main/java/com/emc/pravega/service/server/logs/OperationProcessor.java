@@ -32,12 +32,11 @@ import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Single-thread Processor for Operations. Queues all incoming entries in a BlockingDrainingQueue, then picks them all
@@ -258,9 +257,16 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
     private boolean processOperation(CompletableOperation operation, DataFrameBuilder<Operation> dataFrameBuilder) throws DataCorruptionException {
         Preconditions.checkState(!operation.isDone(), "The Operation has already been processed.");
 
-        // Update Metadata and Operations with any missing data (offsets, lengths, etc) - the Metadata Updater has all the knowledge for that task.
         Operation entry = operation.getOperation();
+        System.out.println("OP.Process: "+entry);
+        if (!entry.canSerialize()) {
+            // This operation cannot be serialized, so don't bother doing anything with it.
+            System.out.println("OP.BailOut: "+entry);
+            return true;
+        }
+
         try {
+            // Update Metadata and Operations with any missing data (offsets, lengths, etc) - the Metadata Updater has all the knowledge for that task.
             this.metadataUpdater.preProcessOperation(entry);
         } catch (Exception ex) {
             // This entry was not accepted (due to external error) or some processing error occurred. Our only option is to fail it now, before trying to commit it.
@@ -365,6 +371,7 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
          * @param operation The operation to append.
          */
         void addPending(CompletableOperation operation) {
+            System.out.println("OP.addPending: "+operation.getOperation());
             this.pendingOperations.add(operation);
         }
 
@@ -375,6 +382,7 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
          * @throws DataCorruptionException When the operation has been committed, but failed to be accepted into the In-Memory log.
          */
         public void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) throws Exception {
+            System.out.println("OP.commit");
             log.debug("{}: CommitSuccess (OperationCount = {}).", this.traceObjectId, this.pendingOperations.size());
 
             // Record the Truncation marker and then commit any changes to metadata.

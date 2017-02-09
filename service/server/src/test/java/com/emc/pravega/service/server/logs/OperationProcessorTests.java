@@ -429,6 +429,11 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 continue;
             }
 
+            if (!oc.operation.canSerialize()) {
+                // We do not expect this operation in the log; skip it.
+                continue;
+            }
+
             // Verify that the operations have been completed and assigned sequential Sequence Numbers.
             Operation expectedOp = oc.operation;
             long currentSeqNo = oc.completion.join();

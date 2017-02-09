@@ -23,24 +23,24 @@ import com.emc.pravega.common.netty.RequestProcessor;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
-import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
-import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
-import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
-import com.emc.pravega.common.netty.WireCommands.WrongHost;
-import com.emc.pravega.service.contracts.*;
+import com.emc.pravega.service.contracts.Attribute;
+import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.BadOffsetException;
+import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import java.util.*;
-import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiFunction;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import static com.emc.pravega.service.server.host.PravegaRequestStats.PENDING_APPEND_BYTES;
@@ -90,7 +90,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     public void setupAppend(SetupAppend setupAppend) {
         String newSegment = setupAppend.getSegment();
         UUID newConnection = setupAppend.getConnectionId();
-        store.getStreamSegmentInfo(newSegment, TIMEOUT)
+        store.getStreamSegmentInfo(newSegment, true, TIMEOUT)
                 .whenComplete((info, u) -> {
                     try {
                         if (u != null) {
@@ -157,7 +157,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         ByteBuf buf = Unpooled.unmodifiableBuffer(toWrite.getData());
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
-        val attributes = Collections.singletonList(new AttributeValue(
+        val attributes = Collections.singletonList(new AttributeUpdate(
                 Attribute.dynamic(toWrite.getConnectionId(), Attribute.UpdateType.ReplaceIfGreater),
                 toWrite.getEventNumber()));
 

@@ -48,7 +48,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import lombok.Cleanup;
@@ -57,7 +56,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
-
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -230,7 +228,7 @@ public class PravegaRequestProcessorTest {
     private boolean append(String streamSegmentName, int number, StreamSegmentStore store) {
         return FutureHelpers.await(store.append(streamSegmentName,
                 new byte[]{(byte) number},
-                new AppendContext(UUID.randomUUID(), number),
+                null,
                 PravegaRequestProcessor.TIMEOUT));
     }
 

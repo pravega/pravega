@@ -20,6 +20,8 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.SequencedItemList;
+import com.emc.pravega.service.contracts.Attribute;
+import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.server.ContainerMetadata;
@@ -47,6 +49,7 @@ import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -57,6 +60,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
+import lombok.val;
 import org.junit.Assert;
 
 /**
@@ -100,7 +104,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         for (int i = 0; i < streamSegmentCount; i++) {
             String name = getStreamSegmentName(i);
             long streamSegmentId = mapper
-                    .createNewStreamSegment(name, Duration.ZERO)
+                    .createNewStreamSegment(name, null, Duration.ZERO)
                     .thenCompose((v) -> mapper.getOrAssignStreamSegmentId(name, Duration.ZERO)).join();
             result.add(streamSegmentId);
         }
@@ -142,7 +146,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
 
             for (int i = 0; i < transactionsPerStreamSegment; i++) {
                 long transactionId = mapper
-                        .createNewTransactionStreamSegment(streamSegmentName, UUID.randomUUID(), Duration.ZERO)
+                        .createNewTransactionStreamSegment(streamSegmentName, UUID.randomUUID(), null, Duration.ZERO)
                         .thenCompose(v -> mapper.getOrAssignStreamSegmentId(v, Duration.ZERO)).join();
                 result.put(transactionId, streamSegmentId);
             }
@@ -171,26 +175,32 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
      * <li> A set of StreamSegmentSeal Operations (based on the sealStreamSegments arg).
      * </ol>
      */
-    List<Operation> generateOperations(Collection<Long> streamSegmentIds, AbstractMap<Long, Long> transactionIds, int appendsPerStreamSegment, int metadataCheckpointsEvery, boolean mergeTransactions, boolean sealStreamSegments) {
+    List<Operation> generateOperations(Collection<Long> streamSegmentIds, Map<Long, Long> transactionIds, int appendsPerStreamSegment, int metadataCheckpointsEvery, boolean mergeTransactions, boolean sealStreamSegments) {
         List<Operation> result = new ArrayList<>();
 
         // Add some appends.
         int appendId = 0;
         for (long streamSegmentId : streamSegmentIds) {
             for (int i = 0; i < appendsPerStreamSegment; i++) {
-                result.add(new StreamSegmentAppendOperation(streamSegmentId, generateAppendData(appendId), new AppendContext(UUID.randomUUID(), i)));
+                val attributes = Collections.singletonList(new AttributeUpdate(Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.Replace), i));
+                result.add(new StreamSegmentAppendOperation(streamSegmentId, generateAppendData(appendId), attributes));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
                 appendId++;
             }
         }
 
+        addProbe(result);
+
         for (long transactionId : transactionIds.keySet()) {
             for (int i = 0; i < appendsPerStreamSegment; i++) {
-                result.add(new StreamSegmentAppendOperation(transactionId, generateAppendData(appendId), new AppendContext(UUID.randomUUID(), i)));
+                val attributes = Collections.singletonList(new AttributeUpdate(Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.Replace), i));
+                result.add(new StreamSegmentAppendOperation(transactionId, generateAppendData(appendId), attributes));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
                 appendId++;
             }
         }
+
+        addProbe(result);
 
         // Merge Transactions.
         if (mergeTransactions) {
@@ -201,6 +211,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
                 result.add(new MergeTransactionOperation(mapping.getValue(), mapping.getKey()));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
             });
+            addProbe(result);
         }
 
         // Seal the StreamSegments.
@@ -209,6 +220,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
                 result.add(new StreamSegmentSealOperation(streamSegmentId));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
             });
+            addProbe(result);
         }
 
         return result;
@@ -218,17 +230,22 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         return String.format("Append_%d", appendId).getBytes();
     }
 
-    private void addCheckpointIfNeeded(List<Operation> operations, int metadataCheckpointsEvery) {
+    private void addCheckpointIfNeeded(Collection<Operation> operations, int metadataCheckpointsEvery) {
         if (metadataCheckpointsEvery > 0 && operations.size() % metadataCheckpointsEvery == 0) {
             operations.add(new MetadataCheckpointOperation());
         }
+    }
+
+    private void addProbe(Collection<Operation> operations) {
+        // TODO: this seems to inconvenience a lot of tests. check them out. But first fix testTailReads.
+        //operations.add(new ProbeOperation());
     }
 
     //endregion
 
     //region Verification
 
-    void performMetadataChecks(Collection<Long> streamSegmentIds, Collection<Long> invalidStreamSegmentIds, AbstractMap<Long, Long> transactions, Collection<OperationWithCompletion> operations, ContainerMetadata metadata, boolean expectTransactionsMerged, boolean expectSegmentsSealed) {
+    void performMetadataChecks(Collection<Long> streamSegmentIds, Collection<Long> invalidStreamSegmentIds, Map<Long, Long> transactions, Collection<OperationWithCompletion> operations, ContainerMetadata metadata, boolean expectTransactionsMerged, boolean expectSegmentsSealed) {
         // Verify that transactions are merged
         for (long transactionId : transactions.keySet()) {
             SegmentMetadata transactionMetadata = metadata.getStreamSegmentMetadata(transactionId);
@@ -358,7 +375,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         private final boolean failAtBeginning;
 
         FailedStreamSegmentAppendOperation(StreamSegmentAppendOperation base, boolean failAtBeginning) {
-            super(base.getStreamSegmentId(), base.getData(), base.getAppendContext());
+            super(base.getStreamSegmentId(), base.getData(), base.getAttributeUpdates());
             this.failAtBeginning = failAtBeginning;
         }
 

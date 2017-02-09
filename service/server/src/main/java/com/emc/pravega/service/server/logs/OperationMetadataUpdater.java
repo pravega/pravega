@@ -21,7 +21,9 @@ package com.emc.pravega.service.server.logs;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.io.EnhancedByteArrayOutputStream;
 import com.emc.pravega.common.util.CollectionHelpers;
-import com.emc.pravega.service.contracts.BadEventNumberException;
+import com.emc.pravega.service.contracts.Attribute;
+import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.BadAttributeUpdateException;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
@@ -43,14 +45,23 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
-import java.util.*;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static com.emc.pravega.common.util.CollectionHelpers.forEach;
 
@@ -61,6 +72,7 @@ import static com.emc.pravega.common.util.CollectionHelpers.forEach;
 class OperationMetadataUpdater implements ContainerMetadata {
     //region Members
 
+    private static final Long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE; // TODO: consider moving to another place, if used in multiple places.
     private final String traceObjectId;
     private final UpdateableContainerMetadata metadata;
     private UpdateTransaction currentTransaction;
@@ -605,7 +617,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
         private void deserializeFrom(MetadataCheckpointOperation operation) throws IOException, SerializationException {
             Preconditions.checkState(this.containerMetadata.isRecoveryMode(), "Cannot deserialize Metadata in recovery mode.");
 
-            DataInputStream stream = new DataInputStream(operation.getContents().getReader());
+            DataInputStream stream = new DataInputStream(new GZIPInputStream(operation.getContents().getReader()));
 
             // 1. Version.
             byte version = stream.readByte();
@@ -646,7 +658,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
             Preconditions.checkState(!this.containerMetadata.isRecoveryMode(), "Cannot serialize Metadata in recovery mode.");
 
             EnhancedByteArrayOutputStream byteStream = new EnhancedByteArrayOutputStream();
-            DataOutputStream stream = new DataOutputStream(byteStream);
+            GZIPOutputStream zipStream = new GZIPOutputStream(byteStream);
+            DataOutputStream stream = new DataOutputStream(zipStream);
 
             // 1. Version.
             stream.writeByte(CURRENT_SERIALIZATION_VERSION);
@@ -671,6 +684,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             stream.writeInt(this.streamSegmentUpdates.size());
             CollectionHelpers.forEach(this.streamSegmentUpdates.values(), sm -> serializeSegmentMetadata(sm, stream));
 
+            zipStream.finish();
             operation.setContents(byteStream.getData());
         }
 
@@ -695,9 +709,14 @@ class OperationMetadataUpdater implements ContainerMetadata {
             stream.writeBoolean(sm.isDeleted());
             // S10. LastModified.
             stream.writeLong(sm.getLastModified().getTime());
-
-            // TODO: determine if we want to snapshot the client ids and their offsets too. This might be a long list, especially if we don't clean it up.
-            //sm.getKnownClientIds(); // TODO: if we do this, we also have to read them upon deserialization.
+            // S11. Attributes.
+            val attributes = sm.getAttributes().entrySet();
+            stream.writeShort(attributes.size());
+            for (Map.Entry<UUID, Long> attribute : attributes) {
+                stream.writeLong(attribute.getKey().getMostSignificantBits());
+                stream.writeLong(attribute.getKey().getLeastSignificantBits());
+                stream.writeLong(attribute.getValue());
+            }
         }
 
         private void deserializeSegmentMetadata(DataInputStream stream) throws IOException {
@@ -737,6 +756,18 @@ class OperationMetadataUpdater implements ContainerMetadata {
             // S10. LastModified.
             Date lastModified = new java.util.Date(stream.readLong());
             metadata.setLastModified(lastModified);
+
+            // S11. Attributes.
+            short attributeCount = stream.readShort();
+            val attributes = new HashMap<UUID, Long>();
+            for (int i = 0; i < attributeCount; i++) {
+                long mostSigBits = stream.readLong();
+                long leastSigBits = stream.readLong();
+                long value = stream.readLong();
+                attributes.put(new UUID(mostSigBits, leastSigBits), value);
+            }
+
+            metadata.updateAttributes(attributes);
         }
     }
 
@@ -859,6 +890,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
         @Override
         public Map<UUID, Long> getAttributes() {
+            // Important: This only returns the updated attributes, not the whole set of attributes. If it also returned
+            // the base attributes, upon commit() they would be unnecessarily re-applied to the same segment.
             return Collections.unmodifiableMap(this.updatedAttributeValues);
         }
 
@@ -875,9 +908,10 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @throws StreamSegmentMergedException If the StreamSegment is merged into another.
          * @throws BadOffsetException           If the operation has an assigned offset, but it doesn't match the current
          *                                      Segment DurableLogOffset.
-         * @throws IllegalArgumentException     If the operation is for a different stream.
+         * @throws IllegalArgumentException     If the operation is for a different StreamSegment.
          */
-        void preProcessOperation(StreamSegmentAppendOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException, BadOffsetException, BadEventNumberException {
+        void preProcessOperation(StreamSegmentAppendOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException,
+                BadOffsetException, BadAttributeUpdateException {
             ensureSegmentId(operation);
             if (this.merged) {
                 // We do not allow any operation after merging (since after merging the StreamSegment disappears).
@@ -901,13 +935,53 @@ class OperationMetadataUpdater implements ContainerMetadata {
                     operation.setStreamSegmentOffset(this.currentDurableLogLength);
                 }
 
-                // Context Event-Number check (must be monotonically increasing).
-                AppendContext currentContext = operation.getAppendContext();
-                if (currentContext != null) {
-                    AppendContext lastContext = getLastAppendContext(operation.getAppendContext().getClientId());
-                    if (lastContext != null && currentContext.getEventNumber() <= lastContext.getEventNumber()) {
-                        throw new BadEventNumberException(this.baseMetadata.getName(), lastContext.getEventNumber(), currentContext.getEventNumber());
-                    }
+                // Attribute validation.
+                preProcessAttributes(operation.getAttributeUpdates());
+            }
+        }
+
+        /**
+         * Pre-processes a collection of attributes.
+         * After this method returns, all AttributeUpdates in the given collection will have the actual (and updated) value
+         * of that attribute in the Segment.
+         *
+         * @param attributeUpdates The Updates to process (if any).
+         * @throws BadAttributeUpdateException If any of the given AttributeUpdates is invalid given the current state of
+         *                                     the segment.
+         */
+        void preProcessAttributes(Collection<AttributeUpdate> attributeUpdates) throws BadAttributeUpdateException {
+            if (attributeUpdates == null) {
+                return;
+            }
+
+            for (AttributeUpdate u : attributeUpdates) {
+                Attribute.UpdateType updateType = u.getAttribute().getUpdateType();
+                long previousValue = getAttributeValue(u.getAttribute().getId(), NULL_ATTRIBUTE_VALUE);
+
+                // Perform validation, and set the AttributeUpdate.value to the updated value, if necessary.
+                switch (updateType) {
+                    case ReplaceIfGreater:
+                        // Verify value against existing value, if any.
+                        if (previousValue != NULL_ATTRIBUTE_VALUE && u.getValue() <= previousValue) {
+                            throw new BadAttributeUpdateException(this.baseMetadata.getName(), u,
+                                    String.format("Expected greater than '%s'.", previousValue));
+                        }
+
+                        break;
+                    case None:
+                        // Attribute cannot be updated once set.
+                        if (previousValue != NULL_ATTRIBUTE_VALUE) {
+                            throw new BadAttributeUpdateException(this.baseMetadata.getName(), u,
+                                    String.format("Attribute value already exists and cannot be updated (%s).", previousValue));
+                        }
+
+                        break;
+                    case Accumulate:
+                        if (previousValue != NULL_ATTRIBUTE_VALUE) {
+                            u.setValue(previousValue + u.getValue());
+                        }
+
+                        break;
                 }
             }
         }
@@ -1019,8 +1093,23 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             this.currentDurableLogLength += operation.getData().length;
-            this.lastCommittedAppends.put(operation.getAppendContext().getClientId(), operation.getAppendContext());
+            acceptAttributes(operation.getAttributeUpdates());
             this.isChanged = true;
+        }
+
+        /**
+         * Accepts a collection of AttributeUpdates in the metadata.
+         *
+         * @param attributeUpdates The Attribute updates to accept.
+         */
+        void acceptAttributes(Collection<AttributeUpdate> attributeUpdates) {
+            if (attributeUpdates == null) {
+                return;
+            }
+
+            for (AttributeUpdate au : attributeUpdates) {
+                this.updatedAttributeValues.put(au.getAttribute().getId(), au.getValue());
+            }
         }
 
         /**
@@ -1092,7 +1181,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             // Apply to base metadata.
-            this.baseMetadata.setAttributes(this.updatedAttributeValues);
+            this.baseMetadata.updateAttributes(this.updatedAttributeValues);
             this.baseMetadata.setDurableLogLength(this.currentDurableLogLength);
             if (this.isSealed()) {
                 this.baseMetadata.markSealed();

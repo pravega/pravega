@@ -159,7 +159,7 @@ class Producer extends Actor {
         if (operation.getType() == ProducerOperationType.CREATE_TRANSACTION) {
             // Create the Transaction, then record it's name in the operation's result.
             StoreAdapter.Feature.Transaction.ensureSupported(this.store, "create transaction");
-            return this.store.createTransaction(operation.getTarget(), timer.getRemaining())
+            return this.store.createTransaction(operation.getTarget(), null, timer.getRemaining())
                              .thenAccept(operation::setResult);
         } else if (operation.getType() == ProducerOperationType.MERGE_TRANSACTION) {
             // Seal & Merge the Transaction.
@@ -172,8 +172,7 @@ class Producer extends Actor {
             StoreAdapter.Feature.Append.ensureSupported(this.store, "append to segment");
             byte[] appendContent = this.dataSource.generateAppendContent(operation.getTarget());
             operation.setLength(appendContent.length);
-            AppendContext context = new AppendContext(this.clientId, this.iterationCount.get());
-            return this.store.append(operation.getTarget(), appendContent, context, timer.getRemaining())
+            return this.store.append(operation.getTarget(), appendContent, null, timer.getRemaining())
                              .exceptionally(ex -> attemptReconcile(ex, operation, timer));
         } else if (operation.getType() == ProducerOperationType.SEAL) {
             // Seal the segment.

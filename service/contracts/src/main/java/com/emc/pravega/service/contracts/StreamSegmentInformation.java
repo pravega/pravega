@@ -18,12 +18,10 @@
 
 package com.emc.pravega.service.contracts;
 
+import java.util.Collections;
 import java.util.Date;
-
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import lombok.Data;
 import lombok.Getter;
 
 /**
@@ -52,13 +50,28 @@ public class StreamSegmentInformation implements SegmentProperties {
      * @param isDeleted         Whether the StreamSegment is deleted (does not exist).
      * @param lastModified      The last time the StreamSegment was modified.
      */
+    @Deprecated
     public StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, Date lastModified) {
+        this(streamSegmentName, length, isSealed, isDeleted, null, lastModified);
+    }
+
+    /**
+     * Creates a new instance of the StreamSegmentInformation class.
+     *
+     * @param streamSegmentName The name of the StreamSegment.
+     * @param length            The length of the StreamSegment.
+     * @param isSealed          Whether the StreamSegment is sealed (for modifications).
+     * @param isDeleted         Whether the StreamSegment is deleted (does not exist).
+     * @param attributes        The attributes of this StreamSegment.
+     * @param lastModified      The last time the StreamSegment was modified.
+     */
+    public StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, Map<UUID, Long> attributes, Date lastModified) {
         this.name = streamSegmentName;
         this.length = length;
         this.sealed = isSealed;
         this.deleted = isDeleted;
         this.lastModified = lastModified;
-        this.attributes = new HashMap<>(); //TODO: populate.
+        this.attributes = attributes == null ? Collections.emptyMap() : Collections.unmodifiableMap(attributes); // TODO: make a copy
     }
 
     @Override

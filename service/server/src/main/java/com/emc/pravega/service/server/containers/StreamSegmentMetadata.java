@@ -239,7 +239,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void setAttributes(Map<UUID, Long> attributes) {
+    public void updateAttributes(Map<UUID, Long> attributes) {
         for (Map.Entry<UUID, Long> av : attributes.entrySet()) {
             this.attributes.put(av.getKey(), av.getValue());
         }
@@ -255,7 +255,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         setStorageLength(base.getStorageLength());
         setDurableLogLength(base.getDurableLogLength());
         setLastModified(base.getLastModified());
-        setAttributes(base.getAttributes());
+        updateAttributes(base.getAttributes());
 
         if (base.isSealed()) {
             markSealed();

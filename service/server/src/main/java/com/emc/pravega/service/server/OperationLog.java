@@ -19,7 +19,6 @@
 package com.emc.pravega.service.server;
 
 import com.emc.pravega.service.server.logs.operations.Operation;
-
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
@@ -58,5 +57,14 @@ public interface OperationLog extends Container {
      * failed, this Future will complete with the appropriate exception.
      */
     CompletableFuture<Iterator<Operation>> read(long afterSequence, int maxCount, Duration timeout);
+
+    /**
+     * Waits until all currently pending Operations up to this point are processed (whether successfully or not).
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that all currently pending operations up to this
+     * point will have completed (normally or exceptionally).
+     */
+    CompletableFuture<Void> operationProcessingBarrier(Duration timeout);
 }
 
