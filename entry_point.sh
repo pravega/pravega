@@ -37,10 +37,6 @@ echo "format the bookie"
 # format bookie
 echo "Y" | BOOKIE_CONF=/opt/dl_all/distributedlog-service/conf/bookie.conf /opt/dl_all/distributedlog-service/bin/dlog bkshell bookieformat
 
-echo "start a new bookie"
-# start bookie,
-SERVICE_PORT=$PORT0 /opt/dl_all/distributedlog-service/bin/dlog-daemon.sh start bookie --conf /opt/dl_all/distributedlog-service/conf/bookie.conf
-
 if [ $FIRST_BOOKIE -eq 1 ]; then
     echo "this is the first Bookie, could create dl namespace here"
     /opt/dl_all/distributedlog-service/bin/dlog admin bind -dlzr $ZK_URL -dlzw $ZK_URL -s $ZK_URL -bkzr $ZK_URL -l /messaging/bookkeeper/ledgers -i false -r true -c distributedlog://$ZK_URL/messaging/distributedlog/mynamespace
@@ -48,5 +44,7 @@ else
     echo "this is not the first Bookie"
 fi
 
-echo "start a while to keep docker alive"
-while true; do sleep 3600; done
+echo "start a new bookie"
+# start bookie,
+SERVICE_PORT=$PORT0 /opt/dl_all/distributedlog-service/bin/dlog org.apache.bookkeeper.proto.BookieServer --conf /opt/dl_all/distributedlog-service/conf/bookie.conf
+
