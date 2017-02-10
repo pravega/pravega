@@ -19,10 +19,14 @@
 package com.emc.pravega.framework.metronome.model.v1;
 
 import com.emc.pravega.framework.metronome.ModelUtils;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.List;
 import java.util.Map;
 
+@Getter
+@Setter
 public class Job {
     private String id;
     private String description;
@@ -30,54 +34,6 @@ public class Job {
     private Run run;
     private History history;
     private List<ActiveRun> activeRuns;
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public Map<String, String> getLabels() {
-        return labels;
-    }
-
-    public void setLabels(Map<String, String> labels) {
-        this.labels = labels;
-    }
-
-    public Run getRun() {
-        return run;
-    }
-
-    public void setRun(Run run) {
-        this.run = run;
-    }
-
-    public History getHistory() {
-        return history;
-    }
-
-    public void setHistory(History history) {
-        this.history = history;
-    }
-
-    public List<ActiveRun> getActiveRuns() {
-        return activeRuns;
-    }
-
-    public void setActiveRuns(List<ActiveRun> activeRuns) {
-        this.activeRuns = activeRuns;
-    }
 
     @Override
     public String toString() {

@@ -19,35 +19,15 @@
 package com.emc.pravega.framework.metronome.model.v1;
 
 import com.emc.pravega.framework.metronome.ModelUtils;
+import lombok.Getter;
+import lombok.Setter;
 
+@Getter
+@Setter
 public class Task {
     private String id;
     private String startedAt;
     private String status;
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getStartedAt() {
-        return startedAt;
-    }
-
-    public void setStartedAt(String startedAt) {
-        this.startedAt = startedAt;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
 
     @Override
     public String toString() {

@@ -20,44 +20,16 @@ package com.emc.pravega.framework.metronome.model.v1;
 
 
 import com.emc.pravega.framework.metronome.ModelUtils;
+import lombok.Getter;
+import lombok.Setter;
 
+@Getter
+@Setter
 public class History {
     private Integer successCount;
     private Integer failureCount;
     private String lastSuccessAt;
     private String lastFailureAt;
-
-    public Integer getSuccessCount() {
-        return successCount;
-    }
-
-    public void setSuccessCount(Integer successCount) {
-        this.successCount = successCount;
-    }
-
-    public Integer getFailureCount() {
-        return failureCount;
-    }
-
-    public void setFailureCount(Integer failureCount) {
-        this.failureCount = failureCount;
-    }
-
-    public String getLastSuccessAt() {
-        return lastSuccessAt;
-    }
-
-    public void setLastSuccessAt(String lastSuccessAt) {
-        this.lastSuccessAt = lastSuccessAt;
-    }
-
-    public String getLastFailureAt() {
-        return lastFailureAt;
-    }
-
-    public void setLastFailureAt(String lastFailureAt) {
-        this.lastFailureAt = lastFailureAt;
-    }
 
     @Override
     public String toString() {

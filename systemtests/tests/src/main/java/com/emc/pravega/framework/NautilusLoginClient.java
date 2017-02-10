@@ -48,7 +48,8 @@ public class NautilusLoginClient {
             Collection<String> headers = response.headers().get(TOKEN_HEADER_NAME);
             return headers.toArray(new String[headers.size()])[0];
         } else {
-            throw new RuntimeException("Exception while logging into the nautilus cluster");
+            throw new RuntimeException("Exception while logging into the nautilus cluster. Nautilus Authentication" +
+                    "service returned an error" + response);
         }
     }
 }

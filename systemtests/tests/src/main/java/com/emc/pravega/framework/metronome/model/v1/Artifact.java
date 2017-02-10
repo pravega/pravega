@@ -19,45 +19,16 @@
 package com.emc.pravega.framework.metronome.model.v1;
 
 import com.emc.pravega.framework.metronome.ModelUtils;
+import lombok.Getter;
+import lombok.Setter;
 
+@Getter
+@Setter
 public class Artifact {
     private String uri;
     private Boolean extract;
     private Boolean executable;
     private Boolean cache;
-
-    public Boolean getExtract() {
-        return extract;
-    }
-
-    public void setExtract(Boolean extract) {
-        this.extract = extract;
-    }
-
-    public Boolean getExecutable() {
-        return executable;
-    }
-
-    public void setExecutable(Boolean executable) {
-        this.executable = executable;
-    }
-
-    public Boolean getCache() {
-        return cache;
-    }
-
-    public void setCache(Boolean cache) {
-        this.cache = cache;
-    }
-
-    public String getUri() {
-
-        return uri;
-    }
-
-    public void setUri(String uri) {
-        this.uri = uri;
-    }
 
     @Override
     public String toString() {

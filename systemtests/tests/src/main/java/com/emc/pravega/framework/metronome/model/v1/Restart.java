@@ -19,26 +19,14 @@
 package com.emc.pravega.framework.metronome.model.v1;
 
 import com.emc.pravega.framework.metronome.ModelUtils;
+import lombok.Getter;
+import lombok.Setter;
 
+@Getter
+@Setter
 public class Restart {
     private Integer activeDeadlineSeconds;
     private String policy;
-
-    public Integer getActiveDeadlineSeconds() {
-        return activeDeadlineSeconds;
-    }
-
-    public void setActiveDeadlineSeconds(Integer activeDeadlineSeconds) {
-        this.activeDeadlineSeconds = activeDeadlineSeconds;
-    }
-
-    public String getPolicy() {
-        return policy;
-    }
-
-    public void setPolicy(String policy) {
-        this.policy = policy;
-    }
 
     @Override
     public String toString() {

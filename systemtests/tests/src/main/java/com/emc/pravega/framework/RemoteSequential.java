@@ -88,8 +88,8 @@ public class RemoteSequential implements TestExecutor {
         art.setCache(false); // It caches the artifacts, disabling it for now.
         art.setExecutable(false); // jar is not executable.
         art.setExtract(false);
-        art.setUri("http://asdrepo.isus.emc.com:8081/artifactory/pravega-testframework/pravega/systemtests/0.2" +
-                "/systemtests-0.2.jar");
+        art.setUri("http://asdrepo.isus.emc.com:8081/artifactory/nautilus-pravega-testframework/pravega/systemtests" +
+                "/0.1/systemtests-0.1.jar");
 
         Restart restart = new Restart();
         restart.setActiveDeadlineSeconds(120); // the tests are expected to finish in 2 mins, this can be changed to
@@ -100,7 +100,7 @@ public class RemoteSequential implements TestExecutor {
         run.setArtifacts(Collections.singletonList(art));
 
         run.setCmd("docker run --rm --name=\"testCase-1\" -v $(pwd):/data cogniteev/oracle-java:latest java -cp " +
-                "/data/systemtests-0.2.jar com.emc.pravega.SingleJUnitTestRunner " +
+                "/data/systemtests-0.1.jar com.emc.pravega.SingleJUnitTestRunner " +
                 className + "#" + methodName + " > server.log 2>&1" +
                 "; exit $?");
 
