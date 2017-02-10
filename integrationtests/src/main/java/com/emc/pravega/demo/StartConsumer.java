@@ -38,9 +38,9 @@ public class StartConsumer {
         clientFactory.createStream(StartLocalService.STREAM_NAME, null);
         @Cleanup
         EventStreamReader<String> consumer = clientFactory.createReader(StartLocalService.STREAM_NAME,
-                                     new JavaSerializer<>(),
-                            new ReaderConfig(),
-                            clientFactory.getInitialPosition(StartLocalService.STREAM_NAME));        
+                new JavaSerializer<>(),
+                new ReaderConfig(),
+                clientFactory.getInitialPosition(StartLocalService.STREAM_NAME));
         for (int i = 0; i < 20; i++) {
             String event = consumer.readNextEvent(60000).getEvent();
             System.err.println("Read event: " + event);
