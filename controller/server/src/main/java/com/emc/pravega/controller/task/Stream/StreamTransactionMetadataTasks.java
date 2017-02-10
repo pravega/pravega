@@ -18,20 +18,18 @@
 
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-
 import java.io.Serializable;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -78,7 +76,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                         .forEach(x -> {
                             if (currentTime - x.getTxRecord().getTxCreationTimestamp() > TIMEOUT) {
                                 try {
-                                    dropTx(x.getScope(), x.getStream(), x.getTxid());
+                                    abortTx(x.getScope(), x.getStream(), x.getTxid());
                                 } catch (Exception e) {
                                     // TODO: log and ignore
                                 }
@@ -113,19 +111,19 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     }
 
     /**
-     * Drop transaction.
+     * Abort transaction.
      *
      * @param scope  stream scope.
      * @param stream stream name.
      * @param txId   transaction id.
      * @return true/false.
      */
-    @Task(name = "dropTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
-    public CompletableFuture<TxnStatus> dropTx(final String scope, final String stream, final UUID txId) {
+    @Task(name = "abortTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
+    public CompletableFuture<TxnStatus> abortTx(final String scope, final String stream, final UUID txId) {
         return execute(
                 new Resource(scope, stream, txId.toString()),
                 new Serializable[]{scope, stream, txId},
-                () -> dropTxBody(scope, stream, txId));
+                () -> abortTxBody(scope, stream, txId));
     }
 
     /**
@@ -149,7 +147,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 .thenCompose(txId ->
                         streamMetadataStore.getActiveSegments(stream)
                                 .thenCompose(activeSegments ->
-                                        FutureCollectionHelper.sequence(
+                                        FutureHelpers.allOf(
                                                 activeSegments.stream()
                                                         .parallel()
                                                         .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txId))
@@ -157,16 +155,16 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                                 .thenApply(x -> txId));
     }
 
-    private CompletableFuture<TxnStatus> dropTxBody(final String scope, final String stream, final UUID txid) {
+    private CompletableFuture<TxnStatus> abortTxBody(final String scope, final String stream, final UUID txid) {
         // notify hosts to abort transaction
         return streamMetadataStore.getActiveSegments(stream)
                 .thenCompose(segments ->
-                        FutureCollectionHelper.sequence(
+                        FutureHelpers.allOf(
                                 segments.stream()
                                         .parallel()
                                         .map(segment -> notifyDropToHost(scope, stream, segment.getNumber(), txid))
                                         .collect(Collectors.toList())))
-                .thenCompose(x -> streamMetadataStore.dropTransaction(scope, stream, txid));
+                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txid));
     }
 
     private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid) {
@@ -174,7 +172,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 .thenCompose(x ->
                         streamMetadataStore.getActiveSegments(stream)
                                 .thenCompose(segments ->
-                                        FutureCollectionHelper.sequence(segments.stream()
+                                        FutureHelpers.allOf(segments.stream()
                                                 .parallel()
                                                 .map(segment ->
                                                         notifyCommitToHost(scope, stream, segment.getNumber(), txid))
@@ -194,27 +192,29 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                                 this.connectionFactory), executor);
     }
 
-    private CompletableFuture<TransactionStatus> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
+    private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-                .retryingOn(WireCommandFailedException.class)
-                .throwingOn(RuntimeException.class)
-                .runAsync(() -> SegmentHelper.dropTransaction(scope,
-                        stream,
-                        segmentNumber,
-                        txId,
-                        this.hostControllerStore,
-                        this.connectionFactory), executor);
+                    .retryingOn(WireCommandFailedException.class)
+                    .throwingOn(RuntimeException.class)
+                    .runAsync(() -> SegmentHelper.abortTransaction(scope,
+                                                                  stream,
+                                                                  segmentNumber,
+                                                                  txId,
+                                                                  this.hostControllerStore,
+                                                                  this.connectionFactory),
+                              executor);
     }
 
-    private CompletableFuture<TransactionStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
+    private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-                .retryingOn(WireCommandFailedException.class)
-                .throwingOn(RuntimeException.class)
-                .runAsync(() -> SegmentHelper.commitTransaction(scope,
-                        stream,
-                        segmentNumber,
-                        txId,
-                        this.hostControllerStore,
-                        this.connectionFactory), executor);
+                    .retryingOn(WireCommandFailedException.class)
+                    .throwingOn(RuntimeException.class)
+                    .runAsync(() -> SegmentHelper.commitTransaction(scope,
+                                                                    stream,
+                                                                    segmentNumber,
+                                                                    txId,
+                                                                    this.hostControllerStore,
+                                                                    this.connectionFactory),
+                              executor);
     }
 }

@@ -27,10 +27,7 @@ import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.ReadOnlyStorage;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
-import javax.annotation.concurrent.GuardedBy;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -40,6 +37,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * StreamSegment Container Read Index. Provides access to Read Indices for all StreamSegments within this Container.
@@ -163,6 +163,17 @@ public class ContainerReadIndex implements ReadIndex {
         StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
         Exceptions.checkArgument(!index.isMerged(), "streamSegmentId", "StreamSegment is merged. Cannot access it anymore.");
         return index.read(offset, maxLength, timeout);
+    }
+
+    @Override
+    public InputStream readDirect(long streamSegmentId, long offset, int length) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        log.debug("{}: readDirect (StreamSegmentId = {}, Offset = {}, Length = {}).", this.traceObjectId, streamSegmentId, offset, length);
+
+        // Note that we do allow reading from partially merged StreamSegmentReadIndex. This should be ok since this is
+        // an internal method, not meant to be used externally.
+        StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
+        return index.readDirect(offset, length);
     }
 
     @Override

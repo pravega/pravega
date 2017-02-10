@@ -17,8 +17,10 @@
  */
 package com.emc.pravega.connectors;
 
+import com.emc.pravega.ClientFactory;
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.controller.server.rpc.RPCServer;
+import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
@@ -31,13 +33,12 @@ import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
+import com.emc.pravega.demo.StartLocalService;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.stream.RetentionPolicy;
-import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.*;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.Cleanup;
@@ -50,6 +51,8 @@ import org.apache.curator.test.TestingServer;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -83,7 +86,7 @@ public final class SetupUtils {
      *
      * @throws Exception on any errors.
      */
-    public static void createTestStream(final String streamName, final String scope) throws Exception {
+    public static void createTestStream(final String scope, final String streamName) throws Exception {
         Preconditions.checkNotNull(streamName);
         Preconditions.checkNotNull(scope);
 
@@ -114,6 +117,52 @@ public final class SetupUtils {
                 }
         );
         log.info("Created stream: " + streamName);
+    }
+
+    public static EventStreamWriter<Integer> getIntegerWriter(final String scope, final String streamName) {
+        ClientFactory clientFactory = ClientFactory.withScope(scope, SetupUtils.CONTROLLER_URI);
+        return clientFactory.createEventWriter(
+                streamName,
+                new Serializer<Integer>() {
+                    @Override
+                    public ByteBuffer serialize(Integer value) {
+                        return ByteBuffer.wrap(String.valueOf(value).getBytes());
+                    }
+
+                    @Override
+                    public Integer deserialize(ByteBuffer serializedValue) {
+                        return null;
+                    }
+                },
+                new EventWriterConfig(null));
+    }
+
+    public static EventStreamReader<Integer> getIntegerReader(final String scope, final String streamName) {
+        StreamManager streamManager = StreamManager.withScope(scope, SetupUtils.CONTROLLER_URI);
+        final String readerGroup = "testReaderGroup" + scope + streamName;
+        streamManager.createReaderGroup(
+                readerGroup,
+                ReaderGroupConfig.builder().startingTime(0).build(),
+                Collections.singletonList(streamName));
+
+        ClientFactory clientFactory = ClientFactory.withScope(scope, SetupUtils.CONTROLLER_URI);
+        final String readerGroupId = UUID.randomUUID().toString();
+        return clientFactory.createReader(
+                readerGroupId,
+                readerGroup,
+                new Serializer<Integer>() {
+                    @Override
+                    public ByteBuffer serialize(Integer value) {
+                        return null;
+                    }
+
+                    @Override
+                    public Integer deserialize(ByteBuffer serializedValue) {
+
+                        return Integer.valueOf(new String(serializedValue.array()));
+                    }
+                },
+                new ReaderConfig());
     }
 
     // Start pravege service on localhost.
@@ -166,8 +215,9 @@ public final class SetupUtils {
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =
                 new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, hostId);
 
-        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks,
-                                                       streamTransactionMetadataTasks));
+        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                                                                    streamTransactionMetadataTasks);
+        RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                                                   streamTransactionMetadataTasks);

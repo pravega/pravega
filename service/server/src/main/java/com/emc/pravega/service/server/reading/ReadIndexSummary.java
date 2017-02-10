@@ -19,18 +19,23 @@
 package com.emc.pravega.service.server.reading;
 
 import com.google.common.base.Preconditions;
-
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Represents a summary for a particular ReadIndex.
  */
+@ThreadSafe
 class ReadIndexSummary {
     //region Members
 
+    @GuardedBy("this")
     private int currentGeneration;
+    @GuardedBy("this")
     private long totalSize;
+    @GuardedBy("this")
     private final HashMap<Integer, Integer> generations;
 
     //endregion
@@ -131,11 +136,13 @@ class ReadIndexSummary {
         return new CacheManager.CacheStatus(this.totalSize, Math.min(newestGeneration.get(), oldestGeneration.get()), newestGeneration.get());
     }
 
+    @GuardedBy("this")
     private void addToCurrentGeneration() {
         int newCount = this.generations.getOrDefault(this.currentGeneration, 0) + 1;
         this.generations.put(this.currentGeneration, newCount);
     }
 
+    @GuardedBy("this")
     private void removeFromGeneration(int generation) {
         int newCount = this.generations.getOrDefault(generation, 0) - 1;
         if (newCount > 0) {

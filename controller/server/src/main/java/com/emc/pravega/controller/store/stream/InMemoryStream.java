@@ -17,18 +17,22 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.base.Preconditions;
-import org.apache.commons.lang.NotImplementedException;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
+
+import org.apache.commons.lang.NotImplementedException;
 
 /**
  * Stream properties
@@ -36,6 +40,7 @@ import java.util.stream.IntStream;
 class InMemoryStream implements Stream {
     private final String name;
     private StreamConfiguration configuration;
+    private State state;
 
     /**
      * Stores all segments in the stream, ordered by number, which implies that
@@ -57,6 +62,7 @@ class InMemoryStream implements Stream {
     @Override
     public synchronized CompletableFuture<Boolean> create(StreamConfiguration configuration, long timestamp) {
         this.configuration = configuration;
+        this.state = State.ACTIVE;
         int numSegments = configuration.getScalingPolicy().getMinNumSegments();
         double keyRange = 1.0 / numSegments;
         IntStream.range(0, numSegments)
@@ -87,6 +93,17 @@ class InMemoryStream implements Stream {
     }
 
     @Override
+    public CompletableFuture<Boolean> updateState(State state) {
+        this.state = state;
+        return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public CompletableFuture<State> getState() {
+        return CompletableFuture.completedFuture(state);
+    }
+
+    @Override
     public synchronized CompletableFuture<Segment> getSegment(int number) {
         return CompletableFuture.completedFuture(segments.get(number));
     }
@@ -96,6 +113,15 @@ class InMemoryStream implements Stream {
         return CompletableFuture.completedFuture(segments.get(number).getSuccessors());
     }
 
+    @Override
+    public CompletableFuture<Map<Integer, List<Integer>>> getSuccessorsWithPredecessors(final int number) {
+        Map<Integer, List<Integer>> result = new HashMap<>();
+        for (Integer successor : segments.get(number).getSuccessors()) {
+            result.put(successor, segments.get(successor).getPredecessors());
+        }
+        return CompletableFuture.completedFuture(result);
+    }
+    
     @Override
     public CompletableFuture<List<Integer>> getPredecessors(int number) {
         return CompletableFuture.completedFuture(segments.get(number).getPredecessors());

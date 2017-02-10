@@ -18,10 +18,8 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
-import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -63,13 +61,6 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
     //endregion
 
     //region Properties
-
-    /**
-     * Creates a new CacheKey with information from this CachedStreamSegmentAppendOperation.
-     */
-    public CacheKey createCacheKey() {
-        return new CacheKey(getStreamSegmentId(), getStreamSegmentOffset());
-    }
 
     @Override
     public String toString() {

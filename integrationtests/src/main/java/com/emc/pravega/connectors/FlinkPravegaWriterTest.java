@@ -90,41 +90,14 @@ public class FlinkPravegaWriterTest {
 
         // Write the end marker.
         @Cleanup
-        EventStreamWriter<Integer> eventWriter = clientFactory.createEventWriter(
-                streamName,
-                new Serializer<Integer>() {
-                    @Override
-                    public ByteBuffer serialize(Integer value) {
-                        return ByteBuffer.wrap(String.valueOf(value).getBytes());
-                    }
-
-                    @Override
-                    public Integer deserialize(ByteBuffer serializedValue) {
-                        return null;
-                    }
-                },
-                new EventWriterConfig(null));
+        EventStreamWriter<Integer> eventWriter = SetupUtils.getIntegerWriter(SCOPE, streamName);
         eventWriter.writeEvent("fixedkey", streamEndMarker);
         eventWriter.flush();
 
+        // Creater a reader group to read from the test stream.
+
         @Cleanup
-        EventStreamReader<Integer> consumer = clientFactory.createReader(
-                streamName,
-                new Serializer<Integer>() {
-                    @Override
-                    public ByteBuffer serialize(Integer value) {
-                        return null;
-                    }
-
-                    @Override
-                    public Integer deserialize(ByteBuffer serializedValue) {
-
-                        return Integer.valueOf(new String(serializedValue.array()));
-                    }
-                },
-                new ReaderConfig(),
-                new PositionImpl(Collections.singletonMap(new Segment(SCOPE, streamName, 0), 0L),
-                                 Collections.emptyMap()));
+        EventStreamReader<Integer> consumer = SetupUtils.getIntegerReader(SCOPE, streamName);
 
         // Read all data from the stream.
         List<Integer> readElements = new ArrayList<>();
@@ -176,7 +149,7 @@ public class FlinkPravegaWriterTest {
         Preconditions.checkNotNull(streamName);
 
         final String testStream = streamName;
-        SetupUtils.createTestStream(testStream, SCOPE);
+        SetupUtils.createTestStream(SCOPE, testStream);
 
         StreamExecutionEnvironment execEnv = StreamExecutionEnvironment.createLocalEnvironment().
                 setParallelism(jobParallelism);

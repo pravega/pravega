@@ -31,10 +31,12 @@ import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.EventStreamReader;
-import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
@@ -49,11 +51,13 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.stream.mock.MockController;
+import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.TestUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -62,7 +66,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -83,7 +86,7 @@ public class ReadTest {
     public void setup() throws Exception {
         originalLevel = ResourceLeakDetector.getLevel();
         ResourceLeakDetector.setLevel(Level.PARANOID);
-        InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
+        InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         this.serviceBuilder.initialize().get();
     }
@@ -97,8 +100,8 @@ public class ReadTest {
     @Test
     public void testReadDirectlyFromStore() throws InterruptedException, ExecutionException, IOException {
         String segmentName = "testReadFromStore";
-        int entries = 10;
-        byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        final int entries = 10;
+        final byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         UUID clientId = UUID.randomUUID();
 
         StreamSegmentStore segmentStore = serviceBuilder.createStreamSegmentService();
@@ -106,19 +109,22 @@ public class ReadTest {
         fillStoreForSegment(segmentName, clientId, data, entries, segmentStore);
 
         ReadResult result = segmentStore.read(segmentName, 0, entries * data.length, Duration.ZERO).get();
-        int count = 0;
+        int index = 0;
         while (result.hasNext()) {
             ReadResultEntry entry = result.next();
             ReadResultEntryType type = entry.getType();
             assertEquals(ReadResultEntryType.Cache, type);
+
+            // Each ReadResultEntryContents may be of an arbitrary length - we should make no assumptions.
             ReadResultEntryContents contents = entry.getContent().get();
-            assertEquals(data.length, contents.getLength());
-            byte[] entryData = new byte[data.length];
-            contents.getData().read(entryData);
-            assertArrayEquals(data, entryData);
-            count++;
+            byte next;
+            while ((next = (byte) contents.getData().read()) != -1) {
+                byte expected = data[index % data.length];
+                assertEquals(expected, next);
+                index++;
+            }
         }
-        assertEquals(entries, count);
+        assertEquals(entries * data.length, index);
     }
 
     @Test
@@ -186,27 +192,30 @@ public class ReadTest {
     public void readThroughStreamClient() {
         String endpoint = "localhost";
         String streamName = "abc";
+        String readerName = "reader";
+        String readerGroup = "group";
         int port = TestUtils.randomPort();
         String testString = "Hello world\n";
         String scope = "Scope1";
-
-        MockClientFactory clientFactory = new MockClientFactory(scope, endpoint, port);
-
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-        
-        clientFactory.createStream(streamName, null);
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        MockClientFactory clientFactory = streamManager.getClientFactory();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        streamManager.createStream(streamName, null);
+        streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singletonList(streamName));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, new EventWriterConfig(null));
-        
+
         producer.writeEvent("RoutingKey", testString);
         producer.flush();
 
         @Cleanup
         EventStreamReader<String> consumer = clientFactory
-            .createReader(streamName, serializer, new ReaderConfig(), clientFactory.getInitialPosition(streamName));
+                .createReader(readerName, readerGroup, serializer, new ReaderConfig());
         String read = consumer.readNextEvent(5000).getEvent();
         assertEquals(testString, read);
     }

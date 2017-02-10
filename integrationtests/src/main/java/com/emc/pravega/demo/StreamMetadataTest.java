@@ -30,12 +30,13 @@ import com.emc.pravega.stream.impl.PositionInternal;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.StreamSegments;
-import lombok.Cleanup;
-import org.apache.curator.test.TestingServer;
-
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+
+import org.apache.curator.test.TestingServer;
+
+import lombok.Cleanup;
 
 public class StreamMetadataTest {
     @SuppressWarnings("checkstyle:ReturnCount")
@@ -58,7 +59,7 @@ public class StreamMetadataTest {
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
         CompletableFuture<CreateStreamStatus> createStatus;
 
-        //create stream
+        //create stream and seal stream
 
         //CS1:create a stream :given a streamName, scope and config
         System.err.println(String.format("Creating stream (%s, %s)", scope1, streamName1));
@@ -68,6 +69,49 @@ public class StreamMetadataTest {
             return;
         } else {
             System.err.println("SUCCESS: Stream created");
+        }
+
+        //Seal a stream given a streamName and scope.
+        final String scopeSeal = "scopeSeal";
+        final String streamNameSeal = "streamSeal";
+        final StreamConfiguration configSeal =
+                new StreamConfigurationImpl(scopeSeal,
+                        streamNameSeal,
+                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
+        System.err.println(String.format("Seal stream  (%s, %s)", scopeSeal, streamNameSeal));
+        CreateStreamStatus createStream3Status = controller.createStream(configSeal).get();
+        if ( createStream3Status != CreateStreamStatus.SUCCESS) {
+           System.err.println("FAILURE: Create stream operation failed");
+        }
+        StreamSegments result = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
+        UpdateStreamStatus sealStatus = controller.sealStream(scopeSeal, streamNameSeal).get();
+        if (sealStatus == UpdateStreamStatus.SUCCESS) {
+            System.err.println("SUCCESS: Stream Sealed");
+            StreamSegments currentSegs = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
+            if ( !currentSegs.getSegments().isEmpty()) {
+                System.err.println("FAILURE: No active segments should be present in a sealed stream");
+            }
+        } else {
+            System.err.println("FAILURE: Seal stream failed, exiting");
+            return;
+        }
+
+        //Seal an already sealed stream.
+        UpdateStreamStatus reSealStatus = controller.sealStream(scopeSeal, streamNameSeal).get();
+        if (reSealStatus == UpdateStreamStatus.SUCCESS) {
+            StreamSegments currentSegs = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
+            if ( !currentSegs.getSegments().isEmpty()) {
+                System.err.println("FAILURE: No active segments should be present in a sealed stream");
+            }
+        } else {
+            System.err.println("FAILURE: Seal operation on an already sealed stream failed, exiting");
+            return;
+        }
+
+        //Seal a non-existent stream.
+        UpdateStreamStatus errSealStatus = controller.sealStream(scopeSeal, "nonExistentStream").get();
+        if (errSealStatus != UpdateStreamStatus.FAILURE) {
+            System.err.println("FAILURE: Seal operation on a non-existent stream returned " +errSealStatus );
         }
 
         //CS2:stream duplication not allowed
@@ -243,10 +287,11 @@ public class StreamMetadataTest {
         //get  positions at a given time stamp
 
         //PS1:get  positions at a given time stamp:given stream, time stamp, count
+        Stream stream1 = new StreamImpl(scope1, streamName1);
         final int count1 = 10;
         CompletableFuture<List<PositionInternal>> getPositions;
         System.err.println(String.format("Fetching positions at given time stamp of (%s,%s)", scope1, streamName1));
-        getPositions  =  controller.getPositions(scope1, streamName1, System.currentTimeMillis(), count1);
+        getPositions  =  controller.getPositions(stream1, System.currentTimeMillis(), count1);
         if (getPositions.get().isEmpty()) {
             System.err.println("FAILURE: Fetching positions at given time stamp failed, exiting");
             return;
@@ -257,7 +302,7 @@ public class StreamMetadataTest {
         //PS2:get positions of a stream with different count
         final int count2 = 20;
         System.err.println(String.format("Positions at given time stamp (%s, %s)", scope1, streamName1));
-        getPositions  =  controller.getPositions(scope1, streamName1, System.currentTimeMillis(), count2);
+        getPositions  =  controller.getPositions(stream1, System.currentTimeMillis(), count2);
         if (getPositions.get().isEmpty()) {
             System.err.println("FAILURE: Fetching positions at given time stamp with different count failed, exiting");
             return;
@@ -266,9 +311,9 @@ public class StreamMetadataTest {
         }
 
         //PS3:get positions of a different stream at a given time stamp
-        Stream stream2 = new StreamImpl(scope1, streamName2, config3);
-        System.err.println(String.format("Fetching positions at given time stamp of (%s, %s)", scope1, streamName2));
-        getPositions  =  controller.getPositions(scope1, streamName2, System.currentTimeMillis(), count1);
+        Stream stream2 = new StreamImpl(scope1, streamName2);
+        System.err.println(String.format("Fetching positions at given time stamp of (%s, %s)", scope1, stream2));
+        getPositions  =  controller.getPositions(stream2, System.currentTimeMillis(), count1);
         if (getPositions.get().isEmpty()) {
             System.err.println("FAILURE: Fetching positions at given time stamp for a different stream of same scope failed, exiting");
             return;
@@ -277,8 +322,9 @@ public class StreamMetadataTest {
         }
 
         //PS4:get positions at a given timestamp for non-existent stream.
+        Stream stream = new StreamImpl("scope", "streamName");
         System.err.println(String.format("Fetching positions at given time stamp for non existent stream (%s, %s)", "scope", "streamName"));
-        getPositions   =  controller.getPositions("scope", "streamName", System.currentTimeMillis(), count1);
+        getPositions   =  controller.getPositions(stream, System.currentTimeMillis(), count1);
         if (getPositions.get().isEmpty()) {
             System.err.println("SUCCESS: Positions cannot be fetched for non existent stream");
         } else {
@@ -288,7 +334,7 @@ public class StreamMetadataTest {
 
         //PS5:Get position at time before stream creation
         System.err.println(String.format("Get positions at time before (%s, %s) creation ", scope1, streamName1));
-        getPositions  =  controller.getPositions(scope1, streamName1, System.currentTimeMillis()-3600, count1);
+        getPositions  =  controller.getPositions(stream1, System.currentTimeMillis()-3600, count1);
         if (getPositions.get().isEmpty()) {
             System.err.println("SUCCESS: Fetching positions at given time before stream creation");
         } else {
@@ -298,7 +344,7 @@ public class StreamMetadataTest {
 
         //PS6:Get positions at a time in future after stream creation
         System.err.println(String.format("Get positions at given time in future after (%s, %s) creation ", scope1, streamName1));
-        getPositions  =  controller.getPositions(scope1, streamName1, System.currentTimeMillis()+3600, count1);
+        getPositions  =  controller.getPositions(stream1, System.currentTimeMillis()+3600, count1);
         if (getPositions.get().isEmpty()) {
             System.err.println("FAILURE: Fetching positions at given time in furture after stream creation failed, exiting");
             return;

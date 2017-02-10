@@ -17,10 +17,10 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
+import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
@@ -40,17 +40,17 @@ import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-
-import lombok.extern.slf4j.Slf4j;
-
+import com.google.common.annotations.VisibleForTesting;
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -120,6 +120,20 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     /**
+     * Seal a stream.
+     * @param scope scope.
+     * @param stream stream name.
+     * @return update status.
+     */
+    @Task(name = "sealStream", version = "1.0", resource = "{scope}/{stream}")
+    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String stream) {
+        return execute(
+                new Resource(scope, stream),
+                new Serializable[]{scope, stream},
+                () -> sealStreamBody(scope, stream));
+    }
+
+    /**
      * Scales stream segments.
      *
      * @param scope          scope.
@@ -139,47 +153,65 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
         return this.streamMetadataStore.createStream(stream, config, timestamp)
-                .thenCompose(x -> {
-                    if (x) {
-                        return this.streamMetadataStore.getActiveSegments(stream)
-                                .thenApply(activeSegments ->
-                                        notifyNewSegments(config.getScope(), stream, activeSegments))
-                                .thenApply(y -> CreateStreamStatus.SUCCESS);
-                    } else {
-                        return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
-                    }
-                })
-                .handle((result, ex) -> {
-                    if (ex != null) {
-                        if (ex.getCause() instanceof StreamAlreadyExistsException) {
-                            return CreateStreamStatus.STREAM_EXISTS;
-                        } else {
-                            log.warn("Create stream failed due to ", ex);
-                            return CreateStreamStatus.FAILURE;
-                        }
-                    } else {
-                        return result;
-                    }
-                });
+                                       .thenCompose(x -> {
+                                           if (x) {
+                                               return this.streamMetadataStore.getActiveSegments(stream)
+                                                                              .thenApply(activeSegments ->
+                                                                                      notifyNewSegments(config.getScope(), stream, activeSegments))
+                                                                              .thenApply(y -> CreateStreamStatus.SUCCESS);
+                                           } else {
+                                               return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
+                                           }
+                                       })
+                                       .handle((result, ex) -> {
+                                           if (ex != null) {
+                                               if (ex.getCause() instanceof StreamAlreadyExistsException) {
+                                                   return CreateStreamStatus.STREAM_EXISTS;
+                                               } else {
+                                                   log.warn("Create stream failed due to ", ex);
+                                                   return CreateStreamStatus.FAILURE;
+                                               }
+                                           } else {
+                                               return result;
+                                           }
+                                       });
     }
 
     public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream, StreamConfiguration config) {
         return streamMetadataStore.updateConfiguration(stream, config)
-                .handle((result, ex) -> {
-                    if (ex != null) {
-                        if (ex instanceof StreamNotFoundException) {
-                            return UpdateStreamStatus.STREAM_NOT_FOUND;
-                        } else {
-                            log.warn("Update stream failed due to ", ex);
-                            return UpdateStreamStatus.FAILURE;
-                        }
-                    } else {
-                        return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
-                    }
-                });
+                                  .handle((result, ex) -> {
+                                      if (ex != null) {
+                                          return handleUpdateStreamError(ex);
+                                      } else {
+                                          return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
+                                      }
+                                  });
     }
 
-    private CompletableFuture<ScaleResponse> scaleBody(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
+    public CompletableFuture<UpdateStreamStatus> sealStreamBody(String scope, String stream) {
+        return streamMetadataStore.getActiveSegments(stream)
+                                  .thenCompose(activeSegments -> {
+                                      if (activeSegments.isEmpty()) { //if active segments are empty then the stream is sealed.
+                                          //Do not update the state if the stream is already sealed.
+                                          return CompletableFuture.completedFuture(UpdateStreamStatus.SUCCESS);
+                                      } else {
+                                          List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
+                                                  collect(Collectors.toList());
+                                          return notifySealedSegments(scope, stream, segmentsToBeSealed)
+                                                  .thenCompose(v -> streamMetadataStore.setSealed(stream))
+                                                  .handle((result, ex) -> {
+                                                      if (ex != null) {
+                                                          return handleUpdateStreamError(ex);
+                                                      } else {
+                                                          return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
+                                                      }
+                                                  });
+                                      }
+                                  }).exceptionally(this::handleUpdateStreamError);
+    }
+
+    @VisibleForTesting
+    CompletableFuture<ScaleResponse> scaleBody(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
         // Abort scaling operation in the following error scenarios
         // 1. if the active segments in the stream have ts greater than scaleTimestamp -- ScaleStreamStatus.PRECONDITION_FAILED
         // 2. if active segments having creation timestamp as scaleTimestamp have different key ranges than the ones specified in newRanges (todo) -- ScaleStreamStatus.CONFLICT
@@ -187,28 +219,28 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         // 4. sealedSegments should be a subset of activeSegments.
         CompletableFuture<Boolean> checkValidity =
                 streamMetadataStore.getActiveSegments(stream)
-                        .thenCompose(activeSegments ->
-                                streamMetadataStore
-                                        .isTransactionOngoing(scope, stream)
-                                        .thenApply(active ->
-                                                // transaction is ongoing
-                                                active
-                                                        ||
-                                                        // some segment to be sealed is not an active segment
-                                                        sealedSegments
-                                                                .stream()
-                                                                .anyMatch(x ->
-                                                                        activeSegments
-                                                                                .stream()
-                                                                                .noneMatch(segment ->
-                                                                                        segment.getNumber() == x))
-                                                        ||
-                                                        // scale timestamp is not larger than start time of
-                                                        // some active segment
-                                                        activeSegments
-                                                                .stream()
-                                                                .anyMatch(segment ->
-                                                                        segment.getStart() > scaleTimestamp)));
+                                   .thenCompose(activeSegments ->
+                                           streamMetadataStore
+                                                   .isTransactionOngoing(scope, stream)
+                                                   .thenApply(active ->
+                                                           // transaction is ongoing
+                                                           active
+                                                                   ||
+                                                                   // some segment to be sealed is not an active segment
+                                                                   sealedSegments
+                                                                           .stream()
+                                                                           .anyMatch(x ->
+                                                                                   activeSegments
+                                                                                           .stream()
+                                                                                           .noneMatch(segment ->
+                                                                                                   segment.getNumber() == x))
+                                                                   ||
+                                                                   // scale timestamp is not larger than start time of
+                                                                   // some active segment
+                                                                   activeSegments
+                                                                           .stream()
+                                                                           .anyMatch(segment ->
+                                                                                   segment.getStart() > scaleTimestamp)));
 
         return checkValidity.thenCompose(result -> {
 
@@ -262,26 +294,37 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     private CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Integer> sealedSegments) {
-        return FutureCollectionHelper.sequence(
+        return FutureHelpers.allOf(
                 sealedSegments
                         .stream()
                         .parallel()
                         .map(number -> notifySealedSegment(scope, stream, number))
-                        .collect(Collectors.toList()))
-                .thenApply(x -> null);
+                        .collect(Collectors.toList()));
     }
 
-    private CompletableFuture<Boolean> notifySealedSegment(final String scope, final String stream, final int sealedSegment) {
+    @VisibleForTesting
+    CompletableFuture<Boolean> notifySealedSegment(final String scope, final String stream, final int
+            sealedSegment) {
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-                .retryingOn(WireCommandFailedException.class)
-                .throwingOn(RuntimeException.class)
-                .runAsync(() ->
-                        SegmentHelper.sealSegment(
-                                scope,
-                                stream,
-                                sealedSegment,
-                                this.hostControllerStore,
-                                this.connectionFactory),
-                        executor);
+                    .retryingOn(WireCommandFailedException.class)
+                    .throwingOn(RuntimeException.class)
+                    .runAsync(() ->
+                                    SegmentHelper.sealSegment(
+                                            scope,
+                                            stream,
+                                            sealedSegment,
+                                            this.hostControllerStore,
+                                            this.connectionFactory),
+                            executor);
+    }
+
+    private UpdateStreamStatus handleUpdateStreamError(Throwable ex) {
+        if (ex instanceof StreamNotFoundException ||
+                (ex instanceof CompletionException && ex.getCause() instanceof StreamNotFoundException)) {
+            return UpdateStreamStatus.STREAM_NOT_FOUND;
+        } else {
+            log.warn("Update stream failed due to ", ex);
+            return UpdateStreamStatus.FAILURE;
+        }
     }
 }

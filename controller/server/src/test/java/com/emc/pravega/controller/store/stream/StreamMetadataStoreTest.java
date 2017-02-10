@@ -21,19 +21,22 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import org.junit.Test;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
+import org.junit.Test;
+
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+
 
 /**
  * Stream metadata test.
@@ -109,30 +112,27 @@ public class StreamMetadataStoreTest {
 
         // endregion
 
-        // region getNextPosition
+        // region seal stream
 
-        SegmentFutures updatedPosition = new SegmentFutures(Arrays.asList(0, 5), Collections.emptyMap());
-        List<SegmentFutures> futuresList = store.getNextSegments(stream2, new HashSet<>(Arrays.asList(1, 2)),
-                Collections.singletonList(updatedPosition)).get();
-        assertEquals(1, futuresList.size());
-        assertEquals(3, futuresList.get(0).getCurrent().size());
-        assertEquals(1, futuresList.get(0).getFutures().size());
-        assertTrue(futuresList.get(0).getCurrent().contains(4));
+        assertFalse(store.isSealed(stream2).get());
+        assertNotEquals(0, store.getActiveSegments(stream2).get().size());
+        Boolean sealOperationStatus = store.setSealed(stream2).get();
+        assertTrue(sealOperationStatus);
+        assertTrue(store.isSealed(stream2).get());
+        assertEquals(0, store.getActiveSegments(stream2).get().size());
 
-        updatedPosition = new SegmentFutures(Arrays.asList(0, 1, 5), Collections.emptyMap());
-        futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(2)),
-                Collections.singletonList(updatedPosition)).get();
-        assertEquals(1, futuresList.size());
-        assertEquals(3, futuresList.get(0).getCurrent().size());
-        assertEquals(1, futuresList.get(0).getFutures().size());
+        //Sealing an already seal stream should return success.
+        Boolean sealOperationStatus1 = store.setSealed(stream2).get();
+        assertTrue(sealOperationStatus1);
+        assertTrue(store.isSealed(stream2).get());
+        assertEquals(0, store.getActiveSegments(stream2).get().size());
 
-        updatedPosition = new SegmentFutures(Arrays.asList(0, 4, 5), Collections.emptyMap());
-        futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(1)),
-                Collections.singletonList(updatedPosition)).get();
-        assertEquals(1, futuresList.size());
-        assertEquals(3, futuresList.get(0).getCurrent().size());
-        assertEquals(1, futuresList.get(0).getFutures().size());
-
+        // seal a non-existent stream.
+        try {
+            store.setSealed("streamNonExistent").get();
+        } catch (Exception e) {
+            assertEquals(StreamNotFoundException.class, e.getCause().getCause().getClass());
+        }
         // endregion
     }
 

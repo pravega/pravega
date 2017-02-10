@@ -19,17 +19,23 @@ package com.emc.pravega.common.concurrent;
 
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for the FutureHelpers class.
@@ -107,42 +113,129 @@ public class FutureHelpersTests {
     }
 
     /**
-     * Tests the allOfWithResults() method.
+     * Tests the allOfWithResults(List) method.
      */
     @Test
-    public void testAllOfWithResults() {
+    public void testAllOfWithResultsList() {
         int count = 10;
 
         // Already completed futures.
         List<CompletableFuture<Integer>> futures = createNumericFutures(count);
         completeFutures(futures);
-        CompletableFuture<Collection<Integer>> allFuturesComplete = FutureHelpers.allOfWithResults(futures);
-        Assert.assertTrue("allOf() did not create a completed future when all futures were previously complete.", allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
+        CompletableFuture<List<Integer>> allFuturesComplete = FutureHelpers.allOfWithResults(futures);
+        Assert.assertTrue("allOfWithResults() did not create a completed future when all futures were previously complete.",
+                allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
         checkResults(allFuturesComplete.join());
 
         // Not completed futures.
         futures = createNumericFutures(count);
         allFuturesComplete = FutureHelpers.allOfWithResults(futures);
-        Assert.assertFalse("allOf() created a completed future when none of the futures were previously complete.", allFuturesComplete.isDone());
+        Assert.assertFalse("allOfWithResults() created a completed future when none of the futures were previously complete.", allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue("The result of allOf() complete when all its futures completed.", allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
+        Assert.assertTrue("The result of allOfWithResults() complete when all its futures completed.",
+                allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
         checkResults(allFuturesComplete.join());
 
         // At least one failed & completed future.
         futures = createNumericFutures(count);
         failRandomFuture(futures);
         allFuturesComplete = FutureHelpers.allOfWithResults(futures);
-        Assert.assertFalse("allOf() created a completed future when not all of the futures were previously complete (but one failed).", allFuturesComplete.isDone());
+        Assert.assertFalse("allOfWithResults() created a completed future when not all of the futures were previously complete (but one failed).",
+                allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue("The result of allOf() did not complete exceptionally when at least one of the futures failed.", allFuturesComplete.isCompletedExceptionally());
+        Assert.assertTrue("The result of allOfWithResults() did not complete exceptionally when at least one of the futures failed.",
+                allFuturesComplete.isCompletedExceptionally());
 
         // At least one failed future.
         futures = createNumericFutures(count);
         allFuturesComplete = FutureHelpers.allOfWithResults(futures);
         failRandomFuture(futures);
-        Assert.assertFalse("The result of allOf() completed when not all the futures completed (except one that failed).", allFuturesComplete.isDone());
+        Assert.assertFalse("The result of allOfWithResults() completed when not all the futures completed (except one that failed).",
+                allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue("The result of allOf() did not complete exceptionally when at least one of the futures failed.", allFuturesComplete.isCompletedExceptionally());
+        Assert.assertTrue("The result of allOfWithResults() did not complete exceptionally when at least one of the futures failed.",
+                allFuturesComplete.isCompletedExceptionally());
+    }
+
+    /**
+     * Tests the allOfWithResults(Map) method.
+     */
+    @Test
+    public void testAllOfWithResultsMap() {
+        int count = 10;
+
+        // Already completed futures.
+        Map<Integer, CompletableFuture<Integer>> futures = createMappedNumericFutures(count);
+        completeFutures(futures);
+        CompletableFuture<Map<Integer, Integer>> allFuturesComplete = FutureHelpers.allOfWithResults(futures);
+        Assert.assertTrue("allOfWithResults() did not create a completed future when all futures were previously complete.",
+                allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
+        checkResults(allFuturesComplete.join());
+
+        // Not completed futures.
+        futures = createMappedNumericFutures(count);
+        allFuturesComplete = FutureHelpers.allOfWithResults(futures);
+        Assert.assertFalse("allOfWithResults() created a completed future when none of the futures were previously complete.",
+                allFuturesComplete.isDone());
+        completeFutures(futures);
+        Assert.assertTrue("The result of allOfWithResults() complete when all its futures completed.",
+                allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
+        checkResults(allFuturesComplete.join());
+
+        // At least one failed & completed future.
+        futures = createMappedNumericFutures(count);
+        failRandomFuture(new ArrayList<>(futures.values()));
+        allFuturesComplete = FutureHelpers.allOfWithResults(futures);
+        Assert.assertFalse("allOfWithResults() created a completed future when not all of the futures were previously complete (but one failed).",
+                allFuturesComplete.isDone());
+        completeFutures(futures);
+        Assert.assertTrue("The result of allOfWithResults() did not complete exceptionally when at least one of the futures failed.",
+                allFuturesComplete.isCompletedExceptionally());
+
+        // At least one failed future.
+        futures = createMappedNumericFutures(count);
+        allFuturesComplete = FutureHelpers.allOfWithResults(futures);
+        failRandomFuture(new ArrayList<>(futures.values()));
+        Assert.assertFalse("The result of allOfWithResults() completed when not all the futures completed (except one that failed).",
+                allFuturesComplete.isDone());
+        completeFutures(futures);
+        Assert.assertTrue("The result of allOfWithResults() did not complete exceptionally when at least one of the futures failed.",
+                allFuturesComplete.isCompletedExceptionally());
+    }
+
+    /**
+     * Test method for FutureHelpers.filter.
+     *
+     * @throws InterruptedException when future is interrupted
+     * @throws ExecutionException   when future is interrupted
+     */
+    @Test
+    public void testFilter() throws ExecutionException, InterruptedException {
+        List<Integer> list = Arrays.asList(1, 2, 3, 4, 5, 6, 7);
+
+        Predicate<Integer> evenFilter = (Integer x) -> x % 2 == 0;
+        Function<Integer, CompletableFuture<Boolean>> futureEvenFilter = x -> CompletableFuture.completedFuture(x % 2 == 0);
+
+        CompletableFuture<List<Integer>> filteredList = FutureHelpers.filter(list, futureEvenFilter);
+
+        Assert.assertEquals("Unexpected filtered list size.", filteredList.get().size(), 3);
+        Assert.assertEquals("Unexpected filtered list contents.", filteredList.get(), list.stream().filter(evenFilter).collect(Collectors.toList()));
+    }
+
+    /**
+     * Test method for FutureHelpers.filter when the FuturePredicate completes exceptionally in future.
+     */
+    @Test
+    public void testFilterException() {
+        List<Integer> list = Arrays.asList(1, 2, 3, 4, 5, 6, 7);
+
+        Function<Integer, CompletableFuture<Boolean>> futureEvenFilter =
+                x -> FutureHelpers.failedFuture(new IntentionalException("intentional"));
+
+        AssertExtensions.assertThrows(
+                "Unexpected behavior when filter threw an exception.",
+                () -> FutureHelpers.filter(list, futureEvenFilter),
+                ex -> ex instanceof IntentionalException);
     }
 
     @Test
@@ -255,10 +348,27 @@ public class FutureHelpersTests {
         return result;
     }
 
+    private Map<Integer, CompletableFuture<Integer>> createMappedNumericFutures(int count) {
+        HashMap<Integer, CompletableFuture<Integer>> result = new HashMap();
+        for (int i = 0; i < count; i++) {
+            result.put(i, new CompletableFuture<>());
+        }
+
+        return result;
+    }
+
     private void completeFutures(List<CompletableFuture<Integer>> futures) {
         for (int i = 0; i < futures.size(); i++) {
             if (!futures.get(i).isDone()) {
                 futures.get(i).complete(i); // It may have previously been completed exceptionally.
+            }
+        }
+    }
+
+    private void completeFutures(Map<Integer, CompletableFuture<Integer>> futures) {
+        for (int i = 0; i < futures.size(); i++) {
+            if (!futures.get(i).isDone()) {
+                futures.get(i).complete(i * i); // It may have previously been completed exceptionally.
             }
         }
     }
@@ -272,6 +382,14 @@ public class FutureHelpersTests {
         int expected = 0;
         for (int result : results) {
             Assert.assertEquals("Unexpected result for future " + expected, expected, result);
+            expected++;
+        }
+    }
+
+    private void checkResults(Map<Integer, Integer> results) {
+        int expected = 0;
+        for (Map.Entry<Integer, Integer> entry : results.entrySet()) {
+            Assert.assertEquals("Unexpected result for future " + expected, entry.getKey() * entry.getKey(), (int) entry.getValue());
             expected++;
         }
     }

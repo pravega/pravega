@@ -23,6 +23,7 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
+import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
@@ -39,6 +40,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -55,8 +57,7 @@ import lombok.extern.slf4j.Slf4j;
 public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     private final Object lock = new Object();
-    private final String stream;
-    private final String scope;
+    private final Stream stream;
     private final Serializer<Type> serializer;
     private final SegmentOutputStreamFactory outputStreamFactory;
     private final Controller controller;
@@ -66,15 +67,13 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     @GuardedBy("lock")
     private final Map<Segment, SegmentEventWriter<Type>> writers = new HashMap<>();
 
-    EventStreamWriterImpl(String scope, String stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory, EventRouter router, Serializer<Type> serializer,
+    EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory, EventRouter router, Serializer<Type> serializer,
             EventWriterConfig config) {
-        Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(outputStreamFactory);
         Preconditions.checkNotNull(router);
         Preconditions.checkNotNull(serializer);
-        this.scope = scope;
         this.stream = stream;
         this.controller = controller;
         this.outputStreamFactory = outputStreamFactory;
@@ -100,7 +99,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             .retryingOn(SegmentSealedException.class)
             .throwingOn(RuntimeException.class)
             .run(() -> {
-                Collection<Segment> s = getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments();
+                Collection<Segment> s = getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new).getSegments();
                 for (Segment segment : s) {
                     if (!writers.containsKey(segment)) {
                         SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment,
@@ -187,16 +186,14 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final EventRouter router;
         private final Controller controller;
-        private final String scope;
-        private final String stream;
+        private final Stream stream;
 
         TransactionImpl(UUID txId, Map<Segment, SegmentTransaction<Type>> transactions, EventRouter router,
-                Controller controller, String scope, String stream) {
+                Controller controller, Stream stream) {
             this.txId = txId;
             this.inner = transactions;
             this.router = router;
             this.controller = controller;
-            this.scope = scope;
             this.stream = stream;
         }
 
@@ -213,22 +210,19 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.flush();
             }
-            FutureHelpers.getAndHandleExceptions(controller.commitTransaction(scope, stream, txId),
-                                                 TxnFailedException::new);
+            FutureHelpers.getAndHandleExceptions(controller.commitTransaction(stream, txId), TxnFailedException::new);
             closed.set(true);
         }
 
         @Override
         public void abort() {
-            FutureHelpers.getAndHandleExceptions(controller.dropTransaction(scope, stream, txId),
-                                                 RuntimeException::new);
+            FutureHelpers.getAndHandleExceptions(controller.abortTransaction(stream, txId), RuntimeException::new);
             closed.set(true);
         }
 
         @Override
         public Status checkStatus() {
-            return FutureHelpers.getAndHandleExceptions(controller.checkTransactionStatus(scope, stream, txId),
-                                                        RuntimeException::new);
+            return FutureHelpers.getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
         }
 
         @Override
@@ -253,14 +247,13 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         synchronized (lock) {
             segmentIds = new ArrayList<>(writers.keySet());
         }
-        UUID txId = FutureHelpers.getAndHandleExceptions(controller.createTransaction(scope, stream, timeout),
-                                                         RuntimeException::new);
+        UUID txId = FutureHelpers.getAndHandleExceptions(controller.createTransaction(stream, timeout), RuntimeException::new);
         for (Segment s : segmentIds) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }
-        return new TransactionImpl<Type>(txId, transactions, router, controller, scope, stream);
+        return new TransactionImpl<Type>(txId, transactions, router, controller, stream);
     }
     
     @Override
@@ -275,7 +268,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }
-        return new TransactionImpl<Type>(txId, transactions, router, controller, scope, stream);
+        return new TransactionImpl<Type>(txId, transactions, router, controller, stream);
     }
 
     @Override

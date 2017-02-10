@@ -14,6 +14,7 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.Stream;
 import com.google.common.base.Preconditions;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -33,8 +34,7 @@ public class EventRouter {
 
     private static final HashHelper HASHER = HashHelper.seededWith("EventRouter");
 
-    private final String scope;
-    private final String streamName;
+    private final Stream stream;
     private final Controller controller;
     private final AtomicReference<StreamSegments> currentSegments = new AtomicReference<>();
 
@@ -55,8 +55,8 @@ public class EventRouter {
     }
     
     public void refreshSegmentList() {
-        currentSegments.set(getAndHandleExceptions(controller.getCurrentSegments(scope, streamName),
+        currentSegments.set(getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(),
+                                                                                 stream.getStreamName()),
                                                    RuntimeException::new));
     }
- 
 }

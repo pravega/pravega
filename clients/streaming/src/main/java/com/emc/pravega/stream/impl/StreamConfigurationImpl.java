@@ -32,7 +32,7 @@ public class StreamConfigurationImpl implements StreamConfiguration {
     private final String name;
     private final ScalingPolicy scalingPolicy;
     private final RetentionPolicy retentionPolicy;
-    
+
     public StreamConfigurationImpl(String scope, String name, ScalingPolicy scalingPolicy) {
         this(scope, name, scalingPolicy, new RetentionPolicy(Long.MAX_VALUE));
     }

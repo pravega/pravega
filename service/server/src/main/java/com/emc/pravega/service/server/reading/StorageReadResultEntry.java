@@ -21,8 +21,8 @@ package com.emc.pravega.service.server.reading;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.google.common.base.Preconditions;
-
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -30,6 +30,7 @@ import java.util.function.Consumer;
  */
 class StorageReadResultEntry extends ReadResultEntryBase {
     private final ContentFetcher contentFetcher;
+    private final AtomicBoolean contentRequested;
 
     /**
      * Creates a new instance of the StorageReadResultEntry class.
@@ -41,11 +42,19 @@ class StorageReadResultEntry extends ReadResultEntryBase {
         super(ReadResultEntryType.Storage, streamSegmentOffset, requestedReadLength);
         Preconditions.checkNotNull(contentFetcher, "contentFetcher");
         this.contentFetcher = contentFetcher;
+        this.contentRequested = new AtomicBoolean(false);
     }
 
     @Override
     public void requestContent(Duration timeout) {
-        this.contentFetcher.accept(getStreamSegmentOffset(), getRequestedReadLength(), this::complete, this::fail, timeout);
+        Preconditions.checkState(!this.contentRequested.getAndSet(true), "Content has already been successful requested. Cannot re-request.");
+        try {
+            this.contentFetcher.accept(getStreamSegmentOffset(), getRequestedReadLength(), this::complete, this::fail, timeout);
+        } catch (Throwable ex) {
+            // Unable to request content; so reset.
+            this.contentRequested.set(false);
+            throw ex;
+        }
     }
 
     @FunctionalInterface

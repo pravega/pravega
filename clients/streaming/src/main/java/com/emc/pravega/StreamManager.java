@@ -21,9 +21,8 @@ import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Serializer;
-import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamManagerImpl;
+import com.emc.pravega.stream.impl.StreamManagerImpl;
 
 import java.net.URI;
 import java.util.List;
@@ -34,7 +33,7 @@ import java.util.List;
 public interface StreamManager extends AutoCloseable {
 
     public static StreamManager withScope(String scope, URI controllerUri) {
-        return new StreamManagerImpl(scope, controllerUri);
+        return new StreamManagerImpl(scope, controllerUri, ClientFactory.withScope(scope, controllerUri));
     }
     
     /**
@@ -93,9 +92,8 @@ public interface StreamManager extends AutoCloseable {
      *
      * @param streamName The name of the stream to be created.
      * @param config The configuration the stream should use.
-     * @return The stream object representing the new stream.
      */
-    Stream createStream(String streamName, StreamConfiguration config);
+    void createStream(String streamName, StreamConfiguration config);
 
     /**
      * Change the configuration for an existing stream.
@@ -110,16 +108,16 @@ public interface StreamManager extends AutoCloseable {
     void alterStream(String streamName, StreamConfiguration config);
 
     /**
-     * Returns the requested stream.
+     * Seal an existing stream.
      *
-     * @param streamName The name of the stream to get.
+     * @param streamName The name of the stream which has to be sealed.
      */
-    Stream getStream(String streamName);
+    void sealStream(String streamName);
     
     /**
      * Deletes the provided stream. No more events may be written or read.
      * Resources used by the stream will be freed.
-     * @param toDelete The stream to be deleted.
+     * @param toDelete The name of the stream to be deleted.
      */
-    void deleteStream(Stream toDelete);
+    void deleteStream(String toDelete);
 }

@@ -21,41 +21,40 @@ package com.emc.pravega.service.server.mocks;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.CacheFactory;
-
 import java.util.ArrayList;
 import java.util.HashMap;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Factory for InMemoryCache.
  */
+@ThreadSafe
 public class InMemoryCacheFactory implements CacheFactory {
+    @GuardedBy("caches")
     private final HashMap<String, InMemoryCache> caches = new HashMap<>();
+    @GuardedBy("caches")
     private boolean closed;
 
     @Override
     public Cache getCache(String id) {
-        InMemoryCache result;
         synchronized (this.caches) {
             Exceptions.checkNotClosed(this.closed, this);
-            result = this.caches.get(id);
-            if (result == null) {
-                result = new InMemoryCache(id, this::cacheClosed);
-                this.caches.put(id, result);
-            }
+            return this.caches.computeIfAbsent(id, key -> new InMemoryCache(key, this::cacheClosed));
         }
-
-        return result;
     }
 
     @Override
     public void close() {
-        if (!this.closed) {
-            ArrayList<InMemoryCache> toClose;
-            synchronized (this.caches) {
+        ArrayList<InMemoryCache> toClose = null;
+        synchronized (this.caches) {
+            if (!this.closed) {
                 this.closed = true;
                 toClose = new ArrayList<>(this.caches.values());
             }
+        }
 
+        if (toClose != null) {
             toClose.forEach(InMemoryCache::close);
         }
     }
