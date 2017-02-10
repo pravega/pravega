@@ -87,6 +87,9 @@ class PerfStats {
         System.out.printf("%d records sent, %.1f records/sec (%.5f MB/sec), %.1f ms avg latency, %.1f max latency.\n",
                 windowCount, recsPerSec, mbPerSec, windowTotalLatency / ((double) windowCount * 1000.0),
                 (double) windowMaxLatency / 1000.0);
+        System.out.printf(" WINDOW: %d, %d, %.1f ,%.5f MB/sec, %.1f, %.1f \n",
+                messageSize, windowCount, recsPerSec, mbPerSec, windowTotalLatency / ((double) windowCount * 1000.0),
+                (double) windowMaxLatency / 1000.0);
     }
 
     private void newWindow(long currentNumber) {

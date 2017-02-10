@@ -73,6 +73,7 @@ public class TurbineHeatSensor {
     private static int runtimeSec = 10;
     // Should producers use Transaction or not
     private static boolean isTransaction = false;
+    private static int reportingInterval = 200;
 
 
     public static void main(String[] args) throws Exception {
@@ -118,10 +119,10 @@ public class TurbineHeatSensor {
             System.exit(1);
         }
 
-        produceStats = new PerfStats(producerCount * eventsPerSec * runtimeSec, 200, messageSize);
+        produceStats = new PerfStats(producerCount * eventsPerSec * runtimeSec, reportingInterval, messageSize);
 
         if ( !onlyWrite ) {
-            consumeStats = new PerfStats(producerCount * eventsPerSec * runtimeSec, 2, messageSize);
+            consumeStats = new PerfStats(producerCount * eventsPerSec * runtimeSec, reportingInterval, messageSize);
             SensorReader reader = new SensorReader(producerCount * eventsPerSec * runtimeSec);
             executor.execute(reader);
         }
@@ -169,6 +170,7 @@ public class TurbineHeatSensor {
         options.addOption("writeonly", true, "Just produce vs read after produce");
         options.addOption("blocking", true, "Block for each ack");
         options.addOption("zipkin", true, "Enable zipkin trace");
+        options.addOption("reporting", true, "Reporting internval");
 
         options.addOption("help", false, "Help message");
 
@@ -216,6 +218,10 @@ public class TurbineHeatSensor {
                 }
                 if (commandline.hasOption("blocking")) {
                     blocking = Boolean.parseBoolean(commandline.getOptionValue("blocking"));
+                }
+
+                if (commandline.hasOption("reporting")) {
+                    reportingInterval = Integer.parseInt(commandline.getOptionValue("reporting"));
                 }
 
                 if (commandline.hasOption("zipkin")) {
