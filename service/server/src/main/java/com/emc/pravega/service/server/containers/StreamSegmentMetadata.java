@@ -19,21 +19,26 @@
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.google.common.base.Preconditions;
-import java.util.Collections;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * Metadata for a particular Stream Segment.
  */
 @Slf4j
+@ThreadSafe
 public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     //region Members
 
@@ -44,11 +49,17 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private final int containerId;
     private final Map<UUID, Long> attributes;
     private long storageLength;
+    @GuardedBy("this")
     private long durableLogLength;
+    @GuardedBy("this")
     private boolean sealed;
+    @GuardedBy("this")
     private boolean sealedInStorage;
+    @GuardedBy("this")
     private boolean deleted;
+    @GuardedBy("this")
     private boolean merged;
+    @GuardedBy("this")
     private Date lastModified;
 
     //endregion
@@ -106,22 +117,22 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public boolean isSealed() {
+    public synchronized boolean isSealed() {
         return this.sealed;
     }
 
     @Override
-    public boolean isDeleted() {
+    public synchronized boolean isDeleted() {
         return this.deleted;
     }
 
     @Override
-    public long getLength() {
+    public synchronized long getLength() {
         return this.durableLogLength; // ReadableLength is essentially DurableLogLength.
     }
 
     @Override
-    public Date getLastModified() {
+    public synchronized Date getLastModified() {
         return this.lastModified;
     }
 
@@ -145,22 +156,22 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public boolean isMerged() {
+    public synchronized boolean isMerged() {
         return this.merged;
     }
 
     @Override
-    public boolean isSealedInStorage() {
+    public synchronized boolean isSealedInStorage() {
         return this.sealedInStorage;
     }
 
     @Override
-    public long getStorageLength() {
+    public synchronized long getStorageLength() {
         return this.storageLength;
     }
 
     @Override
-    public long getDurableLogLength() {
+    public synchronized long getDurableLogLength() {
         return this.durableLogLength;
     }
 
@@ -187,7 +198,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     //region UpdateableSegmentMetadata Implementation
 
     @Override
-    public void setStorageLength(long value) {
+    public synchronized void setStorageLength(long value) {
         Exceptions.checkArgument(value >= 0, "value", "Storage Length must be a non-negative number.");
         Exceptions.checkArgument(value >= this.storageLength, "value", "New Storage Length cannot be smaller than the previous one.");
 
@@ -196,7 +207,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void setDurableLogLength(long value) {
+    public synchronized void setDurableLogLength(long value) {
         Exceptions.checkArgument(value >= 0, "value", "Durable Log Length must be a non-negative number.");
         Exceptions.checkArgument(value >= this.durableLogLength, "value", "New Durable Log Length cannot be smaller than the previous one.");
 
@@ -205,26 +216,26 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void markSealed() {
+    public synchronized void markSealed() {
         log.trace("{}: Sealed = true.", this.traceObjectId);
         this.sealed = true;
     }
 
     @Override
-    public void markSealedInStorage() {
+    public synchronized void markSealedInStorage() {
         Preconditions.checkState(this.sealed, "Cannot mark SealedInStorage if not Sealed in DurableLog.");
         log.trace("{}: SealedInStorage = true.", this.traceObjectId);
         this.sealedInStorage = true;
     }
 
     @Override
-    public void markDeleted() {
+    public synchronized void markDeleted() {
         log.trace("{}: Deleted = true.", this.traceObjectId);
         this.deleted = true;
     }
 
     @Override
-    public void markMerged() {
+    public synchronized void markMerged() {
         Preconditions.checkState(this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a non-Transaction StreamSegment.");
 
         log.trace("{}: Merged = true.", this.traceObjectId);
@@ -232,7 +243,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void setLastModified(Date date) {
+    public synchronized void setLastModified(Date date) {
         this.lastModified = date;
         log.trace("{}: LastModified = {}.", this.lastModified);
     }
