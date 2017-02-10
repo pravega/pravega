@@ -39,6 +39,7 @@ import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
+import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
@@ -156,11 +157,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
             // Verify all attribute values. They were setup in such a way that all current values should equal APPENDS_PER_SEGMENT.
             Assert.assertEquals("Unexpected value for attribute " + attributeAccumulate + " for segment " + segmentName,
-                    APPENDS_PER_SEGMENT, sp.getAttributeValue(attributeAccumulate.getId(), Long.MIN_VALUE));
+                    APPENDS_PER_SEGMENT, (long) sp.getAttributes().getOrDefault(attributeAccumulate.getId(), SegmentMetadata.NULL_ATTRIBUTE_VALUE));
             Assert.assertEquals("Unexpected value for attribute " + attributeReplace + " for segment " + segmentName,
-                    APPENDS_PER_SEGMENT, sp.getAttributeValue(attributeReplace.getId(), Long.MIN_VALUE));
+                    APPENDS_PER_SEGMENT, (long) sp.getAttributes().getOrDefault(attributeReplace.getId(), SegmentMetadata.NULL_ATTRIBUTE_VALUE));
             Assert.assertEquals("Unexpected value for attribute " + attributeReplaceIfGreater + " for segment " + segmentName,
-                    APPENDS_PER_SEGMENT, sp.getAttributeValue(attributeReplaceIfGreater.getId(), Long.MIN_VALUE));
+                    APPENDS_PER_SEGMENT, (long) sp.getAttributes().getOrDefault(attributeReplaceIfGreater.getId(), SegmentMetadata.NULL_ATTRIBUTE_VALUE));
         }
 
         // 4. Reads (regular reads, not tail reads).

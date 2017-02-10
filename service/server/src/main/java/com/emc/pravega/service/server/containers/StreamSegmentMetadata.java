@@ -170,11 +170,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public long getAttributeValue(UUID attributeId, long defaultValue) {
-        return this.attributes.getOrDefault(attributeId, defaultValue);
-    }
-
-    @Override
     public String toString() {
         return String.format(
                 "Id = %d, StorageLength = %d, DLOffset = %d, Sealed(DL/S) = %s/%s, Deleted = %s, Name = %s",

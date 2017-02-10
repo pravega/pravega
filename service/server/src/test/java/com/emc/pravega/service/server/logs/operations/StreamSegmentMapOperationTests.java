@@ -20,11 +20,13 @@ package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.server.ContainerMetadata;
-
-import org.junit.Assert;
-
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
+import lombok.val;
+import org.junit.Assert;
 
 /**
  * Unit tests for StreamSegmentMapOperation class.
@@ -37,7 +39,7 @@ public class StreamSegmentMapOperationTests extends OperationTestsBase<StreamSeg
                 random.nextLong(),
                 random.nextBoolean(),
                 random.nextBoolean(),
-                null,
+                createAttributes(10),
                 new Date()));
     }
 
@@ -53,5 +55,14 @@ public class StreamSegmentMapOperationTests extends OperationTestsBase<StreamSeg
         } else if (isPreSerializationConfigRequired(operation)) {
             Assert.fail("isPreSerializationConfigRequired returned true but there is nothing to be done.");
         }
+    }
+
+    static Map<UUID, Long> createAttributes(int count) {
+        val result = new HashMap<UUID, Long>();
+        for (int i = 0; i < count; i++) {
+            result.put(UUID.randomUUID(), (long) i);
+        }
+
+        return result;
     }
 }

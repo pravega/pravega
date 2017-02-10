@@ -22,10 +22,11 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Log Operation that represents a mapping of StreamSegment Name to a StreamSegment Id.
@@ -39,6 +40,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
     private String streamSegmentName;
     private long length;
     private boolean sealed;
+    private Map<UUID, Long> attributes;
 
     //endregion
 
@@ -55,6 +57,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         this.streamSegmentName = streamSegmentProperties.getName();
         this.length = streamSegmentProperties.getLength();
         this.sealed = streamSegmentProperties.isSealed();
+        this.attributes = streamSegmentProperties.getAttributes();
     }
 
     protected StreamSegmentMapOperation(OperationHeader header, DataInputStream source) throws SerializationException {
@@ -77,6 +80,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
 
     /**
      * Sets the StreamSegmentId for this operation.
+     *
      * @param value The Id of the segment to set.
      */
     public void setStreamSegmentId(long value) {
@@ -93,6 +97,11 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
     @Override
     public boolean isSealed() {
         return this.sealed;
+    }
+
+    @Override
+    public Map<UUID, Long> getAttributes() {
+        return this.attributes;
     }
 
     //endregion
@@ -112,6 +121,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         target.writeUTF(this.streamSegmentName);
         target.writeLong(this.length);
         target.writeBoolean(this.sealed);
+        AttributeSerializer.serialize(this.attributes, target);
     }
 
     @Override
@@ -121,6 +131,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         this.streamSegmentName = source.readUTF();
         this.length = source.readLong();
         this.sealed = source.readBoolean();
+        this.attributes = AttributeSerializer.deserialize(source);
     }
 
     @Override

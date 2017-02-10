@@ -62,9 +62,6 @@ public final class SegmentMetadataComparer {
             Assert.assertTrue(" attribute not found " + e.getKey(), actual.containsKey(e.getKey()));
             long actualValue = actual.get(e.getKey());
             Assert.assertEquals(message + " value differs.", (long) e.getValue(), actualValue);
-
-            long individualActualValue = metadata.getAttributeValue(e.getKey(), Long.MIN_VALUE);
-            Assert.assertEquals(message + " unexpected result from getAttributeValue().", actualValue, individualActualValue);
         }
     }
 }

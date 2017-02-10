@@ -22,10 +22,11 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Log Operation that represents a mapping between a Transaction StreamSegment and its Parent StreamSegment.
@@ -40,6 +41,7 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
     private String streamSegmentName;
     private long length;
     private boolean sealed;
+    private Map<UUID, Long> attributes;
 
     //endregion
 
@@ -59,6 +61,7 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
         this.streamSegmentName = transSegmentInfo.getName();
         this.length = transSegmentInfo.getLength();
         this.sealed = transSegmentInfo.isSealed();
+        this.attributes = transSegmentInfo.getAttributes();
     }
 
     protected TransactionMapOperation(OperationHeader header, DataInputStream source) throws SerializationException {
@@ -111,6 +114,11 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
         return this.sealed;
     }
 
+    @Override
+    public Map<UUID, Long> getAttributes() {
+        return this.attributes;
+    }
+
     //endregion
 
     //region Operation Implementation
@@ -129,6 +137,7 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
         target.writeUTF(this.streamSegmentName);
         target.writeLong(this.length);
         target.writeBoolean(this.sealed);
+        AttributeSerializer.serialize(this.attributes, target);
     }
 
     @Override
@@ -139,6 +148,7 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
         this.streamSegmentName = source.readUTF();
         this.length = source.readLong();
         this.sealed = source.readBoolean();
+        this.attributes = AttributeSerializer.deserialize(source);
     }
 
     @Override

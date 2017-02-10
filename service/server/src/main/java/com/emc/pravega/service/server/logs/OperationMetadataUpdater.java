@@ -34,6 +34,7 @@ import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentMetadata;
+import com.emc.pravega.service.server.logs.operations.AttributeSerializer;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataOperation;
@@ -72,7 +73,6 @@ import static com.emc.pravega.common.util.CollectionHelpers.forEach;
 class OperationMetadataUpdater implements ContainerMetadata {
     //region Members
 
-    private static final Long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE; // TODO: consider moving to another place, if used in multiple places.
     private final String traceObjectId;
     private final UpdateableContainerMetadata metadata;
     private UpdateTransaction currentTransaction;
@@ -516,6 +516,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 streamSegmentMetadata.markSealed();
                 streamSegmentMetadata.markSealedInStorage();
             }
+
+            streamSegmentMetadata.updateAttributes(operation.getAttributes());
         }
 
         private void acceptMetadataOperation(TransactionMapOperation operation) throws MetadataUpdateException {
@@ -533,6 +535,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 transactionMetadata.markSealed();
                 transactionMetadata.markSealedInStorage();
             }
+
+            transactionMetadata.updateAttributes(operation.getAttributes());
         }
 
         private void rollback() {
@@ -710,13 +714,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             // S10. LastModified.
             stream.writeLong(sm.getLastModified().getTime());
             // S11. Attributes.
-            val attributes = sm.getAttributes().entrySet();
-            stream.writeShort(attributes.size());
-            for (Map.Entry<UUID, Long> attribute : attributes) {
-                stream.writeLong(attribute.getKey().getMostSignificantBits());
-                stream.writeLong(attribute.getKey().getLeastSignificantBits());
-                stream.writeLong(attribute.getValue());
-            }
+            AttributeSerializer.serialize(sm.getAttributes(), stream);
         }
 
         private void deserializeSegmentMetadata(DataInputStream stream) throws IOException {
@@ -758,15 +756,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             metadata.setLastModified(lastModified);
 
             // S11. Attributes.
-            short attributeCount = stream.readShort();
-            val attributes = new HashMap<UUID, Long>();
-            for (int i = 0; i < attributeCount; i++) {
-                long mostSigBits = stream.readLong();
-                long leastSigBits = stream.readLong();
-                long value = stream.readLong();
-                attributes.put(new UUID(mostSigBits, leastSigBits), value);
-            }
-
+            val attributes = AttributeSerializer.deserialize(stream);
             metadata.updateAttributes(attributes);
         }
     }
@@ -880,19 +870,18 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         @Override
-        public long getAttributeValue(UUID attributeId, long defaultValue) {
-            if (this.updatedAttributeValues.containsKey(attributeId)) {
-                return this.updatedAttributeValues.get(attributeId);
-            } else {
-                return this.baseMetadata.getAttributeValue(attributeId, defaultValue);
-            }
-        }
-
-        @Override
         public Map<UUID, Long> getAttributes() {
             // Important: This only returns the updated attributes, not the whole set of attributes. If it also returned
             // the base attributes, upon commit() they would be unnecessarily re-applied to the same segment.
             return Collections.unmodifiableMap(this.updatedAttributeValues);
+        }
+
+        private long getAttributeValue(UUID attributeId, long defaultValue) {
+            if (this.updatedAttributeValues.containsKey(attributeId)) {
+                return this.updatedAttributeValues.get(attributeId);
+            } else {
+                return this.baseMetadata.getAttributes().getOrDefault(attributeId, defaultValue);
+            }
         }
 
         //endregion
@@ -1045,13 +1034,13 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
             for (AttributeUpdate u : attributeUpdates) {
                 Attribute.UpdateType updateType = u.getAttribute().getUpdateType();
-                long previousValue = getAttributeValue(u.getAttribute().getId(), NULL_ATTRIBUTE_VALUE);
+                long previousValue = getAttributeValue(u.getAttribute().getId(), SegmentMetadata.NULL_ATTRIBUTE_VALUE);
 
                 // Perform validation, and set the AttributeUpdate.value to the updated value, if necessary.
                 switch (updateType) {
                     case ReplaceIfGreater:
                         // Verify value against existing value, if any.
-                        if (previousValue != NULL_ATTRIBUTE_VALUE && u.getValue() <= previousValue) {
+                        if (previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE && u.getValue() <= previousValue) {
                             throw new BadAttributeUpdateException(this.baseMetadata.getName(), u,
                                     String.format("Expected greater than '%s'.", previousValue));
                         }
@@ -1059,14 +1048,14 @@ class OperationMetadataUpdater implements ContainerMetadata {
                         break;
                     case None:
                         // Attribute cannot be updated once set.
-                        if (previousValue != NULL_ATTRIBUTE_VALUE) {
+                        if (previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
                             throw new BadAttributeUpdateException(this.baseMetadata.getName(), u,
                                     String.format("Attribute value already exists and cannot be updated (%s).", previousValue));
                         }
 
                         break;
                     case Accumulate:
-                        if (previousValue != NULL_ATTRIBUTE_VALUE) {
+                        if (previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
                             u.setValue(previousValue + u.getValue());
                         }
 

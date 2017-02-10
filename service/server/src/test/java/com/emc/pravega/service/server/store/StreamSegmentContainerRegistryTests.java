@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ContainerNotFoundException;
 import com.emc.pravega.service.contracts.ReadResult;
@@ -26,13 +27,13 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.SegmentContainerFactory;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import com.google.common.util.concurrent.AbstractService;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;

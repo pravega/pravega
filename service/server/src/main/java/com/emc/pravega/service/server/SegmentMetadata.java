@@ -19,13 +19,16 @@
 package com.emc.pravega.service.server;
 
 import com.emc.pravega.service.contracts.SegmentProperties;
-import java.util.Map;
-import java.util.UUID;
 
 /**
  * Defines an immutable StreamSegment Metadata.
  */
 public interface SegmentMetadata extends SegmentProperties {
+    /**
+     * Defines an attribute value that denotes a missing value.
+     */
+    Long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE;
+
     /**
      * Gets a value indicating the id of this StreamSegment.
      */
@@ -61,11 +64,4 @@ public interface SegmentMetadata extends SegmentProperties {
      * Gets a value indicating the length of this entire StreamSegment (the part in Storage + the part in DurableLog).
      */
     long getDurableLogLength();
-
-    /**
-     * Gets a Map of AttributeId-Values for this Segment.
-     *
-     * @return The map.
-     */
-    Map<UUID, Long> getAttributes();
 }

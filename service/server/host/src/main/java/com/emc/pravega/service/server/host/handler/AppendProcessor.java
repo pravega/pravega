@@ -36,6 +36,7 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
+import com.emc.pravega.service.server.SegmentMetadata;
 import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -105,8 +106,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         if (u != null) {
                             handleException(newSegment, u);
                         } else {
-                            long eventNumber = info.getAttributeValue(newConnection, Long.MIN_VALUE);
-                            if (eventNumber == Long.MIN_VALUE) {
+                            long eventNumber = info.getAttributes().getOrDefault(newConnection, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+                            if (eventNumber == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
                                 // First append to this segment.
                                 eventNumber = 0;
                             }

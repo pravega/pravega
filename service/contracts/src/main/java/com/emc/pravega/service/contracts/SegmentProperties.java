@@ -19,6 +19,7 @@
 package com.emc.pravega.service.contracts;
 
 import java.util.Date;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -51,12 +52,10 @@ public interface SegmentProperties {
     long getLength();
 
     /**
-     * Gets the value for the given attribute.
+     * Gets a read-only Map of AttributeId-Values for this Segment.
      *
-     * @param attributeId  The Id of the attribute to get the value for.
-     * @param defaultValue Default value.
-     * @return The value of the attribute, or defaultValue if this attribute is not defined.
+     * @return The map.
      */
-    long getAttributeValue(UUID attributeId, long defaultValue);
+    Map<UUID, Long> getAttributes();
 }
 

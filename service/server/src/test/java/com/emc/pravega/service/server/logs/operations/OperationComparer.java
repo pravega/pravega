@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.testcommon.AssertExtensions;
 import java.util.Collection;
 import java.util.stream.Collectors;
 import lombok.val;
@@ -177,12 +178,14 @@ public class OperationComparer {
         Assert.assertEquals(message + " Unexpected StreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
         Assert.assertEquals(message + " Unexpected StreamSegmentLength.", expected.getLength(), actual.getLength());
         Assert.assertEquals(message + " Unexpected StreamSegmentName.", expected.getStreamSegmentName(), actual.getStreamSegmentName());
+        AssertExtensions.assertMapEquals(message+ "Unexpected attributes.", expected.getAttributes(), actual.getAttributes());
     }
 
     private void assertSame(String message, TransactionMapOperation expected, TransactionMapOperation actual) {
         Assert.assertEquals(message + " Unexpected TransactionStreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
         Assert.assertEquals(message + " Unexpected TransactionStreamSegmentName.", expected.getStreamSegmentName(), actual.getStreamSegmentName());
         Assert.assertEquals(message + " Unexpected ParentStreamSegmentId.", expected.getParentStreamSegmentId(), actual.getParentStreamSegmentId());
+        AssertExtensions.assertMapEquals(message+ "Unexpected attributes.", expected.getAttributes(), actual.getAttributes());
     }
 
     private void assertSame(String message, MetadataCheckpointOperation expected, MetadataCheckpointOperation actual) {

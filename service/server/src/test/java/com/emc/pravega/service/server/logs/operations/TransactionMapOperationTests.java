@@ -37,7 +37,7 @@ public class TransactionMapOperationTests extends OperationTestsBase<Transaction
                 random.nextLong(),
                 random.nextBoolean(),
                 random.nextBoolean(),
-                null,
+                StreamSegmentMapOperationTests.createAttributes(10),
                 new Date()));
     }
 

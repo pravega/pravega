@@ -558,7 +558,7 @@ public class OperationMetadataUpdaterTests {
         // Brand new StreamSegment.
         StreamSegmentMapOperation mapOp = createMap();
         updater.preProcessOperation(mapOp);
-        Assert.assertEquals("preProcessOperation did modified the StreamSegmentId on the operation in recovery mode.", ContainerMetadata.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
+        Assert.assertEquals("preProcessOperation did modify the StreamSegmentId on the operation in recovery mode.", ContainerMetadata.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
 
         // Part 2: non-recovery mode.
         metadata.exitRecoveryMode();
@@ -569,9 +569,10 @@ public class OperationMetadataUpdaterTests {
 
         updater.acceptOperation(mapOp);
 
-        Assert.assertEquals("Unexpected StorageLength after call to acceptOperation (in transaction).", mapOp.getLength(), updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getStorageLength());
-        Assert.assertEquals("Unexpected DurableLogLength after call to acceptOperation (in transaction).", mapOp.getLength(), updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getDurableLogLength());
-        Assert.assertEquals("Unexpected value for isSealed after call to acceptOperation (in transaction).", mapOp.isSealed(), updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).isSealed());
+        val updaterMetadata = updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
+        Assert.assertEquals("Unexpected StorageLength after call to acceptOperation (in transaction).", mapOp.getLength(), updaterMetadata.getStorageLength());
+        Assert.assertEquals("Unexpected DurableLogLength after call to acceptOperation (in transaction).", mapOp.getLength(), updaterMetadata.getDurableLogLength());
+        Assert.assertEquals("Unexpected value for isSealed after call to acceptOperation (in transaction).", mapOp.isSealed(), updaterMetadata.isSealed());
         Assert.assertNull("acceptOperation modified the underlying metadata.", metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
 
         // StreamSegmentName already exists (transaction).
@@ -582,6 +583,9 @@ public class OperationMetadataUpdaterTests {
 
         // Make changes permanent.
         updater.commit();
+
+        val segmentMetadata = metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
+        AssertExtensions.assertMapEquals("Unexpected attributes in SegmentMetadata after call to commit().", mapOp.getAttributes(), segmentMetadata.getAttributes());
 
         // StreamSegmentName already exists (metadata).
         AssertExtensions.assertThrows(
@@ -623,9 +627,10 @@ public class OperationMetadataUpdaterTests {
         Assert.assertNull("preProcessOperation modified the underlying metadata.", metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
 
         updater.acceptOperation(mapOp);
-        Assert.assertEquals("Unexpected StorageLength after call to processMetadataOperation (in transaction).", mapOp.getLength(), updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getStorageLength());
-        Assert.assertEquals("Unexpected DurableLogLength after call to processMetadataOperation (in transaction).", 0, updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getDurableLogLength());
-        Assert.assertEquals("Unexpected value for isSealed after call to processMetadataOperation (in transaction).", mapOp.isSealed(), updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).isSealed());
+        val updaterMetadata = updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
+        Assert.assertEquals("Unexpected StorageLength after call to processMetadataOperation (in transaction).", mapOp.getLength(), updaterMetadata.getStorageLength());
+        Assert.assertEquals("Unexpected DurableLogLength after call to processMetadataOperation (in transaction).", 0, updaterMetadata.getDurableLogLength());
+        Assert.assertEquals("Unexpected value for isSealed after call to processMetadataOperation (in transaction).", mapOp.isSealed(), updaterMetadata.isSealed());
         Assert.assertNull("processMetadataOperation modified the underlying metadata.", metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
 
         // Transaction StreamSegmentName exists (transaction).
@@ -636,6 +641,9 @@ public class OperationMetadataUpdaterTests {
 
         // Make changes permanent.
         updater.commit();
+
+        val segmentMetadata = metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
+        AssertExtensions.assertMapEquals("Unexpected attributes in SegmentMetadata after call to commit().", mapOp.getAttributes(), segmentMetadata.getAttributes());
 
         // Transaction StreamSegmentName exists (metadata).
         AssertExtensions.assertThrows(
@@ -945,6 +953,10 @@ public class OperationMetadataUpdaterTests {
                      .collect(Collectors.toList());
     }
 
+    private Map<UUID, Long> createAttributes() {
+        return Arrays.stream(DEFAULT_ATTRIBUTES).collect(Collectors.toMap(Attribute::getId, a -> NEXT_ATTRIBUTE_VALUE.get()));
+    }
+
     private StreamSegmentSealOperation createSeal() {
         return new StreamSegmentSealOperation(SEGMENT_ID);
     }
@@ -958,7 +970,7 @@ public class OperationMetadataUpdaterTests {
     }
 
     private StreamSegmentMapOperation createMap(String name) {
-        return new StreamSegmentMapOperation(new StreamSegmentInformation(name, SEGMENT_LENGTH, true, false, null, new Date()));
+        return new StreamSegmentMapOperation(new StreamSegmentInformation(name, SEGMENT_LENGTH, true, false, createAttributes(), new Date()));
     }
 
     private TransactionMapOperation createTransactionMap(long parentId) {
@@ -966,7 +978,7 @@ public class OperationMetadataUpdaterTests {
     }
 
     private TransactionMapOperation createTransactionMap(long parentId, String name) {
-        return new TransactionMapOperation(parentId, new StreamSegmentInformation(name, SEALED_TRANSACTION_LENGTH, true, false, null, new Date()));
+        return new TransactionMapOperation(parentId, new StreamSegmentInformation(name, SEALED_TRANSACTION_LENGTH, true, false, createAttributes(), new Date()));
     }
 
     private MetadataCheckpointOperation createMetadataPersisted() {
