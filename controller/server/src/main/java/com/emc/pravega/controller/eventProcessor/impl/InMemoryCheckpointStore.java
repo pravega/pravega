@@ -51,6 +51,36 @@ public class InMemoryCheckpointStore implements CheckpointStore {
         return map.get(getKey(process, readerGroup));
     }
 
+    @Override
+    public void addReaderGroup(String process, String readerGroup) {
+        String key = getKey(process, readerGroup);
+        if (!map.containsKey(key)) {
+            map.put(key, new HashMap<>());
+        }
+    }
+
+    @Override
+    public void removeReaderGroup(String process, String readerGroup) {
+        String key = getKey(process, readerGroup);
+        if (map.containsKey(key) && map.get(key).isEmpty()) {
+            // Remove the reader group only if it has no active readers.
+            map.remove(key);
+        }
+    }
+
+    @Override
+    public void addReader(String process, String readerGroup, String readerId) {
+        setPosition(process, readerGroup, readerId, null);
+    }
+
+    @Override
+    public void removeReader(String process, String readerGroup, String readerId) {
+        String key = getKey(process, readerGroup);
+        if (map.containsKey(key)) {
+            map.get(key).remove(readerId);
+        }
+    }
+
     private String getKey(String process, String readerGroup) {
         return process + ":" + readerGroup;
     }

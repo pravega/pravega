@@ -49,7 +49,7 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
 
     private final List<EventProcessorCell<T>> actors;
 
-    private final EventStreamWriter<T> ref;
+    private final EventStreamWriter<T> writer;
 
     private final ReaderGroup readerGroup;
 
@@ -59,11 +59,15 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
         this.actorSystem = actorSystem;
         this.props = props;
         this.actors = new ArrayList<>();
-        this.ref = actorSystem
+        this.writer = actorSystem
                 .clientFactory
                 .createEventWriter(props.getConfig().getStreamName(),
                         props.getSerializer(),
                         new EventWriterConfig(new SegmentOutputConfiguration()));
+
+        this.checkpointStore = new InMemoryCheckpointStore();
+
+        this.checkpointStore.addReaderGroup(this.actorSystem.getProcess(), this.props.getConfig().getReaderGroupName());
 
         // todo: check whether ReaderGroupConfig is initialized properly to 0 in the following statement.
         readerGroup = createIfNotExists(
@@ -77,8 +81,6 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
         } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
             throw new RuntimeException("Error instantiating Actors");
         }
-
-        this.checkpointStore = new InMemoryCheckpointStore();
     }
 
     private ReaderGroup createIfNotExists(final StreamManager streamManager,
@@ -97,14 +99,20 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
             InvocationTargetException,
             InstantiationException {
         for (int i = 0; i < count; i++) {
+            // create a reader id
             String readerId = UUID.randomUUID().toString();
+
+            // store the readerId in checkpoint store
+            checkpointStore.addReader(actorSystem.getProcess(), props.getConfig().getReaderGroupName(), readerId);
+
+            // create the reader
             EventStreamReader<T> reader =
                     actorSystem.clientFactory.createReader(readerId,
                             props.getConfig().getReaderGroupName(),
                             props.getSerializer(),
                             new ReaderConfig());
 
-            // create a new actor, and add it to the list
+            // create a new actor, and add it to the actors list
             EventProcessorCell<T> actorCell =
                     new EventProcessorCell<>(actorSystem, props, reader, readerId, checkpointStore);
             actors.add(actorCell);
@@ -125,16 +133,35 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
 
     @Synchronized
     final protected void awaitStopped() {
+        // If exception is thrown in any of the following operations, it is just logged.
+        // Some other controller process is responsible for cleaning up reader group,
+        // its readers and their position objects from checkpoint store.
+
+        // First, wait for all event processors to stop.
         actors.stream().forEach(EventProcessorCell::awaitStopped);
+
+        // Next, clean up reader group from checkpoint store.
+        checkpointStore.removeReaderGroup(actorSystem.getProcess(), props.getConfig().getReaderGroupName());
     }
 
     @Override
     @Synchronized
     public void notifyProcessFailure(String process) {
-        checkpointStore.getPositions(process, this.readerGroup.getGroupName())
+        checkpointStore.getPositions(process, readerGroup.getGroupName())
                 .entrySet()
                 // todo handle errors/exceptions
-                .forEach(entry -> readerGroup.readerOffline(entry.getKey(), entry.getValue()));
+                .forEach(entry -> {
+                    // first notify reader group about failed readers
+                    readerGroup.readerOffline(entry.getKey(), entry.getValue());
+
+                    // 2. clean up reader from checkpoint store
+                    checkpointStore.removeReader(actorSystem.getProcess(), props.getConfig().getReaderGroupName(),
+                            entry.getKey());
+                });
+
+        // finally, remove reader group from checkpoint store
+        checkpointStore.removeReaderGroup(this.actorSystem.getProcess(),
+                this.props.getConfig().getReaderGroupName());
     }
 
     @Override
@@ -152,8 +179,8 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
     }
 
     @Override
-    public EventStreamWriter<T> getSelf() {
-        return this.ref;
+    public EventStreamWriter<T> getWriter() {
+        return this.writer;
     }
 
     @Override

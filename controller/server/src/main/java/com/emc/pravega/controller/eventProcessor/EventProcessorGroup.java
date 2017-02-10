@@ -47,10 +47,10 @@ public interface EventProcessorGroup<T extends StreamEvent> {
     void changeEventProcessorCount(int count);
 
     /**
-     * Returns a reference to self.
+     * Returns a reference to its writer.
      * @return writer reference of this event processor group.
      */
-    EventStreamWriter<T> getSelf();
+    EventStreamWriter<T> getWriter();
 
     /**
      * Gets the list of physical representations of processes participating in

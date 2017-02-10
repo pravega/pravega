@@ -99,6 +99,16 @@ class EventProcessorCell<T extends StreamEvent> {
                 // AbstractExecutionThreadService shall transition the service to failed state.
                 log.warn("Failed while executing postStop for Actor " + this, t);
                 throw t;
+            } finally {
+
+                // If exception is thrown in any of the following operations, it is just logged.
+                // Some other controller process is responsible for cleaning up reader and its position object
+
+                // First close the reader, which implicitly notifies reader position to the reader group
+                reader.close();
+
+                // Next, clean up the reader and its position from checkpoint store
+                state.stop();
             }
         }
 
@@ -166,6 +176,10 @@ class EventProcessorCell<T extends StreamEvent> {
                     // do not increment previous count or timestamp, after next event, checkpoint shall be retried
                 }
             }
+        }
+
+        void stop() {
+            checkpointStore.removeReader(actorSystem.getProcess(), props.getConfig().getReaderGroupName(), readerId);
         }
     }
 

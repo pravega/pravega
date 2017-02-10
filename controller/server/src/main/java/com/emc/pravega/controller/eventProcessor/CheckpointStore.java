@@ -52,4 +52,34 @@ public interface CheckpointStore {
      * @return Map of readers to their respective positions.
      */
     Map<String, Position> getPositions(final String process, final String readerGroup);
+
+    /**
+     * Add a new entry (ProcessId, ReaderGroup) to the map.
+     * @param process Process identifier.
+     * @param readerGroup Reader identifier.
+     */
+    void addReaderGroup(final String process, final String readerGroup);
+
+    /**
+     * Removes the specified reader group only if it has no active readers.
+     * @param process Process identifier.
+     * @param readerGroup Reader group name.
+     */
+    void removeReaderGroup(final String process, final String readerGroup);
+
+    /**
+     * Adds the specified reader in the specified reader group in the specified process.
+     * @param process Process identifier.
+     * @param readerGroup Reader group name.
+     * @param readerId Reader identifier.
+     */
+    void addReader(final String process, final String readerGroup, final String readerId);
+
+    /**
+     * Removes the specified reader in the specified reader group in the specified process.
+     * @param process Process identifier.
+     * @param readerGroup Reader group name.
+     * @param readerId Reader identifier.
+     */
+    void removeReader(final String process, final String readerGroup, final String readerId);
 }

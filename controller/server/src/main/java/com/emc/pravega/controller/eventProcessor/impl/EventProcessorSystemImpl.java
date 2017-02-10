@@ -83,7 +83,7 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
 
         actorGroup.startAsync();
 
-        return actorGroup.getSelf();
+        return actorGroup.getWriter();
     }
 
     @Override
