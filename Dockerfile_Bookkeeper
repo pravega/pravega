@@ -2,18 +2,20 @@ FROM java:8
 
 MAINTAINER Jia Zhai <jia.zhai@emc.com>
 
-RUN apt-get update
-RUN apt-get install -y wget
-RUN apt-get install -y unzip
-RUN mkdir -p /opt
-RUN cd /opt
-RUN wget https://github.com/twitter/distributedlog/releases/download/0.3.51-RC1/distributedlog-service-3ff9e33fa577f50eebb8ee971ddb265c971c3717.zip
-RUN unzip distributedlog-service-3ff9e33fa577f50eebb8ee971ddb265c971c3717.zip
-RUN mkdir -p /opt/dl_all
-RUN mv distributedlog-service /opt/dl_all/
+RUN apt-get update \
+&&  apt-get install -y wget unzip \
+&&  mkdir -p /opt \
+&&  cd /opt
+
+RUN wget https://github.com/twitter/distributedlog/releases/download/0.3.51-RC1/distributedlog-service-3ff9e33fa577f50eebb8ee971ddb265c971c3717.zip \
+&& unzip distributedlog-service-3ff9e33fa577f50eebb8ee971ddb265c971c3717.zip \
+&& mkdir -p /opt/dl_all \
+&& mv distributedlog-service /opt/dl_all/
 
 ENV ZK_URL master.mesos:2181
 ENV bookiePort 3181
+
+EXPOSE $bookiePort
 
 # all execute-able bin, download from distributed_log
 WORKDIR /opt/dl_all
