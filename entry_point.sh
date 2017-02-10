@@ -30,6 +30,9 @@ else
     echo "bookkeeper metadata be formated before, no need format"
 fi
 
+# sleep a moment, if there is a race above, we wait all metaformat is done
+sleep 5
+
 echo "format the bookie"
 # format bookie
 echo "Y" | BOOKIE_CONF=/opt/dl_all/distributedlog-service/conf/bookie.conf /opt/dl_all/distributedlog-service/bin/dlog bkshell bookieformat
