@@ -18,7 +18,7 @@
 
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
@@ -30,7 +30,6 @@ import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-
 import java.io.Serializable;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -148,7 +147,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 .thenCompose(txId ->
                         streamMetadataStore.getActiveSegments(scope, stream)
                                 .thenCompose(activeSegments ->
-                                        FutureCollectionHelper.sequence(
+                                        FutureHelpers.allOf(
                                                 activeSegments.stream()
                                                         .parallel()
                                                         .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txId))
@@ -160,7 +159,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
         // notify hosts to abort transaction
         return streamMetadataStore.getActiveSegments(scope, stream)
                 .thenCompose(segments ->
-                        FutureCollectionHelper.sequence(
+                        FutureHelpers.allOf(
                                 segments.stream()
                                         .parallel()
                                         .map(segment -> notifyDropToHost(scope, stream, segment.getNumber(), txid))
@@ -173,7 +172,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 .thenCompose(x ->
                         streamMetadataStore.getActiveSegments(scope, stream)
                                 .thenCompose(segments ->
-                                        FutureCollectionHelper.sequence(segments.stream()
+                                        FutureHelpers.allOf(segments.stream()
                                                 .parallel()
                                                 .map(segment ->
                                                         notifyCommitToHost(scope, stream, segment.getNumber(), txid))

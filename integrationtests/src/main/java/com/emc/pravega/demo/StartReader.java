@@ -19,12 +19,18 @@ package com.emc.pravega.demo;
 
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockStreamManager;
+
+import java.util.Collections;
+import java.util.UUID;
 
 import lombok.Cleanup;
 
 public class StartReader {
+
+    private static final String READER_GROUP = "ExampleReaderGroup";
 
     public static void main(String[] args) throws Exception {
         @Cleanup
@@ -32,15 +38,18 @@ public class StartReader {
                                                                 "localhost",
                                                                 StartLocalService.PORT);
         streamManager.createStream(StartLocalService.STREAM_NAME, null);
-        @Cleanup
-        EventStreamReader<String> reader = streamManager.getClientFactory().createReader(StartLocalService.STREAM_NAME,
-                                     new JavaSerializer<>(),
-                            new ReaderConfig(),
-                            streamManager.getInitialPosition(StartLocalService.STREAM_NAME));        
+        streamManager.createReaderGroup(READER_GROUP,
+                                        ReaderGroupConfig.builder().startingTime(0).build(),
+                                        Collections.singletonList(StartLocalService.STREAM_NAME));
+        EventStreamReader<String> reader = streamManager.getClientFactory().createReader(UUID.randomUUID().toString(),
+                                                                                         READER_GROUP,
+                                                                                         new JavaSerializer<>(),
+                                                                                         new ReaderConfig());
         for (int i = 0; i < 20; i++) {
             String event = reader.readNextEvent(60000).getEvent();
             System.err.println("Read event: " + event);
         }
+        reader.close();
         System.exit(0);
     }
 }

@@ -101,7 +101,7 @@ public class RetryTests {
             end = Instant.now();
             duration = end.toEpochMilli() - begin.toEpochMilli();
             assertTrue(duration >= expectedDurationUniform);
-            assertTrue(e instanceof RetriesExaustedException);
+            assertTrue(e instanceof RetriesExhaustedException);
             assertTrue(e.getCause() instanceof RetryableException);
             assertEquals(accumulator.get(), expectedResult);
         }
@@ -160,7 +160,7 @@ public class RetryTests {
             log.debug("Actual duration   = {}", duration);
             assertTrue(duration >= expectedDurationUniform - uniformDelay);
             assertTrue(e instanceof CompletionException);
-            assertTrue(e.getCause() instanceof RetriesExaustedException);
+            assertTrue(e.getCause() instanceof RetriesExhaustedException);
             assertTrue(e.getCause().getCause() instanceof CompletionException);
             assertTrue(e.getCause().getCause().getCause() instanceof RetryableException);
         }

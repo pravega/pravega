@@ -28,6 +28,7 @@ import static org.junit.Assert.assertEquals;
  */
 public class YammerProviderTest {
     private final StatsLogger statsLogger = MetricsProvider.createStatsLogger("");
+    private final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
 
     /**
      * Test Event and Value registered and worked well with OpStats.
@@ -60,6 +61,35 @@ public class YammerProviderTest {
         Counter testCounter = statsLogger.createCounter("testCounter");
         testCounter.add(17);
         assertEquals(17, testCounter.get());
+
+        // test dynamic counter
+        int sum = 0;
+        for (int i = 1; i < 10; i++) {
+            sum += i;
+            dynamicLogger.incCounterValue("dynamicCounter", i);
+            assertEquals(sum, MetricsProvider.YAMMERMETRICS.getCounters().get("DYNAMIC.dynamicCounter.Counter").getCount());
+        }
+    }
+
+    /**
+     * Test Meter registered and  worked well with StatsLogger.
+     */
+    @Test
+    public void testMeter() {
+        Meter testMeter = statsLogger.createMeter("testMeter");
+        testMeter.recordEvent();
+        testMeter.recordEvent();
+        assertEquals(2, testMeter.getCount());
+        testMeter.recordEvents(27);
+        assertEquals(29, testMeter.getCount());
+
+        // test dynamic meter
+        int sum = 0;
+        for (int i = 1; i < 10; i++) {
+            sum += i;
+            dynamicLogger.recordMeterEvents("dynamicMeter", i);
+            assertEquals(sum, MetricsProvider.YAMMERMETRICS.getMeters().get("DYNAMIC.dynamicMeter.Meter").getCount());
+        }
     }
 
     /**
@@ -69,9 +99,12 @@ public class YammerProviderTest {
     public void testGauge() {
         AtomicInteger value = new AtomicInteger(1);
         statsLogger.registerGauge("testGauge", value::get);
+
         for (int i = 1; i < 10; i++) {
             value.set(i);
+            dynamicLogger.reportGaugeValue("dynamicGauge", i);
             assertEquals(i, MetricsProvider.YAMMERMETRICS.getGauges().get("testGauge").getValue());
+            assertEquals(i, MetricsProvider.YAMMERMETRICS.getGauges().get("DYNAMIC.dynamicGauge.Gauge").getValue());
         }
     }
 }

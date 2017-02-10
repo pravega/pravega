@@ -70,7 +70,7 @@ public class YammerStatsProvider implements StatsProvider {
             } else {
                 outdir = new File(csvDir);
             }
-            outdir.mkdir();
+            outdir.mkdirs();
             log.info("Configuring stats with csv output to directory [{}]", outdir.getAbsolutePath());
             reporters.add(CsvReporter.forRegistry(getMetrics())
                           .convertRatesTo(TimeUnit.SECONDS)
