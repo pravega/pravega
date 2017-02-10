@@ -54,9 +54,6 @@ allprojects {
         maven {
             url "http://maven.twttr.com"
         }
-        maven {
-            url "https://repository.apache.org/content/repositories/snapshots"
-        }
     }
 
     checkstyle {
@@ -303,8 +300,8 @@ project('integrationtests') {
         compile project(':controller:server')
         compile project(':connectors:flink')
         compile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
-        compile group: 'org.apache.flink', name: 'flink-tests_2.11', version: '1.3-SNAPSHOT'
-        compile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: '1.3-SNAPSHOT'
+        compile group: 'org.apache.flink', name: 'flink-tests_2.11', version: '1.2.0'
+        compile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: '1.2.0'
         testCompile project(':testcommon')
         testCompile files(project(':common').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
@@ -453,7 +450,7 @@ project('controller:server') {
 project('connectors:flink') {
     dependencies {
         compile project(":clients:streaming")
-        compile group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: '1.3-SNAPSHOT'
+        compile group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: '1.2.0'
     }
 }
 
