@@ -50,6 +50,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
@@ -620,7 +621,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         UpdateableSegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(segmentId);
         metadata.setDurableLogLength(0);
         metadata.setStorageLength(0);
-        context.storage.create(metadata.getName(), TIMEOUT).join();
+        context.storage.create(metadata.getName(), Collections.emptyMap(), TIMEOUT).join();
     }
 
     private byte[] getAppendData(String segmentName, long segmentId, int segmentAppendSeq, int writeId) {

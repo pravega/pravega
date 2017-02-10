@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -28,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
@@ -36,9 +38,13 @@ import org.apache.commons.lang.NotImplementedException;
 
 /**
  * Stream properties
+ *
+ * This class is no longer consistent and mostly not Implemented. Deprecating it.
  */
+@Deprecated
 class InMemoryStream implements Stream {
     private final String name;
+    private final String scope;
     private StreamConfiguration configuration;
     private State state;
 
@@ -55,8 +61,9 @@ class InMemoryStream implements Stream {
      */
     private final List<Integer> currentSegments = new ArrayList<>();
 
-    InMemoryStream(String name) {
+    InMemoryStream(String name, String scope) {
         this.name = name;
+        this.scope = scope;
     }
 
     @Override
@@ -74,6 +81,11 @@ class InMemoryStream implements Stream {
                         }
                 );
         return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public String getScope() {
+        return this.scope;
     }
 
     @Override
@@ -209,6 +221,31 @@ class InMemoryStream implements Stream {
     }
 
     @Override
+    public CompletableFuture<Void> setMarker(int segmentNumber, long timestamp) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<Optional<Long>> getMarker(int segmentNumber) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<Void> removeMarker(int segmentNumber) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<Void> blockTransactions() {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> unblockTransactions() {
+        return null;
+    }
+
+    @Override
     public CompletableFuture<UUID> createTransaction() {
         throw new NotImplementedException();
     }
@@ -236,6 +273,11 @@ class InMemoryStream implements Stream {
     @Override
     public CompletableFuture<Boolean> isTransactionOngoing() {
         throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns() {
+        return null;
     }
 
     @Override

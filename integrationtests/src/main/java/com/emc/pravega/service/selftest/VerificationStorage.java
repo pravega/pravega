@@ -31,6 +31,7 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -86,8 +87,8 @@ class VerificationStorage implements TruncateableStorage {
     //region Storage Implementation
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        return this.baseStorage.create(streamSegmentName, timeout);
+    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
+        return this.baseStorage.create(streamSegmentName, attributes, timeout);
     }
 
     @Override

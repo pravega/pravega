@@ -48,6 +48,7 @@ import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -101,7 +102,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         for (int i = 0; i < streamSegmentCount; i++) {
             String name = getStreamSegmentName(i);
             long streamSegmentId = mapper
-                    .createNewStreamSegment(name, Duration.ZERO)
+                    .createNewStreamSegment(name, Collections.emptyMap(), Duration.ZERO)
                     .thenCompose((v) -> mapper.getOrAssignStreamSegmentId(name, Duration.ZERO)).join();
             result.add(streamSegmentId);
         }

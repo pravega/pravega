@@ -40,6 +40,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
@@ -101,7 +102,7 @@ public class InMemoryStorage implements TruncateableStorage {
     //region Storage Implementation
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
         return CompletableFuture
                 .supplyAsync(() -> {

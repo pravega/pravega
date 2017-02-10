@@ -18,10 +18,12 @@
 
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.NonRetryableException;
+
 /**
  * Exception thrown when an attempt is made to create stream with duplicate name.
  */
-public class StreamAlreadyExistsException extends RuntimeException {
+public class StreamAlreadyExistsException extends NonRetryableException {
     /**
      *
      */

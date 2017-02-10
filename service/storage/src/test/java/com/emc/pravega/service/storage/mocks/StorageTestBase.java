@@ -32,6 +32,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -76,7 +77,7 @@ public abstract class StorageTestBase {
         int appendCount = 100;
 
         try (Storage s = createStorage()) {
-            s.create(segmentName, TIMEOUT).join();
+            s.create(segmentName, Collections.emptyMap(), TIMEOUT).join();
 
             // Invalid segment name.
             assertThrows(
@@ -297,7 +298,7 @@ public abstract class StorageTestBase {
         for (int segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
             String segmentName = getSegmentName(segmentId, context);
 
-            s.create(segmentName, TIMEOUT).join();
+            s.create(segmentName, Collections.emptyMap(), TIMEOUT).join();
             ByteArrayOutputStream writeStream = new ByteArrayOutputStream();
             appendData.put(segmentName, writeStream);
 

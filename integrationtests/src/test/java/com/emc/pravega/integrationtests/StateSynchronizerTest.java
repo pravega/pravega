@@ -68,13 +68,13 @@ public class StateSynchronizerTest {
         this.serviceBuilder.close();
         ResourceLeakDetector.setLevel(originalLevel);
     }
-    
+
     @Data
     private static class TestState implements Revisioned {
         private final String scopedStreamName;
         private final Revision revision;
         private final String value;
-        
+
     }
 
     @Data
@@ -85,13 +85,13 @@ public class StateSynchronizerTest {
         public TestState applyTo(TestState oldState, Revision newRevision) {
             return new TestState(oldState.getScopedStreamName(), newRevision, value);
         }
-        
+
         @Override
         public TestState create(String scopedStreamName, Revision revision) {
             return new TestState(scopedStreamName, revision, value);
         }
     }
-    
+
     @Test(timeout = 20000)
     public void testStateTracker() throws TxnFailedException {
         String endpoint = "localhost";
@@ -105,7 +105,7 @@ public class StateSynchronizerTest {
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         streamManager.createStream(stateName, null);
         JavaSerializer<TestUpdate> serializer = new JavaSerializer<TestUpdate>();
-        
+
         val a = streamManager.getClientFactory().createStateSynchronizer(stateName, serializer, serializer, new SynchronizerConfig(null, null));
         val b = streamManager.getClientFactory().createStateSynchronizer(stateName, serializer, serializer, new SynchronizerConfig(null, null));
 
@@ -116,7 +116,7 @@ public class StateSynchronizerTest {
         assertEquals(2, update(b, "fail Initially 2"));
         assertEquals("already up to date 1", a.getState().value);
         assertEquals("fail Initially 2", b.getState().value);
-        
+
         assertEquals(1, update(b, "already up to date 3"));
         assertEquals("already up to date 1", a.getState().value);
         a.fetchUpdates();
@@ -125,7 +125,7 @@ public class StateSynchronizerTest {
         assertEquals("already up to date 4", a.getState().value);
         assertEquals("already up to date 3", b.getState().value);
         assertEquals(2, update(b, "fail Initially 5"));
-        
+
         assertEquals("already up to date 4", a.getState().value);
         a.fetchUpdates();
         assertEquals("fail Initially 5", a.getState().value);
@@ -134,7 +134,7 @@ public class StateSynchronizerTest {
         assertEquals("fail Initially 5", a.getState().value);
         assertEquals("fail Initially 5", b.getState().value);
     }
-    
+
     private int update(StateSynchronizer<TestState> sync, String string) {
         AtomicInteger count = new AtomicInteger(0);
         sync.updateState(state -> {
@@ -159,7 +159,7 @@ public class StateSynchronizerTest {
         SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
 
         for (int i = 0; i < 10; i++) {
-           setA.add("Append: " + i);
+            setA.add("Append: " + i);
         }
         SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
         assertEquals(10, setB.getCurrentSize());
@@ -198,5 +198,5 @@ public class StateSynchronizerTest {
         assertEquals(2, setB.getCurrentSize());
         assertTrue(setB.getCurrentValues().contains("bar"));
     }
-    
+
 }

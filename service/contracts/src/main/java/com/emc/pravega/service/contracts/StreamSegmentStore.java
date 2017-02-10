@@ -19,6 +19,7 @@
 package com.emc.pravega.service.contracts;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -32,15 +33,15 @@ public interface StreamSegmentStore {
      * method.
      *
      * @param streamSegmentName The name of the StreamSegment to add to.
-     * @param data The data to add.
-     * @param appendContext Append context for this append.
-     * @param timeout Timeout for the operation
+     * @param data              The data to add.
+     * @param appendContext     Append context for this append.
+     * @param timeout           Timeout for the operation
      * @return A CompletableFuture that, will completed normally, if the add was added. If the
-     *         operation failed, the future will be failed with the causing exception.
-     * @throws NullPointerException If any of the arguments are null.
+     * operation failed, the future will be failed with the causing exception.
+     * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't
-     *         check if the StreamSegment does not exist - that exception will be set in the
-     *         returned CompletableFuture).
+     *                                  check if the StreamSegment does not exist - that exception will be set in the
+     *                                  returned CompletableFuture).
      */
     CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout);
 
@@ -93,12 +94,13 @@ public interface StreamSegmentStore {
      * Creates a new StreamSegment.
      *
      * @param streamSegmentName The name of the StreamSegment to create.
+     * @param attributes        attributes
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
      * failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout);
+    CompletableFuture<Void> createStreamSegment(String streamSegmentName, Map<String, String> attributes, Duration timeout);
 
     /**
      * Creates a new Transaction and maps it to a Parent StreamSegment.

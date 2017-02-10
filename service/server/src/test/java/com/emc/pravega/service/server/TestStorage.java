@@ -27,6 +27,7 @@ import lombok.Setter;
 
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -77,9 +78,9 @@ public class TestStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.createErrorInjector)
-                            .thenCompose(v -> this.wrappedStorage.create(streamSegmentName, timeout));
+                            .thenCompose(v -> this.wrappedStorage.create(streamSegmentName, attributes, timeout));
     }
 
     @Override

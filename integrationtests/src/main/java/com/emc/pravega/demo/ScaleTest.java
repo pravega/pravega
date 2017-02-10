@@ -43,13 +43,12 @@ import lombok.Cleanup;
 
 /**
  * End to end scale tests.
- *
  */
 public class ScaleTest {
     @SuppressWarnings("checkstyle:ReturnCount")
     public static void main(String[] args) throws Exception {
         TestingServer zkTestServer = new TestingServer();
-        ControllerWrapper controller = new ControllerWrapper(zkTestServer.getConnectString());
+        ControllerWrapper controller = ControllerWrapper.getControllerWrapper(zkTestServer.getConnectString());
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
@@ -71,8 +70,8 @@ public class ScaleTest {
         Stream stream = new StreamImpl(scope, streamName);
 
         System.err.println(String.format("Creating stream (%s, %s)", scope, streamName));
-        CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
-        if (createStatus.get() != CreateStreamStatus.SUCCESS) {
+        CreateStreamStatus createStatus = controller.createStream(config).get();
+        if (createStatus != CreateStreamStatus.SUCCESS) {
             System.err.println("Create stream failed, exiting");
             return;
         }
@@ -114,7 +113,7 @@ public class ScaleTest {
                         streamName));
         scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(3), map);
         scaleResponse = scaleResponseFuture.get();
-        if (scaleResponse.getStatus() != ScaleStreamStatus.PRECONDITION_FAILED) {
+        if (scaleResponse.getStatus() != ScaleStreamStatus.TXN_CONFLICT) {
             System.err.println("Scale stream while transaction is ongoing failed, exiting");
             return;
         }

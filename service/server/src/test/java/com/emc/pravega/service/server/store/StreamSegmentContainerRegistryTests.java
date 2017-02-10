@@ -34,6 +34,7 @@ import com.google.common.util.concurrent.AbstractService;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -257,7 +258,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
+        public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
             return null;
         }
 

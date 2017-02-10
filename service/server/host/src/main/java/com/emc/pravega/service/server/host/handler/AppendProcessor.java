@@ -155,7 +155,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     toAppend[i] = a.getData();
                     last = a;
                     iterator.remove();
-                }                
+                }
                 ByteBuf data = Unpooled.wrappedBuffer(toAppend);
                 append = new Append(last.getSegment(), writer, last.getEventNumber(), data, null);
             }
@@ -250,9 +250,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         int bytesWaiting;
         synchronized (lock) {
             bytesWaiting = waitingAppends.values()
-                .stream()
-                .mapToInt(a -> a.getData().readableBytes())
-                .sum();
+                    .stream()
+                    .mapToInt(a -> a.getData().readableBytes())
+                    .sum();
         }
         // Registered gauge value
         pendBytes.set(bytesWaiting);

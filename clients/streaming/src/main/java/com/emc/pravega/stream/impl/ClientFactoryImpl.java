@@ -43,7 +43,6 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import java.net.URI;
@@ -71,13 +70,11 @@ public class ClientFactoryImpl implements ClientFactory {
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
     }
 
-    @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
         this(scope, controller, new SegmentInputStreamFactoryImpl(controller, connectionFactory),
                 new SegmentOutputStreamFactoryImpl(controller, connectionFactory));
     }
     
-    @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, SegmentInputStreamFactory inFactory,
             SegmentOutputStreamFactory outFactory) {
         Preconditions.checkNotNull(scope);

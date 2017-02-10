@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Date;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -76,7 +77,7 @@ class HDFSStorage implements Storage {
 
     /**
      * Creates a new instance of the HDFSStorage class.
-     * @param config The configuration to use.
+     * @param config   The configuration to use.
      * @param executor The executor to use for running async operations.
      */
     HDFSStorage(HDFSStorageConfig config, Executor executor) {
@@ -125,7 +126,7 @@ class HDFSStorage implements Storage {
     //region Storage Implementation
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
         return supplyAsync(() -> createSync(streamSegmentName), streamSegmentName, "create");
     }
 
@@ -181,6 +182,7 @@ class HDFSStorage implements Storage {
                 this.config.getReplication(),
                 this.config.getBlockSize(),
                 null).close();
+
         return new StreamSegmentInformation(streamSegmentName,
                 0,
                 false,

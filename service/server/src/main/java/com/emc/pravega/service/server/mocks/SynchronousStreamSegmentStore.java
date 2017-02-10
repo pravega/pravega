@@ -24,6 +24,7 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -69,8 +70,8 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
-        CompletableFuture<Void> result = impl.createStreamSegment(streamSegmentName, timeout);
+    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
+        CompletableFuture<Void> result = impl.createStreamSegment(streamSegmentName, attributes, timeout);
         FutureHelpers.await(result);
         return result;
     }

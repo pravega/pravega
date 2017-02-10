@@ -36,6 +36,7 @@ import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Random;
 import java.util.concurrent.CancellationException;
@@ -225,7 +226,7 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         int length = MIN_SEGMENT_LENGTH + random.nextInt(MAX_SEGMENT_LENGTH - MIN_SEGMENT_LENGTH);
         byte[] segmentData = new byte[length];
         random.nextBytes(segmentData);
-        storage.create(SEGMENT_METADATA.getName(), TIMEOUT).join();
+        storage.create(SEGMENT_METADATA.getName(), Collections.emptyMap(), TIMEOUT).join();
         storage.write(SEGMENT_METADATA.getName(), 0, new ByteArrayInputStream(segmentData), segmentData.length, TIMEOUT).join();
         return segmentData;
     }

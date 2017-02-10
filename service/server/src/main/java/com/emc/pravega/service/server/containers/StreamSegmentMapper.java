@@ -37,7 +37,9 @@ import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -95,11 +97,12 @@ public class StreamSegmentMapper {
      * Creates a new StreamSegment with given name (in Storage) and assigns a unique internal Id to it.
      *
      * @param streamSegmentName The case-sensitive StreamSegment Name.
+     * @param attributes        Key Value metadata for the segment.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed normally.
      * If the operation failed, this will contain the exception that caused the failure.
      */
-    public CompletableFuture<Void> createNewStreamSegment(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> createNewStreamSegment(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewStreamSegment", streamSegmentName);
         long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
         if (isValidStreamSegmentId(streamId)) {
@@ -111,7 +114,7 @@ public class StreamSegmentMapper {
         // to get the same info about the StreamSegmentId.
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.storage
-                .create(streamSegmentName, timer.getRemaining())
+                .create(streamSegmentName, attributes, timer.getRemaining())
                 .thenCompose(si -> getOrAssignStreamSegmentId(si.getName(), timer.getRemaining()))
                 .thenAccept(id -> LoggerHelpers.traceLeave(log, traceObjectId, "createNewStreamSegment", traceId, streamSegmentName, id));
     }
@@ -162,7 +165,7 @@ public class StreamSegmentMapper {
         }
 
         return parentCheckFuture
-                .thenCompose(parentInfo -> this.storage.create(transactionName, timer.getRemaining()))
+                .thenCompose(parentInfo -> this.storage.create(transactionName, Collections.emptyMap(), timer.getRemaining()))
                 .thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentStreamSegmentId, timer.getRemaining()))
                 .thenApply(id -> {
                     LoggerHelpers.traceLeave(log, traceObjectId, "createNewTransactionStreamSegment", traceId, parentStreamSegmentName, transactionName, id);

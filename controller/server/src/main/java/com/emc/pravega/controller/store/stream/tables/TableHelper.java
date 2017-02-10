@@ -110,7 +110,12 @@ public class TableHelper {
         final Optional<IndexRecord> recordOpt = IndexRecord.search(timestamp, indexTable).getValue();
         final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
 
-        final Optional<HistoryRecord> record = findRecordInHistoryTable(startingOffset, timestamp, historyTable);
+        Optional<HistoryRecord> record = findRecordInHistoryTable(startingOffset, timestamp, historyTable);
+        if (timestamp == 0 && !record.isPresent()) {
+            // If timestamp has not been specified, its a special case, which implies
+            // beginning of stream. So return first record
+            record = HistoryRecord.readRecord(historyTable, 0);
+        }
         return record.isPresent() ? record.get().getSegments() : new ArrayList<>();
     }
 

@@ -17,10 +17,12 @@
  */
 package com.emc.pravega.controller.store.host;
 
+import com.emc.pravega.controller.RetryableException;
+
 /**
  * This exception is thrown on errors from the HostControllerStore implementation.
  */
-public class HostStoreException extends RuntimeException {
+public class HostStoreException extends RetryableException {
 
     /**
      * Create a HostStoreException using a text cause.

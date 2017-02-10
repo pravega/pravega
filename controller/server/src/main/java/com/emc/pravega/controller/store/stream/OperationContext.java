@@ -15,16 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.stream.tables;
+package com.emc.pravega.controller.store.stream;
 
-import lombok.Data;
+import java.io.Serializable;
 
-import java.util.UUID;
+/**
+ * Interface for defining an operation context.
+ * A context caches metadata fetches so within a context if for the same entity, multiple
+ * read operations against the store are requested, the values are served from the context's cache.
+ */
+public interface OperationContext extends Serializable {
 
-@Data
-public class ActiveTxRecordWithStream {
-    private final String scope;
-    private final String stream;
-    private final UUID txid;
-    private final ActiveTxRecord txRecord;
 }

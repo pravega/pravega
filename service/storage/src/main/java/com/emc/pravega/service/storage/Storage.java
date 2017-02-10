@@ -22,6 +22,7 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -32,6 +33,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * Creates a new StreamSegment in this Storage Layer.
      *
      * @param streamSegmentName The full name of the StreamSegment.
+     * @param attributes        The Key Value pair metadata.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been created (it will
      * contain a StreamSegmentInformation for a blank stream). If the operation failed, it will contain the cause of the
@@ -40,7 +42,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * <li> StreamSegmentExistsException: When the given Segment already exists in Storage.
      * </ul>
      */
-    CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout);
+    CompletableFuture<SegmentProperties> create(String streamSegmentName, Map<String, String> attributes, Duration timeout);
 
     /**
      * Writes the given data to the StreamSegment.

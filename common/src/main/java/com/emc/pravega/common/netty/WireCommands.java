@@ -14,7 +14,11 @@
  */
 package com.emc.pravega.common.netty;
 
-import static io.netty.buffer.Unpooled.wrappedBuffer;
+import com.google.common.base.Preconditions;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import lombok.Data;
+import lombok.experimental.Accessors;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -26,22 +30,17 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-import com.google.common.base.Preconditions;
-
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import lombok.Data;
-import lombok.experimental.Accessors;
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 /**
  * The complete list of all commands that go over the wire between clients and the server.
  * Each command is self-contained providing both it's serialization and deserialization logic.
  * Commands are not nested and contain only primitive types. The types are serialized in the obvious
  * way using Java's DataOutput and DataInput. All data is written BigEndian.
- * 
+ * <p>
  * Because length and type are detected externally these are not necessary for the classes to
  * supply.
- * 
+ * <p>
  * Compatible changes (i.e. Adding new members) that would not cause breakage if either the client or
  * the server were running older code can be made at any time.
  * Incompatible changes should instead create a new WireCommand object.
@@ -51,6 +50,7 @@ public final class WireCommands {
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
     public static final int MAX_WIRECOMMAND_SIZE = 0x007FFFFF; // 8MB
     private static final Map<Integer, WireCommandType> MAPPING;
+
     static {
         HashMap<Integer, WireCommandType> map = new HashMap<>();
         for (WireCommandType t : WireCommandType.values()) {
@@ -344,7 +344,7 @@ public final class WireCommands {
             return new AppendBlockEnd(connectionId, lastEventNumber, sizeOfHeaderlessAppends, wrappedBuffer(data));
         }
     }
-    
+
     @Data
     public static final class ConditionalAppend implements WireCommand {
         final WireCommandType type = WireCommandType.CONDITIONAL_APPEND;
@@ -352,7 +352,7 @@ public final class WireCommands {
         final long eventNumber;
         final long expectedOffset;
         final ByteBuf data;
-        
+
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
@@ -383,7 +383,7 @@ public final class WireCommands {
             return new ConditionalAppend(connectionId, eventNumber, expectedOffset, wrappedBuffer(data));
         }
     }
-    
+
 
     @Data
     public static final class AppendSetup implements Reply, WireCommand {
@@ -437,7 +437,7 @@ public final class WireCommands {
             return new DataAppended(connectionId, offset);
         }
     }
-    
+
     @Data
     public static final class ConditionalCheckFailed implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.CONDITIONAL_CHECK_FAILED;
@@ -503,7 +503,7 @@ public final class WireCommands {
         public void process(ReplyProcessor cp) {
             cp.segmentRead(this);
         }
-        
+
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeUTF(segment);
@@ -586,7 +586,7 @@ public final class WireCommands {
             return new StreamSegmentInfo(segmentName, exists, isSealed, isDeleted, lastModified, segmentLength);
         }
     }
-    
+
     @Data
     public static final class GetTransactionInfo implements Request, WireCommand {
         final WireCommandType type = WireCommandType.GET_TRANSACTION_INFO;
@@ -655,8 +655,14 @@ public final class WireCommands {
 
     @Data
     public static final class CreateSegment implements Request, WireCommand {
+        public static final byte IN_KBPS = (byte) 0;
+        public static final byte IN_EVENTS = (byte) 1;
+        public static final byte NO_SCALE = (byte) 2;
+
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
         final String segment;
+        final byte scaleType;
+        final long targetRate;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -666,11 +672,16 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeUTF(segment);
+            out.writeLong(targetRate);
+            out.writeByte(scaleType);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
-            return new CreateSegment(segment);
+            long desiredRate = in.readLong();
+            byte scaleType = in.readByte();
+
+            return new CreateSegment(segment, scaleType, desiredRate);
         }
     }
 
@@ -845,7 +856,6 @@ public final class WireCommands {
         }
     }
 
-    
     @Data
     public static final class SealSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
@@ -884,7 +894,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
-            return new SealSegment(segment);
+            return new SegmentSealed(segment);
         }
     }
 
@@ -892,7 +902,7 @@ public final class WireCommands {
     public static final class DeleteSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
         final String segment;
-        
+
         @Override
         public void process(RequestProcessor cp) {
             cp.deleteSegment(this);
@@ -905,7 +915,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
-            return new SealSegment(segment);
+            return new DeleteSegment(segment);
         }
     }
 
@@ -926,7 +936,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
-            return new SealSegment(segment);
+            return new SegmentDeleted(segment);
         }
     }
     
