@@ -122,7 +122,7 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String streamName) {
         log.debug("Invoke AdminService.Client.sealStream() for stream: {}", streamName);
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.alterStream_call> callback = new ThriftAsyncCallback<>();
+        final ThriftAsyncCallback<ControllerService.AsyncClient.sealStream_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
             client.sealStream(scope, streamName, callback);
             return null;
