@@ -28,8 +28,11 @@ import com.emc.pravega.controller.eventProcessor.StreamEvent;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.Position;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.common.util.concurrent.Service;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.InvocationTargetException;
@@ -47,6 +50,8 @@ class EventProcessorCell<T extends StreamEvent> {
 
     private final CheckpointStore checkpointStore;
 
+    @VisibleForTesting
+    @Getter(value = AccessLevel.PACKAGE)
     private EventProcessor<T> actor;
 
     /**

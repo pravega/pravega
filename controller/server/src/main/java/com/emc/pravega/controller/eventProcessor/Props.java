@@ -70,15 +70,29 @@ public class Props<T extends StreamEvent> {
     }
 
     private Optional<Constructor<? extends EventProcessor<T>>> getValidConstructor(Class<? extends EventProcessor<T>> clazz, Object... args) {
-        int n = args.length;
-        Class[] argumentTypes = new Class[n];
-        for (int i = 0; i < n; i++) {
-            argumentTypes[i] = args[i].getClass();
-        }
-        try {
-            return Optional.of(clazz.getConstructor(argumentTypes));
-        } catch (NoSuchMethodException e) {
+
+        if (args == null || args.length == 0) {
+
+            for (Constructor constructor : clazz.getConstructors()) {
+                if (constructor.getParameterCount() == 0) {
+                    return Optional.of(constructor);
+                }
+            }
             return Optional.empty();
+
+        } else {
+
+            int n = args.length;
+            Class[] argumentTypes = new Class[n];
+            for (int i = 0; i < n; i++) {
+                argumentTypes[i] = args[i].getClass();
+            }
+            try {
+                return Optional.of(clazz.getConstructor(argumentTypes));
+            } catch (NoSuchMethodException e) {
+                return Optional.empty();
+            }
+
         }
     }
 

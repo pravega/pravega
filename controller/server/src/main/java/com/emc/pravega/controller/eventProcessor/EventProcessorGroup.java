@@ -55,7 +55,7 @@ public interface EventProcessorGroup<T extends StreamEvent> {
     /**
      * Gets the list of physical representations of processes participating in
      * the logical EventProcessorGroup.
-     * @returns list of physical representations of processes participating
+     * @return list of physical representations of processes participating
      *          in the Logical EventProcessorGroup.
      */
     Set<String> getProcesses();
