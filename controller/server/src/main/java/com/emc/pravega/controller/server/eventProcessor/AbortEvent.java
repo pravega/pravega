@@ -36,7 +36,7 @@ public class AbortEvent implements StreamEvent {
         throw new NotImplementedException();
     }
 
-    public static Serializer<CommitEvent> getSerializer() {
+    public static Serializer<AbortEvent> getSerializer() {
         throw new NotImplementedException();
     }
 }

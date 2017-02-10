@@ -20,7 +20,6 @@ package com.emc.pravega.controller.eventProcessor.impl;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
 import com.emc.pravega.controller.eventProcessor.Decider;
-import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorInitException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorReinitException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
@@ -39,8 +38,6 @@ import java.lang.reflect.InvocationTargetException;
 class EventProcessorCell<T extends StreamEvent> {
 
     private final EventProcessorSystem actorSystem;
-
-    private final EventProcessorGroup<T> actorGroup;
 
     private final EventStreamReader<T> reader;
 
@@ -111,7 +108,7 @@ class EventProcessorCell<T extends StreamEvent> {
                 actor.beforeRestart(error, event);
 
                 // Now clean up the actor state by re-creating it and then invoke startUp.
-                actor = createAndSetupActor(props, actorGroup);
+                actor = createEventProcessor(props);
                 startUp();
 
             } catch (Exception e) {
@@ -173,19 +170,17 @@ class EventProcessorCell<T extends StreamEvent> {
     }
 
     EventProcessorCell(final EventProcessorSystem actorSystem,
-                       final EventProcessorGroup<T> actorGroup,
                        final Props<T> props,
                        final EventStreamReader<T> reader,
                        final String readerId,
                        final CheckpointStore checkpointStore) {
 
         this.actorSystem = actorSystem;
-        this.actorGroup = actorGroup;
         this.reader = reader;
         this.readerId = readerId;
         this.props = props;
         this.checkpointStore = checkpointStore;
-        this.actor = createAndSetupActor(props, actorGroup);
+        this.actor = createEventProcessor(props);
         this.delegate = new Delegate();
         this.state = new CheckpointState();
     }
@@ -207,12 +202,10 @@ class EventProcessorCell<T extends StreamEvent> {
         }
     }
 
-    private EventProcessor<T> createAndSetupActor(final Props<T> props,
-                                                  final EventProcessorGroup<T> actorGroup) {
+    private EventProcessor<T> createEventProcessor(final Props<T> props) {
         EventProcessor<T> temp;
         try {
             temp = props.getConstructor().newInstance(props.getArgs());
-            temp.setup(actorGroup.getSelf());
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException("Error instantiating Actor");
         }

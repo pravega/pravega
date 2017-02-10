@@ -28,6 +28,7 @@ import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
+import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
 import com.google.common.util.concurrent.AbstractService;
 import lombok.Synchronized;
@@ -68,7 +69,7 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
         readerGroup = createIfNotExists(
                 actorSystem.streamManager,
                 props.getConfig().getReaderGroupName(),
-                ReaderGroupConfig.builder().startingTime(0).build(),
+                ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build(),
                 Collections.singletonList(props.getConfig().getStreamName()));
 
         try {
@@ -105,7 +106,7 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
 
             // create a new actor, and add it to the list
             EventProcessorCell<T> actorCell =
-                    new EventProcessorCell<>(actorSystem, this, props, reader, readerId, checkpointStore);
+                    new EventProcessorCell<>(actorSystem, props, reader, readerId, checkpointStore);
             actors.add(actorCell);
         }
     }
@@ -113,17 +114,12 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
     @Override
     @Synchronized
     final protected void doStart() {
-        // If an exception is thrown while starting an actor, it will be
-        // processed by the ActorFailureListener. Current ActorFailureListener
-        // just logs failures encountered while starting.
         actors.stream().forEach(EventProcessorCell::startAsync);
     }
 
     @Override
     @Synchronized
     final protected void doStop() {
-        // If an exception is thrown while stopping an actor, it will be processed by the ActorFailureListener.
-        // Current ActorFailureListener just logs failures encountered while stopping.
         actors.stream().forEach(EventProcessorCell::stopAsync);
     }
 
@@ -133,6 +129,7 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
     }
 
     @Override
+    @Synchronized
     public void notifyProcessFailure(String process) {
         checkpointStore.getPositions(process, this.readerGroup.getGroupName())
                 .entrySet()

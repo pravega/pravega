@@ -18,18 +18,11 @@
 package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.controller.eventProcessor.StreamEvent;
-import com.emc.pravega.stream.EventStreamWriter;
 
 /**
  * Actor interface.
  */
 public abstract class EventProcessor<T extends StreamEvent> {
-
-    private EventStreamWriter<T> self;
-
-    void setup(EventStreamWriter<T> self) {
-        this.self = self;
-    }
 
     /**
      * AbstractActor initialization hook that is called before actor starts receiving events.
@@ -59,13 +52,5 @@ public abstract class EventProcessor<T extends StreamEvent> {
      * @throws Exception Exception thrown from user defined preStart method.
      */
     protected void beforeRestart(Throwable t, T event) throws Exception { }
-
-    /**
-     * Get a reference of the ActorGroup it is part of.
-     * @return ActorGroupRef.
-     */
-    protected final EventStreamWriter<T> getSelf() {
-        return this.self;
-    }
 
 }
