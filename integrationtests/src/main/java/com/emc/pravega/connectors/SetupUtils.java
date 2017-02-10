@@ -88,14 +88,14 @@ public final class SetupUtils {
     /**
      * Create the test stream.
      *
-     * @param streamName    Name of the test stream.
      * @param scope         Scope for the test stream.
+     * @param streamName    Name of the test stream.
      *
      * @throws Exception on any errors.
      */
     public static void createTestStream(final String scope, final String streamName) throws Exception {
-        Preconditions.checkNotNull(streamName);
         Preconditions.checkNotNull(scope);
+        Preconditions.checkNotNull(streamName);
 
         @Cleanup
         StreamManager streamManager = StreamManager.withScope(scope, CONTROLLER_URI);
@@ -126,7 +126,18 @@ public final class SetupUtils {
         log.info("Created stream: " + streamName);
     }
 
+    /**
+     * Create a stream writer for writing Integer events.
+     *
+     * @param scope         Scope for the test stream.
+     * @param streamName    Name of the test stream.
+     *
+     * @return Stream writer instance.
+     */
     public static EventStreamWriter<Integer> getIntegerWriter(final String scope, final String streamName) {
+        Preconditions.checkNotNull(scope);
+        Preconditions.checkNotNull(streamName);
+
         ClientFactory clientFactory = ClientFactory.withScope(scope, SetupUtils.CONTROLLER_URI);
         return clientFactory.createEventWriter(
                 streamName,
@@ -144,7 +155,18 @@ public final class SetupUtils {
                 new EventWriterConfig(null));
     }
 
+    /**
+     * Create a stream reader for reading Integer events.
+     *
+     * @param scope         Scope for the test stream.
+     * @param streamName    Name of the test stream.
+     *
+     * @return Stream reader instance.
+     */
     public static EventStreamReader<Integer> getIntegerReader(final String scope, final String streamName) {
+        Preconditions.checkNotNull(streamName);
+        Preconditions.checkNotNull(scope);
+
         StreamManager streamManager = StreamManager.withScope(scope, SetupUtils.CONTROLLER_URI);
         final String readerGroup = "testReaderGroup" + scope + streamName;
         streamManager.createReaderGroup(

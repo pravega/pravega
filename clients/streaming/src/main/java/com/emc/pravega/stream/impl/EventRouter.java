@@ -33,7 +33,6 @@ import lombok.RequiredArgsConstructor;
 public class EventRouter {
 
     private static final HashHelper HASHER = HashHelper.seededWith("EventRouter");
-
     private final Stream stream;
     private final Controller controller;
     private final AtomicReference<StreamSegments> currentSegments = new AtomicReference<>();
