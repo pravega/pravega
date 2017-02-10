@@ -249,7 +249,12 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public void updateAttributes(Map<UUID, Long> attributes) {
         for (Map.Entry<UUID, Long> av : attributes.entrySet()) {
-            this.attributes.put(av.getKey(), av.getValue());
+            long value = av.getValue();
+            if (value == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                this.attributes.remove(av.getKey());
+            } else {
+                this.attributes.put(av.getKey(), value);
+            }
         }
     }
 

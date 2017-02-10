@@ -45,6 +45,7 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -408,6 +409,12 @@ public class OperationMetadataUpdaterTests {
     @Test
     public void testAcceptStreamSegmentSeal() throws Exception {
         UpdateableContainerMetadata metadata = createMetadata();
+
+        // Set some attributes.
+        val segmentAttributes = createAttributes();
+        segmentAttributes.put(Attribute.CREATION_TIME.getId(), 1L);
+        UpdateableSegmentMetadata segmentMetadata = metadata.getStreamSegmentMetadata(SEGMENT_ID);
+        segmentMetadata.updateAttributes(segmentAttributes);
         OperationMetadataUpdater updater = createUpdater(metadata);
         StreamSegmentSealOperation sealOp = createSeal();
 
@@ -424,7 +431,13 @@ public class OperationMetadataUpdaterTests {
         updater.preProcessOperation(sealOp);
         updater.acceptOperation(sealOp);
         Assert.assertTrue("acceptOperation did not update the transaction.", updater.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
-        Assert.assertFalse("acceptOperation updated the metadata.", metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
+        Assert.assertFalse("acceptOperation updated the metadata.", segmentMetadata.isSealed());
+
+        updater.commit();
+
+        // Check attributes.
+        segmentAttributes.keySet().removeIf(Attribute::isDynamic); // All dynamic attributes should be removed.
+        SegmentMetadataComparer.assertSameAttributes("Unexpected set of attributes after commit.", segmentAttributes, segmentMetadata);
     }
 
     //endregion
@@ -799,6 +812,7 @@ public class OperationMetadataUpdaterTests {
         operations.add(createSeal());
 
         UpdateableContainerMetadata metadata = createMetadata();
+        metadata.getStreamSegmentMetadata(SEGMENT_ID).updateAttributes(Collections.singletonMap(Attribute.CREATION_TIME.getId(), 0L));
         OperationMetadataUpdater updater = createUpdater(metadata);
         for (StorageOperation op : operations) {
             updater.preProcessOperation(op);
@@ -815,6 +829,8 @@ public class OperationMetadataUpdaterTests {
         SegmentMetadata transactionMetadata = metadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID);
         Assert.assertTrue("Unexpected value for isSealed in Transaction metadata after commit.", transactionMetadata.isSealed());
         Assert.assertTrue("Unexpected value for isMerged in metadata after commit.", transactionMetadata.isMerged());
+        Assert.assertEquals("Unexpected number of attributes for parent segment.", 1, parentMetadata.getAttributes().size());
+        Assert.assertEquals("Unexpected number of attributes for transaction.", 0, transactionMetadata.getAttributes().size());
     }
 
     /**
@@ -950,7 +966,7 @@ public class OperationMetadataUpdaterTests {
 
     private Collection<AttributeUpdate> createAttributeUpdates() {
         return Arrays.stream(DEFAULT_ATTRIBUTES).map(a -> new AttributeUpdate(a, NEXT_ATTRIBUTE_VALUE.get()))
-                     .collect(Collectors.toList());
+                .collect(Collectors.toList());
     }
 
     private Map<UUID, Long> createAttributes() {

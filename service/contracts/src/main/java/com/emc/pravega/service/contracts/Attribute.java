@@ -107,9 +107,18 @@ public class Attribute {
      * @throws IllegalArgumentException If attributeId.getMostSignificantBits() matches the WELL_KNOWN_ID_PREFIX.
      */
     public static Attribute dynamic(UUID attributeId, Attribute.UpdateType updateType) {
-        Preconditions.checkArgument(attributeId.getMostSignificantBits() != WELL_KNOWN_ID_PREFIX,
-                "Cannot create a dynamic Attribute with a Well-Known Id Prefix.");
+        Preconditions.checkArgument(isDynamic(attributeId), "Cannot create a dynamic Attribute with a Well-Known Id Prefix.");
         return new Attribute(attributeId, updateType);
+    }
+
+    /**
+     * Determines whether the given Attribute Id refers to a dynamic attribute (vs a well-known one).
+     *
+     * @param attributeId The Attribute Id to test.
+     * @return True if dynamic, false otherwise.
+     */
+    public static boolean isDynamic(UUID attributeId) {
+        return attributeId.getMostSignificantBits() != WELL_KNOWN_ID_PREFIX;
     }
 
     //region UpdateType

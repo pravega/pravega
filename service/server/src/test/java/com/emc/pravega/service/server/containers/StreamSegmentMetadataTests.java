@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.containers;
 
+import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.SegmentMetadataComparer;
 import com.emc.pravega.testcommon.AssertExtensions;
 import java.util.Date;
@@ -71,6 +72,13 @@ public class StreamSegmentMetadataTests {
         attributeUpdates.forEach(expectedAttributes::put);
         metadata.updateAttributes(attributeUpdates);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after update.", expectedAttributes, metadata);
+
+        // Step 3: Remove all attributes.
+        val attributesToRemove = new HashMap<UUID, Long>();
+        expectedAttributes.forEach((id, value) -> attributesToRemove.put(id, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+        metadata.updateAttributes(attributesToRemove);
+        expectedAttributes.clear();
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after removal.", expectedAttributes, metadata);
     }
 
     /**

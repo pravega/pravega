@@ -1100,6 +1100,15 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             this.sealed = true;
+
+            // Clear all dynamic attributes.
+            this.updatedAttributeValues.keySet().removeIf(Attribute::isDynamic);
+            for (UUID attributeId : this.baseMetadata.getAttributes().keySet()) {
+                if (Attribute.isDynamic(attributeId)) {
+                    this.updatedAttributeValues.put(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+                }
+            }
+
             this.isChanged = true;
         }
 
