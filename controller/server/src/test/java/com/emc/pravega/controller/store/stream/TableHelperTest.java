@@ -70,6 +70,9 @@ public class TableHelperTest {
 
         activeSegments = TableHelper.getActiveSegments(timestamp, new byte[0], historyTable);
         assertEquals(newSegments, activeSegments);
+
+        activeSegments = TableHelper.getActiveSegments(0, new byte[0], historyTable);
+        assertEquals(newSegments, activeSegments);
     }
 
     private Segment getSegment(int number, List<Segment> segments) {
