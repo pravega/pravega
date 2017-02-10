@@ -22,6 +22,9 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.common.metrics.MetricsConfig;
+import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.StatsProvider;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -33,18 +36,13 @@ import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.slf4j.LoggerFactory;
-
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicReference;
-
-import com.emc.pravega.common.metrics.MetricsConfig;
-import com.emc.pravega.common.metrics.StatsProvider;
-import com.emc.pravega.common.metrics.MetricsProvider;
 
 /**
  * Starts the Pravega Service.
@@ -64,14 +62,14 @@ public final class ServiceStarter {
 
     //region Constructor
 
-    private ServiceStarter(ServiceBuilderConfig config) {
+    public ServiceStarter(ServiceBuilderConfig config) {
         this.builderConfig = config;
         this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::new);
         Options opt = new Options();
-        opt.distributedLog = false;
-        opt.hdfs = false;
+        opt.distributedLog = true;
+        opt.hdfs = true;
         opt.rocksDb = true;
-        opt.zkSegmentManager = false;
+        opt.zkSegmentManager = true;
         this.serviceBuilder = createServiceBuilder(opt);
     }
 
@@ -100,7 +98,7 @@ public final class ServiceStarter {
 
     //region Service Operation
 
-    private void start() {
+    public void start() {
         Exceptions.checkNotClosed(this.closed, this);
 
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
@@ -108,10 +106,7 @@ public final class ServiceStarter {
         context.getLoggerList().get(0).setLevel(Level.INFO);
 
         log.info("Initializing metrics provider ...");
-        statsProvider = metricsConfig.enableStatistics() ?
-                        MetricsProvider.getProvider() :
-                        MetricsProvider.getNullProvider();
-
+        statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.start(metricsConfig);
 
         log.info("Initializing Service Builder ...");
@@ -126,7 +121,7 @@ public final class ServiceStarter {
         log.info("StreamSegmentService started.");
     }
 
-    private void shutdown() {
+    public void shutdown() {
         if (!this.closed) {
             this.serviceBuilder.close();
             log.info("StreamSegmentService shut down.");
@@ -189,8 +184,11 @@ public final class ServiceStarter {
     }
 
     private CuratorFramework createZKClient() {
-        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(this.serviceConfig.getZkHostName() + ":" + this.serviceConfig.getZkPort(),
-                new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()));
+        CuratorFramework zkClient = CuratorFrameworkFactory.builder()
+                .connectString(this.serviceConfig.getZkHostName() + ":" + this.serviceConfig.getZkPort())
+                .namespace("pravega/" + this.serviceConfig.getClusterName())
+                .retryPolicy(new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()))
+                .build();
         zkClient.start();
         return zkClient;
     }

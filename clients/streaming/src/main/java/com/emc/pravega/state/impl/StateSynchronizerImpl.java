@@ -74,9 +74,8 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             Entry<Revision, UpdateOrInit<StateT>> entry = iter.next();
             if (entry.getValue().isInit()) {
                 InitialUpdate<StateT> init = entry.getValue().getInit();
-                Revision revision = entry.getValue().getInitRevision();
-                if (isNewer(revision)) {
-                    updateCurrentState(init.create(segment.getScopedStreamName(), revision));
+                if (isNewer(entry.getKey())) {
+                    updateCurrentState(init.create(segment.getScopedStreamName(), entry.getKey()));
                 }
             } else {
                 applyUpdates(entry.getKey().asImpl(), entry.getValue().getUpdates());
@@ -84,11 +83,11 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
         }
     }
 
-    private void applyUpdates(RevisionImpl readRevision, List<? extends Update<StateT>> updates) {
+    private void applyUpdates(Revision readRevision, List<? extends Update<StateT>> updates) {
         int i = 0;
         for (Update<StateT> update : updates) {
             StateT state = getState();
-            RevisionImpl newRevision = new RevisionImpl(segment, readRevision.getOffsetInSegment(), i++);
+            RevisionImpl newRevision = new RevisionImpl(segment, readRevision.asImpl().getOffsetInSegment(), i++);
             if (newRevision.compareTo(state.getRevision()) > 0) {
                 updateCurrentState(update.applyTo(state, newRevision));
             }
@@ -97,20 +96,10 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Override
     public void updateState(Function<StateT, List<? extends Update<StateT>>> updateGenerator) {
-        while (true) {
-            StateT state = getState();
-            List<? extends Update<StateT>> updates = updateGenerator.apply(state);
-            if (updates == null || updates.isEmpty()) {
-                break;
-            }
-            Revision newRevision = client.writeConditionally(state.getRevision(), new UpdateOrInit<>(updates));
-            if (newRevision == null) {
-                fetchUpdates();
-            } else {
-                applyUpdates(newRevision.asImpl(), updates);
-                break;
-            }
-        }
+        conditionallyWrite(state -> {
+            List<? extends Update<StateT>> update = updateGenerator.apply(state);
+            return (update == null || update.isEmpty()) ? null : new UpdateOrInit<>(update);
+        });
     }
 
     @Override
@@ -125,7 +114,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Override
     public void initialize(InitialUpdate<StateT> initial) {
-        Revision result = client.writeConditionally(initialRevision, new UpdateOrInit<>(initial, initialRevision));
+        Revision result = client.writeConditionally(initialRevision, new UpdateOrInit<>(initial));
         if (result == null) {
             fetchUpdates();
         } else {
@@ -134,10 +123,40 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     }
 
     @Override
-    public void compact(Revision revision, InitialUpdate<StateT> compaction) {
-        client.writeUnconditionally(new UpdateOrInit<>(compaction, revision));
+    public void compact(Function<StateT, InitialUpdate<StateT>> compactor) {
+        conditionallyWrite(state -> {
+            InitialUpdate<StateT> init = compactor.apply(state);
+            return init == null ? null : new UpdateOrInit<>(init);
+        });
     }
     
+    private void conditionallyWrite(Function<StateT, UpdateOrInit<StateT>> generator) {
+        while (true) {
+            StateT state = getState();
+            if (state == null) {
+                fetchUpdates();
+                state = getState();
+                if (state == null) {
+                    throw new IllegalStateException("Write was called before the state was initialized.");
+                }
+            }
+            Revision revision = state.getRevision();
+            UpdateOrInit<StateT> toWrite = generator.apply(state);
+            if (toWrite == null) {
+                break;
+            }
+            Revision newRevision = client.writeConditionally(revision, toWrite);
+            if (newRevision == null) {
+                fetchUpdates();
+            } else {
+                if (!toWrite.isInit()) {
+                    applyUpdates(newRevision, toWrite.getUpdates());
+                }
+                break;
+            }
+        }
+    }
+     
     @Synchronized
     private boolean isNewer(Revision revision) {
         return currentState == null || currentState.getRevision().compareTo(revision) < 0;

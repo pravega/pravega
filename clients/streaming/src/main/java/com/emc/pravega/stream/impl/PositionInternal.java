@@ -59,13 +59,4 @@ public abstract class PositionInternal implements Position {
      */
     abstract Long getOffsetForOwnedSegment(Segment segmentId);
 
-    /**
-     * Gets the future owned segments for this position.
-     */
-    abstract Set<FutureSegment> getFutureOwnedSegments();
-
-    /**
-     * Returns all future owned segments associated with the offset they should be read from once their preceding segment is complete.
-     */
-    abstract Map<FutureSegment, Long> getFutureOwnedSegmentsWithOffsets();
 }

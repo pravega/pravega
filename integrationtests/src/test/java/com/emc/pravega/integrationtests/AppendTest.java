@@ -15,9 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.emc.pravega.integrationtests;
 
+import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.AppendDecoder;
@@ -52,12 +52,16 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.stream.mock.MockController;
+import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.TestUtils;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.After;
 import org.junit.Before;
@@ -66,6 +70,7 @@ import org.junit.Test;
 import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -89,7 +94,7 @@ public class AppendTest {
     public void setup() throws Exception {
         originalLevel = ResourceLeakDetector.getLevel();
         ResourceLeakDetector.setLevel(Level.PARANOID);
-        InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
+        InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         this.serviceBuilder.initialize().get();
     }
@@ -166,7 +171,7 @@ public class AppendTest {
     static EmbeddedChannel createChannel(StreamSegmentStore store) {
         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
         EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
-                new CommandEncoder(),
+                new CommandEncoder(null),
                 new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                 new CommandDecoder(),
                 new AppendDecoder(),
@@ -202,8 +207,7 @@ public class AppendTest {
         SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, null);
         CompletableFuture<Boolean> ack = new CompletableFuture<>();
         out.write(ByteBuffer.wrap(testString.getBytes()), ack);
-        out.flush();
-        assertEquals(true, ack.get(5, TimeUnit.SECONDS));
+        assertTrue(ack.get(5, TimeUnit.SECONDS));
     }
 
     /**
@@ -211,7 +215,7 @@ public class AppendTest {
      * @throws InterruptedException in case of interruption.
      */
     @Test
-    public void appendThroughStreamingClient() throws InterruptedException {
+    public void appendThroughStreamingClient() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "abc";
         int port = TestUtils.randomPort();
@@ -220,11 +224,49 @@ public class AppendTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-
+        @Cleanup
         MockClientFactory clientFactory = new MockClientFactory("Scope", endpoint, port);
-        clientFactory.createStream(streamName, null);
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
+        streamManager.createStream(streamName, null);
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), new EventWriterConfig(null));
-        producer.writeEvent("RoutingKey", testString);
-        producer.flush();
+        Future<Void> ack = producer.writeEvent("RoutingKey", testString);
+        ack.get(5, TimeUnit.SECONDS);
     }
+    
+    @Test
+    public void miniBenchmark() throws InterruptedException, ExecutionException, TimeoutException {
+        String endpoint = "localhost";
+        String streamName = "abc";
+        int port = TestUtils.randomPort();
+        String testString = "Hello world\n";
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+        @Cleanup
+        MockClientFactory clientFactory = new MockClientFactory("Scope", endpoint, port);
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
+        streamManager.createStream(streamName, null);
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), new EventWriterConfig(null));
+        long blockingTime = timeWrites(testString, 200, producer, true);
+        long nonBlockingTime = timeWrites(testString, 1000, producer, false);
+        System.out.println("Blocking took: " + blockingTime + "ms.");
+        System.out.println("Non blocking took: " + nonBlockingTime + "ms.");        
+    }
+
+    private long timeWrites(String testString, int number, EventStreamWriter<String> producer, boolean synchronous)
+            throws InterruptedException, ExecutionException, TimeoutException {
+        Timer timer = new Timer();
+        for (int i = 0; i < number; i++) {
+            Future<Void> ack = producer.writeEvent("RoutingKey", testString);
+            if (synchronous) {
+                ack.get(5, TimeUnit.SECONDS);
+            }
+        }
+        producer.flush();
+        return timer.getElapsedMillis();
+    }
+    
 }

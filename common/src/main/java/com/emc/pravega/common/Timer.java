@@ -25,7 +25,7 @@ import java.time.Duration;
  */
 public class Timer {
     private static final int NANOS_TO_MILLIS = 1000 * 1000;
-    private final long startNanos;
+    private volatile long startNanos;
 
     /**
      * Creates a new instance of the Timer class.
@@ -34,6 +34,13 @@ public class Timer {
         this.startNanos = System.nanoTime();
     }
 
+    /**
+     * Resets the time so that zero time has elapsed.
+     */
+    public void reset() {
+        startNanos = System.nanoTime();
+    }
+    
     /**
      * Gets the elapsed time, in milliseconds, since the creation of this Timer instance.
      * @return total milliseconds elapsed since creation of this timer

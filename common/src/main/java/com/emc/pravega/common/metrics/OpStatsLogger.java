@@ -28,38 +28,38 @@ public interface OpStatsLogger {
      *
      * @param duration the event latency
      */
-    public void reportSuccessEvent(Duration duration);
+    void reportSuccessEvent(Duration duration);
 
     /**
      * Increment the succeeded op counter with the given eventLatency in NanoSeconds.
      *
      * @param duration the event latency
      */
-    public void reportFailEvent(Duration duration);
+    void reportFailEvent(Duration duration);
 
     /**
      * An operation with the given value succeeded.
      *
      * @param value the value
      */
-    public void reportSuccessValue(long value);
+    void reportSuccessValue(long value);
 
     /**
      * An operation with the given value failed.
      *
      * @param value the value
      */
-    public void reportFailValue(long value);
+    void reportFailValue(long value);
 
     /**
      * To op Stats data. Need this function to support JMX exports and inner test.
      *
      * @return Returns an OpStatsData object with necessary values.
      */
-    public OpStatsData toOpStatsData();
+    OpStatsData toOpStatsData();
 
     /**
      * Clear stats for this operation.
      */
-    public void clear();
+    void clear();
 }

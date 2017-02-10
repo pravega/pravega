@@ -1,0 +1,13 @@
+# According to the gitattributes documentation: This setting forces Git
+# to normalize line endings to LF on checkin and prevents conversion
+# to CRLF when the file is checked out.
+* text=lf
+
+# Normalized files
+*.java text
+*.xml text
+*.sh text
+
+# Files that should keep CRLF line endings
+*.bat text eol=crlf
+

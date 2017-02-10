@@ -24,13 +24,14 @@ import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Manages the lifecycle of Cache Entries. Decides which entries are to be kept in memory and which are eligible for
@@ -45,10 +46,12 @@ import java.util.concurrent.TimeUnit;
  * The CacheManager Clients can use this information to evict those Cache Entries that have a generation below the oldest generation number.
  */
 @Slf4j
+@ThreadSafe
 public class CacheManager extends AbstractScheduledService implements AutoCloseable {
     //region Members
 
     private static final String TRACE_OBJECT_ID = "CacheManager";
+    @GuardedBy("clients")
     private final Collection<Client> clients;
     private final ScheduledExecutorService executorService;
     private int currentGeneration;
@@ -308,11 +311,16 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     }
 
     private void logCurrentStatus(CacheStatus status) {
+        int size;
+        synchronized (this.clients) {
+            size = this.clients.size();
+        }
+
         log.info("{} Current Generation = {}, Oldest Generation = {}, Clients = {},  CacheSize = {} MB",
                 TRACE_OBJECT_ID,
                 this.currentGeneration,
                 this.oldestGeneration,
-                this.clients.size(),
+                size,
                 status.getSize() / 1048576);
     }
 

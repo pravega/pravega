@@ -95,7 +95,7 @@ public interface RequestProcessor {
      *
      * @param dropTransaction A wire command to drop a transaction.
      */
-    void abortTransaction(AbortTransaction dropTransaction);
+    void abortTransaction(AbortTransaction abortTransaction);
 
     /**
      * A request to seal a segment.

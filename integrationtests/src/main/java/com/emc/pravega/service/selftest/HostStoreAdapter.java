@@ -28,7 +28,7 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.impl.ByteArraySerializer;
-import com.emc.pravega.stream.mock.MockClientFactory;
+import com.emc.pravega.stream.mock.MockStreamManager;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -49,7 +49,7 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     private final boolean autoFlush;
     private final ConcurrentHashMap<String, EventStreamWriter<byte[]>> producers;
     private PravegaConnectionListener listener;
-    private MockClientFactory clientFactory;
+    private MockStreamManager streamManager;
 
     /**
      * Creates a new instance of the HostStoreAdapter class.
@@ -72,9 +72,9 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
         this.producers.values().forEach(EventStreamWriter::close);
         this.producers.clear();
 
-        if (this.clientFactory != null) {
-            this.clientFactory.close();
-            this.clientFactory = null;
+        if (this.streamManager != null) {
+            this.streamManager.close();
+            this.streamManager = null;
         }
 
         if (this.listener != null) {
@@ -102,7 +102,7 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
                     .thenAccept(v -> {
                         this.listener = new PravegaConnectionListener(false, this.listeningPort, getStreamSegmentStore());
                         this.listener.startListening();
-                        this.clientFactory = new MockClientFactory(SCOPE, LISTENING_ADDRESS, this.listeningPort);
+                        this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, this.listeningPort);
                         TestLogger.log(LOG_ID, "Initialized.");
                     });
     }
@@ -115,8 +115,11 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
                 throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
             }
 
-            this.clientFactory.createStream(streamSegmentName, null);
-            EventStreamWriter<byte[]> producer = this.clientFactory.createEventWriter(streamSegmentName, new ByteArraySerializer(), new EventWriterConfig(null));
+            streamManager.createStream(streamSegmentName, null);
+            EventStreamWriter<byte[]> producer = streamManager.getClientFactory()
+                                                              .createEventWriter(streamSegmentName,
+                                                                                 new ByteArraySerializer(),
+                                                                                 new EventWriterConfig(null));
             this.producers.putIfAbsent(streamSegmentName, producer);
         }, this.testExecutor);
     }

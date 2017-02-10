@@ -26,7 +26,8 @@ import lombok.Getter;
 public class ReaderGroupConfig {
    @Getter
    private final Sequence startingPosition;
-
+   private final long groupRefreshTimeMillis;
+   
    public static class ReaderGroupConfigBuilder {
 
        /**

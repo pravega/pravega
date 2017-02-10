@@ -15,10 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.emc.pravega.common;
 
 import com.google.common.base.Preconditions;
+
+import java.util.Collection;
+
 import lombok.SneakyThrows;
 
 /**
@@ -114,6 +116,21 @@ public final class Exceptions {
     public static void checkNotNullOrEmpty(String arg, String argName) throws NullPointerException, IllegalArgumentException {
         Preconditions.checkNotNull(arg, argName);
         checkArgument(arg.length() > 0, argName, "Cannot be an empty string.");
+    }
+    
+    /**
+     * Throws a NullPointerException if the arg argument is null. Throws an IllegalArgumentException if the Collections arg
+     * argument has a size of zero.
+     *
+     * @param <T>     The type of elements in the provided collection.
+     * @param arg     The argument to check.
+     * @param argName The name of the argument (to be included in the exception message).
+     * @throws NullPointerException     If arg is null.
+     * @throws IllegalArgumentException If arg is not null, but has a length of zero.
+     */
+    public static <T> void checkNotNullOrEmpty(Collection<T> arg, String argName) throws NullPointerException, IllegalArgumentException {
+        Preconditions.checkNotNull(arg, argName);
+        checkArgument(!arg.isEmpty(), argName, "Cannot be an empty collection.");
     }
 
     /**

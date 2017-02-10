@@ -15,19 +15,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package com.emc.pravega.common.util;
+package com.emc.pravega.common.metrics;
 
 /**
- * Defines a generic entry into an Index.
- *
- * @param <K> The Type of the key.
+ * A simple interface that only exposes simple type metrics: Counter/Gauge.
  */
-public interface IndexEntry<K> {
+public interface DynamicLogger {
+
     /**
-     * Gets a value representing the key of the entry. The Key should not change for the lifetime of the entry and
-     * should be very cheap to return (as it is used very frequently).
-     * @return the key of the entry.
+     * Increase Counter with value <i>delta</i> .
+     *
+     * @param name  the name of Counter
+     * @param delta the delta to be added
      */
-    K key();
+    void incCounterValue(String name, long delta);
+
+    /**
+     * Report gauge value.
+     *
+     * @param <T>   the type of value
+     * @param name  the name of gauge
+     * @param value the value to be reported
+     */
+    <T extends Number> void reportGaugeValue(String name, T value);
+
+    /**
+     * Record the occurrence of a given number of events in Meter.
+     *
+     * @param name   the name of Meter
+     * @param number the number of events occurrence
+     */
+    void recordMeterEvents(String name, long number);
 }

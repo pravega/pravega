@@ -21,7 +21,7 @@ package com.emc.pravega.common.util;
 import java.util.function.Consumer;
 
 /**
- * Defines an Index that orders its IndexEntries by a Key.
+ * Defines an Index that orders its IndexEntries by an Int64 (long) Key.
  * <p>
  * Notes:
  * <ul>
@@ -31,10 +31,9 @@ import java.util.function.Consumer;
  * a null value can be safely interpreted as no result found.
  * </ul>
  *
- * @param <K> The type of the Key.
  * @param <V> The type of the IndexEntries.
  */
-public interface SortedIndex<K, V extends IndexEntry<K>> {
+public interface SortedIndex<V extends SortedIndex.IndexEntry> {
     /**
      * Clears the contents of the Index.
      */
@@ -54,7 +53,7 @@ public interface SortedIndex<K, V extends IndexEntry<K>> {
      * @param key The key of the item to remove.
      * @return The removed item, or null if nothing was removed.
      */
-    V remove(K key);
+    V remove(long key);
 
     /**
      * Gets a value indicating the number of items in the Index.
@@ -68,7 +67,7 @@ public interface SortedIndex<K, V extends IndexEntry<K>> {
      * @param key The key to search by.
      * @return The requested item, if it exists, or null if it doesn't.
      */
-    V get(K key);
+    V get(long key);
 
     /**
      * Gets the smallest item whose key is greater than or equal to the given key.
@@ -76,7 +75,7 @@ public interface SortedIndex<K, V extends IndexEntry<K>> {
      * @param key the Key to search by.
      * @return The sought item, or null if it doesn't exist.
      */
-    V getCeiling(K key);
+    V getCeiling(long key);
 
     /**
      * Gets the largest item whose key is smaller than or equal to the given key.
@@ -84,7 +83,7 @@ public interface SortedIndex<K, V extends IndexEntry<K>> {
      * @param key the Key to search by.
      * @return The sought item, or null if it doesn't exist.
      */
-    V getFloor(K key);
+    V getFloor(long key);
 
     /**
      * Gets the smallest item in the index.
@@ -107,4 +106,15 @@ public interface SortedIndex<K, V extends IndexEntry<K>> {
      * @throws java.util.ConcurrentModificationException If the Index is modified while this method is executing.
      */
     void forEach(Consumer<V> consumer);
+
+    /**
+     * Defines a generic entry into an Index.
+     */
+    interface IndexEntry {
+        /**
+         * Gets a value representing the key of the entry. The Key should not change for the lifetime of the entry and
+         * should be very cheap to return (as it is used very frequently).
+         */
+        long key();
+    }
 }

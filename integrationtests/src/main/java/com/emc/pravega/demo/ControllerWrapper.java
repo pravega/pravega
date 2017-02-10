@@ -18,6 +18,7 @@
 
 package com.emc.pravega.demo;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.StoreClient;
@@ -40,27 +41,31 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.PositionInternal;
 import com.emc.pravega.stream.impl.StreamSegments;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
-import org.apache.thrift.TException;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
+import org.apache.thrift.TException;
 
 public class ControllerWrapper implements Controller {
 
@@ -144,13 +149,21 @@ public class ControllerWrapper implements Controller {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> commitTransaction(Stream stream, UUID txnId) {
-        return controller.commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId));
+    public CompletableFuture<Void> commitTransaction(Stream stream, UUID txId) {
+        return FutureHelpers.toVoidExpecting(controller.commitTransaction(stream.getScope(),
+                                                                          stream.getStreamName(),
+                                                                          ModelHelper.decode(txId)),
+                                             TxnStatus.SUCCESS,
+                                             TxnFailedException::new);
     }
 
     @Override
-    public CompletableFuture<TxnStatus> dropTransaction(Stream stream, UUID txnId) {
-        return controller.dropTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId));
+    public CompletableFuture<Void> abortTransaction(Stream stream, UUID txId) {
+        return FutureHelpers.toVoidExpecting(controller.abortTransaction(stream.getScope(),
+                                                                        stream.getStreamName(),
+                                                                        ModelHelper.decode(txId)),
+                                             TxnStatus.SUCCESS,
+                                             TxnFailedException::new);
     }
 
     @Override
@@ -172,12 +185,14 @@ public class ControllerWrapper implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<PositionInternal>> updatePositions(Stream stream, List<PositionInternal> positions) {
-        final List<com.emc.pravega.controller.stream.api.v1.Position> transformed =
-                positions.stream().map(ModelHelper::decode).collect(Collectors.toList());
-
-        return controller.updatePositions(stream.getScope(), stream.getStreamName(), transformed)
-                .thenApply(result -> result.stream().map(ModelHelper::encode).collect(Collectors.toList()));
+    public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(final Segment segment) {
+        return controller.getSegmentsImmediatlyFollowing(ModelHelper.decode(segment)).thenApply(successors -> {
+            Map<Segment, List<Integer>> result = new HashMap<>();
+            for (Entry<SegmentId, List<Integer>> successor : successors.entrySet()) {
+                result.put(ModelHelper.encode(successor.getKey()), successor.getValue());
+            }
+            return result;
+        });
     }
 
     @Override
@@ -191,13 +206,5 @@ public class ControllerWrapper implements Controller {
         }
     }
 
-    @Override
-    public CompletableFuture<Boolean> isSegmentValid(String scope, String stream, int segmentNumber) {
-        try {
-            return controller.isSegmentValid(scope, stream, segmentNumber);
-        } catch (TException e) {
-            throw new RuntimeException(e);
-        }
-    }
 }
 

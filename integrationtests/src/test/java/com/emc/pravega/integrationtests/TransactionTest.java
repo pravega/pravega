@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.service.contracts.StreamSegmentStore;
@@ -23,17 +22,18 @@ import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.EventStreamReader;
-import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.mock.MockClientFactory;
+import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.TestUtils;
 
 import java.io.Serializable;
+import java.util.Collections;
 
 import org.junit.After;
 import org.junit.Before;
@@ -59,7 +59,7 @@ public class TransactionTest {
     public void setup() throws Exception {
         originalLevel = ResourceLeakDetector.getLevel();
         ResourceLeakDetector.setLevel(Level.PARANOID);
-        InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
+        InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         this.serviceBuilder.initialize().get();
     }
@@ -80,6 +80,8 @@ public class TransactionTest {
     @Test
     public void testTransactionalWritesOrderedCorrectly() throws TxnFailedException {
         int readTimeout = 5000;
+        String readerName = "reader";
+        String groupName = "group";
         String endpoint = "localhost";
         String streamName = "abc";
         int port = TestUtils.randomPort();
@@ -90,13 +92,15 @@ public class TransactionTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-
-        MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
-        clientFactory.createStream(streamName, null);
         @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName,
-                                                                 new JavaSerializer<>(),
-                                                                 new EventWriterConfig(null));
+        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
+        streamManager.createStream(streamName, null);
+        streamManager.createReaderGroup(groupName, null, Collections.singletonList(streamName));
+        @Cleanup
+        EventStreamWriter<String> producer = streamManager.getClientFactory()
+                                                          .createEventWriter(streamName,
+                                                                             new JavaSerializer<>(),
+                                                                             new EventWriterConfig(null));
         producer.writeEvent(routingKey, nonTxEvent);
         Transaction<String> transaction = producer.beginTxn(60000);
         producer.writeEvent(routingKey, nonTxEvent);
@@ -115,13 +119,12 @@ public class TransactionTest {
         transaction.writeEvent(routingKey, txnEvent);
         transaction.commit();
         producer.writeEvent(routingKey, nonTxEvent);
-        AssertExtensions.assertThrows(IllegalStateException.class,
-                                      () -> transaction.writeEvent(routingKey, txnEvent));
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.writeEvent(routingKey, txnEvent));
 
-        EventStreamReader<Serializable> consumer = clientFactory.createReader(streamName,
-                                                                       new JavaSerializer<>(),
-                                                                       new ReaderConfig(),
-                                                                       clientFactory.getInitialPosition(streamName));
+        EventStreamReader<Serializable> consumer = streamManager.getClientFactory().createReader(readerName,
+                                                                                                 groupName,
+                                                                                                 new JavaSerializer<>(),
+                                                                                                 new ReaderConfig());
 
         assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getEvent());
         assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getEvent());
@@ -142,6 +145,7 @@ public class TransactionTest {
 
     /**
      * Sends an event using transaction. Simple as that.
+     *
      * @throws TxnFailedException in case of txn failure.
      */
     @Test
@@ -155,23 +159,30 @@ public class TransactionTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-        MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
-        clientFactory.createStream(streamName, null);
         @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), new EventWriterConfig(null));
+        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
+        streamManager.createStream(streamName, null);
+        @Cleanup
+        EventStreamWriter<String> producer = streamManager.getClientFactory()
+                                                          .createEventWriter(streamName,
+                                                                             new JavaSerializer<>(),
+                                                                             new EventWriterConfig(null));
         Transaction<String> transaction = producer.beginTxn(60000);
         transaction.writeEvent(routingKey, event);
         transaction.commit();
-        AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit() );    
+        AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit());
     }
 
     /**
      * Creates a transaction, sends an event, and aborts it. Verifies back by consuming an event, which shouldn't be there.
+     *
      * @throws TxnFailedException in case of txn failure.
      */
+
     @Test
     public void testDrop() throws TxnFailedException {
         String endpoint = "localhost";
+        String groupName = "group";
         String streamName = "abc";
         int port = TestUtils.randomPort();
         String txnEvent = "TXN Event\n";
@@ -181,10 +192,15 @@ public class TransactionTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-        MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
-        clientFactory.createStream(streamName, null);
         @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), new EventWriterConfig(null));
+        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
+        streamManager.createReaderGroup(groupName, null, Collections.singletonList(streamName));
+        streamManager.createStream(streamName, null);
+        @Cleanup
+        EventStreamWriter<String> producer = streamManager.getClientFactory()
+                                                          .createEventWriter(streamName,
+                                                                             new JavaSerializer<>(),
+                                                                             new EventWriterConfig(null));
 
         Transaction<String> transaction = producer.beginTxn(60000);
         transaction.writeEvent(routingKey, txnEvent);
@@ -194,11 +210,11 @@ public class TransactionTest {
 
         AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.writeEvent(routingKey, txnEvent));
         AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit());
-        
-        EventStreamReader<Serializable> consumer = clientFactory.createReader(streamName,
-                                                                       new JavaSerializer<>(),
-                                                                       new ReaderConfig(),
-                                                                       clientFactory.getInitialPosition(streamName));
+
+        EventStreamReader<Serializable> consumer = streamManager.getClientFactory().createReader("reader",
+                                                                                                 groupName,
+                                                                                                 new JavaSerializer<>(),
+                                                                                                 new ReaderConfig());
         producer.writeEvent(routingKey, nonTxEvent);
         producer.flush();
         assertEquals(nonTxEvent, consumer.readNextEvent(1500).getEvent());

@@ -30,7 +30,7 @@ import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Wraps a {@link StreamSegmentStore} and turns the async calls into synchrounus ones by blocking on
+ * Wraps a {@link StreamSegmentStore} and turns the async calls into synchronous ones by blocking on
  * the futures for test purposes. 
  */
 @RequiredArgsConstructor

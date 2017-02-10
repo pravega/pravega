@@ -96,16 +96,12 @@ public interface StateSynchronizer<StateT extends Revisioned> {
     void initialize(InitialUpdate<StateT> initial);
 
     /**
-     * Provide a compaction that exactly represents the provided localState so that some of the
-     * history of updates can be dropped.
+     * Provide a function that generates compacted version of localState so that we can drop some of the
+     * history updates.
      * 
-     * NOTE: If compaction does not generate local state exactly corruption will occur.
+     * NOTE: If InitialUpdate returned does not generate local state exactly corruption will occur.
      * 
-     * Because no changes occur to the state, this operation does not enforce concurrency checks.
-     * 
-     * @param revision The revision of the state whose history is to be compacted away. (Not
-     *        required to be current)
-     * @param compaction An update that will reconstruct the state as of the provided revision.
+     * @param compactor An generator of InitialUpdates given a state.
      */
-    void compact(Revision revision, InitialUpdate<StateT> compaction);
+    void compact(Function<StateT, InitialUpdate<StateT>> compactor);
 }

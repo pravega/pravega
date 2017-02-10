@@ -149,9 +149,7 @@ public class AsyncReadResultProcessor implements AutoCloseable {
             } else if (this.entryHandler.shouldRequestContents(currentEntry.getType(), currentEntry.getStreamSegmentOffset())) {
                 // ReadResultEntry that does not have data readily available and we were instructed to request the content.
                 currentEntry.requestContent(this.entryHandler.getRequestContentTimeout());
-                CompletableFuture<ReadResultEntry> resultEntryFuture = new CompletableFuture<>();
-                entryContentsFuture.whenComplete((r, e) -> FutureHelpers.complete(resultEntryFuture, currentEntry, e));
-                return resultEntryFuture;
+                return entryContentsFuture.thenApply(v -> currentEntry);
             }
         }
 

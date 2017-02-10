@@ -18,7 +18,6 @@
 package com.emc.pravega.stream;
 
 import com.emc.pravega.ClientFactory;
-import com.emc.pravega.state.Revisioned;
 
 import java.util.List;
 import java.util.Set;
@@ -32,7 +31,7 @@ import java.util.Set;
  * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)} and are removed by
  * calling {@link #readerOffline(String, Position)}
  */
-public interface ReaderGroup extends Revisioned {
+public interface ReaderGroup {
 
     /**
      * Returns the scope of the stream which the group is associated with.

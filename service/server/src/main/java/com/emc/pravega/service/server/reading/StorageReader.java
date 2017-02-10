@@ -25,9 +25,6 @@ import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.storage.ReadOnlyStorage;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Map;
@@ -36,11 +33,15 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Facilitates and Organizes the reads from Storage.
  */
 @Slf4j
+@ThreadSafe
 class StorageReader implements AutoCloseable {
     //region Members
 
@@ -184,6 +185,7 @@ class StorageReader implements AutoCloseable {
      * @param request The request.
      * @return The overlapping request, or null if no such request exists.
      */
+    @GuardedBy("lock")
     private Request findOverlappingRequest(Request request) {
         Map.Entry<Long, Request> previousEntry = this.pendingRequests.floorEntry(request.getOffset());
         if (previousEntry != null && request.getOffset() < previousEntry.getValue().getEndOffset()) {

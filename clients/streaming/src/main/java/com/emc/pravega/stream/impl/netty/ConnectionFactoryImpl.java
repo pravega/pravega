@@ -25,6 +25,7 @@ import java.util.concurrent.CompletableFuture;
 
 import javax.net.ssl.SSLException;
 
+import com.emc.pravega.common.netty.AppendBatchSizeTracker;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
 import com.emc.pravega.common.netty.ExceptionLoggingHandler;
@@ -89,7 +90,8 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         } else {
             sslCtx = null;
         }
-        ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(location.getEndpoint(), rp);
+        AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
+        ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(location.getEndpoint(), rp, batchSizeTracker);
         Bootstrap b = new Bootstrap();
         b.group(group)
          .channel(nio ? NioSocketChannel.class : EpollSocketChannel.class)
@@ -103,7 +105,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
                  }
                  // p.addLast(new LoggingHandler(LogLevel.INFO));
                  p.addLast(new ExceptionLoggingHandler(location.getEndpoint()),
-                         new CommandEncoder(),
+                         new CommandEncoder(batchSizeTracker),
                          new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                          new CommandDecoder(),
                          handler);

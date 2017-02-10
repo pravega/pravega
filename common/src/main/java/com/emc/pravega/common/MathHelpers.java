@@ -46,7 +46,7 @@ public class MathHelpers {
      * @param max maximum value to check against
      * @return the middle value
      */
-    public static long minMax(long value, long min, long max) {
+    public static int minMax(int value, int min, int max) {
         Preconditions.checkArgument(min <= max, "min must be less than or equal to max");
         return Math.max(Math.min(value, max), min);
     }
