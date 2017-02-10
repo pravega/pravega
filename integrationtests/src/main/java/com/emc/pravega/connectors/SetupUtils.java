@@ -164,8 +164,8 @@ public final class SetupUtils {
      * @return Stream reader instance.
      */
     public static EventStreamReader<Integer> getIntegerReader(final String scope, final String streamName) {
-        Preconditions.checkNotNull(streamName);
         Preconditions.checkNotNull(scope);
+        Preconditions.checkNotNull(streamName);
 
         StreamManager streamManager = StreamManager.withScope(scope, SetupUtils.CONTROLLER_URI);
         final String readerGroup = "testReaderGroup" + scope + streamName;
@@ -194,7 +194,7 @@ public final class SetupUtils {
                 new ReaderConfig());
     }
 
-    // Start pravege service on localhost.
+    // Start pravega service on localhost.
     private static void startLocalService() throws Exception {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
