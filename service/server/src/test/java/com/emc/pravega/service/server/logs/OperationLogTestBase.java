@@ -39,6 +39,10 @@ import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import com.google.common.collect.Iterators;
+import lombok.Cleanup;
+import lombok.RequiredArgsConstructor;
+import org.junit.Assert;
+
 import java.io.ByteArrayInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -48,7 +52,6 @@ import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -57,9 +60,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicLong;
-import lombok.Cleanup;
-import lombok.RequiredArgsConstructor;
-import org.junit.Assert;
 
 /**
  * Base class for all Operation Log-based classes (i.e., DurableLog and OperationProcessor).
@@ -102,7 +102,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         for (int i = 0; i < streamSegmentCount; i++) {
             String name = getStreamSegmentName(i);
             long streamSegmentId = mapper
-                    .createNewStreamSegment(name, Collections.emptyMap(), Duration.ZERO)
+                    .createNewStreamSegment(name, Duration.ZERO)
                     .thenCompose((v) -> mapper.getOrAssignStreamSegmentId(name, Duration.ZERO)).join();
             result.add(streamSegmentId);
         }

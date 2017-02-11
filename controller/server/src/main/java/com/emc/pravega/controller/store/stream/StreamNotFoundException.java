@@ -18,12 +18,10 @@
 
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.NonRetryableException;
-
 /**
  * Exception thrown when a stream with a given name is not found in the metadata.
  */
-public class StreamNotFoundException extends NonRetryableException {
+public class StreamNotFoundException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
     private static final String FORMAT_STRING = "Stream %s not found.";

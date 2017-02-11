@@ -19,7 +19,6 @@ package com.emc.pravega.controller.requesthandler;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.NonRetryableException;
 import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.requests.ControllerRequest;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -28,11 +27,12 @@ import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.PositionComparator;
 import com.google.common.base.Preconditions;
+import lombok.AllArgsConstructor;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -40,6 +40,7 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -65,25 +66,26 @@ import java.util.stream.Collectors;
 public class RequestReader<R extends ControllerRequest, H extends RequestHandler<R>> implements Runnable {
     private final String readerId;
     private final String readerGroup;
-    private final ConcurrentSkipListSet<Position> running;
-    private final ConcurrentSkipListSet<Position> completed;
-    private final AtomicReference<Position> checkpoint;
+    private final ConcurrentSkipListSet<PositionCounter> running;
+    private final ConcurrentSkipListSet<PositionCounter> completed;
+    private final AtomicReference<PositionCounter> checkpoint;
     private final EventStreamWriter<R> writer;
     private final EventStreamReader<R> reader;
-    private final PositionComparator positionComparator;
     private final JavaSerializer<Position> serializer;
     private final ScheduledExecutorService executor;
     private final StreamMetadataStore streamMetadataStore;
-    private AtomicBoolean stop = new AtomicBoolean(false);
+    private final AtomicBoolean stop = new AtomicBoolean(false);
     private final H requestHandler;
+    private final AtomicInteger counter = new AtomicInteger(0);
+    private final Comparator<PositionCounter> positionCounterComparator = Comparator.comparingInt(o -> o.counter);
 
-    public RequestReader(final String readerId,
-                         final String readerGroup,
-                         final EventStreamWriter<R> writer,
-                         final EventStreamReader<R> reader,
-                         final StreamMetadataStore streamMetadataStore,
-                         final H requestHandler,
-                         final ScheduledExecutorService executor) {
+    RequestReader(final String readerId,
+                  final String readerGroup,
+                  final EventStreamWriter<R> writer,
+                  final EventStreamReader<R> reader,
+                  final StreamMetadataStore streamMetadataStore,
+                  final H requestHandler,
+                  final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(writer);
         Preconditions.checkNotNull(reader);
         Preconditions.checkNotNull(streamMetadataStore);
@@ -94,9 +96,8 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
 
         this.readerId = readerId;
         this.readerGroup = readerGroup;
-        positionComparator = new PositionComparator();
-        running = new ConcurrentSkipListSet<>(positionComparator);
-        completed = new ConcurrentSkipListSet<>(positionComparator);
+        running = new ConcurrentSkipListSet<>(positionCounterComparator);
+        completed = new ConcurrentSkipListSet<>(positionCounterComparator);
 
         this.writer = writer;
         this.reader = reader;
@@ -121,9 +122,10 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
             try {
                 EventRead<R> event = reader.readNextEvent(60000);
                 R request = event.getEvent();
-                running.add(event.getPosition());
-                requestHandler.process(request, executor)
-                        .whenComplete((r, e) -> {
+                PositionCounter pc = new PositionCounter(event.getPosition(), counter.incrementAndGet());
+                running.add(pc);
+                CompletableFuture.runAsync(() -> requestHandler.process(request), executor)
+                        .whenCompleteAsync((r, e) -> {
                             if (e != null) {
                                 log.error("Processing failed RequestReader {}", e.getMessage());
 
@@ -134,8 +136,8 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                                     putBack(request.getKey(), request);
                                 }
                             }
-                            complete(event);
-                        });
+                            complete(pc);
+                        }, executor);
             } catch (Exception e) {
                 // Catch all exceptions (not throwable) and log and ignore.
                 // Ideally we should never come here. But this is a safety check to ensure request processing continues even if
@@ -168,17 +170,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
      */
     @Synchronized
     private void putBack(String key, R request) {
-        Retry.withExpBackoff(100, 10, 3, 1000)
-                .retryingOn(RetryableException.class)
-                .throwingOn(NonRetryableException.class)
-                .run(() ->
-                        CompletableFuture.runAsync(() -> {
-                            try {
-                                writer.writeEvent(key, request).get();
-                            } catch (Exception e) {
-                                throw new RetryableException(e);
-                            }
-                        }));
+        FutureHelpers.getAndHandleExceptions(writer.writeEvent(key, request), RuntimeException::new);
     }
 
     /**
@@ -191,16 +183,17 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
      * Note: Smallest position will always be in the running list.
      * We also maintain a single checkpoint, which is the highest completed position smaller than smallest running position.
      *
-     * @param event event for which processing completed
+     * @param pc position for which processing completed
      */
-    private void complete(EventRead<R> event) {
-        running.remove(event.getPosition());
-        completed.add(event.getPosition());
+    private void complete(PositionCounter pc) {
+        running.remove(pc);
+        completed.add(pc);
         // find the lowest in running
-        final Position smallest = running.first();
+        final PositionCounter smallest = running.first();
 
-        final List<Position> checkpointCandidates = completed.stream().filter(x -> positionComparator.compare(x, smallest) < 0).collect(Collectors.toList());
-        final Position checkpointPosition = checkpointCandidates.get(checkpointCandidates.size() - 1);
+        final List<PositionCounter> checkpointCandidates = completed.stream()
+                .filter(x -> positionCounterComparator.compare(x, smallest) < 0).collect(Collectors.toList());
+        final PositionCounter checkpointPosition = checkpointCandidates.get(checkpointCandidates.size() - 1);
         completed.removeAll(checkpointCandidates);
         checkpoint.set(checkpointPosition);
     }
@@ -210,10 +203,10 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
         // Even if this fails, its ok. Next checkpoint periodic trigger will store the checkpoint.
         Retry.withExpBackoff(100, 10, 3, 1000)
                 .retryingOn(RetryableException.class)
-                .throwingOn(NonRetryableException.class)
+                .throwingOn(RuntimeException.class)
                 .run(() ->
                         FutureHelpers.getAndHandleExceptions(
-                                streamMetadataStore.checkpoint(readerId, readerGroup, serializer.serialize(checkpoint.get())),
+                                streamMetadataStore.checkpoint(readerId, readerGroup, serializer.serialize(checkpoint.get().position)),
                                 e -> {
                                     Optional<RetryableException> opt = RetryableException.castRetryable(e);
                                     if (opt.isPresent()) {
@@ -222,5 +215,11 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                                         return new RuntimeException(e);
                                     }
                                 }));
+    }
+
+    @AllArgsConstructor
+    private class PositionCounter {
+        Position position;
+        int counter;
     }
 }

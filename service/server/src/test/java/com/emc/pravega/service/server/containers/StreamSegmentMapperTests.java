@@ -45,11 +45,9 @@ import org.junit.Test;
 
 import java.io.InputStream;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -91,7 +89,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         // Create some Segments and Transaction and verify they are properly created and registered.
         for (int i = 0; i < segmentCount; i++) {
             String name = getName(i);
-            context.mapper.createNewStreamSegment(name, Collections.emptyMap(), TIMEOUT).join();
+            context.mapper.createNewStreamSegment(name, TIMEOUT).join();
             assertStreamSegmentCreated(name, context);
 
             for (int j = 0; j < transactionsPerSegment; j++) {
@@ -119,7 +117,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new StreamSegmentExistsException("intentional"));
         AssertExtensions.assertThrows(
                 "createNewStreamSegment did not fail when Segment already exists.",
-                () -> context.mapper.createNewStreamSegment(segmentName, Collections.emptyMap(), TIMEOUT),
+                () -> context.mapper.createNewStreamSegment(segmentName, TIMEOUT),
                 ex -> ex instanceof StreamSegmentExistsException);
         Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (StreamSegmentExistsException).", ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName));
 
@@ -127,7 +125,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
         AssertExtensions.assertThrows(
                 "createNewStreamSegment did not fail when random exception was thrown.",
-                () -> context.mapper.createNewStreamSegment(segmentName, Collections.emptyMap(), TIMEOUT),
+                () -> context.mapper.createNewStreamSegment(segmentName, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
         Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (IntentionalException).", ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName));
 
@@ -167,7 +165,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         // 6. When creating a new StreamSegment.
         AssertExtensions.assertThrows(
                 "createNewStreamSegment did not fail when OperationLog threw an exception.",
-                () -> context.mapper.createNewStreamSegment(segmentName + "foo", Collections.emptyMap(), TIMEOUT),
+                () -> context.mapper.createNewStreamSegment(segmentName + "foo", TIMEOUT),
                 ex -> ex instanceof TimeoutException);
         Assert.assertEquals("Segment was registered in the metadata even if it failed to be processed by the OperationLog.", 1, context.metadata.getAllStreamSegmentIds().size());
         Assert.assertEquals("Segment was not created in Storage even if the failure was post-storage (in OperationLog processing).", 3, storageSegments.size());
@@ -572,7 +570,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         public Function<String, CompletableFuture<SegmentProperties>> getInfoHandler;
 
         @Override
-        public CompletableFuture<SegmentProperties> create(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
+        public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
             return this.createHandler.apply(streamSegmentName);
         }
 

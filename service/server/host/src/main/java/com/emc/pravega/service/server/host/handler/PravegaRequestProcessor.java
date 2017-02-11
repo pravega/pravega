@@ -67,9 +67,7 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
@@ -81,8 +79,6 @@ import static com.emc.pravega.service.server.host.PravegaRequestStats.ALL_READ_B
 import static com.emc.pravega.service.server.host.PravegaRequestStats.CREATE_SEGMENT;
 import static com.emc.pravega.service.server.host.PravegaRequestStats.READ_SEGMENT;
 import static com.emc.pravega.service.server.host.PravegaRequestStats.SEGMENT_READ_BYTES;
-import static com.emc.pravega.service.server.stats.SegmentStatsRecorder.putScaleType;
-import static com.emc.pravega.service.server.stats.SegmentStatsRecorder.putTargetRate;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
@@ -262,12 +258,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
 
-        Map<String, String> attributes = new HashMap<>();
-        putScaleType(attributes, createStreamsSegment.getScaleType());
-        putTargetRate(attributes, createStreamsSegment.getTargetRate());
-
+        // TODO: pass policy to the store. To be sent as part of attributes, issue #350.
         CompletableFuture<Void> future = segmentStore.createStreamSegment(
-                createStreamsSegment.getSegment(), attributes, TIMEOUT);
+                createStreamsSegment.getSegment(), TIMEOUT);
 
         future.thenApply((Void v) -> {
             Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());

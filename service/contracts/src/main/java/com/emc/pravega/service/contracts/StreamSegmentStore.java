@@ -19,7 +19,6 @@
 package com.emc.pravega.service.contracts;
 
 import java.time.Duration;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -94,13 +93,12 @@ public interface StreamSegmentStore {
      * Creates a new StreamSegment.
      *
      * @param streamSegmentName The name of the StreamSegment to create.
-     * @param attributes        attributes
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
      * failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    CompletableFuture<Void> createStreamSegment(String streamSegmentName, Map<String, String> attributes, Duration timeout);
+    CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout);
 
     /**
      * Creates a new Transaction and maps it to a Parent StreamSegment.

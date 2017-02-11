@@ -53,7 +53,7 @@ public class SegmentAggregatesTest {
         });
 
         SegmentStatsRecorderImpl impl = new SegmentStatsRecorderImpl(x, null, new JavaSerializer<>(), Duration.ofSeconds(10).toMillis());
-        impl.createSegment(STREAM_SEGMENT_NAME, WireCommands.CreateSegment.IN_EVENTS, 1000);
+        impl.createSegment(STREAM_SEGMENT_NAME, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 1000);
         impl.record(STREAM_SEGMENT_NAME, 0, 1000);
 
         long txnCreationTime = System.currentTimeMillis();

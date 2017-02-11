@@ -19,7 +19,6 @@ package com.emc.pravega.controller.requesthandler;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.NonRetryableException;
 import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.controller.store.stream.OperationContext;
@@ -63,19 +62,23 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
     private final StreamTransactionMetadataTasks streamTxMetadataTasks;
+    private final ScheduledExecutorService executor;
 
     public ScaleRequestHandler(final StreamMetadataTasks streamMetadataTasks,
                                final StreamMetadataStore streamMetadataStore,
-                               final StreamTransactionMetadataTasks streamTxMetadataTasks) {
+                               final StreamTransactionMetadataTasks streamTxMetadataTasks,
+                               final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(streamMetadataTasks);
+        Preconditions.checkNotNull(executor);
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamMetadataStore = streamMetadataStore;
         this.streamTxMetadataTasks = streamTxMetadataTasks;
+        this.executor = executor;
     }
 
     @Override
-    public CompletableFuture<Void> process(final ScaleRequest request, final ScheduledExecutorService executor) {
+    public CompletableFuture<Void> process(final ScaleRequest request) {
         if (!isValid(request.getTimestamp())) {
             // request no longer valid. Ignore.
             // log, because a request was fetched from the stream after its validity expired.
@@ -114,7 +117,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
         // ProcessScaleUp and processScaleDown functions are responsible for creating input for scale tasks.
         Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                 .retryingOn(RetryableException.class)
-                .throwingOn(NonRetryableException.class)
+                .throwingOn(RuntimeException.class)
                 .runAsync(() -> {
                     final CompletableFuture<ScalingPolicy> policyFuture = streamMetadataStore
                             .getConfiguration(request.getScope(), request.getStream(), context)
@@ -314,7 +317,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                                     // TODO: have a mechanism to prevent any scale operations on this stream until potential inconsistency is taken care of.
                                     // Ideally we should do the above before releasing the lock. So this mechanism should be built as part of task framework.
                                     // As 'thing-do-on-task-failure-before-releasing-lock'
-                                    throw new NonRetryableException(e);
+                                    throw new RuntimeException(e);
                                 }
                             } else if (result.getStatus().equals(ScaleStreamStatus.TXN_CONFLICT)) {
                                 // transactions were running, throw a retryable exception.

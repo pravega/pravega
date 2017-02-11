@@ -31,17 +31,17 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import com.google.common.util.concurrent.AbstractService;
+import lombok.Cleanup;
+import org.junit.Assert;
+import org.junit.Test;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-import lombok.Cleanup;
-import org.junit.Assert;
-import org.junit.Test;
 
 /**
  * Unit tests for the StreamSegmentContainerRegistry class.
@@ -258,7 +258,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
+        public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
             return null;
         }
 

@@ -99,17 +99,17 @@ public class SegmentHelper {
             }
         };
 
-        final long desiredRate;
+        final int desiredRate;
         final byte rateType;
         if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
-            desiredRate = 0L;
+            desiredRate = 0;
             rateType = WireCommands.CreateSegment.NO_SCALE;
         } else {
-            desiredRate = policy.getTargetRate();
+            desiredRate = Math.toIntExact(policy.getTargetRate());
             if (policy.getType().equals(ScalingPolicy.Type.BY_RATE_IN_KBPS)) {
                 rateType = WireCommands.CreateSegment.IN_KBPS;
             } else {
-                rateType = WireCommands.CreateSegment.IN_EVENTS;
+                rateType = WireCommands.CreateSegment.IN_EVENTS_PER_SEC;
             }
         }
 

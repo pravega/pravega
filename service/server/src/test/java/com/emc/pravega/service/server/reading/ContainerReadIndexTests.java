@@ -40,6 +40,10 @@ import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
+import lombok.Cleanup;
+import org.junit.Assert;
+import org.junit.Test;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -48,7 +52,6 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -61,9 +64,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
-import org.junit.Assert;
-import org.junit.Test;
 
 /**
  * Unit tests for ContainerReadIndex class.
@@ -75,8 +75,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 123;
     private static final ReadIndexConfig DEFAULT_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
             PropertyBag.create()
-                       .with(ReadIndexConfig.PROPERTY_MEMORY_READ_MIN_LENGTH, 0) // Default: Off (we have a special test for this).
-                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024));
+                    .with(ReadIndexConfig.PROPERTY_MEMORY_READ_MIN_LENGTH, 0) // Default: Off (we have a special test for this).
+                    .with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024));
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
 
     @Override
@@ -960,7 +960,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     private void createSegmentsInStorage(TestContext context) {
         for (long segmentId : context.metadata.getAllStreamSegmentIds()) {
             SegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
-            context.storage.create(sm.getName(), Collections.emptyMap(), TIMEOUT).join();
+            context.storage.create(sm.getName(), TIMEOUT).join();
         }
     }
 

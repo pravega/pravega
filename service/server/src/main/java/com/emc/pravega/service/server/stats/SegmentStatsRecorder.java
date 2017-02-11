@@ -17,12 +17,7 @@
  */
 package com.emc.pravega.service.server.stats;
 
-import java.util.Map;
-
 public interface SegmentStatsRecorder {
-
-    String TARGET_RATE = "targetRate";
-    String SCALE_TYPE = "scaleType";
 
     void createSegment(String streamSegmentName, byte type, long targetRate);
 
@@ -34,22 +29,20 @@ public interface SegmentStatsRecorder {
 
     void merge(String streamSegmentName, long dataLength, int numOfEvents, long txnCreationTime);
 
-
-    static long getTargetRate(Map<String, String> attributes) {
-        String targetRate = attributes.getOrDefault(TARGET_RATE, "0L");
-        return Long.parseLong(targetRate);
-    }
-
-    static byte getScaleType(Map<String, String> attributes) {
-        String scaleType = attributes.getOrDefault(SCALE_TYPE, "0");
-        return Byte.parseByte(scaleType);
-    }
-
-    static void putScaleType(Map<String, String> attributes, byte scaleType) {
-        attributes.put(SCALE_TYPE, Byte.toString(scaleType));
-    }
-
-    static void putTargetRate(Map<String, String> attributes, long targetRate) {
-        attributes.put(TARGET_RATE, Long.toString(targetRate));
-    }
+    //    static long getTargetRate(Map<UUID, Long> attributes) {
+    //        return attributes.getOrDefault(TARGET_RATE, 0L);
+    //    }
+    //
+    //    static byte getScaleType(Map<UUID, Long> attributes) {
+    //        Long scaleType = attributes.getOrDefault(SCALE_TYPE, 0L);
+    //        return scaleType.byteValue();
+    //    }
+    //
+    //    static void putScaleType(Map<UUID, Long> attributes, byte scaleType) {
+    //        attributes.put(SCALE_TYPE, Byte.toUnsignedLong(scaleType));
+    //    }
+    //
+    //    static void putTargetRate(Map<UUID, Long> attributes, int targetRate) {
+    //        attributes.put(TARGET_RATE, Integer.toUnsignedLong(targetRate));
+    //    }
 }

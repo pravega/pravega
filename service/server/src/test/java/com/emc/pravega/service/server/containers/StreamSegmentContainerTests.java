@@ -58,11 +58,15 @@ import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
+import com.google.common.collect.Lists;
+import lombok.Cleanup;
+import org.junit.Assert;
+import org.junit.Test;
+
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -70,11 +74,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import com.google.common.collect.Lists;
-import lombok.Cleanup;
-import org.junit.Assert;
-import org.junit.Test;
 
 /**
  * Tests for StreamSegmentContainer class.
@@ -94,19 +93,19 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     // Create checkpoints every 100 operations or after 10MB have been written, but under no circumstance less frequently than 10 ops.
     private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = ConfigHelpers.createDurableLogConfig(
             PropertyBag.create()
-                       .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 10)
-                       .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 100)
-                       .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024));
+                    .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 10)
+                    .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 100)
+                    .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024));
 
     private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
             PropertyBag.create().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024));
 
     private static final WriterConfig DEFAULT_WRITER_CONFIG = ConfigHelpers.createWriterConfig(
             PropertyBag.create()
-                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1)
-                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 25)
-                       .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
-                       .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250));
+                    .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1)
+                    .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 25)
+                    .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+                    .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250));
 
     @Override
     protected int getThreadPoolSize() {
@@ -739,7 +738,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i);
             segmentNames.add(segmentName);
-            futures.add(context.container.createStreamSegment(segmentName, Collections.emptyMap(), TIMEOUT));
+            futures.add(context.container.createStreamSegment(segmentName, TIMEOUT));
         }
 
         FutureHelpers.allOf(futures).join();

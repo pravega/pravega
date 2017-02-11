@@ -133,7 +133,7 @@ class SegmentAggregates implements Serializable {
     void update(long dataLength, int numOfEvents) {
         if (scaleType == WireCommands.CreateSegment.IN_KBPS) {
             currentCount += dataLength / 1024; // convert to kbps
-        } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS) {
+        } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS_PER_SEC) {
             currentCount += numOfEvents;
         } else {
             return;
@@ -154,7 +154,7 @@ class SegmentAggregates implements Serializable {
     void updateTx(long dataSize, int numOfEvents, long txnCreationTime) {
         if (scaleType == WireCommands.CreateSegment.IN_KBPS) {
             computeDecay(dataSize, (System.currentTimeMillis() - txnCreationTime) * 1000000);
-        } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS) {
+        } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS_PER_SEC) {
             computeDecay(numOfEvents, (System.currentTimeMillis() - txnCreationTime) * 1000000);
         }
     }

@@ -109,15 +109,15 @@ public class RequestTest {
         // add a host in zk
         // mock pravega
         // create a stream
-        streamStore.createStream(scope, stream, new StreamConfigurationImpl(scope, stream, new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS, 0, 2, 3)), System.currentTimeMillis(), null).get();
+        streamStore.createStream(scope, stream, new StreamConfigurationImpl(scope, stream, new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 0, 2, 3)), System.currentTimeMillis(), null).get();
     }
 
     @Test
     public void testScaleRequest() throws ExecutionException, InterruptedException {
-        ScaleRequestHandler requestHandler = new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks);
+        ScaleRequestHandler requestHandler = new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor);
         ScaleRequest request = new ScaleRequest(scope, stream, 2, ScaleRequest.UP, System.currentTimeMillis(), 2);
 
-        assert FutureHelpers.await(requestHandler.process(request, Executors.newSingleThreadScheduledExecutor()));
+        assert FutureHelpers.await(requestHandler.process(request));
         List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null).get();
 
         assert activeSegments.stream().noneMatch(z -> z.getNumber() == 2);
@@ -127,7 +127,7 @@ public class RequestTest {
 
         request = new ScaleRequest(scope, stream, 4, ScaleRequest.DOWN, System.currentTimeMillis(), 0);
 
-        assert FutureHelpers.await(requestHandler.process(request, Executors.newSingleThreadScheduledExecutor()));
+        assert FutureHelpers.await(requestHandler.process(request));
         activeSegments = streamStore.getActiveSegments(scope, stream, null).get();
 
         assert activeSegments.stream().anyMatch(z -> z.getNumber() == 4);
@@ -135,7 +135,7 @@ public class RequestTest {
 
         request = new ScaleRequest(scope, stream, 3, ScaleRequest.DOWN, System.currentTimeMillis(), 0);
 
-        assert FutureHelpers.await(requestHandler.process(request, Executors.newSingleThreadScheduledExecutor()));
+        assert FutureHelpers.await(requestHandler.process(request));
         activeSegments = streamStore.getActiveSegments(scope, stream, null).get();
 
         assert activeSegments.stream().noneMatch(z -> z.getNumber() == 3);

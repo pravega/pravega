@@ -22,6 +22,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
@@ -66,8 +67,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static com.emc.pravega.service.server.stats.SegmentStatsRecorder.getScaleType;
-import static com.emc.pravega.service.server.stats.SegmentStatsRecorder.getTargetRate;
+//import static com.emc.pravega.service.server.stats.SegmentStatsRecorder.getScaleType;
+//import static com.emc.pravega.service.server.stats.SegmentStatsRecorder.getTargetRate;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -276,15 +277,16 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
+    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
         ensureRunning();
 
         logRequest("createStreamSegment", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        CompletableFuture<Void> segmentFuture = this.segmentMapper.createNewStreamSegment(streamSegmentName, attributes, timer.getRemaining());
+        CompletableFuture<Void> segmentFuture = this.segmentMapper.createNewStreamSegment(streamSegmentName, timer.getRemaining());
 
+        // TODO: integrate with attributes, issue #350
         segmentFuture.thenAccept((Void v) ->
-                statsRecorder.createSegment(streamSegmentName, getScaleType(attributes), getTargetRate(attributes)));
+                statsRecorder.createSegment(streamSegmentName, WireCommands.CreateSegment.IN_KBPS, 1000/*getScaleType(attributes), getTargetRate(attributes)*/));
 
         return segmentFuture;
     }

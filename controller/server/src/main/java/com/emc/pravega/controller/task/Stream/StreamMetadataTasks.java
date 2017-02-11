@@ -19,7 +19,6 @@ package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.NonRetryableException;
 import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
@@ -310,7 +309,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                                                                  final long scaleTimestamp, OperationContext context) {
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                 .retryingOn(RetryableException.class)
-                .throwingOn(NonRetryableException.class)
+                .throwingOn(RuntimeException.class)
                 .runAsync(() -> streamMetadataStore.scale(scope, name, sealedSegments, newRanges, scaleTimestamp, context), executor);
     }
 

@@ -82,7 +82,7 @@ public class MonitorTest {
         long twentyminutesback = System.currentTimeMillis() - Duration.ofMinutes(20).toMillis();
         monitor.cache.put(streamSegmentName, new ImmutablePair<>(twentyminutesback, twentyminutesback));
 
-        monitor.process(streamSegmentName, 10, WireCommands.CreateSegment.IN_EVENTS,
+        monitor.process(streamSegmentName, 10, WireCommands.CreateSegment.IN_EVENTS_PER_SEC,
                 twentyminutesback,
                 1001, 500, 200, 200);
     }

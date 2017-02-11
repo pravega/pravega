@@ -26,7 +26,6 @@ import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -51,7 +50,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
     @Test
     public void testTruncate() throws Exception {
         try (TruncateableStorage s = createStorage()) {
-            s.create(SEGMENT_NAME, Collections.emptyMap(), TIMEOUT).join();
+            s.create(SEGMENT_NAME, TIMEOUT).join();
 
             // Invalid segment name.
             assertThrows(
@@ -128,7 +127,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
 
     private void verifyConcat(TruncateableStorage s) {
         final String newSegmentName = "newFoo";
-        s.create(newSegmentName, Collections.emptyMap(), TIMEOUT).join();
+        s.create(newSegmentName, TIMEOUT).join();
         assertThrows("concat() allowed concatenation of truncated segment.",
                 () -> s.concat(newSegmentName, 0, SEGMENT_NAME, TIMEOUT),
                 ex -> ex instanceof IllegalStateException);

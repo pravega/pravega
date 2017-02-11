@@ -18,12 +18,10 @@
 
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.NonRetryableException;
-
 /**
  * Exception thrown when a tx is in incorrect state.
  */
-public class OperationOnTxNotAllowedException extends NonRetryableException {
+public class OperationOnTxNotAllowedException extends RuntimeException {
     private static final long serialVersionUID = 1L;
     private static final String FORMAT_STRING = "%s operation not allowed on Transaction %s.";
 

@@ -22,17 +22,15 @@ import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
+import lombok.RequiredArgsConstructor;
 
 import java.time.Duration;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import lombok.RequiredArgsConstructor;
-
 /**
  * Wraps a {@link StreamSegmentStore} and turns the async calls into synchronous ones by blocking on
- * the futures for test purposes. 
+ * the futures for test purposes.
  */
 @RequiredArgsConstructor
 public class SynchronousStreamSegmentStore implements StreamSegmentStore {
@@ -41,7 +39,7 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
 
     @Override
     public CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext appendContext,
-            Duration timeout) {
+                                          Duration timeout) {
         CompletableFuture<Void> result = impl.append(streamSegmentName, data, appendContext, timeout);
         FutureHelpers.await(result);
         return result;
@@ -49,7 +47,7 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
 
     @Override
     public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data,
-            AppendContext appendContext, Duration timeout) {
+                                          AppendContext appendContext, Duration timeout) {
         CompletableFuture<Void> result = impl.append(streamSegmentName, offset, data, appendContext, timeout);
         FutureHelpers.await(result);
         return result;
@@ -70,15 +68,15 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
-        CompletableFuture<Void> result = impl.createStreamSegment(streamSegmentName, attributes, timeout);
+    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
+        CompletableFuture<Void> result = impl.createStreamSegment(streamSegmentName, timeout);
         FutureHelpers.await(result);
         return result;
     }
 
     @Override
     public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId,
-            Duration timeout) {
+                                                       Duration timeout) {
         CompletableFuture<String> result = impl.createTransaction(parentStreamSegmentName, transactionId, timeout);
         FutureHelpers.await(result);
         return result;
@@ -107,7 +105,7 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
 
     @Override
     public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId,
-            Duration timeout) {
+                                                                 Duration timeout) {
         CompletableFuture<AppendContext> result = impl.getLastAppendContext(streamSegmentName, clientId, timeout);
         FutureHelpers.await(result);
         return result;

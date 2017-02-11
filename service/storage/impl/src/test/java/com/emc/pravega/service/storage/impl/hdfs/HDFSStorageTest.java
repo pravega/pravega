@@ -37,7 +37,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
@@ -92,7 +91,7 @@ public class HDFSStorageTest extends StorageTestBase {
 
         return new MiniClusterPermFixer(storage);
     }
-    
+
     /**
      * Wrapper for a storage class which handles the ACL behavior of MiniDFSCluster.
      * This keeps track of the sealed segments and throws error when a write is attempted on a segment.
@@ -107,8 +106,8 @@ public class HDFSStorageTest extends StorageTestBase {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> create(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
-            return storage.create(streamSegmentName, attributes, timeout);
+        public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+            return storage.create(streamSegmentName, timeout);
         }
 
         @Override

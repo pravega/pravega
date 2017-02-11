@@ -18,12 +18,10 @@
 
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.NonRetryableException;
-
 /**
  * Exception thrown when a stream with a given name is not found in the metadata.
  */
-public class DataNotFoundException extends NonRetryableException {
+public class DataNotFoundException extends RuntimeException {
     /**
      *
      */

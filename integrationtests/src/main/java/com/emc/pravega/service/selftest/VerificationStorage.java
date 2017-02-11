@@ -31,7 +31,6 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -87,8 +86,8 @@ class VerificationStorage implements TruncateableStorage {
     //region Storage Implementation
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
-        return this.baseStorage.create(streamSegmentName, attributes, timeout);
+    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+        return this.baseStorage.create(streamSegmentName, timeout);
     }
 
     @Override
@@ -115,7 +114,7 @@ class VerificationStorage implements TruncateableStorage {
         unregisterAllListeners(sourceStreamSegmentName);
         CompletableFuture<Void> result = this.baseStorage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
         result.thenComposeAsync(v -> this.baseStorage.getStreamSegmentInfo(targetStreamSegmentName, timeout), this.executor)
-              .thenAcceptAsync(sp -> triggerListeners(targetStreamSegmentName, sp.getLength(), false), this.executor);
+                .thenAcceptAsync(sp -> triggerListeners(targetStreamSegmentName, sp.getLength(), false), this.executor);
         return result;
     }
 

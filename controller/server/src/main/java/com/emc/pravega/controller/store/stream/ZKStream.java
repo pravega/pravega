@@ -604,6 +604,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     private static CompletableFuture<Boolean> checkExists(final String path) {
+
         return CompletableFuture.supplyAsync(
                 () -> {
                     try {

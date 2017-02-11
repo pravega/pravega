@@ -33,7 +33,6 @@ import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -109,11 +108,11 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Map<String, String> attributes, Duration timeout) {
+    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, "createStreamSegment", streamSegmentName, timeout);
         return withCompletion(
                 () -> getContainer(streamSegmentName)
-                        .thenCompose(container -> container.createStreamSegment(streamSegmentName, attributes, timeout)),
+                        .thenCompose(container -> container.createStreamSegment(streamSegmentName, timeout)),
                 r -> traceLeave(log, "createStreamSegment", traceId, r));
     }
 

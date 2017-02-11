@@ -56,7 +56,7 @@ import java.util.function.Supplier;
 public class RequestHandlersInit {
     private static final StreamConfiguration REQUEST_STREAM_CONFIG = new StreamConfigurationImpl(Config.INTERNAL_SCOPE,
             Config.SCALE_STREAM_NAME,
-            new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS, 1000, 2, 1));
+            new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 1000, 2, 1));
 
     private static AtomicReference<ScaleRequestHandler> scaleHandler = new AtomicReference<>();
     private static AtomicReference<EventStreamReader<ScaleRequest>> scaleReader = new AtomicReference<>();
@@ -112,7 +112,7 @@ public class RequestHandlersInit {
             streamManager.createReaderGroup(Config.SCALE_READER_GROUP, groupConfig, Lists.newArrayList(Config.SCALE_STREAM_NAME));
 
             if (scaleHandler.get() == null) {
-                scaleHandler.compareAndSet(null, new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks));
+                scaleHandler.compareAndSet(null, new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor));
             }
 
             if (scaleReader.get() == null) {

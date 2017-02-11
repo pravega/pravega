@@ -27,6 +27,10 @@ import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.ReadOnlyStorage;
 import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+
+import javax.annotation.concurrent.GuardedBy;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -37,9 +41,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.annotation.concurrent.GuardedBy;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 /**
  * StreamSegment Container Read Index. Provides access to Read Indices for all StreamSegments within this Container.
