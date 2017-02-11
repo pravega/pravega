@@ -87,12 +87,13 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
                                           final String groupName,
                                           final ReaderGroupConfig groupConfig,
                                           final List<String> streamNanes) {
+        return streamManager.createReaderGroup(groupName, groupConfig, streamNanes);
         // todo: getReaderGroup currently throws NotImplementedException
-        ReaderGroup readerGroup = streamManager.getReaderGroup(groupName);
-        if (readerGroup == null) {
-            readerGroup = streamManager.createReaderGroup(groupName, groupConfig, streamNanes);
-        }
-        return  readerGroup;
+        //ReaderGroup readerGroup = streamManager.getReaderGroup(groupName);
+        //if (readerGroup == null) {
+        //    readerGroup = streamManager.createReaderGroup(groupName, groupConfig, streamNanes);
+        //}
+        //return  readerGroup;
     }
 
     private void createActors(final int count) throws IllegalAccessException,

@@ -23,18 +23,23 @@ import com.emc.pravega.controller.eventProcessor.Decider;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.Props;
+import com.emc.pravega.controller.eventProcessor.StreamEvent;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Sequence;
+import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.google.common.base.Preconditions;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -55,6 +60,12 @@ public class EventProcessorTest {
     private static String readerId = "reader-1";
     private static String process = "process";
 
+    @Data
+    @AllArgsConstructor
+    public class TestEvent implements StreamEvent, Serializable {
+        int number;
+    }
+
     public static class TestEventProcessor extends EventProcessor<TestEvent> {
         long sum;
         final boolean throwErrors;
@@ -62,7 +73,7 @@ public class EventProcessorTest {
         public TestEventProcessor(Boolean throwErrors) {
             Preconditions.checkNotNull(throwErrors);
             sum = 0;
-            this.throwErrors = throwErrors.booleanValue();
+            this.throwErrors = throwErrors;
         }
 
         @Override
@@ -186,7 +197,7 @@ public class EventProcessorTest {
         Props<TestEvent> props = Props.<TestEvent>builder()
                 .clazz(TestEventProcessor.class)
                 .args(false)
-                .serializer(TestEvent.getSerializer())
+                .serializer(new JavaSerializer<>())
                 .decider((Throwable e) -> Decider.Directive.Stop)
                 .config(config)
                 .build();
@@ -198,7 +209,7 @@ public class EventProcessorTest {
         props = Props.<TestEvent>builder()
                 .clazz(TestEventProcessor.class)
                 .args(true)
-                .serializer(TestEvent.getSerializer())
+                .serializer(new JavaSerializer<>())
                 .decider((Throwable e) ->
                         (e instanceof IllegalArgumentException) ? Decider.Directive.Resume : Decider.Directive.Stop)
                 .config(config)
@@ -211,7 +222,7 @@ public class EventProcessorTest {
         props = Props.<TestEvent>builder()
                 .clazz(TestEventProcessor.class)
                 .args(true)
-                .serializer(TestEvent.getSerializer())
+                .serializer(new JavaSerializer<>())
                 .decider((Throwable e) ->
                         (e instanceof IllegalArgumentException) ? Decider.Directive.Restart : Decider.Directive.Stop)
                 .config(config)

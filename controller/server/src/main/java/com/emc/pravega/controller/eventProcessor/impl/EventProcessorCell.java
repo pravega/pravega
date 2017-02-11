@@ -96,14 +96,13 @@ class EventProcessorCell<T extends StreamEvent> {
         }
 
         @Override
-        protected final void shutDown() throws Exception {
+        protected final void shutDown() {
             try {
                 actor.afterStop();
             } catch (Throwable t) {
                 // Error encountered while cleanup is just logged.
                 // AbstractExecutionThreadService shall transition the service to failed state.
-                log.warn("Failed while executing postStop for Actor " + this, t);
-                throw t;
+                log.warn("Ignoring Failure while executing postStop for Actor " + this, t);
             } finally {
 
                 // If exception is thrown in any of the following operations, it is just logged.
