@@ -55,6 +55,14 @@ public interface StreamMetadataStore {
     CompletableFuture<Boolean> createScope(final String scope);
 
     /**
+     * Deletes a Scope if contains no streams.
+     *
+     * @param scope Name of scope to be deleted
+     * @return boolean whether the scope was deleted
+     */
+    CompletableFuture<Boolean> deleteScope(final String scope);
+
+    /**
      * Updates the configuration of an existing stream.
      *
      * @param scopeName     scope name.

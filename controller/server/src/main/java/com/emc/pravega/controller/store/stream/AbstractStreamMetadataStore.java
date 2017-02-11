@@ -92,8 +92,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> createScope(String scopeName) {
+    public CompletableFuture<Boolean> createScope(final String scopeName) {
         return getScope(scopeName).createScope(scopeName);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteScope(final String scopeName) {
+        return null;
     }
 
     @Override

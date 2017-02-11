@@ -31,6 +31,7 @@ import com.emc.pravega.controller.stream.api.v1.TxnState;
 import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -217,5 +218,9 @@ public class ControllerService {
 
     public CompletableFuture<CreateScopeStatus> createScope(final String scope) {
         return streamMetadataTasks.createScope(scope);
+    }
+
+    public CompletableFuture<DeleteScopeStatus> deleteScope(final String scope) {
+        return streamMetadataTasks.deleteScope(scope);
     }
 }

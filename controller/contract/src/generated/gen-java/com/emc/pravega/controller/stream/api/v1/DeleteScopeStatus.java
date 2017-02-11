@@ -14,7 +14,8 @@ import org.apache.thrift.TEnum;
 public enum DeleteScopeStatus implements org.apache.thrift.TEnum {
   SUCCESS(0),
   FAILURE(1),
-  SCOPE_NOT_FOUND(2);
+  SCOPE_NOT_FOUND(2),
+  SCOPE_NOT_EMPTY(3);
 
   private final int value;
 
@@ -41,6 +42,8 @@ public enum DeleteScopeStatus implements org.apache.thrift.TEnum {
         return FAILURE;
       case 2:
         return SCOPE_NOT_FOUND;
+      case 3:
+        return SCOPE_NOT_EMPTY;
       default:
         return null;
     }

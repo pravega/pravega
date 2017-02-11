@@ -49,7 +49,8 @@ enum CreateScopeStatus {
 enum DeleteScopeStatus {
     SUCCESS,
     FAILURE,
-    SCOPE_NOT_FOUND
+    SCOPE_NOT_FOUND,
+    SCOPE_NOT_EMPTY
 }
 
 struct ScalingPolicy {

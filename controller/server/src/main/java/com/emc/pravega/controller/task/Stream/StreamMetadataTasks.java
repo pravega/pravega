@@ -38,12 +38,14 @@ import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.annotations.VisibleForTesting;
+
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -53,6 +55,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -115,6 +118,10 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         );
     }
 
+    @Task(name = "deleteScope", version = "1.0", resource = "{scope}")
+    public CompletableFuture<DeleteScopeStatus> deleteScope(String scope) {
+        return null;
+    }
 
     /**
      * Update stream's configuration.

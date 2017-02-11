@@ -93,6 +93,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    public synchronized CompletableFuture<Boolean> deleteScope(String scopeName) {
+        return null;
+    }
+
+    @Override
     public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
         throw new NotImplementedException();
     }
