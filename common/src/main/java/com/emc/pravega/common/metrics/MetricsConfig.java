@@ -81,6 +81,8 @@ public class MetricsConfig extends ComponentConfig {
 
     /**
      * Gets cache size for dynamic metrics.
+     *
+     * @return cache size.
      */
     public static long getDynamicCacheSize() {
         return dynamicCacheSize;
@@ -88,6 +90,8 @@ public class MetricsConfig extends ComponentConfig {
 
     /**
      * Gets cache TTL for dynamic metrics.
+     *
+     * @return time to live value.
      */
     public static long getDynamicTTLSeconds() {
         return dynamicTTLSeconds;

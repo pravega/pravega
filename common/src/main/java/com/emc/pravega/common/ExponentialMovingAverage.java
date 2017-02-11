@@ -47,6 +47,8 @@ public class ExponentialMovingAverage {
     
     /**
      * Returns the current moving average.
+     *
+     * @return current moving average
      */
     public double getCurrentValue() {
         double result = Double.longBitsToDouble(valueEncodedAsLong.get());
@@ -58,6 +60,7 @@ public class ExponentialMovingAverage {
      * Adds a new sample to the moving average and returns the updated value.
      * 
      * @param newSample the new value to be added
+     * @return incremented new moving average value.
      */
     public double addNewSample(double newSample) {
         final double sample = calculateLog(newSample);

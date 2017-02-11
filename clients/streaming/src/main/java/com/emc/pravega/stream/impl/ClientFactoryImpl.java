@@ -83,7 +83,6 @@ public class ClientFactoryImpl implements ClientFactory {
      * @param scope The scope string.
      * @param controller The reference to Controller.
      * @param connectionFactory The reference to Connection Factory impl.
-     * @param streamManager The reference to Stream Manager impl.
      */
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {

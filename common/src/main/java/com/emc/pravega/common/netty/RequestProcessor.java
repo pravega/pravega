@@ -93,7 +93,7 @@ public interface RequestProcessor {
     /**
      * A request to drop a transaction.
      *
-     * @param dropTransaction A wire command to drop a transaction.
+     * @param abortTransaction A wire command to drop a transaction.
      */
     void abortTransaction(AbortTransaction abortTransaction);
 

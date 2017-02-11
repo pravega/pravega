@@ -44,6 +44,8 @@ public interface StatsProvider extends AutoCloseable {
 
     /**
      * Create a dynamic logger.
+     *
+     * @return logger instance.
      */
     DynamicLogger createDynamicLogger();
 }

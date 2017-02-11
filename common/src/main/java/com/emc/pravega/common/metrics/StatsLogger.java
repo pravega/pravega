@@ -54,6 +54,7 @@ public interface StatsLogger {
      * @param <T>   the type of value
      * @param name  the name of gauge
      * @param value the supplier to provide value through get()
+     * @return gauge value.
      */
     <T extends Number> Gauge registerGauge(String name, Supplier<T> value);
 
