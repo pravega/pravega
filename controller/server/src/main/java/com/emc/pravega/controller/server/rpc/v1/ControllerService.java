@@ -67,39 +67,39 @@ public class ControllerService {
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig, final long createTimestamp) {
-        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, createTimestamp);
+        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, createTimestamp, null);
     }
 
     public CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig) {
-        return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getName(), streamConfig);
+        return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, null);
     }
 
     public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String stream) {
-        return streamMetadataTasks.sealStream(scope, stream);
+        return streamMetadataTasks.sealStream(scope, stream, null);
     }
 
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(final String scope, final String stream) {
         // fetch active segments from segment store
-        return streamStore.getActiveSegments(stream)
+        return streamStore.getActiveSegments(scope, stream, null)
                 .thenApply(activeSegments -> activeSegments
-                                .stream()
-                                .map(segment -> convert(scope, stream, segment))
-                                .collect(Collectors.toList())
+                        .stream()
+                        .map(segment -> convert(scope, stream, segment))
+                        .collect(Collectors.toList())
                 );
     }
 
     public CompletableFuture<List<Position>> getPositions(final String scope, final String stream, final long timestamp, final int count) {
         // first fetch segments active at specified timestamp from the specified stream
         // divide current segments in segmentFutures into at most count positions
-        return streamStore.getActiveSegments(stream, timestamp)
+        return streamStore.getActiveSegments(scope, stream, timestamp, null)
                 .thenApply(segmentFutures -> shard(scope, stream, segmentFutures, count));
-    }    
+    }
 
     public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatlyFollowing(SegmentId segment) {
-        return streamStore.getSuccessors(segment.getStreamName(), segment.getNumber()).thenApply(successors -> {
+        return streamStore.getSuccessors(segment.getScope(), segment.getStreamName(), segment.getNumber(), null).thenApply(successors -> {
             return successors.entrySet().stream().collect(
-                   Collectors.toMap(entry -> new SegmentId(segment.getScope(), segment.getStreamName(), entry.getKey()), 
-                                    entry -> entry.getValue()));
+                    Collectors.toMap(entry -> new SegmentId(segment.getScope(), segment.getStreamName(), entry.getKey()),
+                            entry -> entry.getValue()));
         });
     }
 
@@ -108,12 +108,12 @@ public class ControllerService {
                                                   final List<Integer> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges,
                                                   final long scaleTimestamp) {
-        return streamMetadataTasks.scale(scope, stream, new ArrayList<>(sealedSegments), new ArrayList<>(ModelHelper.encode(newKeyRanges)), scaleTimestamp);
+        return streamMetadataTasks.scale(scope, stream, new ArrayList<>(sealedSegments), new ArrayList<>(ModelHelper.encode(newKeyRanges)), scaleTimestamp, null);
     }
 
     public CompletableFuture<NodeUri> getURI(final SegmentId segment) throws TException {
         return CompletableFuture.completedFuture(
-                SegmentHelper.getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(), hostStore)
+                SegmentHelper.getSingleton().getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(), hostStore)
         );
     }
 
@@ -127,7 +127,7 @@ public class ControllerService {
     public CompletableFuture<Boolean> isSegmentValid(final String scope,
                                                      final String stream,
                                                      final int segmentNumber) throws TException {
-        return streamStore.getActiveSegments(stream)
+        return streamStore.getActiveSegments(scope, stream, null)
                 .thenApply(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber));
     }
 
@@ -180,12 +180,12 @@ public class ControllerService {
     }
 
     public CompletableFuture<TxnId> createTransaction(final String scope, final String stream) {
-        return streamTransactionMetadataTasks.createTx(scope, stream).thenApply(ModelHelper::decode);
+        return streamTransactionMetadataTasks.createTx(scope, stream, null).thenApply(ModelHelper::decode);
     }
 
     public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId
             txnId) {
-        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txnId))
+        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txnId), null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
@@ -197,7 +197,7 @@ public class ControllerService {
     }
 
     public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final TxnId txnId) {
-        return streamTransactionMetadataTasks.abortTx(scope, stream, ModelHelper.encode(txnId))
+        return streamTransactionMetadataTasks.abortTx(scope, stream, ModelHelper.encode(txnId), null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
@@ -211,7 +211,7 @@ public class ControllerService {
 
     public CompletableFuture<TxnState> checkTransactionStatus(final String scope, final String stream, final TxnId
             txnId) {
-        return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId))
+        return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId), null)
                 .thenApply(ModelHelper::decode);
     }
 

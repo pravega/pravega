@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
@@ -28,8 +29,11 @@ import com.emc.pravega.controller.store.stream.tables.Scale;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
+import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleImmutableEntry;
@@ -41,16 +45,23 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.apache.commons.lang3.tuple.ImmutablePair;
-
+@Slf4j
 public abstract class PersistentStreamBase<T> implements Stream {
+    private final String scope;
     private final String name;
 
-    protected PersistentStreamBase(final String name) {
+    protected PersistentStreamBase(String scope, final String name) {
+        this.scope = scope;
         this.name = name;
+    }
+
+    @Override
+    public String getScope() {
+        return this.scope;
     }
 
     @Override
@@ -159,9 +170,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     private CompletableFuture<List<Segment>> findOverlapping(Segment segment, List<Integer> candidates) {
         return FutureHelpers.allOfWithResults(candidates.stream().map(this::getSegment).collect(Collectors.toList()))
-                            .thenApply(successorCandidates -> successorCandidates.stream()
-                                                                                 .filter(x -> x.overlaps(segment))
-                                                                                 .collect(Collectors.toList()));
+                .thenApply(successorCandidates -> successorCandidates.stream()
+                        .filter(x -> x.overlaps(segment))
+                        .collect(Collectors.toList()));
     }
 
     @Override
@@ -289,7 +300,13 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<UUID> createTransaction() {
         final UUID txId = UUID.randomUUID();
-        return createNewTransaction(txId, System.currentTimeMillis()).thenApply(x -> txId);
+        return isBlocked().thenCompose(x -> {
+            if (!x) {
+                return createNewTransaction(txId, System.currentTimeMillis()).thenApply(y -> txId);
+            } else {
+                throw new TransactionBlockedException(String.format("Transaction Creation disallowed temporarily for stream %s/%s", scope, name));
+            }
+        });
     }
 
     @Override
@@ -301,10 +318,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             (ex != null && ex instanceof DataNotFoundException)) {
                         return TxnStatus.UNKNOWN;
                     } else if (ex != null) {
-                        throw new RuntimeException(ex);
-                    } else {
-                        return ActiveTxRecord.parse(ok.getData()).getTxnStatus();
+                        failureHandler().accept(ex);
                     }
+                    return ActiveTxRecord.parse(ok.getData()).getTxnStatus();
                 });
 
         return activeTx
@@ -316,10 +332,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                             (ex != null && ex instanceof DataNotFoundException)) {
                                         return TxnStatus.UNKNOWN;
                                     } else if (ex != null) {
-                                        throw new RuntimeException(ex);
-                                    } else {
-                                        return CompletedTxRecord.parse(ok.getData()).getCompletionStatus();
+                                        failureHandler().accept(ex);
                                     }
+                                    return CompletedTxRecord.parse(ok.getData()).getCompletionStatus();
                                 });
                     } else {
                         return CompletableFuture.completedFuture(x);
@@ -395,14 +410,61 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         .thenApply(y -> TxnStatus.ABORTED));
     }
 
+    @Override
+    public CompletableFuture<Boolean> isTransactionOngoing() {
+        return areTxnsOngoing();
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns() {
+        return getCurrentTxns()
+                .thenApply(x -> x.entrySet().stream()
+                        .collect(Collectors.toMap(k -> UUID.fromString(k.getKey()),
+                                v -> ActiveTxRecord.parse(v.getValue().getData()))));
+    }
+
+    @Override
+    public CompletableFuture<Void> setMarker(int segmentNumber, long timestamp) {
+        return getMarkerData(segmentNumber)
+                .thenCompose(x -> {
+                    if (x.isPresent()) {
+                        final Data<T> data = new Data<>(Utilities.toByteArray(timestamp), x.get().getVersion());
+                        return updateMarkerData(segmentNumber, data);
+                    } else {
+                        return createMarkerData(segmentNumber, timestamp);
+                    }
+                });
+    }
+
+    @Override
+    public CompletableFuture<Optional<Long>> getMarker(int segmentNumber) {
+        return getMarkerData(segmentNumber)
+                .thenApply(x -> x.map(y -> Utilities.toLong(y.getData())));
+    }
+
+    @Override
+    public CompletableFuture<Void> removeMarker(int segmentNumber) {
+        return removeMarkerData(segmentNumber);
+    }
+
     private CompletionStage<List<Segment>> getSegments(final int count,
                                                        final int startingSegmentNumber) {
         final List<CompletableFuture<Segment>> segments = IntStream.range(startingSegmentNumber,
                 startingSegmentNumber + count)
-                                                                   .boxed()
-                                                                   .map(this::getSegment)
-                                                                   .collect(Collectors.<CompletableFuture<Segment>>toList());
+                .boxed()
+                .map(this::getSegment)
+                .collect(Collectors.<CompletableFuture<Segment>>toList());
         return FutureHelpers.allOfWithResults(segments);
+    }
+
+    @Override
+    public CompletableFuture<Void> blockTransactions() {
+        return setBlockFlag();
+    }
+
+    @Override
+    public CompletableFuture<Void> unblockTransactions() {
+        return unsetBlockFlag();
     }
 
     /**
@@ -514,8 +576,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
         segments.addAll(
                 IntStream.range(startingSegmentNumber,
                         startingSegmentNumber + scale.getNewRanges().size())
-                         .boxed()
-                         .collect(Collectors.toList()));
+                        .boxed()
+                        .collect(Collectors.toList()));
         return segments;
     }
 
@@ -544,6 +606,16 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
         return getSegmentTableChunk(latestChunkNumber)
                 .thenApply(segmentTableChunk -> new ImmutablePair<>(latestChunkNumber, segmentTableChunk));
+    }
+
+    protected Consumer<Throwable> failureHandler() {
+        return (e) -> {
+            assert e != null;
+
+            RetryableException.throwRetryableOrElse(e, x -> {
+                throw new RuntimeException(x);
+            });
+        };
     }
 
     abstract CompletableFuture<Void> checkStreamExists(final Create create) throws StreamAlreadyExistsException;
@@ -599,4 +671,22 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Void> removeActiveTxEntry(final UUID txId);
 
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp);
+
+    abstract CompletableFuture<Void> createMarkerData(int segmentNumber, long timestamp);
+
+    abstract CompletableFuture<Void> updateMarkerData(int segmentNumber, Data<T> data);
+
+    abstract CompletableFuture<Void> removeMarkerData(int segmentNumber);
+
+    abstract CompletableFuture<Optional<Data<T>>> getMarkerData(int segmentNumber);
+
+    abstract CompletableFuture<Void> setBlockFlag();
+
+    abstract CompletableFuture<Void> unsetBlockFlag();
+
+    abstract CompletableFuture<Boolean> isBlocked();
+
+    abstract CompletableFuture<Boolean> areTxnsOngoing();
+
+    abstract CompletableFuture<Map<String, Data<T>>> getCurrentTxns();
 }

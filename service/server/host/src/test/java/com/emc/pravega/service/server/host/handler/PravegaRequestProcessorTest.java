@@ -185,7 +185,7 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
 
         // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
-        processor.createSegment(new CreateSegment(streamSegmentName));
+        processor.createSegment(new CreateSegment(streamSegmentName, CreateSegment.NO_SCALE, 0));
         assertTrue(append(streamSegmentName, 1, store));
         processor.getStreamSegmentInfo(new GetStreamSegmentInfo(streamSegmentName));
         assertTrue(append(streamSegmentName, 2, store));
@@ -212,7 +212,7 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
 
         // Execute create/seal/delete Segment command.
-        processor.createSegment(new CreateSegment(streamSegmentName));
+        processor.createSegment(new CreateSegment(streamSegmentName, CreateSegment.NO_SCALE, 0));
         assertTrue(append(streamSegmentName, 1, store));
         processor.sealSegment(new SealSegment(streamSegmentName));
         assertFalse(append(streamSegmentName, 2, store));

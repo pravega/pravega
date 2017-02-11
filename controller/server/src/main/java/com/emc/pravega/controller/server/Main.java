@@ -22,8 +22,11 @@ import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
+import com.emc.pravega.controller.embedded.EmbeddedController;
+import com.emc.pravega.controller.embedded.EmbeddedControllerImpl;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
+import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
@@ -123,5 +126,10 @@ public class Main {
         // 4. Start the REST server.
         log.info("Starting Pravega REST Service");
         RESTServer.start(controllerService);
+
+        final ScheduledExecutorService requestExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
+                new ThreadFactoryBuilder().setNameFormat("requestpool-%d").build());
+        final EmbeddedController controller = new EmbeddedControllerImpl(controllerService);
+        RequestHandlersInit.coldStart(controller, requestExecutor);
     }
 }

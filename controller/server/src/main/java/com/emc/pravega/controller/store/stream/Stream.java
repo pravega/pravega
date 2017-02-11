@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -24,6 +25,7 @@ import com.emc.pravega.stream.impl.TxnStatus;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -31,7 +33,9 @@ import java.util.concurrent.CompletableFuture;
  * Properties of a stream and operations that can be performed on it.
  * Identifier for a stream is its name.
  */
-interface Stream {
+interface Stream extends OperationContext {
+
+    String getScope();
 
     String getName();
 
@@ -60,12 +64,14 @@ interface Stream {
 
     /**
      * Update the state of the stream.
+     *
      * @return boolean indicating whether the state of stream is updated.
      */
     CompletableFuture<Boolean> updateState(final State state);
 
     /**
-     *  Get the state of the stream.
+     * Get the state of the stream.
+     *
      * @return state othe given stream.
      */
     CompletableFuture<State> getState();
@@ -83,7 +89,7 @@ interface Stream {
      * @return successors of specified segment.
      */
     CompletableFuture<List<Integer>> getSuccessors(final int number);
-    
+
     /**
      * @param number segment number.
      * @return successors of specified segment mapped to the list of their predecessors
@@ -119,14 +125,27 @@ interface Stream {
                                            final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                            final long scaleTimestamp);
 
+
+    CompletableFuture<Void> setMarker(int segmentNumber, long timestamp);
+
+    CompletableFuture<Optional<Long>> getMarker(int segmentNumber);
+
+    CompletableFuture<Void> removeMarker(int segmentNumber);
+
+    CompletableFuture<Void> blockTransactions();
+
+    CompletableFuture<Void> unblockTransactions();
+
     /**
      * Method to start new transaction creation
+     *
      * @return
      */
     CompletableFuture<UUID> createTransaction();
 
     /**
      * Seal given transaction
+     *
      * @param txId
      * @return
      */
@@ -134,6 +153,7 @@ interface Stream {
 
     /**
      * Returns transaction's status
+     *
      * @param txId
      * @return
      */
@@ -143,6 +163,7 @@ interface Stream {
      * Commits a transaction
      * If already committed, return TxnStatus.Committed
      * If aborted, throw OperationOnTxNotAllowedException
+     *
      * @param txId
      * @return
      */
@@ -152,6 +173,7 @@ interface Stream {
      * Commits a transaction
      * If already aborted, return TxnStatus.Aborted
      * If committed, throw OperationOnTxNotAllowedException
+     *
      * @param txId
      * @return
      */
@@ -159,9 +181,12 @@ interface Stream {
 
     /**
      * Return whether any transaction is active on the stream.
+     *
      * @return a boolean indicating whether a transaction is active on the stream.
      */
     CompletableFuture<Boolean> isTransactionOngoing();
+
+    CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns();
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.

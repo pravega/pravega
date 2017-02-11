@@ -384,7 +384,6 @@ public final class WireCommands {
         }
     }
     
-
     @Data
     public static final class AppendSetup implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.APPEND_SETUP;
@@ -655,8 +654,14 @@ public final class WireCommands {
 
     @Data
     public static final class CreateSegment implements Request, WireCommand {
+        public static final byte IN_KBPS = (byte) 0;
+        public static final byte IN_EVENTS_PER_SEC = (byte) 1;
+        public static final byte NO_SCALE = (byte) 2;
+
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
         final String segment;
+        final byte scaleType;
+        final int targetRate;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -666,11 +671,16 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeUTF(segment);
+            out.writeInt(targetRate);
+            out.writeByte(scaleType);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
-            return new CreateSegment(segment);
+            int desiredRate = in.readInt();
+            byte scaleType = in.readByte();
+
+            return new CreateSegment(segment, scaleType, desiredRate);
         }
     }
 
@@ -884,7 +894,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
-            return new SealSegment(segment);
+            return new SegmentSealed(segment);
         }
     }
 
@@ -905,7 +915,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
-            return new SealSegment(segment);
+            return new DeleteSegment(segment);
         }
     }
 
@@ -926,7 +936,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             String segment = in.readUTF();
-            return new SealSegment(segment);
+            return new SegmentDeleted(segment);
         }
     }
     

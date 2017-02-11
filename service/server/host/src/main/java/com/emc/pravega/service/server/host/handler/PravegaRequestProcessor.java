@@ -50,6 +50,8 @@ import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.service.contracts.Attribute;
+import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -64,10 +66,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+
+import jersey.repackaged.com.google.common.collect.Lists;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
@@ -256,7 +261,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
-        CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), null, TIMEOUT);
+        Collection<AttributeUpdate> attributes = Lists.newArrayList(
+                new AttributeUpdate(Attribute.SCALE_POLICY_TYPE, ((Byte)createStreamsSegment.getScaleType()).longValue()),
+                new AttributeUpdate(Attribute.SCALE_POLICY_RATE, ((Integer)createStreamsSegment.getTargetRate()).longValue())
+        );
+
+        CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), attributes, TIMEOUT);
         future.thenApply((Void v) -> {
             Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
             connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
@@ -294,7 +304,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void createTransaction(CreateTransaction createTransaction) {
-        CompletableFuture<String> future = segmentStore.createTransaction(createTransaction.getSegment(), createTransaction.getTxid(), null, TIMEOUT);
+        Collection<AttributeUpdate> attributes = Lists.newArrayList(
+                new AttributeUpdate(Attribute.CREATION_TIME, System.currentTimeMillis()));
+
+        CompletableFuture<String> future = segmentStore.createTransaction(createTransaction.getSegment(), createTransaction.getTxid(), attributes, TIMEOUT);
         future.thenApply((String txName) -> {
             connection.send(new TransactionCreated(createTransaction.getSegment(), createTransaction.getTxid()));
             return null;

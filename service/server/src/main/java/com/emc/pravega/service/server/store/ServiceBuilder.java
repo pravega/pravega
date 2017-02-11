@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.store;
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
+import com.emc.pravega.service.monitor.MonitorFactory;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndexFactory;
@@ -36,6 +37,7 @@ import com.emc.pravega.service.server.mocks.InMemoryMetadataRepository;
 import com.emc.pravega.service.server.mocks.LocalSegmentContainerManager;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
+import com.emc.pravega.service.server.stats.SegmentStatsFactory;
 import com.emc.pravega.service.server.writer.StorageWriterFactory;
 import com.emc.pravega.service.server.writer.WriterConfig;
 import com.emc.pravega.service.storage.CacheFactory;
@@ -44,6 +46,7 @@ import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -76,6 +79,7 @@ public final class ServiceBuilder implements AutoCloseable {
     private final AtomicReference<MetadataRepository> metadataRepository;
     private final AtomicReference<CacheFactory> cacheFactory;
     private final AtomicReference<WriterFactory> writerFactory;
+    private final AtomicReference<SegmentStatsFactory> statsFactory;
     private final AtomicReference<StreamSegmentStore> streamSegmentService;
     private Function<ComponentSetup, DurableDataLogFactory> dataLogFactoryCreator;
     private Function<ComponentSetup, StorageFactory> storageFactoryCreator;
@@ -114,6 +118,7 @@ public final class ServiceBuilder implements AutoCloseable {
         this.metadataRepository = new AtomicReference<>();
         this.cacheFactory = new AtomicReference<>();
         this.writerFactory = new AtomicReference<>();
+        this.statsFactory = new AtomicReference<>();
         this.streamSegmentService = new AtomicReference<>();
 
         // Setup default creators - we cannot use the ServiceBuilder unless all of these are setup.
@@ -279,7 +284,8 @@ public final class ServiceBuilder implements AutoCloseable {
         OperationLogFactory operationLogFactory = getSingleton(this.operationLogFactory, this::createOperationLogFactory);
         CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         WriterFactory writerFactory = getSingleton(this.writerFactory, this::createWriterFactory);
-        return new StreamSegmentContainerFactory(metadataRepository, operationLogFactory, readIndexFactory, writerFactory, storageFactory, cacheFactory, this.executorService);
+        SegmentStatsFactory statsFactory = getSingleton(this.statsFactory, this::createStatsFactory);
+        return new StreamSegmentContainerFactory(metadataRepository, operationLogFactory, readIndexFactory, writerFactory, storageFactory, cacheFactory, statsFactory, this.executorService);
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {
@@ -291,6 +297,10 @@ public final class ServiceBuilder implements AutoCloseable {
         DurableDataLogFactory dataLogFactory = getSingleton(this.dataLogFactory, this.dataLogFactoryCreator);
         DurableLogConfig durableLogConfig = this.serviceBuilderConfig.getConfig(DurableLogConfig::new);
         return new DurableLogFactory(durableLogConfig, dataLogFactory, this.executorService);
+    }
+
+    private SegmentStatsFactory createStatsFactory() {
+        return new SegmentStatsFactory(Lists.newArrayList(MonitorFactory.createMonitor(MonitorFactory.MonitorType.ThresholdMonitor)));
     }
 
     private <T> T getSingleton(AtomicReference<T> instance, Function<ComponentSetup, T> creator) {

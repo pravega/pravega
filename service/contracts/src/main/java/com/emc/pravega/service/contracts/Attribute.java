@@ -52,6 +52,12 @@ public class Attribute {
      */
     public static final Attribute EVENT_COUNT = new Attribute(new UUID(WELL_KNOWN_ID_PREFIX, 0), Attribute.UpdateType.Accumulate);
 
+    /**
+     * Defines attributes that capture scaling policy
+     */
+    public static final Attribute SCALE_POLICY_TYPE = new Attribute(new UUID(WELL_KNOWN_ID_PREFIX, 0), UpdateType.Replace);
+    public static final Attribute SCALE_POLICY_RATE = new Attribute(new UUID(WELL_KNOWN_ID_PREFIX, 0), UpdateType.Replace);
+
     //endregion
 
     //region Members

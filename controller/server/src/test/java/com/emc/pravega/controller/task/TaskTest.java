@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelperMock;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -84,7 +85,6 @@ public class TaskTest {
 
     private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
 
-
     private final TaskMetadataStore taskMetadataStore;
 
     private final TestingServer zkServer;
@@ -94,6 +94,8 @@ public class TaskTest {
     public TaskTest() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
+
+        SegmentHelperMock.init();
 
         CuratorFramework cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
@@ -110,20 +112,20 @@ public class TaskTest {
         final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
 
         // region createStream
-        streamStore.createStream(stream1, configuration1, System.currentTimeMillis());
-        streamStore.createStream(stream2, configuration2, System.currentTimeMillis());
+        streamStore.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null);
+        streamStore.createStream(SCOPE, stream2, configuration2, System.currentTimeMillis(), null);
         // endregion
 
         // region scaleSegments
 
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20);
+        streamStore.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20, null);
 
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.5);
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20);
+        streamStore.scale(SCOPE, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20, null);
         // endregion
     }
 
@@ -136,13 +138,13 @@ public class TaskTest {
     @Test
     public void testMethods() throws InterruptedException, ExecutionException {
         try {
-            streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis()).join();
+            streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null).join();
         } catch (CompletionException e) {
             assertTrue(e.getCause() instanceof StreamAlreadyExistsException);
         }
 
         CreateStreamStatus result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
-                System.currentTimeMillis()).join();
+                System.currentTimeMillis(), null).join();
         assertEquals(result, CreateStreamStatus.SUCCESS);
     }
 
@@ -159,7 +161,7 @@ public class TaskTest {
         final long timestamp = System.currentTimeMillis();
         taskData.setMethodName("createStream");
         taskData.setMethodVersion("1.0");
-        taskData.setParameters(new Serializable[]{scope, stream, configuration, timestamp});
+        taskData.setParameters(new Serializable[]{scope, stream, configuration, timestamp, null});
 
         for (int i = 0; i < 5; i++) {
             final TaggedResource taggedResource = new TaggedResource(UUID.randomUUID().toString(), resource);
@@ -180,7 +182,7 @@ public class TaskTest {
         assertFalse(child.isPresent());
 
         // ensure that the stream streamSweeper is created
-        StreamConfiguration config = streamStore.getConfiguration(stream).get();
+        StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream, null).get();
         assertTrue(config.getName().equals(configuration.getName()));
         assertTrue(config.getScope().equals(configuration.getScope()));
         assertTrue(config.getScalingPolicy().equals(configuration.getScalingPolicy()));
@@ -204,14 +206,14 @@ public class TaskTest {
         final long timestamp1 = System.currentTimeMillis();
         taskData1.setMethodName("createStream");
         taskData1.setMethodVersion("1.0");
-        taskData1.setParameters(new Serializable[]{scope, stream1, config1, timestamp1});
+        taskData1.setParameters(new Serializable[]{scope, stream1, config1, timestamp1, null});
 
         final TaskData taskData2 = new TaskData();
         final Resource resource2 = new Resource(scope, stream2);
         final long timestamp2 = System.currentTimeMillis();
         taskData2.setMethodName("createStream");
         taskData2.setMethodVersion("1.0");
-        taskData2.setParameters(new Serializable[]{scope, stream2, config2, timestamp2});
+        taskData2.setParameters(new Serializable[]{scope, stream2, config2, timestamp2, null});
 
         for (int i = 0; i < 5; i++) {
             final TaggedResource taggedResource = new TaggedResource(UUID.randomUUID().toString(), resource1);
@@ -247,10 +249,10 @@ public class TaskTest {
         assertFalse(child.isPresent());
 
         // ensure that the stream streamSweeper is created
-        StreamConfiguration config = streamStore.getConfiguration(stream1).get();
+        StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream1, null).get();
         assertTrue(config.getName().equals(stream1));
 
-        config = streamStore.getConfiguration(stream2).get();
+        config = streamStore.getConfiguration(SCOPE, stream2, null).get();
         assertTrue(config.getName().equals(stream2));
 
     }
@@ -258,7 +260,7 @@ public class TaskTest {
     @Test
     public void testLocking() {
         TestTasks testTasks = new TestTasks(taskMetadataStore, executor, HOSTNAME);
-        
+
         CompletableFuture<Void> first = testTasks.testStreamLock(SCOPE, stream1);
         CompletableFuture<Void> second = testTasks.testStreamLock(SCOPE, stream1);
         try {
@@ -297,3 +299,4 @@ public class TaskTest {
         }
     }
 }
+

@@ -29,16 +29,16 @@ public class DataNotFoundException extends RuntimeException {
     private static final String FORMAT_STRING = "Data %s not found.";
 
     /**
-     * Creates a new instance of StreamNotFoundException class.
+     * Creates a new instance of DataNotFoundException class.
      *
-     * @param name missing stream name
+     * @param name missing data name
      */
     public DataNotFoundException(final String name) {
         super(String.format(FORMAT_STRING, name));
     }
 
     /**
-     * Creates a new instance of StreamNotFoundException class.
+     * Creates a new instance of DataNotFoundException class.
      *
      * @param name  missing stream name
      * @param cause error cause
