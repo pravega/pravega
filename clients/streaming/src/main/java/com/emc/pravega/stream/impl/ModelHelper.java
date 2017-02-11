@@ -78,27 +78,6 @@ public final class ModelHelper {
         return new Segment(segment.getScope(), segment.getStreamName(), segment.getNumber());
     }
 
-<<<<<<< HEAD
-    /**
-     * Helper to convert SegmentId into FutureSegment.
-     *
-     * @param segment The SegmentId
-     * @param previous Segment Id of previous segment.
-     * @return New instance of Future Segment Impl.
-     */
-    public static final com.emc.pravega.stream.impl.FutureSegment encode(final SegmentId segment, int previous) {
-        Preconditions.checkNotNull(segment, "Segment");
-        return new com.emc.pravega.stream.impl.FutureSegment(segment.getScope(), segment.getStreamName(), segment.getNumber(), previous);
-    }
-
-    /**
-     * Helper to convert StreamPolicy v1 Impl. into StreamPolicy
-     *
-     * @param policy StreamPolicy v1 Impl.
-     * @return New instance of StreamPolicy
-     */
-=======
->>>>>>> origin/master
     public static final ScalingPolicy encode(final com.emc.pravega.controller.stream.api.v1.ScalingPolicy policy) {
         Preconditions.checkNotNull(policy, "ScalingPolicy");
         return new ScalingPolicy(ScalingPolicy.Type.valueOf(policy.getType().name()), policy.getTargetRate(), policy.getScaleFactor(),
