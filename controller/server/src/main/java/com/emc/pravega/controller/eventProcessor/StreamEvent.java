@@ -17,9 +17,11 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
+import java.io.Serializable;
+
 /**
  * Interface that all controller events need to implement.
  */
-public interface StreamEvent {
+public interface StreamEvent extends Serializable {
 
 }

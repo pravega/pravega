@@ -28,6 +28,7 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.JavaSerializer;
 import lombok.extern.slf4j.Slf4j;
 
 // todo: use config values for constants defined in this file
@@ -75,7 +76,7 @@ public class ControllerEventProcessors {
                 Props.<CommitEvent>builder()
                         .config(commitReadersConfig)
                         .decider(Decider.DEFAULT_DECIDER)
-                        .serializer(CommitEvent.getSerializer())
+                        .serializer(new JavaSerializer<>())
                         .clazz(CommitEventProcessor.class)
                         .args(streamMetadataStore, hostControllerStore)
                         .build();
@@ -110,7 +111,7 @@ public class ControllerEventProcessors {
                 Props.<AbortEvent>builder()
                         .config(abortReadersConfig)
                         .decider(Decider.DEFAULT_DECIDER)
-                        .serializer(AbortEvent.getSerializer())
+                        .serializer(new JavaSerializer<>())
                         .clazz(AbortEventProcessor.class)
                         .args(streamMetadataStore, hostControllerStore)
                         .build();
