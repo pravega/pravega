@@ -20,11 +20,14 @@ package com.emc.pravega.controller.server.rest.contract.common;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import javax.validation.constraints.NotNull;
+
 /**
  * REST representation of retention policy of a stream.
  */
 @Getter
 @AllArgsConstructor
 public class RetentionPolicyCommon {
-    private long retentionTimeMillis;
+    @NotNull
+    private Long retentionTimeMillis;
 }

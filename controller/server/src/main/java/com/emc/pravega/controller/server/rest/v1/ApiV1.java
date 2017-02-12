@@ -21,6 +21,7 @@ package com.emc.pravega.controller.server.rest.v1;
 import com.emc.pravega.controller.server.rest.contract.request.CreateStreamRequest;
 import com.emc.pravega.controller.server.rest.contract.request.UpdateStreamRequest;
 
+import javax.validation.Valid;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -62,7 +63,7 @@ public final class ApiV1 {
         @Path("/scopes/{scope}/streams")
         @Produces(MediaType.APPLICATION_JSON)
         @Consumes(MediaType.APPLICATION_JSON)
-        public void createStream(@PathParam("scope") final String scope, final CreateStreamRequest createStreamRequest,
+        public void createStream(@PathParam("scope") final String scope, @Valid final CreateStreamRequest createStreamRequest,
                                  @Suspended final AsyncResponse asyncResponse);
 
         /**
@@ -78,7 +79,7 @@ public final class ApiV1 {
         @Produces(MediaType.APPLICATION_JSON)
         @Consumes(MediaType.APPLICATION_JSON)
         public void updateStreamConfig(@PathParam("scope") final String scope, @PathParam("stream") final String stream,
-                                       final UpdateStreamRequest updateStreamRequest,
+                                       @Valid final UpdateStreamRequest updateStreamRequest,
                                        @Suspended final AsyncResponse asyncResponse);
 
         /**

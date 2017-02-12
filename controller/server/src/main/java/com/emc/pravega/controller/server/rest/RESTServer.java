@@ -25,6 +25,7 @@ import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
 import org.glassfish.jersey.netty.httpserver.NettyHttpContainerProvider;
 import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.server.ServerProperties;
 
 import javax.ws.rs.core.UriBuilder;
 import java.net.URI;
@@ -51,6 +52,7 @@ public class RESTServer {
 
         final ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
         final ResourceConfig resourceConfig = ResourceConfig.forApplication(controllerApplication);
+        resourceConfig.property(ServerProperties.BV_SEND_ERROR_IN_RESPONSE, true);
 
         Channel server = null;
         try {
