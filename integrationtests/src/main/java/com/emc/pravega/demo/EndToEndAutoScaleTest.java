@@ -80,22 +80,20 @@ public class EndToEndAutoScaleTest {
 
             String str = new String(chars);
 
-            while (true) {
+            while (System.currentTimeMillis() - start > Duration.ofMinutes(11).toMillis()) {
                 try {
                     test.writeEvent("1", str);
                 } catch (Throwable e) {
                     log.error("test exception writing events {}", e.getMessage());
                 }
-
-                if (System.currentTimeMillis() - start > Duration.ofMinutes(11).toMillis()) {
-                    StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
-                    if (streamSegments.getSegments().size() > 3) {
-                        System.err.println("Success");
-                    } else {
-                        System.out.println("Failure");
-                    }
-                    break;
-                }
+            }
+            StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
+            if (streamSegments.getSegments().size() > 3) {
+                System.err.println("Success");
+                System.exit(0);
+            } else {
+                System.out.println("Failure");
+                System.exit(1);
             }
         } catch (Throwable e) {
             log.error("Test failed with exception: {}", e.getMessage());

@@ -35,7 +35,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -124,7 +123,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                 R request = event.getEvent();
                 PositionCounter pc = new PositionCounter(event.getPosition(), counter.incrementAndGet());
                 running.add(pc);
-                CompletableFuture.runAsync(() -> requestHandler.process(request), executor)
+                requestHandler.process(request)
                         .whenCompleteAsync((r, e) -> {
                             if (e != null) {
                                 log.error("Processing failed RequestReader {}", e.getMessage());
