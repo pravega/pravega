@@ -80,7 +80,7 @@ public class EndToEndAutoScaleTest {
 
             String str = new String(chars);
 
-            while (System.currentTimeMillis() - start > Duration.ofMinutes(11).toMillis()) {
+            while (System.currentTimeMillis() - start > Duration.ofMinutes(10).toMillis()) {
                 try {
                     test.writeEvent("1", str);
                 } catch (Throwable e) {
