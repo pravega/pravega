@@ -52,7 +52,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     private static final long TWO_MINUTES = Duration.ofMinutes(2).toMillis();
     private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool();
     private static final int INITIAL_CAPACITY = 1000;
-    private static final int MAX_CACHE_SIZE = 100000;
+    private static final int MAX_CACHE_SIZE = 100000; // 100k segment records in memory.
 
     private final List<SegmentTrafficMonitor> monitors;
 

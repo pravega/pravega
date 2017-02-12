@@ -34,6 +34,7 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.Serializable;
+import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -51,7 +52,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     private static final long RETRY_INITIAL_DELAY = 100;
     private static final int RETRY_MULTIPLIER = 10;
     private static final int RETRY_MAX_ATTEMPTS = 100;
-    private static final long RETRY_MAX_DELAY = 100000;
+    private static final long RETRY_MAX_DELAY = Duration.ofSeconds(10).toMillis();
 
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;

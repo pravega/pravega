@@ -72,9 +72,10 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
-import jersey.repackaged.com.google.common.collect.Lists;
+import com.google.common.collect.Lists;
 import lombok.extern.slf4j.Slf4j;
 
+import static com.emc.pravega.common.netty.WireCommands.*;
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Cache;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.EndOfStreamSegment;
@@ -98,6 +99,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     public static class Metrics {
         static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
+        static final OpStatsLogger UPDATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
         static final OpStatsLogger READ_STREAM_SEGMENT = STATS_LOGGER.createStats(READ_SEGMENT);
         static final OpStatsLogger READ_BYTES_STATS = STATS_LOGGER.createStats(SEGMENT_READ_BYTES);
         static final Counter READ_BYTES = STATS_LOGGER.createCounter(ALL_READ_BYTES);
@@ -262,8 +264,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
         Collection<AttributeUpdate> attributes = Lists.newArrayList(
-                new AttributeUpdate(Attribute.SCALE_POLICY_TYPE, ((Byte)createStreamsSegment.getScaleType()).longValue()),
-                new AttributeUpdate(Attribute.SCALE_POLICY_RATE, ((Integer)createStreamsSegment.getTargetRate()).longValue())
+                new AttributeUpdate(Attribute.SCALE_POLICY_TYPE, ((Byte) createStreamsSegment.getScaleType()).longValue()),
+                new AttributeUpdate(Attribute.SCALE_POLICY_RATE, ((Integer) createStreamsSegment.getTargetRate()).longValue())
         );
 
         CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), attributes, TIMEOUT);
@@ -374,4 +376,26 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return null;
         });
     }
+
+    @Override
+    public void updateSegmentPolicy(UpdateSegmentPolicy updateSegmentPolicy) {
+        Timer timer = new Timer();
+        Collection<AttributeUpdate> attributes = Lists.newArrayList(
+                new AttributeUpdate(Attribute.SCALE_POLICY_TYPE, ((Byte) updateSegmentPolicy.getScaleType()).longValue()),
+                new AttributeUpdate(Attribute.SCALE_POLICY_RATE, ((Integer) updateSegmentPolicy.getTargetRate()).longValue())
+        );
+
+        // TODO: update segment policy
+        //        CompletableFuture<Void> future = segmentStore.createStreamSegment(updateSegmentPolicy.getSegment(), attributes, TIMEOUT);
+        //        future.thenApply((Void v) -> {
+        //            Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
+        //            connection.send(new SegmentPolicyUpdated(updateSegmentPolicy.getSegment()));
+        //            return null;
+        //        }).exceptionally((Throwable e) -> {
+        //            Metrics.UPDATE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
+        //            handleException(updateSegmentPolicy.getSegment(), "Update segment", e);
+        //            return null;
+        //        });
+    }
+
 }

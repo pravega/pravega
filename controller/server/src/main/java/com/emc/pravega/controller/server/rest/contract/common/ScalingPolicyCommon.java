@@ -35,15 +35,15 @@ public class ScalingPolicyCommon {
         /**
          * Scale based on the rate in bytes specified in {@link ScalingPolicyCommon#targetRate}.
          */
-        BY_RATE_IN_BYTES,
+        BY_RATE_IN_KBPS,
         /**
          * Scale based on the rate in events specified in {@link ScalingPolicyCommon#targetRate}.
          */
-        BY_RATE_IN_EVENTS,
+        BY_RATE_IN_EVENTS_PER_SEC,
     }
 
     private ScalingPolicyCommon.Type type;
-    private long targetRate;
+    private int targetRate;
     private int scaleFactor;
     private int minNumSegments;
 }

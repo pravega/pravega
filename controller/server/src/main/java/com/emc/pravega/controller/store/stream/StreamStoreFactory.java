@@ -35,7 +35,7 @@ public class StreamStoreFactory {
             case InMemory:
                 return new InMemoryStreamMetadataStore();
             case Zookeeper:
-                return new ZKStreamMetadataStore(executor);
+                return ZKStreamMetadataStore.getSingleton(executor);
             case ECS:
             case S3:
             case HDFS:

@@ -56,6 +56,8 @@ import com.google.common.base.Preconditions;
 import java.io.DataInput;
 import java.io.IOException;
 
+import static com.emc.pravega.common.netty.WireCommands.*;
+
 /**
  * The various types of commands that can be sent over the wire.
  * Each has two fields the first is a code that identifies it in the wire protocol. (This is the first thing written)
@@ -106,6 +108,9 @@ public enum WireCommandType {
 
     DELETE_SEGMENT(30, DeleteSegment::readFrom),
     SEGMENT_DELETED(31, SegmentDeleted::readFrom),
+
+    UPDATE_SEGMENT_POLICY(32, UpdateSegmentPolicy::readFrom),
+    SEGMENT_POLICY_UPDATED(33, SegmentPolicyUpdated::readFrom),
 
     WRONG_HOST(50, WrongHost::readFrom),
     SEGMENT_IS_SEALED(51, SegmentIsSealed::readFrom),

@@ -71,12 +71,12 @@ public class StreamMetaDataTests extends JerseyTest {
     private final String resourceURI2 = "v1/scopes/" + scope1 + "/streams/" + stream2;
     private final String streamResourceURI = "v1/scopes/" + scope1 + "/streams";
     private final ScalingPolicyCommon scalingPolicyCommon = new ScalingPolicyCommon(
-            ScalingPolicyCommon.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
+            ScalingPolicyCommon.Type.FIXED_NUM_SEGMENTS, 100, 2, 2);
     private final RetentionPolicyCommon retentionPolicyCommon = new RetentionPolicyCommon(123L);
     private final StreamResponse streamResponseExpected = new StreamResponse(
             new StreamProperty(scope1, stream1, scalingPolicyCommon, retentionPolicyCommon));
     private final StreamConfiguration streamConfiguration = new StreamConfigurationImpl(scope1, stream1,
-            new ScalingPolicy(FIXED_NUM_SEGMENTS, 100L, 2, 2), new RetentionPolicy(123L));
+            new ScalingPolicy(FIXED_NUM_SEGMENTS, 100, 2, 2), new RetentionPolicy(123L));
 
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest(
             stream1, scalingPolicyCommon, retentionPolicyCommon);

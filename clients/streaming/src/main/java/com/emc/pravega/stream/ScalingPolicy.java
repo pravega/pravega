@@ -42,7 +42,7 @@ public class ScalingPolicy implements Serializable {
     }
 
     private final Type type;
-    private final long targetRate;
+    private final int targetRate;
     private final int scaleFactor;
     private final int minNumSegments;
 }

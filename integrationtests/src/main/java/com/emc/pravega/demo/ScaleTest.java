@@ -65,7 +65,7 @@ public class ScaleTest {
         final StreamConfiguration config =
                 new StreamConfigurationImpl(scope,
                         streamName,
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 1));
+                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 1));
 
         Stream stream = new StreamImpl(scope, streamName);
 

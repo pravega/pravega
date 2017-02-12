@@ -85,9 +85,10 @@ public class EndToEndAutoScaleTest {
                     test.writeEvent("1", str);
                 } catch (Exception e) {
                     log.error("test exception writing events {}", e.getMessage());
+                    throw e;
                 }
 
-                if (System.currentTimeMillis() - start > Duration.ofMinutes(10).toMillis()) {
+                if (System.currentTimeMillis() - start > Duration.ofMinutes(11).toMillis()) {
                     StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
                     if (streamSegments.getSegments().size() > 3) {
                         System.err.println("Success");
@@ -96,7 +97,6 @@ public class EndToEndAutoScaleTest {
                     }
                     break;
                 }
-                // check if scale has happened
             }
         } catch (Exception e) {
             log.error("Test failed with exception: {}", e.getMessage());

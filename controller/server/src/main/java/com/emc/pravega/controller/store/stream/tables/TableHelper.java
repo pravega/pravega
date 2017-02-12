@@ -107,11 +107,16 @@ public class TableHelper {
      * @return
      */
     public static List<Integer> getActiveSegments(final long timestamp, final byte[] indexTable, final byte[] historyTable) {
-        final Optional<IndexRecord> recordOpt = IndexRecord.search(timestamp, indexTable).getValue();
-        final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
+        final Optional<HistoryRecord> record;
+        if (timestamp == 0) {
+            record = HistoryRecord.readRecord(historyTable, 0);
+        } else {
+            final Optional<IndexRecord> recordOpt = IndexRecord.search(timestamp, indexTable).getValue();
+            final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
 
-        final Optional<HistoryRecord> record = findRecordInHistoryTable(startingOffset, timestamp, historyTable);
-        return record.isPresent() ? record.get().getSegments() : new ArrayList<>();
+            record = findRecordInHistoryTable(startingOffset, timestamp, historyTable);
+        }
+        return record.map(HistoryRecord::getSegments).orElse(new ArrayList<>());
     }
 
     /**

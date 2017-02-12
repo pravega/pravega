@@ -706,6 +706,59 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class UpdateSegmentPolicy implements Request, WireCommand {
+        public static final byte IN_KBPS = (byte) 0;
+        public static final byte IN_EVENTS_PER_SEC = (byte) 1;
+        public static final byte NO_SCALE = (byte) 2;
+
+        final WireCommandType type = WireCommandType.CREATE_SEGMENT;
+        final String segment;
+        final byte scaleType;
+        final int targetRate;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.updateSegmentPolicy(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
+            out.writeInt(targetRate);
+            out.writeByte(scaleType);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            String segment = in.readUTF();
+            int desiredRate = in.readInt();
+            byte scaleType = in.readByte();
+
+            return new UpdateSegmentPolicy(segment, scaleType, desiredRate);
+        }
+    }
+
+    @Data
+    public static final class SegmentPolicyUpdated implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.SEGMENT_POLICY_UPDATED;
+        final String segment;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.segmentPolicyUpdated(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            String segment = in.readUTF();
+            return new SegmentPolicyUpdated(segment);
+        }
+    }
+
+    @Data
     public static final class CreateTransaction implements Request, WireCommand {
         final WireCommandType type = WireCommandType.CREATE_TRANSACTION;
         final String segment;

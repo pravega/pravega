@@ -15,35 +15,41 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.RetryableException;
+
 /**
- * Exception thrown when data identified by given identifier is not found in the metadata.
+ * StoreConnectionException exception.
  */
-public class DataNotFoundException extends RuntimeException {
-    /**
-     *
-     */
+public class StoreConnectionException extends RetryableException {
     private static final long serialVersionUID = 1L;
-    private static final String FORMAT_STRING = "Data %s not found.";
 
     /**
-     * Creates a new instance of DataNotFoundException class.
+     * Creates a new instance of StoreConnectionException class.
      *
-     * @param name missing data identifier
+     * @param reason reason for failure
      */
-    public DataNotFoundException(final String name) {
-        super(String.format(FORMAT_STRING, name));
+    public StoreConnectionException(final String reason) {
+        super(reason);
     }
 
     /**
-     * Creates a new instance of DataNotFoundException class.
+     * Creates a new instance of StoreConnectionException class.
      *
-     * @param name  missing data identifier
-     * @param cause error cause
+     * @param cause reason for failure
      */
-    public DataNotFoundException(final String name, final Throwable cause) {
-        super(String.format(FORMAT_STRING, name), cause);
+    public StoreConnectionException(final Throwable cause) {
+        super(cause);
+    }
+
+    /**
+     * Creates a new instance of StoreConnectionException class.
+     *
+     * @param reason reason for failure
+     * @param cause  error cause
+     */
+    public StoreConnectionException(final String reason, final Throwable cause) {
+        super(reason, cause);
     }
 }

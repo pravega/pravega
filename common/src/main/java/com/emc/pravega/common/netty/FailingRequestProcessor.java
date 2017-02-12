@@ -31,6 +31,8 @@ import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 
 import lombok.extern.slf4j.Slf4j;
 
+import static com.emc.pravega.common.netty.WireCommands.*;
+
 /**
  * A RequestProcessor that throws on every method. (Useful to subclass)
  */
@@ -66,6 +68,12 @@ public class FailingRequestProcessor implements RequestProcessor {
     public void createSegment(CreateSegment createStreamsSegment) {
         throw new IllegalStateException("Unexpected operation");
     }
+
+    @Override
+    public void updateSegmentPolicy(UpdateSegmentPolicy updateSegmentPolicy) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
 
     @Override
     public void createTransaction(CreateTransaction createTransaction) {

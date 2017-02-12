@@ -54,7 +54,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
     // Duration for which scale request posts to request stream will be muted for a segment.
     private static final long MUTE_DURATION = Duration.ofMinutes(10).toMillis();
     // Duration for which no scale operation will be performed on a segment after its creation
-    private static final long MINIMUM_COOLDOWN_PERIOD = Duration.ofMinutes(5).toMillis();
+    private static final long MINIMUM_COOLDOWN_PERIOD = Duration.ofMinutes(10).toMillis();
     private static final long TWO_MINUTES = Duration.ofMinutes(2).toMillis();
     private static final long FIVE_MINUTES = Duration.ofMinutes(5).toMillis();
     private static final long TEN_MINUTES = Duration.ofMinutes(10).toMillis();
@@ -94,7 +94,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
         config = new EventWriterConfig(null);
 
         this.clientFactory.set(clientFactory);
-        CompletableFuture.runAsync(() -> bootstrapRequestStream(), EXECUTOR);
+        CompletableFuture.runAsync(this::bootstrapRequestWriters, EXECUTOR);
     }
 
     @VisibleForTesting
@@ -111,7 +111,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
     }
 
     @Synchronized
-    private void bootstrapRequestStream() {
+    private void bootstrapRequestWriters() {
 
         CompletableFuture<Void> createWriter = new CompletableFuture<>();
 

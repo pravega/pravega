@@ -50,13 +50,13 @@ public class Attribute {
     /**
      * Defines an attribute that can be used to keep track of the number of events in a Segment.
      */
-    public static final Attribute EVENT_COUNT = new Attribute(new UUID(WELL_KNOWN_ID_PREFIX, 0), Attribute.UpdateType.Accumulate);
+    public static final Attribute EVENT_COUNT = new Attribute(new UUID(WELL_KNOWN_ID_PREFIX, 1), Attribute.UpdateType.Accumulate);
 
     /**
-     * Defines attributes that capture scaling policy
+     * Defines attributes that capture scaling policy.
      */
-    public static final Attribute SCALE_POLICY_TYPE = new Attribute(new UUID(WELL_KNOWN_ID_PREFIX, 0), UpdateType.Replace);
-    public static final Attribute SCALE_POLICY_RATE = new Attribute(new UUID(WELL_KNOWN_ID_PREFIX, 0), UpdateType.Replace);
+    public static final Attribute SCALE_POLICY_TYPE = new Attribute(new UUID(WELL_KNOWN_ID_PREFIX, 2), UpdateType.Replace);
+    public static final Attribute SCALE_POLICY_RATE = new Attribute(new UUID(WELL_KNOWN_ID_PREFIX, 3), UpdateType.Replace);
 
     //endregion
 

@@ -36,13 +36,13 @@ enum TxnState {
 
 enum ScalingPolicyType {
     FIXED_NUM_SEGMENTS,
-    BY_RATE_IN_BYTES,
-    BY_RATE_IN_EVENTS,
+    BY_RATE_IN_KBPS,
+    BY_RATE_IN_EVENTS_PER_SEC,
 }
 
 struct ScalingPolicy {
   1: required ScalingPolicyType type,
-  2: required i64 targetRate,
+  2: required i32 targetRate,
   3: required i32 scaleFactor,
   4: required i32 minNumSegments
 }

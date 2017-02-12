@@ -26,27 +26,23 @@ import java.nio.ByteBuffer;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * ZK stream metadata store.
  */
 @Slf4j
 public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
-    private final ScheduledExecutorService executor;
 
-    public ZKStreamMetadataStore(ScheduledExecutorService executor) {
-        this.executor = executor;
-        initialize(ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient());
+    private static final AtomicReference<ZKStreamMetadataStore> SINGLETON = new AtomicReference<>();
+
+    private ZKStreamMetadataStore(ScheduledExecutorService executor) {
+        this(ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient(), executor);
     }
 
     @VisibleForTesting
     public ZKStreamMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
-        this.executor = executor;
-        initialize(client);
-    }
-
-    private void initialize(CuratorFramework client) {
-        ZKStream.initialize(client);
+        ZKStream.initialize(client, executor);
     }
 
     @Override
@@ -63,4 +59,12 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     public CompletableFuture<Optional<ByteBuffer>> readCheckpoint(final String id, final String group) {
         return ZKStream.readCheckpoint(id, group);
     }
+
+    static ZKStreamMetadataStore getSingleton(ScheduledExecutorService executor) {
+        if (SINGLETON.get() == null) {
+            SINGLETON.compareAndSet(null, new ZKStreamMetadataStore(executor));
+        }
+        return SINGLETON.get();
+    }
+
 }

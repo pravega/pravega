@@ -15,41 +15,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.RetryableException;
-
 /**
- * ConnectionException exception.
+ * Exception thrown when data already exists in metadata.
  */
-public class ConnectionException extends RetryableException {
+public class DataExistsException extends RuntimeException {
+    /**
+     *
+     */
     private static final long serialVersionUID = 1L;
+    private static final String FORMAT_STRING = "Data %s already exists.";
 
     /**
-     * Creates a new instance of ConnectionException class.
+     * Creates a new instance of DataExistsException class.
      *
-     * @param reason reason for failure
+     * @param name data identifier
      */
-    public ConnectionException(final String reason) {
-        super(reason);
+    public DataExistsException(final String name) {
+        super(String.format(FORMAT_STRING, name));
     }
 
     /**
-     * Creates a new instance of ConnectionException class.
+     * Creates a new instance of DataExistsException class.
      *
-     * @param cause reason for failure
+     * @param name  data identifier
+     * @param cause error cause
      */
-    public ConnectionException(final Throwable cause) {
-        super(cause);
-    }
-
-    /**
-     * Creates a new instance of ConnectionException class.
-     *
-     * @param reason reason for failure
-     * @param cause  error cause
-     */
-    public ConnectionException(final String reason, final Throwable cause) {
-        super(reason, cause);
+    public DataExistsException(final String name, final Throwable cause) {
+        super(String.format(FORMAT_STRING, name), cause);
     }
 }

@@ -82,7 +82,7 @@ public class ControllerWrapper extends EmbeddedControllerImpl {
         ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
 
         ControllerWrapper controllerWrapper = new ControllerWrapper(controller);
-        RequestHandlersInit.coldStart(controllerWrapper, Executors.newScheduledThreadPool(100));
+        RequestHandlersInit.bootstrapRequestHandlers(controllerWrapper, Executors.newScheduledThreadPool(100));
 
         return controllerWrapper;
     }

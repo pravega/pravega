@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
@@ -67,8 +68,28 @@ public class ZkStreamTest {
     }
 
     @Test
+    public void TestZkConnectionLoss() throws Exception {
+        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 5);
+
+        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
+        final String streamName = "testfail";
+
+        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
+
+        CompletableFuture<Boolean> createStream = store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null);
+        zkTestServer.stop();
+
+        try {
+            createStream.get();
+        } catch (ExecutionException e) {
+            assert e.getCause() instanceof StoreConnectionException;
+        }
+        zkTestServer.start();
+    }
+
+    @Test
     public void TestZkStream() throws Exception {
-        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
+        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 5);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test";
@@ -182,7 +203,7 @@ public class ZkStreamTest {
     @Ignore("run manually")
     //    @Test
     public void TestZkStreamChukning() throws Exception {
-        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 6);
+        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 6);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test2";
@@ -229,7 +250,7 @@ public class ZkStreamTest {
 
     @Test
     public void TestTransaction() throws Exception {
-        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
+        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 5);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testTx";

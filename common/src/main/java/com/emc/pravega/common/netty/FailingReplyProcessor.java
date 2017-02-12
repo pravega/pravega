@@ -36,6 +36,8 @@ import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 
+import static com.emc.pravega.common.netty.WireCommands.*;
+
 /**
  * A ReplyProcessor that throws on every method. (Useful to subclass)
  */
@@ -124,6 +126,11 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void segmentDeleted(SegmentDeleted segmentDeleted) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    @Override
+    public void segmentPolicyUpdated(SegmentPolicyUpdated segment) {
         throw new IllegalStateException("Unexpected operation");
     }
 

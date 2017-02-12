@@ -65,7 +65,7 @@ public class RequestHandlersInit {
     private static StreamManager streamManager;
     private static ClientFactory clientFactory;
 
-    public static void coldStart(EmbeddedController controller, ScheduledExecutorService executor) {
+    public static void bootstrapRequestHandlers(EmbeddedController controller, ScheduledExecutorService executor) {
 
         clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, controller, new ConnectionFactoryImpl(false));
 
@@ -106,7 +106,7 @@ public class RequestHandlersInit {
 
     private static void startScaleReader(ClientFactory clientFactory, StreamMetadataTasks streamMetadataTasks, StreamMetadataStore streamStore, StreamTransactionMetadataTasks streamTransactionMetadataTasks, ScheduledExecutorService executor, CompletableFuture<Void> result) {
         retryIndefinitely(() -> {
-            // TODO: what should be starting position? to be read from checkpoint?
+            // TODO: what should be starting position? we take checkpoint
             ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
 
             streamManager.createReaderGroup(Config.SCALE_READER_GROUP, groupConfig, Lists.newArrayList(Config.SCALE_STREAM_NAME));

@@ -76,13 +76,16 @@ public class Main {
         ScheduledExecutorService executor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
                 new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
+        ScheduledExecutorService storeExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
+                new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
+
         log.info("Creating store client");
         StoreClient storeClient = StoreClientFactory.createStoreClient(
                 StoreClientFactory.StoreType.valueOf(STORE_TYPE));
 
         log.info("Creating the stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
-                StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), executor);
+                StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), storeExecutor);
 
         log.info("Creating zk based task store");
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
@@ -130,6 +133,6 @@ public class Main {
         final ScheduledExecutorService requestExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
                 new ThreadFactoryBuilder().setNameFormat("requestpool-%d").build());
         final EmbeddedController controller = new EmbeddedControllerImpl(controllerService);
-        RequestHandlersInit.coldStart(controller, requestExecutor);
+        RequestHandlersInit.bootstrapRequestHandlers(controller, requestExecutor);
     }
 }
