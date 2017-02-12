@@ -162,9 +162,10 @@ public interface StreamMetadataStore {
      * @param scope  scope
      * @param stream stream
      * @param txId   transaction id
+     * @param commit Whether to change txn state to committing or aborting.
      * @return
      */
-    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId);
+    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId, final boolean commit);
 
     /**
      * Update stream store to mark the transaction as aborted.

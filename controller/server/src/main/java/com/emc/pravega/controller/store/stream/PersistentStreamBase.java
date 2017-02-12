@@ -330,19 +330,35 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(final UUID txId) {
+    public CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit) {
         return checkTransactionStatus(txId)
                 .thenCompose(x -> {
-                    switch (x) {
-                        case SEALED:
-                            return CompletableFuture.completedFuture(TxnStatus.SEALED);
-                        case OPEN:
-                            return sealActiveTx(txId).thenApply(y -> TxnStatus.SEALED);
-                        case ABORTED:
-                        case COMMITTED:
-                            throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
-                        default:
-                            throw new TransactionNotFoundException(txId.toString());
+                    if (commit) {
+                        switch (x) {
+                            case COMMITTING:
+                                return CompletableFuture.completedFuture(TxnStatus.COMMITTING);
+                            case OPEN:
+                                return sealActiveTx(txId, true).thenApply(y -> TxnStatus.COMMITTING);
+                            case ABORTING:
+                            case ABORTED:
+                            case COMMITTED:
+                                throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
+                            default:
+                                throw new TransactionNotFoundException(txId.toString());
+                        }
+                    } else {
+                        switch (x) {
+                            case ABORTING:
+                                return CompletableFuture.completedFuture(TxnStatus.ABORTING);
+                            case OPEN:
+                                return sealActiveTx(txId, false).thenApply(y -> TxnStatus.ABORTING);
+                            case ABORTED:
+                            case COMMITTING:
+                            case COMMITTED:
+                                throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
+                            default:
+                                throw new TransactionNotFoundException(txId.toString());
+                        }
                     }
                 });
     }
@@ -355,9 +371,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     switch (x) {
                         // Only sealed transactions can be committed
                         case COMMITTED:
-                        case SEALED:
+                        case COMMITTING:
                             return x;
                         case OPEN:
+                        case ABORTING:
                         case ABORTED:
                             throw new OperationOnTxNotAllowedException(txId.toString(), "commit");
                         case UNKNOWN:
@@ -366,7 +383,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     }
                 })
                 .thenCompose(x -> {
-                    if (x.equals(TxnStatus.SEALED)) {
+                    if (x.equals(TxnStatus.COMMITTING)) {
                         return createCompletedTxEntry(txId, TxnStatus.COMMITTED, System.currentTimeMillis());
                     } else {
                         return CompletableFuture.completedFuture(null); // already committed, do nothing
@@ -381,10 +398,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return checkTransactionStatus(txId)
                 .thenApply(x -> {
                     switch (x) {
-                        case OPEN:
-                        case SEALED:
+                        case ABORTING:
                         case ABORTED:
                             return x;
+                        case OPEN:
+                        case COMMITTING:
                         case COMMITTED:
                             throw new OperationOnTxNotAllowedException(txId.toString(), "aborted");
                         case UNKNOWN:
@@ -392,9 +410,15 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             throw new TransactionNotFoundException(txId.toString());
                     }
                 })
-                .thenCompose(x -> createCompletedTxEntry(txId, TxnStatus.ABORTED, System.currentTimeMillis())
-                        .thenCompose(y -> removeActiveTxEntry(txId))
-                        .thenApply(y -> TxnStatus.ABORTED));
+                .thenCompose(x -> {
+                    if (x.equals(TxnStatus.ABORTING)) {
+                        return createCompletedTxEntry(txId, TxnStatus.ABORTED, System.currentTimeMillis());
+                    } else {
+                        return CompletableFuture.completedFuture(null); // already committed, do nothing
+                    }
+                })
+                .thenCompose(y -> removeActiveTxEntry(txId))
+                .thenApply(y -> TxnStatus.ABORTED);
     }
 
     private CompletionStage<List<Segment>> getSegments(final int count,
@@ -594,7 +618,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Data<T>> getActiveTx(final UUID txId) throws DataNotFoundException;
 
-    abstract CompletableFuture<Void> sealActiveTx(final UUID txId) throws DataNotFoundException;
+    abstract CompletableFuture<Void> sealActiveTx(final UUID txId, final boolean commit) throws DataNotFoundException;
 
     abstract CompletableFuture<Data<T>> getCompletedTx(final UUID txId) throws DataNotFoundException;
 

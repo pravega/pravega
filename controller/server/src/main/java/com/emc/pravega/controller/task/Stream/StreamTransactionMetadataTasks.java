@@ -20,6 +20,9 @@ package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.concurrent.FutureCollectionHelper;
 import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.controller.server.eventProcessor.AbortEvent;
+import com.emc.pravega.controller.server.eventProcessor.CommitEvent;
+import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -157,28 +160,19 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     }
 
     private CompletableFuture<TxnStatus> abortTxBody(final String scope, final String stream, final UUID txid) {
-        // notify hosts to abort transaction
-        return streamMetadataStore.getActiveSegments(stream)
-                .thenCompose(segments ->
-                        FutureCollectionHelper.sequence(
-                                segments.stream()
-                                        .parallel()
-                                        .map(segment -> notifyDropToHost(scope, stream, segment.getNumber(), txid))
-                                        .collect(Collectors.toList())))
-                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txid));
+        return streamMetadataStore.sealTransaction(scope, stream, txid, false)
+                .thenApply(status -> {
+                    ControllerEventProcessors.getAbortEventProcessorsRef().writeEvent(stream, new AbortEvent(scope, stream, txid));
+                    return status;
+                });
     }
 
     private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid) {
-        return streamMetadataStore.sealTransaction(scope, stream, txid)
-                .thenCompose(x ->
-                        streamMetadataStore.getActiveSegments(stream)
-                                .thenCompose(segments ->
-                                        FutureCollectionHelper.sequence(segments.stream()
-                                                .parallel()
-                                                .map(segment ->
-                                                        notifyCommitToHost(scope, stream, segment.getNumber(), txid))
-                                                .collect(Collectors.toList()))))
-                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txid));
+        return streamMetadataStore.sealTransaction(scope, stream, txid, true)
+                .thenApply(status -> {
+                    ControllerEventProcessors.getCommitEventProcessorsRef().writeEvent(stream, new CommitEvent(scope, stream, txid));
+                    return status;
+                });
     }
 
     private CompletableFuture<UUID> notifyTxCreation(final String scope, final String stream, final int segmentNumber, final UUID txid) {

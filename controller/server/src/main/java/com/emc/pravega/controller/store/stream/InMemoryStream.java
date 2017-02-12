@@ -214,7 +214,7 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(UUID txId) {
+    public CompletableFuture<TxnStatus> sealTransaction(UUID txId, boolean commit) {
         throw new NotImplementedException();
     }
 

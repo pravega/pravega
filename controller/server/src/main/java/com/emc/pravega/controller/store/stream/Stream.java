@@ -130,7 +130,7 @@ interface Stream {
      * @param txId
      * @return
      */
-    CompletableFuture<TxnStatus> sealTransaction(final UUID txId);
+    CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit);
 
     /**
      * Returns transaction's status

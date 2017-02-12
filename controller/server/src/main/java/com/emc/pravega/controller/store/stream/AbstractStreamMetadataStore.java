@@ -152,8 +152,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId) {
-        return getStream(stream).sealTransaction(txId);
+    public CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId,
+                                                        final boolean commit) {
+        return getStream(stream).sealTransaction(txId, commit);
     }
 
     @Override

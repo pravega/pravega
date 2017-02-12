@@ -15,13 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.impl;
+package com.emc.pravega.controller.server.eventProcessor;
 
-public enum TxnStatus {
-    UNKNOWN,
-    OPEN,
-    COMMITTING,
-    COMMITTED,
-    ABORTING,
-    ABORTED
+import com.emc.pravega.controller.eventProcessor.StreamEvent;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
+import java.util.UUID;
+
+@Data
+@AllArgsConstructor
+public class AbortEvent implements StreamEvent {
+    private final String scope;
+    private final String stream;
+    private final UUID txid;
 }
