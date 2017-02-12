@@ -32,11 +32,7 @@ class SegmentAggregates implements Serializable {
     private static final double M10_ALPHA = 1 - StrictMath.exp((double) -INTERVAL / (double) SECONDS_PER_MINUTE / 10);
     private static final double M20_ALPHA = 1 - StrictMath.exp((double) -INTERVAL / (double) SECONDS_PER_MINUTE / 20);
 
-    private static final long TWO_MINUTE = Duration.ofMinutes(2).toMinutes() * SECONDS_PER_MINUTE;
-    private static final long FIVE_MINUTE = Duration.ofMinutes(5).toMinutes() * SECONDS_PER_MINUTE;
-    private static final long TEN_MINUTE = Duration.ofMinutes(10).toMinutes() * SECONDS_PER_MINUTE;
-    private static final long TWENTY_MINUTE = Duration.ofMinutes(20).toMinutes() * SECONDS_PER_MINUTE;
-
+    private static final long TICK_INTERVAL_IN_SECONDS = Duration.ofSeconds(5).getSeconds();
     private static final long TICK_INTERVAL = Duration.ofSeconds(5).toNanos();
 
     // Amount of data stored in each aggregate = 74 bytes.
@@ -84,6 +80,7 @@ class SegmentAggregates implements Serializable {
         this.scaleType = scaleType;
         startTime = System.currentTimeMillis();
         lastReportedTime = System.currentTimeMillis();
+        lastTick = System.nanoTime();
     }
 
     void setScaleType(byte scaleType) {
@@ -160,7 +157,7 @@ class SegmentAggregates implements Serializable {
     }
 
 
-    private void computeDecay(long size, long duration) {
+    private void computeDecay(long count, long duration) {
         // We have two options here --
         // currentCount data can be assumed to be evenly distributed over the tick period.
         // Or assume this was received in this instant and every other tick gets 0.
@@ -169,13 +166,13 @@ class SegmentAggregates implements Serializable {
 
         final long requiredTicks = Math.max(duration / TICK_INTERVAL, 1);
 
-        final long count = size / requiredTicks;
+        final long perTickCount = count / requiredTicks;
 
         for (long i = 0; i < requiredTicks; i++) {
-            twoMinuteRate = decayingRate(count, twoMinuteRate, M2_ALPHA, TWO_MINUTE);
-            fiveMinuteRate = decayingRate(count, fiveMinuteRate, M5_ALPHA, FIVE_MINUTE);
-            tenMinuteRate = decayingRate(count, tenMinuteRate, M10_ALPHA, TEN_MINUTE);
-            twentyMinuteRate = decayingRate(count, twentyMinuteRate, M20_ALPHA, TWENTY_MINUTE);
+            twoMinuteRate = decayingRate(perTickCount, twoMinuteRate, M2_ALPHA, TICK_INTERVAL_IN_SECONDS);
+            fiveMinuteRate = decayingRate(perTickCount, fiveMinuteRate, M5_ALPHA, TICK_INTERVAL_IN_SECONDS);
+            tenMinuteRate = decayingRate(perTickCount, tenMinuteRate, M10_ALPHA, TICK_INTERVAL_IN_SECONDS);
+            twentyMinuteRate = decayingRate(perTickCount, twentyMinuteRate, M20_ALPHA, TICK_INTERVAL_IN_SECONDS);
         }
     }
 

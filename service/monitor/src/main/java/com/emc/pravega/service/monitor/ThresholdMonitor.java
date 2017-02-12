@@ -51,10 +51,6 @@ import java.util.function.Supplier;
 @Slf4j
 public class ThresholdMonitor implements SegmentTrafficMonitor {
 
-    // Duration for which scale request posts to request stream will be muted for a segment.
-    private static final long MUTE_DURATION = Duration.ofMinutes(10).toMillis();
-    // Duration for which no scale operation will be performed on a segment after its creation
-    private static final long MINIMUM_COOLDOWN_PERIOD = Duration.ofMinutes(10).toMillis();
     private static final long TWO_MINUTES = Duration.ofMinutes(2).toMillis();
     private static final long FIVE_MINUTES = Duration.ofMinutes(5).toMillis();
     private static final long TEN_MINUTES = Duration.ofMinutes(10).toMillis();
@@ -62,6 +58,10 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
 
     // TODO: read from config
     private static final String STREAM_NAME = "requeststream";
+    // Duration for which scale request posts to request stream will be muted for a segment.
+    private static final long MUTE_DURATION = Duration.ofMinutes(10).toMillis();
+    // Duration for which no scale operation will be performed on a segment after its creation
+    private static final long MINIMUM_COOLDOWN_PERIOD = Duration.ofMinutes(10).toMillis();
 
     private static final ScheduledExecutorService EXECUTOR = new ScheduledThreadPoolExecutor(100);
     private static final int MAX_CACHE_SIZE = 1000000;

@@ -43,7 +43,7 @@ import java.util.Arrays;
 @Slf4j
 public class EndToEndAutoScaleTest {
     static StreamConfigurationImpl config = new StreamConfigurationImpl("test", "test",
-            new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_KBPS, 1, 1, 3));
+            new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 10, 2, 3));
 
     public static void main(String[] args) throws Exception {
         @Cleanup
@@ -75,7 +75,7 @@ public class EndToEndAutoScaleTest {
 
             // keep writing. Scale should happen
             long start = System.currentTimeMillis();
-            char[] chars = new char[1000];
+            char[] chars = new char[1];
             Arrays.fill(chars, 'a');
 
             String str = new String(chars);
@@ -83,9 +83,8 @@ public class EndToEndAutoScaleTest {
             while (true) {
                 try {
                     test.writeEvent("1", str);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     log.error("test exception writing events {}", e.getMessage());
-                    throw e;
                 }
 
                 if (System.currentTimeMillis() - start > Duration.ofMinutes(11).toMillis()) {
@@ -98,7 +97,7 @@ public class EndToEndAutoScaleTest {
                     break;
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log.error("Test failed with exception: {}", e.getMessage());
             System.exit(-1);
         }

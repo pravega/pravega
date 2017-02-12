@@ -203,6 +203,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         ensureRunning();
+        final int numOfEvents = getValue(attributeUpdates, Attribute.EVENT_COUNT.getId(), 0L).intValue();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("append", streamSegmentName, data.length);
@@ -212,7 +213,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, attributeUpdates);
                     return this.durableLog.add(operation, timer.getRemaining());
                 })).thenAccept((Void v) -> {
-                    int numOfEvents = getValue(attributeUpdates, Attribute.EVENT_COUNT.getId(), 0L).intValue();
                     statsRecorder.record(streamSegmentName, data.length, numOfEvents);
                 });
 }
@@ -220,6 +220,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         ensureRunning();
+        final int numOfEvents = getValue(attributeUpdates, Attribute.EVENT_COUNT.getId(), 0L).intValue();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("appendWithOffset", streamSegmentName, data.length);
@@ -229,7 +230,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, attributeUpdates);
                     return this.durableLog.add(operation, timer.getRemaining());
                 })).thenAccept((Void v) -> {
-                    int numOfEvents = getValue(attributeUpdates, Attribute.EVENT_COUNT.getId(), 0L).intValue();
                     statsRecorder.record(streamSegmentName, data.length, numOfEvents);
                 });
     }

@@ -36,6 +36,8 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+
+import com.google.common.collect.Sets;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -288,8 +290,9 @@ public class AppendProcessorTest {
     }
 
     private Collection<AttributeUpdate> updateEventNumber(UUID clientId, long newValue) {
-        return Collections.singleton(
-                new AttributeUpdate(Attribute.dynamic(clientId, Attribute.UpdateType.ReplaceIfGreater), newValue));
+        return Sets.newHashSet(
+                new AttributeUpdate(Attribute.dynamic(clientId, Attribute.UpdateType.ReplaceIfGreater), newValue),
+                new AttributeUpdate(Attribute.EVENT_COUNT, 1));
     }
 
     private void setupGetStreamSegmentInfo(String streamSegmentName, UUID clientId, StreamSegmentStore store) {

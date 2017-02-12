@@ -166,7 +166,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                 .thenCompose(segment -> {
                     if (!policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
                         // do not go above scale factor. Minimum scale factor is 2 though.
-                        int numOfSplits = Math.max(request.getNumOfSplits(), Math.max(2, policy.getScaleFactor()));
+                        int numOfSplits = Math.min(request.getNumOfSplits(), Math.max(2, policy.getScaleFactor()));
                         double delta = (segment.getKeyEnd() - segment.getKeyStart()) / numOfSplits;
 
                         final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();

@@ -38,10 +38,10 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.google.common.collect.LinkedListMultimap;
+import com.google.common.collect.Sets;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -130,10 +130,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     public void performNextWrite() {
         Append append;
+        long numOfEvents = 1;
+
         synchronized (lock) {
             if (outstandingAppend != null || waitingAppends.isEmpty()) {
                 return;
             }
+
             UUID writer = waitingAppends.keys().iterator().next();
             List<Append> appends = waitingAppends.get(writer);
             if (appends.get(0).isConditional()) {
@@ -141,6 +144,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             } else {
                 ByteBuf[] toAppend = new ByteBuf[appends.size()];
                 Append last = null;
+                Append first = appends.get(0);
                 int i = -1;
                 for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext(); ) {
                     Append a = iterator.next();
@@ -153,23 +157,27 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     iterator.remove();
                 }
                 ByteBuf data = Unpooled.wrappedBuffer(toAppend);
+                if (last != null) {
+                    numOfEvents = last.getEventNumber() - first.getEventNumber() + 1;
+                }
                 append = new Append(last.getSegment(), writer, last.getEventNumber(), data, null);
             }
             outstandingAppend = append;
         }
-        write(append);
+        write(append, numOfEvents);
     }
 
     /**
      * Write the provided append to the store, and upon completion ack it back to the producer.
      */
-    private void write(final Append toWrite) {
+    private void write(final Append toWrite, long numOfEvents) {
         ByteBuf buf = Unpooled.unmodifiableBuffer(toWrite.getData());
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
-        val attributes = Collections.singleton(new AttributeUpdate(
+        val attributes = Sets.newHashSet(new AttributeUpdate(
                 Attribute.dynamic(toWrite.getConnectionId(), Attribute.UpdateType.ReplaceIfGreater),
-                toWrite.getEventNumber()));
+                toWrite.getEventNumber()),
+                new AttributeUpdate(Attribute.EVENT_COUNT, numOfEvents));
 
         CompletableFuture<Void> future;
         String segment = toWrite.getSegment();
