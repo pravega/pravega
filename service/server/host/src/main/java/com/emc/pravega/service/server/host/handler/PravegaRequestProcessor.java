@@ -385,17 +385,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 new AttributeUpdate(Attribute.SCALE_POLICY_RATE, ((Integer) updateSegmentPolicy.getTargetRate()).longValue())
         );
 
-        // TODO: update segment policy
-        //        CompletableFuture<Void> future = segmentStore.createStreamSegment(updateSegmentPolicy.getSegment(), attributes, TIMEOUT);
-        //        future.thenApply((Void v) -> {
-        //            Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
-        //            connection.send(new SegmentPolicyUpdated(updateSegmentPolicy.getSegment()));
-        //            return null;
-        //        }).exceptionally((Throwable e) -> {
-        //            Metrics.UPDATE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
-        //            handleException(updateSegmentPolicy.getSegment(), "Update segment", e);
-        //            return null;
-        //        });
+        CompletableFuture<Void> future = segmentStore.updateStreamSegmentPolicy(updateSegmentPolicy.getSegment(), attributes, TIMEOUT);
+        future.thenApply((Void v) -> {
+            Metrics.UPDATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
+            connection.send(new SegmentPolicyUpdated(updateSegmentPolicy.getSegment()));
+            return null;
+        }).exceptionally((Throwable e) -> {
+            Metrics.UPDATE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
+            handleException(updateSegmentPolicy.getSegment(), "Update segment", e);
+            return null;
+        });
     }
 
 }

@@ -46,26 +46,26 @@ public class EndToEndAutoScaleTest {
             new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 10, 2, 3));
 
     public static void main(String[] args) throws Exception {
-        @Cleanup
-        TestingServer zkTestServer = new TestingServer();
-
-        ControllerWrapper controller = ControllerWrapper.getControllerWrapper(zkTestServer.getConnectString());
-        ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
-        ThresholdMonitor monitor = (ThresholdMonitor) MonitorFactory.createMonitor(MonitorFactory.MonitorType.ThresholdMonitor);
-        if (monitor != null) {
-            monitor.setClientFactory(internalCF);
-        }
-
-        MonitorFactory.setClientFactory(internalCF);
-
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize().get();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
-        server.startListening();
-
         try {
+            @Cleanup
+            TestingServer zkTestServer = new TestingServer();
+
+            ControllerWrapper controller = ControllerWrapper.getControllerWrapper(zkTestServer.getConnectString());
+            ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
+            ThresholdMonitor monitor = (ThresholdMonitor) MonitorFactory.createMonitor(MonitorFactory.MonitorType.ThresholdMonitor);
+            if (monitor != null) {
+                monitor.setClientFactory(internalCF);
+            }
+
+            MonitorFactory.setClientFactory(internalCF);
+
+            ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+            serviceBuilder.initialize().get();
+            StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+            @Cleanup
+            PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
+            server.startListening();
+
             controller.createStream(config).get();
             MockClientFactory clientFactory = new MockClientFactory("test", controller);
 
@@ -80,13 +80,16 @@ public class EndToEndAutoScaleTest {
 
             String str = new String(chars);
 
-            while (System.currentTimeMillis() - start > Duration.ofMinutes(10).toMillis()) {
+            while (System.currentTimeMillis() - start < Duration.ofMinutes(10).toMillis()) {
                 try {
-                    test.writeEvent("1", str);
+                    test.writeEvent("1", str).get();
                 } catch (Throwable e) {
-                    log.error("test exception writing events {}", e.getMessage());
+                    System.err.print("test exception writing events " + e.getMessage());
+                    break;
                 }
             }
+            Thread.sleep(10000);
+
             StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
             if (streamSegments.getSegments().size() > 3) {
                 System.err.println("Success");
@@ -96,7 +99,7 @@ public class EndToEndAutoScaleTest {
                 System.exit(1);
             }
         } catch (Throwable e) {
-            log.error("Test failed with exception: {}", e.getMessage());
+            System.err.print("Test failed with exception: " + e.getMessage());
             System.exit(-1);
         }
 

@@ -38,7 +38,7 @@ import org.apache.curator.test.TestingServer;
 public class EndToEndTransactionTest {
 
     static StreamConfigurationImpl config = new StreamConfigurationImpl(StartLocalService.SCOPE, StartLocalService.STREAM_NAME,
-            new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 1, 1, 3));
+            new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 1, 1, 1));
 
     public static void main(String[] args) throws Exception {
         try {
@@ -62,28 +62,27 @@ public class EndToEndTransactionTest {
             EventStreamWriter<String> producer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME, new JavaSerializer<>(), new EventWriterConfig(null));
             Transaction<String> transaction = producer.beginTxn(60000);
 
-            for (int i = 0; i < 1; i++) {
+            for (int i = 0; i < 100; i++) {
                 String event = "\n Transactional Publish \n";
                 System.err.println("Producing event: " + event);
                 transaction.writeEvent("", event);
-                transaction.flush();
-                Thread.sleep(500);
             }
 
             Transaction<String> transaction2 = producer.beginTxn(60000);
-            for (int i = 0; i < 1; i++) {
+            for (int i = 0; i < 100; i++) {
                 String event = "\n Transactional Publish \n";
                 System.err.println("Producing event: " + event);
                 transaction2.writeEvent("", event);
-                transaction2.flush();
-                Thread.sleep(500);
             }
 
             transaction.commit();
             transaction2.abort();
         } catch (Exception e) {
+            System.err.println("Failure");
             System.exit(-1);
         }
+        System.err.println("Success");
+
         System.exit(0);
     }
 }

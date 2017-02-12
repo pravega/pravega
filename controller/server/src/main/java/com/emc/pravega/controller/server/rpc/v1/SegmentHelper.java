@@ -34,7 +34,10 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -68,9 +71,11 @@ public class SegmentHelper {
                                                     final String stream,
                                                     final int segmentNumber,
                                                     final ScalingPolicy policy,
-                                                    final PravegaNodeUri uri,
+                                                    final HostControllerStore hostControllerStore,
                                                     final ConnectionFactory clientCF) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
+        final NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
+
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
 
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
@@ -97,25 +102,13 @@ public class SegmentHelper {
             }
         };
 
-        final int desiredRate;
-        final byte rateType;
-        if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
-            desiredRate = 0;
-            rateType = WireCommands.CreateSegment.NO_SCALE;
-        } else {
-            desiredRate = Math.toIntExact(policy.getTargetRate());
-            if (policy.getType().equals(ScalingPolicy.Type.BY_RATE_IN_KBPS)) {
-                rateType = WireCommands.CreateSegment.IN_KBPS;
-            } else {
-                rateType = WireCommands.CreateSegment.IN_EVENTS_PER_SEC;
-            }
-        }
+        Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
         whenComplete(sendRequestOverNewConnection(
-                new WireCommands.CreateSegment(Segment.getScopedName(scope, stream, segmentNumber), rateType, desiredRate),
+                new WireCommands.CreateSegment(Segment.getScopedName(scope, stream, segmentNumber), extracted.getLeft(), extracted.getRight()),
                 replyProcessor,
                 clientCF,
-                uri), result);
+                ModelHelper.encode(uri)), result);
 
         return result;
     }
@@ -124,19 +117,21 @@ public class SegmentHelper {
      * This method sends segment sealed message for the specified segment.
      * It owns up the responsibility of retrying the operation on failures until success.
      *
-     * @param scope         stream scope
-     * @param stream        stream name
-     * @param segmentNumber number of segment to be sealed
-     * @param uri           Pravega node uri
-     * @param clientCF      connection factory
+     * @param scope               stream scope
+     * @param stream              stream name
+     * @param segmentNumber       number of segment to be sealed
+     * @param hostControllerStore host controller store
+     * @param clientCF            connection factory
      * @return void
      */
     public CompletableFuture<Boolean> sealSegment(final String scope,
                                                   final String stream,
                                                   final int segmentNumber,
-                                                  final NodeUri uri,
+                                                  final HostControllerStore hostControllerStore,
                                                   final ConnectionFactory clientCF) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
+        final NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
+
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -291,6 +286,41 @@ public class SegmentHelper {
         return result;
     }
 
+    public CompletableFuture<Void> updatePolicy(String scope, String stream, ScalingPolicy policy,
+                                                int segmentNumber, HostControllerStore hostControllerStore,
+                                                ConnectionFactoryImpl clientCF) {
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        final NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
+
+        final WireCommandType type = WireCommandType.UPDATE_SEGMENT_POLICY;
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
+            }
+
+            @Override
+            public void wrongHost(WireCommands.WrongHost wrongHost) {
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
+            }
+
+            @Override
+            public void segmentPolicyUpdated(WireCommands.SegmentPolicyUpdated policyUpdated) {
+                result.complete(null);
+            }
+        };
+
+        Pair<Byte, Integer> extracted = extractFromPolicy(policy);
+
+        whenComplete(sendRequestOverNewConnection(
+                new WireCommands.UpdateSegmentPolicy(Segment.getScopedName(scope, stream, segmentNumber), extracted.getLeft(), extracted.getRight()),
+                replyProcessor,
+                clientCF,
+                ModelHelper.encode(uri)), result);
+        return result;
+    }
+
     private CompletableFuture<Void> sendRequestOverNewConnection(final WireCommand request,
                                                                  final ReplyProcessor replyProcessor,
                                                                  final ConnectionFactory connectionFactory,
@@ -312,8 +342,32 @@ public class SegmentHelper {
     private <T> void whenComplete(CompletableFuture<Void> future, CompletableFuture<T> result) {
         future.whenComplete((res, ex) -> {
             if (ex != null) {
-                result.completeExceptionally(new RetryableException(ex));
+                if (ex instanceof WireCommandFailedException) {
+                    result.completeExceptionally(new RetryableException(ex));
+                } else if (ex.getCause() instanceof WireCommandFailedException) {
+                    result.completeExceptionally(new RetryableException(ex.getCause()));
+                } else {
+                    result.completeExceptionally(new RuntimeException(ex));
+                }
             }
         });
+    }
+
+    private Pair<Byte, Integer> extractFromPolicy(ScalingPolicy policy) {
+        final int desiredRate;
+        final byte rateType;
+        if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
+            desiredRate = 0;
+            rateType = WireCommands.CreateSegment.NO_SCALE;
+        } else {
+            desiredRate = Math.toIntExact(policy.getTargetRate());
+            if (policy.getType().equals(ScalingPolicy.Type.BY_RATE_IN_KBPS)) {
+                rateType = WireCommands.CreateSegment.IN_KBPS;
+            } else {
+                rateType = WireCommands.CreateSegment.IN_EVENTS_PER_SEC;
+            }
+        }
+
+        return new ImmutablePair<>(rateType, desiredRate);
     }
 }

@@ -103,4 +103,11 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
         FutureHelpers.await(result);
         return result;
     }
+
+    @Override
+    public CompletableFuture<Void> updateStreamSegmentPolicy(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
+        CompletableFuture<Void> result = impl.updateStreamSegmentPolicy(streamSegmentName, attributes, timeout);
+        FutureHelpers.await(result);
+        return result;
+    }
 }

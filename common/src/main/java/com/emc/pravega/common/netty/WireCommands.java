@@ -711,7 +711,7 @@ public final class WireCommands {
         public static final byte IN_EVENTS_PER_SEC = (byte) 1;
         public static final byte NO_SCALE = (byte) 2;
 
-        final WireCommandType type = WireCommandType.CREATE_SEGMENT;
+        final WireCommandType type = WireCommandType.UPDATE_SEGMENT_POLICY;
         final String segment;
         final byte scaleType;
         final int targetRate;

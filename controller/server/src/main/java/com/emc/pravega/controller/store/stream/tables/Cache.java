@@ -39,7 +39,6 @@ public class Cache<T> {
     public Cache(final Loader<T> loader) {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(1000)
-                .refreshAfterWrite(10, TimeUnit.MINUTES)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .build(new CacheLoader<String, CompletableFuture<Data<T>>>() {
                     @ParametersAreNonnullByDefault
@@ -70,7 +69,6 @@ public class Cache<T> {
         cache.invalidateAll();
         return null;
     }
-
 
     public Void invalidateAll(final Iterable<String> keys) {
         cache.invalidateAll(keys);

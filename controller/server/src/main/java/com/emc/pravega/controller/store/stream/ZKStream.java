@@ -34,10 +34,9 @@ import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.api.BackgroundCallback;
-import org.apache.curator.framework.api.CuratorEvent;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.data.Stat;
 
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -45,11 +44,11 @@ import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -101,7 +100,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     private final Cache<Integer> cache;
 
-    public ZKStream(final String scope, final String name) {
+    ZKStream(final String scope, final String name) {
         super(scope, name);
 
         creationPath = String.format(CREATION_TIME_PATH, name);
@@ -191,7 +190,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Void> updateHistoryTable(final Data<Integer> updated) {
-        return setData(historyPath, updated).thenApply(x -> cache.invalidateCache(historyPath));
+        return setData(historyPath, updated)
+                .thenApply(x -> cache.invalidateCache(historyPath));
     }
 
     @Override
@@ -479,141 +479,88 @@ class ZKStream extends PersistentStreamBase<Integer> {
         ZKStream.client = cf;
     }
 
-    private static CompletableFuture<Void> deletePath(final String path, final boolean deleteEmptyContainer) {
-        final CompletableFuture<Void> result = new CompletableFuture<>();
-        final CompletableFuture<Void> deleteNode = new CompletableFuture<>();
-
-        CompletableFuture.runAsync(() -> {
+    public static CompletableFuture<Void> deletePath(final String path, final boolean deleteEmptyContainer) {
+        return CompletableFuture.runAsync(() -> {
             try {
-                client.delete().inBackground(
-                        callback(event -> deleteNode.complete(null),
-                                e -> {
-                                    if (e instanceof DataNotFoundException) { // deleted already
-                                        deleteNode.complete(null);
-                                    } else {
-                                        result.completeExceptionally(e);
-                                    }
-                                })
-                ).forPath(path);
+                client.delete().forPath(path);
+            } catch (KeeperException.NoNodeException e) {
+                // already deleted, ignore
             } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-                result.completeExceptionally(new StoreConnectionException(e));
+                throw new StoreConnectionException(e);
             } catch (Exception e) {
-                result.completeExceptionally(new RuntimeException(e));
+                throw new RuntimeException(e);
             }
-        }, executor);
-
-        deleteNode.whenCompleteAsync((res, ex) -> {
-            if (ex != null) {
-                result.completeExceptionally(ex);
-            } else if (deleteEmptyContainer) {
+        }, executor).thenAcceptAsync(x -> {
+            if (deleteEmptyContainer) {
                 final String container = ZKPaths.getPathAndNode(path).getPath();
                 try {
-                    client.delete().inBackground(
-                            callback(event -> result.complete(null),
-                                    e -> {
-                                        if (e instanceof DataNotFoundException) { // deleted already
-                                            result.complete(null);
-                                        } else if (e instanceof DataExistsException) { // non empty dir
-                                            result.complete(null);
-                                        } else {
-                                            result.completeExceptionally(e);
-                                        }
-                                    })
-                    ).forPath(container);
+                    client.delete().forPath(container);
+                } catch (KeeperException.NotEmptyException | KeeperException.NoNodeException e) {
+                    // log and ignore;
                 } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-                    result.completeExceptionally(new StoreConnectionException(e));
+                    throw new StoreConnectionException(e);
                 } catch (Exception e) {
-                    result.completeExceptionally(new RuntimeException(e));
+                    throw new RuntimeException(e);
                 }
-            } else {
-                result.complete(null);
             }
         }, executor);
-
-        return result;
     }
 
     private static CompletableFuture<Data<Integer>> getData(final String path) throws DataNotFoundException {
-        final CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
-
-        checkExists(path)
-                .whenCompleteAsync((exists, ex) -> {
-                    if (ex != null) {
-                        result.completeExceptionally(ex);
-                    } else if (exists) {
+        return checkExists(path)
+                .thenApplyAsync(x -> {
+                    if (x) {
                         try {
-                            client.getData().inBackground(
-                                    callback(event -> result.complete(new Data<>(event.getData(), event.getStat().getVersion())),
-                                            result::completeExceptionally)
-                            ).forPath(path);
+                            Stat stat = new Stat();
+                            return new Data<>(client.getData().storingStatIn(stat).forPath(path), stat.getVersion());
                         } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-                            result.completeExceptionally(new StoreConnectionException(e));
+                            throw new StoreConnectionException(e);
                         } catch (Exception e) {
-                            result.completeExceptionally(new RuntimeException(e));
+                            throw new RuntimeException(e);
                         }
                     } else {
-                        result.completeExceptionally(new DataNotFoundException(path));
+                        throw new DataNotFoundException(path);
                     }
                 }, executor);
-
-        return result;
     }
 
     private static CompletableFuture<List<String>> getChildren(final String path) {
-        final CompletableFuture<List<String>> result = new CompletableFuture<>();
-
-        CompletableFuture.runAsync(() -> {
+        return CompletableFuture.supplyAsync(() -> {
             try {
-                client.getChildren().inBackground(
-                        callback(event -> result.complete(event.getChildren()),
-                                e -> {
-                                    if (e instanceof DataNotFoundException) {
-                                        result.complete(Collections.emptyList());
-                                    } else {
-                                        result.completeExceptionally(e);
-                                    }
-                                })
-                ).forPath(path);
+                return client.getChildren().forPath(path);
+            } catch (KeeperException.NoNodeException nne) {
+                return Collections.emptyList();
             } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-                result.completeExceptionally(new StoreConnectionException(e));
+                throw new StoreConnectionException(e);
             } catch (Exception e) {
-                result.completeExceptionally(new RuntimeException(e));
+                throw new RuntimeException(e);
             }
         }, executor);
-
-        return result;
     }
 
     private static CompletableFuture<Void> setData(final String path, final Data<Integer> data) {
-        final CompletableFuture<Void> result = new CompletableFuture<>();
-
-        checkExists(path)
-                .whenCompleteAsync((exists, ex) -> {
-                    if (ex != null) {
-                        result.completeExceptionally(ex);
-                    } else if (exists) {
+        return checkExists(path)
+                .thenAcceptAsync(x -> {
+                    if (x) {
                         try {
                             if (data.getVersion() == null) {
-                                client.setData().inBackground(
-                                        callback(event -> result.complete(null), result::completeExceptionally)
-                                ).forPath(path, data.getData());
+                                client.setData().forPath(path, data.getData());
                             } else {
-                                client.setData().withVersion(data.getVersion()).inBackground(
-                                        callback(event -> result.complete(null), result::completeExceptionally)
-                                ).forPath(path, data.getData());
+                                client.setData().withVersion(data.getVersion()).forPath(path, data.getData());
                             }
+                        } catch (KeeperException.BadVersionException e) {
+                            throw new WriteConflictException(path);
                         } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-                            result.completeExceptionally(new StoreConnectionException(e));
+                            throw new StoreConnectionException(e);
                         } catch (Exception e) {
-                            result.completeExceptionally(new RuntimeException(e));
+                            throw new RuntimeException(e);
                         }
                     } else {
+                        //path does not exist indicates Stream is not present
                         log.error("Failed to write data. path {}", path);
-                        result.completeExceptionally(new DataNotFoundException(extractStreamName(path)));
+                        throw new DataNotFoundException(extractStreamName(path));
                     }
                 }, executor);
-
-        return result;
     }
 
     private static String extractStreamName(final String path) {
@@ -627,94 +574,45 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     private static CompletableFuture<Void> createZNodeIfNotExist(final String path, final byte[] data) {
-        final CompletableFuture<Void> result = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
+        return CompletableFuture.runAsync(() -> {
             try {
-                client.create().creatingParentsIfNeeded().inBackground(
-                        callback(x -> result.complete(null),
-                                e -> {
-                                    if (e instanceof DataExistsException) {
-                                        result.complete(null);
-                                    } else {
-                                        result.completeExceptionally(e);
-                                    }
-                                })).forPath(path, data);
+                client.create().creatingParentsIfNeeded().forPath(path, data);
+            } catch (KeeperException.NodeExistsException e) {
+                // ignore
             } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-                result.completeExceptionally(new StoreConnectionException(e));
+                throw new StoreConnectionException(e);
             } catch (Exception e) {
-                result.completeExceptionally(new RuntimeException(e));
+                throw new RuntimeException(e);
             }
         }, executor);
-        return result;
     }
 
     private static CompletableFuture<Void> createZNodeIfNotExist(final String path) {
-        final CompletableFuture<Void> result = new CompletableFuture<>();
-
-        CompletableFuture.runAsync(() -> {
+        return CompletableFuture.runAsync(() -> {
             try {
-                client.create().creatingParentsIfNeeded().inBackground(
-                        callback(x -> result.complete(null),
-                                e -> {
-                                    if (e instanceof DataExistsException) {
-                                        result.complete(null);
-                                    } else {
-                                        result.completeExceptionally(e);
-                                    }
-                                })).forPath(path);
+                client.create().creatingParentsIfNeeded().forPath(path);
+            } catch (KeeperException.NodeExistsException e) {
+                // ignore
             } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-                result.completeExceptionally(new StoreConnectionException(e));
+                throw new StoreConnectionException(e);
             } catch (Exception e) {
-                result.completeExceptionally(new RuntimeException(e));
+                throw new RuntimeException(e);
             }
         }, executor);
-        return result;
     }
 
     private static CompletableFuture<Boolean> checkExists(final String path) {
-        final CompletableFuture<Boolean> result = new CompletableFuture<>();
 
-        CompletableFuture.runAsync(() -> {
-            try {
-                client.checkExists().inBackground(
-                        callback(x -> result.complete(x.getStat() != null),
-                                ex -> {
-                                    if (ex instanceof DataNotFoundException) {
-                                        result.complete(false);
-                                    } else {
-                                        result.completeExceptionally(ex);
-                                    }
-                                })).forPath(path);
-            } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-                result.completeExceptionally(new StoreConnectionException(e));
-            } catch (Exception e) {
-                result.completeExceptionally(new RuntimeException(e));
-            }
-        }, executor);
-
-        return result;
-    }
-
-    private static BackgroundCallback callback(Consumer<CuratorEvent> result, Consumer<Throwable> exception) {
-        return (client, event) -> {
-            if (event.getResultCode() == KeeperException.Code.OK.intValue()) {
-                result.accept(event);
-            } else if (event.getResultCode() == KeeperException.Code.CONNECTIONLOSS.intValue() ||
-                    event.getResultCode() == KeeperException.Code.SESSIONEXPIRED.intValue() ||
-                    event.getResultCode() == KeeperException.Code.SESSIONMOVED.intValue() ||
-                    event.getResultCode() == KeeperException.Code.OPERATIONTIMEOUT.intValue()) {
-                exception.accept(new StoreConnectionException("" + event.getResultCode()));
-            } else if (event.getResultCode() == KeeperException.Code.NODEEXISTS.intValue()) {
-                exception.accept(new DataExistsException(event.getPath()));
-            } else if (event.getResultCode() == KeeperException.Code.BADVERSION.intValue()) {
-                exception.accept(new WriteConflictException(event.getPath()));
-            } else if (event.getResultCode() == KeeperException.Code.NONODE.intValue()) {
-                exception.accept(new DataNotFoundException(event.getPath()));
-            } else if (event.getResultCode() == KeeperException.Code.NOTEMPTY.intValue()) {
-                exception.accept(new DataExistsException(event.getPath()));
-            } else {
-                exception.accept(new RuntimeException("Curator background task errorCode:" + event.getResultCode()));
-            }
-        };
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    try {
+                        return client.checkExists().forPath(path);
+                    } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
+                        throw new StoreConnectionException(e);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }, executor)
+                .thenApply(Objects::nonNull);
     }
 }

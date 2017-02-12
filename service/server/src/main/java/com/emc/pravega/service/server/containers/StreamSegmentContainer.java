@@ -56,7 +56,6 @@ import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import java.time.Duration;
-import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
@@ -215,7 +214,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 })).thenAccept((Void v) -> {
                     statsRecorder.record(streamSegmentName, data.length, numOfEvents);
                 });
-}
+    }
 
     @Override
     public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
@@ -286,7 +285,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     int scaleRate = getValue(attributes, Attribute.SCALE_POLICY_RATE.getId(), 0L).intValue();
                     statsRecorder.createSegment(streamSegmentName, scaleType, scaleRate);
                 });
-
     }
 
     @Override
@@ -322,11 +320,25 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
+    public CompletableFuture<Void> updateStreamSegmentPolicy(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
+        ensureRunning();
+        // TODO: update policy in tier 2
+        return CompletableFuture.runAsync(() -> {
+                    byte scaleType = getValue(attributes, Attribute.SCALE_POLICY_TYPE.getId(), WireCommands.CreateSegment.NO_SCALE).byteValue();
+                    int scaleRate = getValue(attributes, Attribute.SCALE_POLICY_RATE.getId(), 0L).intValue();
+
+                    logRequest("updateStreamSegmentPolicy", streamSegmentName);
+                    statsRecorder.policyUpdate(streamSegmentName, scaleType, scaleRate);
+                }, executor);
+    }
+
+    @Override
     public CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout) {
         ensureRunning();
 
         logRequest("mergeTransaction", transactionName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
+
         CompletableFuture<Long> mergeFuture =  this.segmentMapper
                 .getOrAssignStreamSegmentId(transactionName, timer.getRemaining())
                 .thenCompose(transactionId -> {
@@ -336,19 +348,19 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     }
 
                     Operation op = new MergeTransactionOperation(transactionMetadata.getParentId(), transactionMetadata.getId());
-                    return this.durableLog.add(op, timer.getRemaining());
-                });
-
-        mergeFuture
-                .thenCompose(transactionId -> getStreamSegmentInfo(transactionName, false, timeout)
-                        .thenApply(segmentProp -> new AbstractMap.SimpleEntry<>(transactionId, segmentProp)))
-                .thenAccept(entry -> {
-                    SegmentMetadata transactionMetadata = this.metadata.getStreamSegmentMetadata(entry.getKey());
                     UpdateableSegmentMetadata parentMetadata = this.metadata.getStreamSegmentMetadata(transactionMetadata.getParentId());
-                    SegmentProperties txnSegmentProperties = entry.getValue();
-                    long creationTime = txnSegmentProperties.getAttributes().get(Attribute.CREATION_TIME.getId());
-                    int eventCount = txnSegmentProperties.getAttributes().get(Attribute.EVENT_COUNT.getId()).intValue();
-                    statsRecorder.merge(parentMetadata.getName(), txnSegmentProperties.getLength(), eventCount, txnSegmentProperties.getLastModified().getTime() - creationTime);
+
+                    CompletableFuture<Long> addToLog = this.durableLog.add(op, timer.getRemaining());
+
+                    addToLog.thenCompose(txId -> getStreamSegmentInfo(transactionName, false, timeout))
+                            .thenAccept(txnSegmentProperties -> {
+                                long creationTime = txnSegmentProperties.getAttributes().get(Attribute.CREATION_TIME.getId());
+                                int eventCount = txnSegmentProperties.getAttributes().get(Attribute.EVENT_COUNT.getId()).intValue();
+                                statsRecorder.merge(parentMetadata.getName(), txnSegmentProperties.getLength(), eventCount,
+                                        txnSegmentProperties.getLastModified().getTime() - creationTime);
+                            });
+
+                    return addToLog;
                 });
 
         return mergeFuture;
