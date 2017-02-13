@@ -56,22 +56,34 @@ public class TableHelperTest {
 
     @Test
     public void getActiveSegmentsTest() {
-        final List<Integer> newSegments = Lists.newArrayList(0, 1, 2, 3, 4);
+        final List<Integer> startSegments = Lists.newArrayList(0, 1, 2, 3, 4);
         long timestamp = System.currentTimeMillis();
-        byte[] historyTable = TableHelper.updateHistoryTable(new byte[0], timestamp, newSegments);
+        byte[] historyTable = TableHelper.updateHistoryTable(new byte[0], timestamp, startSegments);
         List<Integer> activeSegments = TableHelper.getActiveSegments(historyTable);
+        assertEquals(activeSegments, startSegments);
+
+        List<Integer> newSegments = Lists.newArrayList(5, 6, 7, 8, 9);
+
+        historyTable = TableHelper.updateHistoryTable(historyTable, timestamp + 2, newSegments);
+        activeSegments = TableHelper.getActiveSegments(historyTable);
         assertEquals(activeSegments, newSegments);
 
-        List<Integer> newSegments2 = Lists.newArrayList(5, 6, 7, 8, 9);
-
-        historyTable = TableHelper.updateHistoryTable(historyTable, System.currentTimeMillis() + 1, newSegments2);
-        activeSegments = TableHelper.getActiveSegments(historyTable);
-        assertEquals(activeSegments, newSegments2);
-
         activeSegments = TableHelper.getActiveSegments(timestamp, new byte[0], historyTable);
-        assertEquals(newSegments, activeSegments);
+        assertEquals(startSegments, activeSegments);
 
         activeSegments = TableHelper.getActiveSegments(0, new byte[0], historyTable);
+        assertEquals(startSegments, activeSegments);
+
+        activeSegments = TableHelper.getActiveSegments(timestamp - 1, new byte[0], historyTable);
+        assertEquals(startSegments, activeSegments);
+
+        activeSegments = TableHelper.getActiveSegments(timestamp + 1, new byte[0], historyTable);
+        assertEquals(startSegments, activeSegments);
+
+        activeSegments = TableHelper.getActiveSegments(timestamp + 2, new byte[0], historyTable);
+        assertEquals(newSegments, activeSegments);
+
+        activeSegments = TableHelper.getActiveSegments(timestamp + 3, new byte[0], historyTable);
         assertEquals(newSegments, activeSegments);
     }
 
