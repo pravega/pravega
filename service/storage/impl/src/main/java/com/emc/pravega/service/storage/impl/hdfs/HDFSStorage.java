@@ -320,7 +320,6 @@ class HDFSStorage implements Storage {
             // -1 is usually a code for invalid args; check to see if we were supplied with an offset that exceeds the length of the segment.
             long segmentLength = getStreamSegmentInfoSync(streamSegmentName).getLength();
             if (offset >= segmentLength) {
-                Metrics.READ_LATENCY.reportFailEvent(timer.getElapsed());
                 throw new IllegalArgumentException(String.format("Read offset (%s) is beyond the length of the segment (%s).", offset, segmentLength));
             }
         }
