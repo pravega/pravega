@@ -30,10 +30,7 @@ import com.emc.pravega.stream.mock.MockClientFactory;
 
 import java.util.concurrent.CompletableFuture;
 
-import junit.framework.Assert;
 import org.apache.curator.test.TestingServer;
-
-import lombok.Cleanup;
 
 public class EndToEndTransactionTest {
     public static void main(String[] args) throws Exception {

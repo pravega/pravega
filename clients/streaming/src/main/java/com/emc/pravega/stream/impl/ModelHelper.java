@@ -91,22 +91,29 @@ public final class ModelHelper {
     }
 
     public static Transaction.Status encode(TxnState status, String logString) {
+        Transaction.Status result;
         switch (status) {
             case COMMITTED:
-                return Transaction.Status.COMMITTED;
+                result = Transaction.Status.COMMITTED;
+                break;
             case ABORTED:
-                return Transaction.Status.ABORTED;
+                result = Transaction.Status.ABORTED;
+                break;
             case OPEN:
-                return Transaction.Status.OPEN;
+                result = Transaction.Status.OPEN;
+                break;
             case ABORTING:
-                return Transaction.Status.ABORTING;
+                result = Transaction.Status.ABORTING;
+                break;
             case COMMITTING:
-                return Transaction.Status.COMMITTING;
+                result = Transaction.Status.COMMITTING;
+                break;
             case UNKNOWN:
                 throw new RuntimeException("Unknown transaction: " + logString);
             default:
                 throw new IllegalStateException("Unknown status: " + status);
         }
+        return result;
     }
 
     public static final TxnId decode(UUID txnId) {

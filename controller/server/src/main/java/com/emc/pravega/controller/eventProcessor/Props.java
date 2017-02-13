@@ -22,7 +22,6 @@ import com.emc.pravega.stream.Serializer;
 import lombok.Data;
 
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Member;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Optional;

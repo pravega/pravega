@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
@@ -62,7 +62,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
 
         streamMetadataStore.getActiveSegments(event.getStream())
                 .thenCompose(segments ->
-                        FutureCollectionHelper.sequence(segments.stream()
+                        FutureHelpers.allOfWithResults(segments.stream()
                                 .parallel()
                                 .map(segment -> notifyCommitToHost(scope, stream, segment.getNumber(), txId))
                                 .collect(Collectors.toList())))
