@@ -12,7 +12,6 @@ RUN wget https://github.com/twitter/distributedlog/releases/download/0.3.51-RC1/
 && mkdir -p /opt/dl_all \
 && mv distributedlog-service /opt/dl_all/
 
-ENV ZK_URL master.mesos:2181
 ENV bookiePort 3181
 
 EXPOSE $bookiePort
