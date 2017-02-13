@@ -11,9 +11,18 @@
 buildscript {
     repositories {
         jcenter()
+
+        // License plugin repo
+        maven {
+            name = 'gradle-plugins'
+            url = 'https://plugins.gradle.org/m2'
+        }
     }
     dependencies {
         classpath 'com.bmuschko:gradle-docker-plugin:3.0.3'
+
+        // License plugin
+        classpath 'gradle.plugin.net.minecrell:licenser:0.2.1'
     }
 }
 
@@ -30,8 +39,22 @@ allprojects {
     apply plugin: 'com.bmuschko.docker-java-application'
     apply plugin: 'maven-publish'
 
+    // license plugin
+    apply plugin: 'net.minecrell.licenser'
+
     checkstyle {
         toolVersion = "7.1"
+    }
+
+    // License header formatting
+    license {
+        header = new File(rootDir, "HEADER")
+        style {
+            java = 'JAVADOC' // Sets Java license header style to JAVADOC (/**)
+        }
+        exclude  "**/generated/**";
+        include '**/*.java'
+        newLine = false
     }
 
     javadoc {
@@ -494,7 +517,6 @@ project('singlenode') {
         args = ["4000", "5000", "6000"]
     }
 }
-
 
 subprojects {
     task allDeps(type: DependencyReportTask) {}
