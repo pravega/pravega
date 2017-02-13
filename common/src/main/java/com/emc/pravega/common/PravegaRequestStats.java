@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.host;
+package com.emc.pravega.common;
 
 public interface PravegaRequestStats {
     // Stream Segment request Operations
@@ -31,6 +31,9 @@ public interface PravegaRequestStats {
     public final static String PENDING_APPEND_BYTES = "PENDING_APPEND_BYTES";
 
     //HDFS stats
-
+    public final static String HDFS_READ_LATENCY = "HDFSReadLatencyMillis";
+    public static final String HDFS_WRITE_LATENCY = "HDFSWriteLatencyMillis";
+    public static final String HDFS_READ_BYTES = "HDFSBytesRead";
+    public static final String HDFS_WRITTEN_BYTES = "HDFSBytesWritten";
 
 }

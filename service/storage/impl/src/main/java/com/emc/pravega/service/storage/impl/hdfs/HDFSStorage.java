@@ -20,6 +20,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.PravegaRequestStats;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.function.RunnableWithException;
 import com.emc.pravega.common.metrics.Counter;
@@ -113,10 +114,10 @@ class HDFSStorage implements Storage {
 
     //region metrics
     public static class Metrics {
-        static final OpStatsLogger READ_LATENCY = HDFS_LOGGER.createStats("HDFSReadLatency");
-        static final OpStatsLogger WRITE_LATENCY = HDFS_LOGGER.createStats("HDFSWriteLatency");
-        static final Counter READ_BYTES = HDFS_LOGGER.createCounter("HDFSBytesRead");
-        static final Counter WRITTEN_BYTES = HDFS_LOGGER.createCounter("HDFSBytesWritten");
+        static final OpStatsLogger READ_LATENCY = HDFS_LOGGER.createStats(PravegaRequestStats.HDFS_READ_LATENCY);
+        static final OpStatsLogger WRITE_LATENCY = HDFS_LOGGER.createStats(PravegaRequestStats.HDFS_WRITE_LATENCY);
+        static final Counter READ_BYTES = HDFS_LOGGER.createCounter(PravegaRequestStats.HDFS_READ_BYTES);
+        static final Counter WRITTEN_BYTES = HDFS_LOGGER.createCounter(PravegaRequestStats.HDFS_WRITTEN_BYTES);
     }
 
     //endregion
@@ -258,9 +259,9 @@ class HDFSStorage implements Storage {
 
             IOUtils.copyBytes(data, stream, length);
             stream.flush();
-            Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
-            Metrics.WRITTEN_BYTES.add(length);
         }
+        Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
+        Metrics.WRITTEN_BYTES.add(length);
     }
 
     private SegmentProperties sealSync(String streamSegmentName) throws IOException {
