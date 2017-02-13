@@ -22,37 +22,54 @@ sed -i 's|ledgerDirectories=/tmp/data/bk/ledgers|ledgerDirectories=/bk/ledgers|'
 sed -i 's|indexDirectories=/tmp/data/bk/ledgers|indexDirectories=/bk/index|' /opt/dl_all/distributedlog-service/conf/bookie.conf
 sed -i 's|zkLedgersRootPath=/messaging/bookkeeper/ledgers|zkLedgersRootPath='${BK_LEDGERS_PATH}'|' /opt/dl_all/distributedlog-service/conf/bookie.conf
 
-#Format bookie metadata in zookeeper, the command should be run only once, because this command will clear all the data in zk.
 #Re-create all the needed metadata dir in zk is OK, if they exisited before.
-FIRST_BOOKIE=0
+/opt/dl_all/distributedlog-service/bin/dlog zkshell $ZK_URL create /${PRAVEGA_PATH} ''
+/opt/dl_all/distributedlog-service/bin/dlog zkshell $ZK_URL create /${PRAVEGA_PATH}/${BK_CLUSTER_NAME} ''
+/opt/dl_all/distributedlog-service/bin/dlog zkshell $ZK_URL create ${BK_LEDGERS_PATH} ''
+
+echo "Create dl namespace here: distributedlog://${ZK_URL}${DL_NS_PATH}"
+/opt/dl_all/distributedlog-service/bin/dlog admin bind -dlzr $ZK_URL -dlzw $ZK_URL -s $ZK_URL -bkzr $ZK_URL -l ${BK_LEDGERS_PATH} -i false -r true -c distributedlog://${ZK_URL}${DL_NS_PATH}
+
+#Format bookie metadata in zookeeper, the command should be run only once, because this command will clear all the bookies metadata in zk.
 retString=`/opt/dl_all/distributedlog-service/bin/dlog zkshell $ZK_URL stat ${BK_LEDGERS_PATH}/available/readonly 2>&1`
-echo "retString: $retString " 
 echo $retString | grep "not exist"
 if [ $? -eq 0 ]; then
-    echo "bookkeeper metadata not be formated before, do the format. zk dir: ${BK_LEDGERS_PATH}"
-
-    /opt/dl_all/distributedlog-service/bin/dlog zkshell $ZK_URL create /${PRAVEGA_PATH} ''
-    /opt/dl_all/distributedlog-service/bin/dlog zkshell $ZK_URL create /${PRAVEGA_PATH}/${BK_CLUSTER_NAME} ''
-    /opt/dl_all/distributedlog-service/bin/dlog zkshell $ZK_URL create ${BK_LEDGERS_PATH} ''
-    BOOKIE_CONF=/opt/dl_all/distributedlog-service/conf/bookie.conf /opt/dl_all/distributedlog-service/bin/dlog bkshell metaformat -f -n
-    FIRST_BOOKIE=1
+    # create ephemeral zk node bkInitLock
+    retString=`/opt/dl_all/distributedlog-service/bin/dlog zkshell $ZK_URL create -e /${PRAVEGA_PATH}/${BK_CLUSTER_NAME}/bkInitLock 2>&1`
+    echo $retString | grep "Created"
+    if [ $? -eq 0 ]; then 
+        # bkInitLock created success, this is the first bookie creating
+        echo "Bookkeeper metadata not be formated before, do the format."
+        BOOKIE_CONF=/opt/dl_all/distributedlog-service/conf/bookie.conf /opt/dl_all/distributedlog-service/bin/dlog bkshell metaformat -f -n
+        /opt/dl_all/distributedlog-service/bin/dlog zkshell $ZK_URL delete  /${PRAVEGA_PATH}/${BK_CLUSTER_NAME}/bkInitLock
+    else 
+        # Wait other bookie do the format
+        a = 0
+        while [ $a -lt 10 ]
+        do
+            sleep 10
+            a = `expr $a + 1`
+            retString=`/opt/dl_all/distributedlog-service/bin/dlog zkshell $ZK_URL stat ${BK_LEDGERS_PATH}/available/readonly 2>&1`
+            echo $retString | grep "not exist"
+            if [ $? -eq 0 ]; then
+                echo "wait $a * 10 seconds, still not formated"
+                continue
+            else
+                echo "wait $a * 10 seconds, bookkeeper formated"
+                break       
+            fi
+            
+            echo "Waited 100 seconds for bookkeeper metaformat, something wrong, please check" 
+            exit
+        done    
+    fi
 else
-    echo "bookkeeper metadata be formated before, no need format"
+    echo "Bookkeeper metadata be formated before, no need format"
 fi
-
-# sleep a moment, if there is a race above, we wait all metaformat is done
-sleep 5
 
 echo "format the bookie"
 # format bookie
 echo "Y" | BOOKIE_CONF=/opt/dl_all/distributedlog-service/conf/bookie.conf /opt/dl_all/distributedlog-service/bin/dlog bkshell bookieformat
-
-if [ $FIRST_BOOKIE -eq 1 ]; then
-    echo "this is the first Bookie, could create dl namespace here: distributedlog://${ZK_URL}${DL_NS_PATH}"
-    /opt/dl_all/distributedlog-service/bin/dlog admin bind -dlzr $ZK_URL -dlzw $ZK_URL -s $ZK_URL -bkzr $ZK_URL -l ${BK_LEDGERS_PATH} -i false -r true -c distributedlog://${ZK_URL}${DL_NS_PATH}
-else
-    echo "this is not the first Bookie"
-fi
 
 echo "start a new bookie"
 # start bookie,
