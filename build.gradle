@@ -152,56 +152,6 @@ project('clients:streaming') {
     }
 }
 
-project('clients') {
-    dependencies {
-        compile project(':clients:streaming')
-    }
-    jar {
-        from project(":clients:streaming").sourceSets.main.output
-    }
-    publishing {
-        publications {
-            maven(MavenPublication) {
-                groupId 'pravega'
-                artifactId 'client'
-                version = pravegaVersion
-                from components.java
-            }
-        }
-    }
-}
-
-project('service') {
-    dependencies {
-        compile project(':service:contracts')
-        compile project(':service:server')
-        compile project(':service:server:host')
-        compile project(':service:storage')
-        compile project(':service:storage:impl')
-        compile project(':controller:contract')
-        compile project(':controller:server')
-    }
-    jar {
-        from project(":service:contracts").sourceSets.main.output
-        from project(":service:server").sourceSets.main.output
-        from project(":service:server:host").sourceSets.main.output
-        from project(":service:storage").sourceSets.main.output
-        from project(":service:storage:impl").sourceSets.main.output
-        from project(":controller:contract").sourceSets.main.output
-        from project(":controller:server").sourceSets.main.output
-    }
-    publishing {
-        publications {
-            maven(MavenPublication) {
-                groupId 'pravega'
-                artifactId 'service'
-                version = pravegaVersion
-                from components.java
-            }
-        }
-    }
-}
-
 project('testcommon') {
     dependencies {
         compile 'junit:junit:4.12'
@@ -498,4 +448,20 @@ project('singlenode') {
 
 subprojects {
     task allDeps(type: DependencyReportTask) {}
+
+    if (project.name.matches("streaming") | project.name.matches("server")
+            | project.name.matches("storage") | project.name.matches("host")
+            | project.name.matches("impl")    | project.name.matches("contracts")
+            | project.name.matches("contract")| project.name.matches("testcommon")) {
+        publishing {
+            publications {
+                maven(MavenPublication) {
+                    groupId = "test"
+                    artifactId = project.path.substring(1).replaceAll(':', '-')
+                    version = pravegaVersion
+                    from components.java
+                }
+            }
+        }
+    }
 }
