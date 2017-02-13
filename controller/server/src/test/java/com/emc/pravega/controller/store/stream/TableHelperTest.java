@@ -17,8 +17,6 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import static org.junit.Assert.assertEquals;
-
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.google.common.collect.Lists;
@@ -29,6 +27,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static org.junit.Assert.assertEquals;
 
 public class TableHelperTest {
     @Test
