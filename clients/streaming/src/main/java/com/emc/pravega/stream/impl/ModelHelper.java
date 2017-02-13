@@ -98,8 +98,10 @@ public final class ModelHelper {
                 return Transaction.Status.ABORTED;
             case OPEN:
                 return Transaction.Status.OPEN;
-            case SEALED:
-                return Transaction.Status.SEALED;
+            case ABORTING:
+                return Transaction.Status.ABORTING;
+            case COMMITTING:
+                return Transaction.Status.COMMITTING;
             case UNKNOWN:
                 throw new RuntimeException("Unknown transaction: " + logString);
             default:
