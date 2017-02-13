@@ -123,7 +123,7 @@ public class ClientFactoryImpl implements ClientFactory {
                 controller,
                 System::nanoTime);
         stateManager.initializeReader();
-        return new EventReaderImpl<T>(inFactory,
+        return new EventStreamReaderImpl<T>(inFactory,
                                       s,
                                       stateManager,
                                       new RoundRobinOrderer<>(),

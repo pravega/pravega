@@ -34,7 +34,7 @@ import javax.annotation.concurrent.GuardedBy;
 
 import org.apache.commons.lang.NotImplementedException;
 
-public class EventReaderImpl<Type> implements EventStreamReader<Type> {
+public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     private final Serializer<Type> deserializer;
     private final SegmentInputStreamFactory inputStreamFactory;
@@ -48,8 +48,8 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
     private final ReaderGroupStateManager groupState;
     private final Supplier<Long> clock;
 
-    EventReaderImpl(SegmentInputStreamFactory inputStreamFactory, Serializer<Type> deserializer, ReaderGroupStateManager groupState,
-            Orderer<Type> orderer, Supplier<Long> clock, ReaderConfig config) {
+    EventStreamReaderImpl(SegmentInputStreamFactory inputStreamFactory, Serializer<Type> deserializer, ReaderGroupStateManager groupState,
+                          Orderer<Type> orderer, Supplier<Long> clock, ReaderConfig config) {
         this.deserializer = deserializer;
         this.inputStreamFactory = inputStreamFactory;
         this.groupState = groupState;
