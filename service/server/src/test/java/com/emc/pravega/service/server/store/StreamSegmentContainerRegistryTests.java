@@ -31,17 +31,16 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import com.google.common.util.concurrent.AbstractService;
-import lombok.Cleanup;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.Cleanup;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for the StreamSegmentContainerRegistry class.
@@ -60,13 +59,13 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executorService());
 
         HashSet<Integer> expectedContainerIds = new HashSet<>();
-        Collection<CompletableFuture<ContainerHandle>> handleFutures = new ArrayList<>();
+        List<CompletableFuture<ContainerHandle>> handleFutures = new ArrayList<>();
         for (int containerId = 0; containerId < containerCount; containerId++) {
             handleFutures.add(registry.startContainer(containerId, TIMEOUT));
             expectedContainerIds.add(containerId);
         }
 
-        Collection<ContainerHandle> handles = FutureHelpers.allOfWithResults(handleFutures).join();
+        List<ContainerHandle> handles = FutureHelpers.allOfWithResults(handleFutures).join();
         HashSet<Integer> actualHandleIds = new HashSet<>();
         for (ContainerHandle handle : handles) {
             actualHandleIds.add(handle.getContainerId());
