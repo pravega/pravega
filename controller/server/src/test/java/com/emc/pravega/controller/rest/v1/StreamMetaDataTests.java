@@ -73,6 +73,7 @@ public class StreamMetaDataTests extends JerseyTest {
     private final ScalingPolicyCommon scalingPolicyCommon = new ScalingPolicyCommon(
             ScalingPolicyCommon.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
     private final RetentionPolicyCommon retentionPolicyCommon = new RetentionPolicyCommon(123L);
+    private final RetentionPolicyCommon retentionPolicyCommon2 = new RetentionPolicyCommon(null);
     private final StreamResponse streamResponseExpected = new StreamResponse(
             new StreamProperty(scope1, stream1, scalingPolicyCommon, retentionPolicyCommon));
     private final StreamConfiguration streamConfiguration = new StreamConfigurationImpl(scope1, stream1,
@@ -80,10 +81,14 @@ public class StreamMetaDataTests extends JerseyTest {
 
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest(
             stream1, scalingPolicyCommon, retentionPolicyCommon);
+    private final CreateStreamRequest createStreamRequest2 = new CreateStreamRequest(
+            stream1, scalingPolicyCommon, retentionPolicyCommon2);
     private final UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest(
             scalingPolicyCommon, retentionPolicyCommon);
     private final UpdateStreamRequest updateStreamRequest2 = new UpdateStreamRequest(
             scalingPolicyCommon, retentionPolicyCommon);
+    private final UpdateStreamRequest updateStreamRequest3 = new UpdateStreamRequest(
+            scalingPolicyCommon, retentionPolicyCommon2);
 
     private final CompletableFuture<StreamConfiguration> streamConfigFuture = CompletableFuture.supplyAsync(
             () -> streamConfiguration);
@@ -91,10 +96,14 @@ public class StreamMetaDataTests extends JerseyTest {
             () -> CreateStreamStatus.SUCCESS);
     private final CompletableFuture<CreateStreamStatus> createStreamStatus2 = CompletableFuture.supplyAsync(
             () -> CreateStreamStatus.STREAM_EXISTS);
+    private final CompletableFuture<CreateStreamStatus> createStreamStatus3 = CompletableFuture.supplyAsync(
+            () -> CreateStreamStatus.FAILURE);
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus = CompletableFuture.supplyAsync(
             () -> UpdateStreamStatus.SUCCESS);
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus2 = CompletableFuture.supplyAsync(
             () -> UpdateStreamStatus.STREAM_NOT_FOUND);
+    private CompletableFuture<UpdateStreamStatus> updateStreamStatus3 = CompletableFuture.supplyAsync(
+            () -> UpdateStreamStatus.FAILURE);
 
     /**
      * Configure resource class.
@@ -134,6 +143,11 @@ public class StreamMetaDataTests extends JerseyTest {
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus2);
         response = target(streamResourceURI).request().async().post(Entity.json(createStreamRequest));
         assertEquals("Create Stream Status", 409, response.get().getStatus());
+
+        // Test for validation of create stream request object
+        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus3);
+        response = target(streamResourceURI).request().async().post(Entity.json(createStreamRequest2));
+        assertEquals("Create Stream Status", 400, response.get().getStatus());
     }
 
     /**
@@ -154,6 +168,11 @@ public class StreamMetaDataTests extends JerseyTest {
         when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus2);
         response = target(resourceURI).request().async().put(Entity.json(updateStreamRequest2));
         assertEquals("Update Stream Status", 404, response.get().getStatus());
+
+        // Test for validation of request object
+        when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus3);
+        response = target(resourceURI).request().async().put(Entity.json(updateStreamRequest3));
+        assertEquals("Update Stream Status", 400, response.get().getStatus());
     }
 
     /**
