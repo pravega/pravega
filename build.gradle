@@ -518,7 +518,6 @@ project('singlenode') {
     }
 }
 
-
 subprojects {
     task allDeps(type: DependencyReportTask) {}
 }
