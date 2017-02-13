@@ -51,7 +51,7 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
 
     private final EventStreamWriter<T> writer;
 
-    private final ReaderGroup readerGroup;
+    private ReaderGroup readerGroup;
 
     private final CheckpointStore checkpointStore;
 
@@ -65,11 +65,18 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
                         props.getSerializer(),
                         new EventWriterConfig(new SegmentOutputConfiguration()));
 
-        this.checkpointStore = new InMemoryCheckpointStore();
+        this.checkpointStore = CheckpointStoreFactory.create(props.getConfig().getCheckpointConfig().getStoreType(),
+                props.getConfig().getCheckpointConfig().getCheckpointStoreClient());
+    }
 
-        this.checkpointStore.addReaderGroup(this.actorSystem.getProcess(), this.props.getConfig().getReaderGroupName());
+    public boolean initialize() {
+        boolean success = checkpointStore.addReaderGroup(actorSystem.getProcess(),
+                props.getConfig().getReaderGroupName());
 
-        // todo: check whether ReaderGroupConfig is initialized properly to 0 in the following statement.
+        if (!success) {
+            return false;
+        }
+
         readerGroup = createIfNotExists(
                 actorSystem.streamManager,
                 props.getConfig().getReaderGroupName(),
@@ -77,7 +84,7 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
                 Collections.singletonList(props.getConfig().getStreamName()));
 
         try {
-            createActors(props.getConfig().getActorCount());
+            return createActors(props.getConfig().getActorCount());
         } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
             throw new RuntimeException("Error instantiating Actors");
         }
@@ -96,16 +103,29 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
         //return  readerGroup;
     }
 
-    private void createActors(final int count) throws IllegalAccessException,
+    private boolean createActors(final int count) throws IllegalAccessException,
             InvocationTargetException,
             InstantiationException {
+
+        // 1. Create reader identifiers and persist them in checkpoint store.
+        List<String> readerIds = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             // create a reader id
             String readerId = UUID.randomUUID().toString();
 
             // store the readerId in checkpoint store
-            checkpointStore.addReader(actorSystem.getProcess(), props.getConfig().getReaderGroupName(), readerId);
+            boolean success = checkpointStore.addReader(actorSystem.getProcess(),
+                    props.getConfig().getReaderGroupName(), readerId);
 
+            // On failing to insert into checkpoint store, return failure
+            if (!success) {
+                return false;
+            }
+            readerIds.add(readerId);
+        }
+
+        // 2. Once all readerIds are persisted, start creating readers and event processors
+        for (String readerId : readerIds) {
             // create the reader
             EventStreamReader<T> reader =
                     actorSystem.clientFactory.createReader(readerId,
@@ -118,6 +138,7 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
                     new EventProcessorCell<>(actorSystem, props, reader, readerId, checkpointStore);
             actors.add(actorCell);
         }
+        return true;
     }
 
     @Override
@@ -167,12 +188,20 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
 
     @Override
     @Synchronized
-    public void changeEventProcessorCount(int count) {
+    public boolean changeEventProcessorCount(int count) {
         if (count <= 0) {
             throw new NotImplementedException();
         } else {
             try {
-                createActors(count);
+                int existingCount = actors.size();
+                boolean success = createActors(count);
+                if (success) {
+                    // start the new event processors
+                    for (int i = existingCount; i < actors.size(); i++) {
+                        actors.get(i).startAsync();
+                    }
+                }
+                return success;
             } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
                 throw new RuntimeException("Error instantiating Actors");
             }

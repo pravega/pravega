@@ -76,14 +76,26 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
     public <T extends StreamEvent> EventStreamWriter<T> createEventProcessorGroup(Props<T> props) {
         EventProcessorGroupImpl<T> actorGroup;
 
-        // Create the actor group, add it to the list of actor groups, and start it.
+        // Create event processor group.
         actorGroup = new EventProcessorGroupImpl<>(this, props);
 
-        actorGroups.add(actorGroup);
+        // Initialize it.
+        boolean success = actorGroup.initialize();
 
-        actorGroup.startAsync();
+        if (success) {
 
-        return actorGroup.getWriter();
+            // If successful in initializing it, add it to the list and start it.
+            actorGroups.add(actorGroup);
+
+            actorGroup.startAsync();
+
+            return actorGroup.getWriter();
+
+        } else {
+
+            // Otherwise indicate failure by returning null.
+            return null;
+        }
     }
 
     @Override

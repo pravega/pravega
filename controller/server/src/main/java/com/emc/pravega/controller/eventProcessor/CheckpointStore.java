@@ -19,6 +19,7 @@ package com.emc.pravega.controller.eventProcessor;
 
 import com.emc.pravega.stream.Position;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -31,7 +32,6 @@ public interface CheckpointStore {
     enum StoreType {
         InMemory,
         Zookeeper,
-        StateSynchronizer
     }
 
     /**
@@ -42,7 +42,7 @@ public interface CheckpointStore {
      * @param readerId Reader identifier.
      * @param position Position of reader in the stream.
      */
-    void setPosition(final String process, final String readerGroup, final String readerId, final Position position);
+    boolean setPosition(final String process, final String readerGroup, final String readerId, final Position position);
 
     /**
      * Returns the map of readers to their respective positions running in the specified
@@ -58,14 +58,21 @@ public interface CheckpointStore {
      * @param process Process identifier.
      * @param readerGroup Reader identifier.
      */
-    void addReaderGroup(final String process, final String readerGroup);
+    boolean addReaderGroup(final String process, final String readerGroup);
 
     /**
      * Removes the specified reader group only if it has no active readers.
      * @param process Process identifier.
      * @param readerGroup Reader group name.
      */
-    void removeReaderGroup(final String process, final String readerGroup);
+    boolean removeReaderGroup(final String process, final String readerGroup);
+
+    /**
+     * List all the reader groups added to a specified process.
+     * @param process Process identifier.
+     * @return List of reader groups added to the specified process.
+     */
+    List<String> getReaderGroups(final String process);
 
     /**
      * Adds the specified reader in the specified reader group in the specified process.
@@ -73,7 +80,7 @@ public interface CheckpointStore {
      * @param readerGroup Reader group name.
      * @param readerId Reader identifier.
      */
-    void addReader(final String process, final String readerGroup, final String readerId);
+    boolean addReader(final String process, final String readerGroup, final String readerId);
 
     /**
      * Removes the specified reader in the specified reader group in the specified process.
@@ -81,5 +88,5 @@ public interface CheckpointStore {
      * @param readerGroup Reader group name.
      * @param readerId Reader identifier.
      */
-    void removeReader(final String process, final String readerGroup, final String readerId);
+    boolean removeReader(final String process, final String readerGroup, final String readerId);
 }
