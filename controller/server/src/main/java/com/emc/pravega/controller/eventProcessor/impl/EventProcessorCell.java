@@ -171,14 +171,13 @@ class EventProcessorCell<T extends StreamEvent> {
                     props.getConfig().getCheckpointConfig().getCheckpointPeriod();
 
             if (countInterval >= config.getNumEvents() || timeInterval >= 1000 * config.getNumSeconds()) {
-                try {
-                    checkpointStore.setPosition(actorSystem.getProcess(),
-                            props.getConfig().getReaderGroupName(), readerId, position);
+                boolean success = checkpointStore.setPosition(actorSystem.getProcess(),
+                        props.getConfig().getReaderGroupName(), readerId, position);
+                // update the previous checkpoint stats if successful,
+                // otherwise, we again attempt checkpointing after processing next event
+                if (success) {
                     previousCheckpointIndex = count;
                     previousCheckpointTimestamp = timestamp;
-                } catch (RuntimeException e) {
-                    // log the exception. ignore it
-                    // do not increment previous count or timestamp, after next event, checkpoint shall be retried
                 }
             }
         }

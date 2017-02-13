@@ -20,14 +20,17 @@ package com.emc.pravega.controller.eventProcessor.impl;
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
 import com.emc.pravega.stream.Position;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * In memory checkpoint store.
  */
-public class InMemoryCheckpointStore implements CheckpointStore {
+class InMemoryCheckpointStore implements CheckpointStore {
 
+    private final static String SEPARATOR = ":::";
     private final Map<String, Map<String, Position>> map;
 
     InMemoryCheckpointStore() {
@@ -35,7 +38,7 @@ public class InMemoryCheckpointStore implements CheckpointStore {
     }
 
     @Override
-    public void setPosition(String process, String readerGroup, String readerId, Position position) {
+    public boolean setPosition(String process, String readerGroup, String readerId, Position position) {
         String key = getKey(process, readerGroup);
         if (map.containsKey(key)) {
             map.get(key).put(readerId, position);
@@ -44,6 +47,7 @@ public class InMemoryCheckpointStore implements CheckpointStore {
             inner.put(readerId, position);
             map.put(key, inner);
         }
+        return true;
     }
 
     @Override
@@ -52,36 +56,61 @@ public class InMemoryCheckpointStore implements CheckpointStore {
     }
 
     @Override
-    public void addReaderGroup(String process, String readerGroup) {
+    public boolean addReaderGroup(String process, String readerGroup) {
         String key = getKey(process, readerGroup);
         if (!map.containsKey(key)) {
             map.put(key, new HashMap<>());
         }
+        return true;
     }
 
     @Override
-    public void removeReaderGroup(String process, String readerGroup) {
+    public boolean removeReaderGroup(String process, String readerGroup) {
         String key = getKey(process, readerGroup);
         if (map.containsKey(key) && map.get(key).isEmpty()) {
             // Remove the reader group only if it has no active readers.
             map.remove(key);
         }
+        return true;
     }
 
     @Override
-    public void addReader(String process, String readerGroup, String readerId) {
+    public List<String> getReaderGroups(String process) {
+        List<String> list = new ArrayList<>();
+        map.entrySet().stream().forEach(pair -> {
+            String readerGroup = getMatchingReaderGroup(pair.getKey(), process);
+            if (readerGroup != null) {
+                list.add(readerGroup);
+            }
+        });
+        return list;
+    }
+
+    @Override
+    public boolean addReader(String process, String readerGroup, String readerId) {
         setPosition(process, readerGroup, readerId, null);
+        return true;
     }
 
     @Override
-    public void removeReader(String process, String readerGroup, String readerId) {
+    public boolean removeReader(String process, String readerGroup, String readerId) {
         String key = getKey(process, readerGroup);
         if (map.containsKey(key)) {
             map.get(key).remove(readerId);
         }
+        return true;
     }
 
     private String getKey(String process, String readerGroup) {
-        return process + ":" + readerGroup;
+        return process + SEPARATOR + readerGroup;
+    }
+
+    private String getMatchingReaderGroup(String key, String process) {
+        String[] splits = key.split(SEPARATOR);
+        if (process.equals(splits[0])) {
+            return splits[1];
+        } else {
+            return null;
+        }
     }
 }

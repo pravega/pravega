@@ -95,7 +95,6 @@ public class EventProcessorTest {
 
 
     public static void main(String[] args) throws Exception {
-        @Cleanup
         TestingServer zkTestServer = new TestingServer();
         Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString());
 
@@ -177,5 +176,6 @@ public class EventProcessorTest {
         producer.close();
         system.stop();
         server.close();
+        zkTestServer.close();
     }
 }

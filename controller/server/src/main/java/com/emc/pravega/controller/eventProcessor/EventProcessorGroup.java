@@ -43,8 +43,9 @@ public interface EventProcessorGroup<T extends StreamEvent> {
      * decreased event throughput.
      * @param count Number of event processors to add. Negative number indicates
      *              decreasing the Actor count.
+     * @return Boolean indicating success or failure.
      */
-    void changeEventProcessorCount(int count);
+    boolean changeEventProcessorCount(int count);
 
     /**
      * Returns a reference to its writer.

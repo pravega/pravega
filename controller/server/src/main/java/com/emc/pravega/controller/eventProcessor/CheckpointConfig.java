@@ -49,4 +49,5 @@ public class CheckpointConfig {
     private final Type type;
     private final CheckpointStore.StoreType storeType;
     private final CheckpointPeriod checkpointPeriod;
+    private final Object checkpointStoreClient;
 }
