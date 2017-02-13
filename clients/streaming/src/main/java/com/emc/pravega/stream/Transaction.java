@@ -31,8 +31,9 @@ import java.util.UUID;
 public interface Transaction<Type> {
     enum Status {
         OPEN,
-        SEALED,
+        COMMITTING,
         COMMITTED,
+        ABORTING,
         ABORTED
     }
 

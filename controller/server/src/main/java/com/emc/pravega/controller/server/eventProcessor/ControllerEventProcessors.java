@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.server.eventProcessor;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
+import com.emc.pravega.controller.eventProcessor.CheckpointStore;
 import com.emc.pravega.controller.eventProcessor.Decider;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
@@ -26,10 +27,17 @@ import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import com.emc.pravega.controller.eventProcessor.Props;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
+
+import java.util.concurrent.CompletableFuture;
 
 // todo: use config values for constants defined in this file
 
@@ -42,17 +50,46 @@ public class ControllerEventProcessors {
 
     public static void initialize(final String host,
                                   final Controller controller,
+                                  final CuratorFramework client,
                                   final StreamMetadataStore streamMetadataStore,
                                   final HostControllerStore hostControllerStore) {
 
         final String controllerScope = "system";
         system = new EventProcessorSystemImpl("Controller", host, controllerScope, controller);
 
-        // todo: create commitStream, if it does not exist
         final String commitStream = "commitStream";
         final String commitStreamReaderGroup = "commitStreamReaders";
         final int commitReaderGroupSize = 5;
         final int commitPositionPersistenceFrequency = 10;
+
+        final String abortStream = "abortStream";
+        final String abortStreamReaderGroup = "abortStreamReaders";
+        final int abortReaderGroupSize = 5;
+        final int abortPositionPersistenceFrequency = 10;
+
+        // region Create commit and abort streams
+
+        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 5);
+        StreamConfiguration commitStreamConfig = new StreamConfigurationImpl(controllerScope, commitStream, policy);
+        StreamConfiguration abortStreamConfig = new StreamConfigurationImpl(controllerScope, abortStream, policy);
+
+        CompletableFuture<CreateStreamStatus> createCommitStreamStatus = controller.createStream(commitStreamConfig);
+        CompletableFuture<CreateStreamStatus> createAbortStreamStatus = controller.createStream(abortStreamConfig);
+
+        CreateStreamStatus commitStreamStatus = createCommitStreamStatus.join();
+        CreateStreamStatus abortStreamStatus = createAbortStreamStatus.join();
+
+        if (CreateStreamStatus.FAILURE == commitStreamStatus) {
+            throw new RuntimeException("Error creating commitStream");
+        }
+
+        if (CreateStreamStatus.FAILURE == abortStreamStatus) {
+            throw new RuntimeException("Error creating abortStream");
+        }
+
+        // endregion
+
+        // region Create commit event processor
 
         CheckpointConfig commitEventCheckpointConfig =
                 CheckpointConfig.builder()
@@ -62,6 +99,8 @@ public class ControllerEventProcessors {
                                         .numEvents(commitPositionPersistenceFrequency)
                                         .numSeconds(commitPositionPersistenceFrequency)
                                         .build())
+                        .storeType(CheckpointStore.StoreType.Zookeeper)
+                        .checkpointStoreClient(client)
                         .build();
 
         EventProcessorGroupConfig commitReadersConfig =
@@ -83,11 +122,9 @@ public class ControllerEventProcessors {
 
         commitEventProcessors = system.createEventProcessorGroup(commitProps);
 
-        // todo: create commitStream, if it does not exist
-        final String abortStream = "abortStream";
-        final String abortStreamReaderGroup = "abortStreamReaders";
-        final int abortReaderGroupSize = 5;
-        final int abortPositionPersistenceFrequency = 10;
+        // endregion
+
+        // region Create abort event processor
 
         CheckpointConfig abortEventCheckpointConfig =
                 CheckpointConfig.builder()
@@ -97,6 +134,8 @@ public class ControllerEventProcessors {
                                         .numEvents(abortPositionPersistenceFrequency)
                                         .numSeconds(abortPositionPersistenceFrequency)
                                         .build())
+                        .storeType(CheckpointStore.StoreType.Zookeeper)
+                        .checkpointStoreClient(client)
                         .build();
 
         EventProcessorGroupConfig abortReadersConfig =
@@ -117,6 +156,8 @@ public class ControllerEventProcessors {
                         .build();
 
         abortEventProcessors = system.createEventProcessorGroup(abortProps);
+
+        // endregion
     }
 
     public static EventStreamWriter<CommitEvent> getCommitEventProcessorsRef() {

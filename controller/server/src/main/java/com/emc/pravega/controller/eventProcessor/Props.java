@@ -22,6 +22,7 @@ import com.emc.pravega.stream.Serializer;
 import lombok.Data;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Member;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Optional;
@@ -87,12 +88,27 @@ public class Props<T extends StreamEvent> {
             for (int i = 0; i < n; i++) {
                 argumentTypes[i] = args[i].getClass();
             }
-            try {
-                return Optional.of(clazz.getConstructor(argumentTypes));
-            } catch (NoSuchMethodException e) {
-                return Optional.empty();
+            Constructor[] constructors = clazz.getConstructors();
+            for (Constructor constructor : constructors) {
+                if (arrayMatches(argumentTypes,
+                        constructor.getParameterTypes())) {
+                    return Optional.of(constructor);
+                }
             }
+            return Optional.empty();
+        }
+    }
 
+    private boolean arrayMatches(Class<?>[] parameterTypes, Class<?>[] constructorTypes) {
+        if (parameterTypes.length != constructorTypes.length) {
+            return false;
+        } else {
+            for (int i = 0; i < parameterTypes.length; i++) {
+                if (!constructorTypes[i].isAssignableFrom(parameterTypes[i])) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 

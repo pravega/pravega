@@ -30,26 +30,28 @@ import com.emc.pravega.stream.mock.MockClientFactory;
 
 import java.util.concurrent.CompletableFuture;
 
+import junit.framework.Assert;
 import org.apache.curator.test.TestingServer;
 
 import lombok.Cleanup;
 
 public class EndToEndTransactionTest {
     public static void main(String[] args) throws Exception {
-        @Cleanup
+        //@Cleanup
         TestingServer zkTestServer = new TestingServer();
-        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString());
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        @Cleanup
+        //@Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.PORT, store);
         server.startListening();
 
+        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString());
+
         MockClientFactory clientFactory = new MockClientFactory(StartLocalService.SCOPE, controller);
 
-        @Cleanup
+        //@Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME, new JavaSerializer<>(), new EventWriterConfig(null));
         Transaction<String> transaction = producer.beginTxn(60000);
 

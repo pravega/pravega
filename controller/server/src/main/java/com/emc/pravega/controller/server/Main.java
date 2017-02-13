@@ -110,7 +110,8 @@ public class Main {
         //2. set up Event Processors
         //region Setup Event Processors
         LocalController localController = new LocalController(controllerService);
-        ControllerEventProcessors.initialize(hostId, localController, streamStore, hostStore);
+        ControllerEventProcessors.initialize(hostId, localController,
+                ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient(), streamStore, hostStore);
         //endregion
 
         //3. Start the RPC server.

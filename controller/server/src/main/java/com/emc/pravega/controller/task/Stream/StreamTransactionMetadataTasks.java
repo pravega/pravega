@@ -162,7 +162,9 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     private CompletableFuture<TxnStatus> abortTxBody(final String scope, final String stream, final UUID txid) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, false)
                 .thenApply(status -> {
-                    ControllerEventProcessors.getAbortEventProcessorsRef().writeEvent(stream, new AbortEvent(scope, stream, txid));
+                    ControllerEventProcessors
+                            .getAbortEventProcessorsRef()
+                            .writeEvent(txid.toString(), new AbortEvent(scope, stream, txid));
                     return status;
                 });
     }
@@ -170,7 +172,9 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, true)
                 .thenApply(status -> {
-                    ControllerEventProcessors.getCommitEventProcessorsRef().writeEvent(stream, new CommitEvent(scope, stream, txid));
+                    ControllerEventProcessors
+                            .getCommitEventProcessorsRef()
+                            .writeEvent(scope + stream, new CommitEvent(scope, stream, txid));
                     return status;
                 });
     }
