@@ -75,13 +75,15 @@ public class EndToEndTransactionTest {
                 transaction2.writeEvent("", event);
             }
 
-            transaction.commit();
             transaction2.abort();
-        } catch (Exception e) {
+
+            transaction.commit();
+
+            System.err.println("Success");
+        } catch (Throwable e) {
             System.err.println("Failure");
             System.exit(-1);
         }
-        System.err.println("Success");
 
         System.exit(0);
     }

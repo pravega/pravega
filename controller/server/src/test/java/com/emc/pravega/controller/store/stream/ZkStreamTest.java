@@ -152,7 +152,8 @@ public class ZkStreamTest {
 
         // start -1
         SegmentFutures segmentFutures = store.getActiveSegments(SCOPE, streamName, start - 1, context).get();
-        assertEquals(segmentFutures.getCurrent().size(), 0);
+        assertEquals(segmentFutures.getCurrent().size(), 5);
+        assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 1, 2, 3, 4)));
 
         // start + 1
         segmentFutures = store.getActiveSegments(SCOPE, streamName, start + 1, context).get();
@@ -194,7 +195,7 @@ public class ZkStreamTest {
 
         //seal a non existing stream.
         try {
-            Boolean sealOperationStatus2 = store.setSealed(SCOPE, "nonExistentStream", null).get();
+            store.setSealed(SCOPE, "nonExistentStream", null).get();
         } catch (Exception e) {
             assertEquals(DataNotFoundException.class, e.getCause().getClass());
         }

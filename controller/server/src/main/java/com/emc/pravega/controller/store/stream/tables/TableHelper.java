@@ -107,10 +107,8 @@ public class TableHelper {
      * @return
      */
     public static List<Integer> getActiveSegments(final long timestamp, final byte[] indexTable, final byte[] historyTable) {
-        final Optional<HistoryRecord> record;
-        if (timestamp == 0) {
-            record = HistoryRecord.readRecord(historyTable, 0);
-        } else {
+        Optional<HistoryRecord> record = HistoryRecord.readRecord(historyTable, 0);
+        if (record.isPresent() && timestamp > record.get().getEventTime()) {
             final Optional<IndexRecord> recordOpt = IndexRecord.search(timestamp, indexTable).getValue();
             final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
 
