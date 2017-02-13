@@ -33,7 +33,7 @@ public interface SegmentStoreMetricsNames {
     //HDFS stats
     public final static String HDFS_READ_LATENCY = "HDFSReadLatencyMillis";
     public static final String HDFS_WRITE_LATENCY = "HDFSWriteLatencyMillis";
-    public static final String HDFS_READ_BYTES = "HDFSBytesRead";
-    public static final String HDFS_WRITTEN_BYTES = "HDFSBytesWritten";
+    public static final String HDFS_READ_BYTES = "HDFSReadBytes";
+    public static final String HDFS_WRITTEN_BYTES = "HDFSWriteBytes";
 
 }
