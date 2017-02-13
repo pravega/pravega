@@ -130,7 +130,8 @@ public class ZkStreamTest {
 
         // start -1
         SegmentFutures segmentFutures = store.getActiveSegments(streamName, start - 1).get();
-        assertEquals(segmentFutures.getCurrent().size(), 0);
+        assertEquals(segmentFutures.getCurrent().size(), 5);
+        assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 1, 2, 3, 4)));
 
         // start + 1
         segmentFutures = store.getActiveSegments(streamName, start + 1).get();
