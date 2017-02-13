@@ -44,7 +44,6 @@ import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
 import com.google.common.base.Preconditions;
 import lombok.AllArgsConstructor;
-import lombok.Cleanup;
 import lombok.Data;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
