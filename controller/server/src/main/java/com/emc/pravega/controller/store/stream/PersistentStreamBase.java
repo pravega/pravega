@@ -17,8 +17,8 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;

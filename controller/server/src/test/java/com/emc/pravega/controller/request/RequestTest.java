@@ -66,8 +66,6 @@ public class RequestTest {
 
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
-    private UUID txid;
-
     private TestingServer zkServer;
 
     private CuratorFramework zkClient;

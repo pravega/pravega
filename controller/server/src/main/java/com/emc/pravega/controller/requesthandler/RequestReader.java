@@ -35,12 +35,15 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 /**
@@ -63,6 +66,9 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class RequestReader<R extends ControllerRequest, H extends RequestHandler<R>> implements Runnable {
+
+    private static final int MAX_CONCURRENT = 10000;
+
     private final String readerId;
     private final String readerGroup;
     private final ConcurrentSkipListSet<PositionCounter> running;
@@ -75,8 +81,10 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
     private final StreamMetadataStore streamMetadataStore;
     private final AtomicBoolean stop = new AtomicBoolean(false);
     private final H requestHandler;
-    private final AtomicInteger counter = new AtomicInteger(0);
-    private final Comparator<PositionCounter> positionCounterComparator = Comparator.comparingInt(o -> o.counter);
+    private final AtomicLong counter = new AtomicLong(0);
+    private final Comparator<PositionCounter> positionCounterComparator = Comparator.comparingLong(o -> o.counter);
+    private final ReentrantReadWriteLock counterLock;
+    private final Semaphore semaphore;
 
     RequestReader(final String readerId,
                   final String readerGroup,
@@ -109,34 +117,75 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
 
         // periodic checkpointing - every one minute
         this.executor.scheduleAtFixedRate(this::checkpoint, 1, 1, TimeUnit.MINUTES);
+        counterLock = new ReentrantReadWriteLock();
+        semaphore = new Semaphore(MAX_CONCURRENT);
     }
 
     public void stop() {
         stop.set(true);
     }
 
+    /**
+     * One dedicated thread that reads one event at a time and schedules its processing asynchronously.
+     * Once processing is scheduled, it goes back to polling for next event.
+     * Before starting it first acquires a semaphore. This ensures that we do not have more than max allowed
+     * concurrent processing of events. Otherwise we run the risk of out of memory as we will keep posting requests in
+     * our executor queue.
+     * <p>
+     * It also gets the next counter value. A counter is an ever increasing number.
+     * The getNextCounter method ensures that if we reach Long.MAX, it resets counters for all running and completed tasks
+     * and then resets the overall counter to highest value in them.
+     */
     @Override
     public void run() {
         while (!stop.get()) {
             try {
-                EventRead<R> event = reader.readNextEvent(60000);
-                R request = event.getEvent();
-                PositionCounter pc = new PositionCounter(event.getPosition(), counter.incrementAndGet());
-                running.add(pc);
-                requestHandler.process(request)
-                        .whenCompleteAsync((r, e) -> {
-                            if (e != null) {
-                                log.error("Processing failed RequestReader {}", e.getMessage());
+                // limiting number of concurrent processing. Otherwise we will keep picking messages from the stream
+                // and it could lead to memory bottlenecks.
+                semaphore.acquire();
 
-                                try {
-                                    RetryableException.throwRetryableOrElse(e, null);
-                                } catch (RetryableException ex) {
-                                    log.debug("processing failed RequestReader with retryable so putting it back");
-                                    putBack(request.getKey(), request);
-                                }
-                            }
-                            complete(pc);
-                        }, executor);
+                EventRead<R> event;
+                long next;
+
+                try {
+                    next = getNextCounter();
+
+                    event = reader.readNextEvent(60000);
+                } catch (Exception e) {
+                    semaphore.release();
+                    log.warn("error reading event {}", e.getMessage());
+                    throw e;
+                }
+
+                R request = event.getEvent();
+                PositionCounter pc = new PositionCounter(event.getPosition(), next);
+                running.add(pc);
+
+                CompletableFuture<Void> process;
+                try {
+                    process = requestHandler.process(request);
+                } catch (Exception e) {
+                    log.error("exception thrown while creating processing future {}", e.getMessage());
+                    complete(pc);
+                    semaphore.release();
+                    throw e;
+                }
+
+                process.whenCompleteAsync((r, e) -> {
+                    semaphore.release();
+                    complete(pc);
+
+                    if (e != null) {
+                        log.error("Processing failed RequestReader {}", e.getMessage());
+
+                        try {
+                            RetryableException.throwRetryableOrElse(e, null);
+                        } catch (RetryableException ex) {
+                            log.debug("processing failed RequestReader with retryable so putting it back");
+                            putBack(request.getKey(), request);
+                        }
+                    }
+                }, executor);
             } catch (Exception e) {
                 // Catch all exceptions (not throwable) and log and ignore.
                 // Ideally we should never come here. But this is a safety check to ensure request processing continues even if
@@ -188,13 +237,19 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
         running.remove(pc);
         completed.add(pc);
         // find the lowest in running
-        final PositionCounter smallest = running.first();
 
-        final List<PositionCounter> checkpointCandidates = completed.stream()
-                .filter(x -> positionCounterComparator.compare(x, smallest) < 0).collect(Collectors.toList());
-        final PositionCounter checkpointPosition = checkpointCandidates.get(checkpointCandidates.size() - 1);
-        completed.removeAll(checkpointCandidates);
-        checkpoint.set(checkpointPosition);
+        counterLock.readLock().lock();
+        try {
+            final PositionCounter smallest = running.first();
+
+            final List<PositionCounter> checkpointCandidates = completed.stream()
+                    .filter(x -> positionCounterComparator.compare(x, smallest) < 0).collect(Collectors.toList());
+            final PositionCounter checkpointPosition = checkpointCandidates.get(checkpointCandidates.size() - 1);
+            completed.removeAll(checkpointCandidates);
+            checkpoint.set(checkpointPosition);
+        } finally {
+            counterLock.readLock().unlock();
+        }
     }
 
     @Synchronized
@@ -216,9 +271,38 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                                 }));
     }
 
+    /**
+     * Only called from run method so no synchronization required.
+     *
+     * @return next counter
+     */
+    private long getNextCounter() {
+        if (counter.get() == Long.MAX_VALUE) {
+            // update all existing positioncounters
+            counterLock.writeLock().lock();
+            try {
+                completed.forEach(pos -> {
+                    pos.counter = Long.MAX_VALUE - pos.counter;
+                });
+
+                running.forEach(pos -> {
+                    pos.counter = Long.MAX_VALUE - pos.counter;
+                });
+
+                long p1 = Optional.ofNullable(running.pollLast()).map(p -> p.counter).orElse(0L);
+                long p2 = Optional.ofNullable(completed.pollLast()).map(p -> p.counter).orElse(0L);
+
+                counter.set(Math.max(p1, p2));
+            } finally {
+                counterLock.writeLock().unlock();
+            }
+        }
+        return counter.incrementAndGet();
+    }
+
     @AllArgsConstructor
     private class PositionCounter {
         Position position;
-        int counter;
+        long counter;
     }
 }
