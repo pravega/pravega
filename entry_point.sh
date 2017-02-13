@@ -44,11 +44,11 @@ if [ $? -eq 0 ]; then
         /opt/dl_all/distributedlog-service/bin/dlog zkshell $ZK_URL delete  /${PRAVEGA_PATH}/${BK_CLUSTER_NAME}/bkInitLock
     else 
         # Wait other bookie do the format
-        a = 0
+        a=0
         while [ $a -lt 10 ]
         do
             sleep 10
-            a = `expr $a + 1`
+            (( a++ ))
             retString=`/opt/dl_all/distributedlog-service/bin/dlog zkshell $ZK_URL stat ${BK_LEDGERS_PATH}/available/readonly 2>&1`
             echo $retString | grep "not exist"
             if [ $? -eq 0 ]; then
