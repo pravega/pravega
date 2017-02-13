@@ -29,7 +29,7 @@ public interface StatsLogger {
      * @param name Stats Name
      * @return logger for an OpStat described by the <i>name</i>.
      */
-    public OpStatsLogger createStats(String name);
+    OpStatsLogger createStats(String name);
 
     /**
      * Create counter.
@@ -37,7 +37,15 @@ public interface StatsLogger {
      * @param name Stats Name
      * @return counter described by the <i>name</i>
      */
-    public Counter createCounter(String name);
+    Counter createCounter(String name);
+
+    /**
+     * Create meter.
+     *
+     * @param name the meter name
+     * @return Create and register Meter described by the <i>name</i>
+     */
+    Meter createMeter(String name);
 
     /**
      * Register gauge.
@@ -47,7 +55,7 @@ public interface StatsLogger {
      * @param name  the name of gauge
      * @param value the supplier to provide value through get()
      */
-    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value);
+    <T extends Number> Gauge registerGauge(String name, Supplier<T> value);
 
     /**
      * Create the stats logger under scope <i>scope</i>.
@@ -55,6 +63,6 @@ public interface StatsLogger {
      * @param scope scope name.
      * @return stats logger under scope <i>scope</i>.
      */
-    public StatsLogger createScopeLogger(String scope);
+    StatsLogger createScopeLogger(String scope);
 
 }

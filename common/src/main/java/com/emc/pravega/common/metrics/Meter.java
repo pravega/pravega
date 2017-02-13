@@ -17,33 +17,32 @@
 package com.emc.pravega.common.metrics;
 
 /**
- * Provider of StatsLogger instances depending on scope.
- * An implementation of this interface possibly returns a separate instance per Pravega scope.
+ * A meter metric which measures mean throughput and exponentially-weighted moving average throughput.
  */
-public interface StatsProvider extends AutoCloseable {
+public interface Meter {
     /**
-     * Initialize the stats provider by loading the given configuration <i>conf</i>.
+     * Record the occurrence of an event in Meter.
+     */
+    void recordEvent();
+
+    /**
+     * Record the occurrence of a given number of events in Meter.
      *
-     * @param conf Configuration to configure the stats provider.
+     * @param n the number of events to mark
      */
-    void start(MetricsConfig conf);
+    void recordEvents(long n);
 
     /**
-     * Close the stats provider.
-     */
-    @Override
-    void close();
-
-    /**
-     * Return the StatsLogger instance associated with the given <i>scope</i>.
+     * Returns the number of events which have been marked.
      *
-     * @param scope Scope for the given stats.
-     * @return stats logger for the given <i>scope</i>.
+     * @return the count
      */
-    StatsLogger createStatsLogger(String scope);
+    long getCount();
 
     /**
-     * Create a dynamic logger.
+     * Gets name.
+     *
+     * @return the name of Gauge
      */
-    DynamicLogger createDynamicLogger();
+    String getName();
 }
