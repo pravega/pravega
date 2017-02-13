@@ -18,7 +18,7 @@
 
 package com.emc.pravega.common;
 
-public interface PravegaRequestStats {
+public interface HostMetricsNames {
     // Stream Segment request Operations
     public final static String CREATE_SEGMENT = "CREATE_SEGMENT";
     public final static String DELETE_SEGMENT = "DELETE_SEGMENT";

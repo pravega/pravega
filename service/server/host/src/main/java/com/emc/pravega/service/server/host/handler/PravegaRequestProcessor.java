@@ -75,10 +75,10 @@ import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Cache;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Future;
-import static com.emc.pravega.common.PravegaRequestStats.ALL_READ_BYTES;
-import static com.emc.pravega.common.PravegaRequestStats.CREATE_SEGMENT;
-import static com.emc.pravega.common.PravegaRequestStats.READ_SEGMENT;
-import static com.emc.pravega.common.PravegaRequestStats.SEGMENT_READ_BYTES;
+import static com.emc.pravega.common.HostMetricsNames.ALL_READ_BYTES;
+import static com.emc.pravega.common.HostMetricsNames.CREATE_SEGMENT;
+import static com.emc.pravega.common.HostMetricsNames.READ_SEGMENT;
+import static com.emc.pravega.common.HostMetricsNames.SEGMENT_READ_BYTES;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
