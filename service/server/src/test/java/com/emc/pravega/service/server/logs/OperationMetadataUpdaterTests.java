@@ -695,7 +695,7 @@ public class OperationMetadataUpdaterTests {
 
         // Map another StreamSegment, and add an append
         StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(
-                new StreamSegmentInformation(newSegmentName, SEGMENT_LENGTH, false, false, null, new Date()));
+                new StreamSegmentInformation(newSegmentName, SEGMENT_LENGTH, false, false, new Date()));
         processOperation(mapOp, updater, seqNo::incrementAndGet);
         processOperation(new StreamSegmentAppendOperation(mapOp.getStreamSegmentId(), DEFAULT_APPEND_DATA, createAttributeUpdates()), updater, seqNo::incrementAndGet);
         processOperation(checkpoint2, updater, seqNo::incrementAndGet);

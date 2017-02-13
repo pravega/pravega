@@ -20,7 +20,6 @@ package com.emc.pravega.service.contracts;
 
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import lombok.Getter;
@@ -103,6 +102,6 @@ public class StreamSegmentInformation implements SegmentProperties {
     }
 
     private static Map<UUID, Long> getAttributes(Map<UUID, Long> input) {
-        return input == null ? Collections.emptyMap() : Collections.unmodifiableMap(new HashMap<>(input));
+        return input == null ? Collections.emptyMap() : Collections.unmodifiableMap(input);
     }
 }
