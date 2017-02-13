@@ -17,20 +17,27 @@
  */
 package com.emc.pravega.demo;
 
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
 import com.emc.pravega.stream.mock.MockClientFactory;
 
 import java.util.concurrent.CompletableFuture;
 
 import org.apache.curator.test.TestingServer;
+
+import static org.junit.Assert.assertTrue;
 
 public class EndToEndTransactionTest {
     public static void main(String[] args) throws Exception {
@@ -41,15 +48,33 @@ public class EndToEndTransactionTest {
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         //@Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.PORT, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
         Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString());
 
-        MockClientFactory clientFactory = new MockClientFactory(StartLocalService.SCOPE, controller);
+        final String testScope = "testScope";
+        final String testStream = "testStream";
+
+        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 5);
+        StreamConfiguration streamConfig = new StreamConfigurationImpl(testScope, testStream, policy);
+
+        CompletableFuture<CreateStreamStatus> futureStatus = controller.createStream(streamConfig);
+        CreateStreamStatus status = futureStatus.join();
+
+        if (status != CreateStreamStatus.SUCCESS) {
+            System.err.println("FAILURE: Error creating test stream");
+            return;
+        }
+
+        MockClientFactory clientFactory = new MockClientFactory(testScope, controller);
 
         //@Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME, new JavaSerializer<>(), new EventWriterConfig(null));
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(
+                testStream,
+                new JavaSerializer<>(),
+                new EventWriterConfig(new SegmentOutputConfiguration()));
+
         Transaction<String> transaction = producer.beginTxn(60000);
 
         for (int i = 0; i < 1; i++) {
@@ -89,6 +114,15 @@ public class EndToEndTransactionTest {
 
         CompletableFuture.allOf(commit, drop).get();
 
-        System.exit(0);
+        Transaction.Status txnStatus = transaction.checkStatus();
+        assertTrue(txnStatus == Transaction.Status.COMMITTING || txnStatus == Transaction.Status.COMMITTED);
+        System.err.println("SUCCESS: successful in committing transaction. Transaction status=" + txnStatus);
+
+        Transaction.Status txn2Status = transaction2.checkStatus();
+        assertTrue(txn2Status == Transaction.Status.ABORTING || txn2Status == Transaction.Status.ABORTED);
+        System.err.println("SUCCESS: successful in dropping transaction. Transaction status=" + txn2Status);
+        producer.close();
+        server.close();
+        zkTestServer.close();
     }
 }
