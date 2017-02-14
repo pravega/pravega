@@ -250,7 +250,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         //Start the Segment Container Monitor.
         log.info("Starting the segment container monitor");
         SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore,
-                ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient(), Config.CLUSTER_NAME,
+                ZKUtils.getCuratorClient(), Config.CLUSTER_NAME,
                 new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL);
         monitor.startAsync();
 

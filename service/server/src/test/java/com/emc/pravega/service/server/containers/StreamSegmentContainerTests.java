@@ -22,8 +22,8 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.PropertyBag;
-import com.emc.pravega.service.contracts.Attribute;
 import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
@@ -116,9 +116,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSegmentRegularOperations() throws Exception {
-        final Attribute attributeAccumulate = Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.Accumulate);
-        final Attribute attributeReplace = Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.Replace);
-        final Attribute attributeReplaceIfGreater = Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.ReplaceIfGreater);
+        final UUID attributeAccumulate = UUID.randomUUID();
+        final UUID attributeReplace = UUID.randomUUID();
+        final UUID attributeReplaceIfGreater = UUID.randomUUID();
         @Cleanup
         TestContext context = new TestContext();
         context.container.startAsync().awaitRunning();
@@ -134,9 +134,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (String segmentName : segmentNames) {
                 Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
-                attributeUpdates.add(new AttributeUpdate(attributeAccumulate, 1));
-                attributeUpdates.add(new AttributeUpdate(attributeReplace, i + 1));
-                attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, i + 1));
+                attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1));
+                attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, i + 1));
+                attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, i + 1));
                 byte[] appendData = getAppendData(segmentName, i);
                 appendFutures.add(context.container.append(segmentName, appendData, attributeUpdates, TIMEOUT));
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
@@ -157,11 +157,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
             // Verify all attribute values. They were setup in such a way that all current values should equal APPENDS_PER_SEGMENT.
             Assert.assertEquals("Unexpected value for attribute " + attributeAccumulate + " for segment " + segmentName,
-                    APPENDS_PER_SEGMENT, (long) sp.getAttributes().getOrDefault(attributeAccumulate.getId(), SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                    APPENDS_PER_SEGMENT, (long) sp.getAttributes().getOrDefault(attributeAccumulate, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
             Assert.assertEquals("Unexpected value for attribute " + attributeReplace + " for segment " + segmentName,
-                    APPENDS_PER_SEGMENT, (long) sp.getAttributes().getOrDefault(attributeReplace.getId(), SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                    APPENDS_PER_SEGMENT, (long) sp.getAttributes().getOrDefault(attributeReplace, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
             Assert.assertEquals("Unexpected value for attribute " + attributeReplaceIfGreater + " for segment " + segmentName,
-                    APPENDS_PER_SEGMENT, (long) sp.getAttributes().getOrDefault(attributeReplaceIfGreater.getId(), SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                    APPENDS_PER_SEGMENT, (long) sp.getAttributes().getOrDefault(attributeReplaceIfGreater, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
         }
 
         // 4. Reads (regular reads, not tail reads).

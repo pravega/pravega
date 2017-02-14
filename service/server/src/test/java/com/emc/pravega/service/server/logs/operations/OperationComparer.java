@@ -147,11 +147,11 @@ public class OperationComparer {
         }
 
         Assert.assertEquals(message + " Unexpected number of attributes.", expected.size(), actual.size());
-        val expectedIndexed = expected.stream().collect(Collectors.toMap(AttributeUpdate::getAttribute, AttributeUpdate::getValue));
+        val expectedIndexed = expected.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
         for (AttributeUpdate au : actual) {
 
-            Assert.assertTrue(message + " Found extra AttributeUpdate: " + au, expectedIndexed.containsKey(au.getAttribute()));
-            long expectedValue = expectedIndexed.get(au.getAttribute());
+            Assert.assertTrue(message + " Found extra AttributeUpdate: " + au, expectedIndexed.containsKey(au.getAttributeId()));
+            long expectedValue = expectedIndexed.get(au.getAttributeId());
             Assert.assertEquals(message + " Unexpected value for AttributeUpdate: " + au, expectedValue, au.getValue());
         }
     }

@@ -20,8 +20,8 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.SequencedItemList;
-import com.emc.pravega.service.contracts.Attribute;
 import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.server.ContainerMetadata;
@@ -184,7 +184,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         int appendId = 0;
         for (long streamSegmentId : streamSegmentIds) {
             for (int i = 0; i < appendsPerStreamSegment; i++) {
-                val attributes = Collections.singletonList(new AttributeUpdate(Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.Replace), i));
+                val attributes = Collections.singletonList(new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.Replace, i));
                 result.add(new StreamSegmentAppendOperation(streamSegmentId, generateAppendData(appendId), attributes));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
                 appendId++;
@@ -195,7 +195,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
 
         for (long transactionId : transactionIds.keySet()) {
             for (int i = 0; i < appendsPerStreamSegment; i++) {
-                val attributes = Collections.singletonList(new AttributeUpdate(Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.Replace), i));
+                val attributes = Collections.singletonList(new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.Replace, i));
                 result.add(new StreamSegmentAppendOperation(transactionId, generateAppendData(appendId), attributes));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
                 appendId++;

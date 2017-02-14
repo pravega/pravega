@@ -315,7 +315,7 @@ public class StreamSegmentMapper {
 
         // Merge updates into the existing attributes.
         Map<UUID, Long> attributes = new HashMap<>(source.getAttributes());
-        attributeUpdates.forEach(au -> attributes.put(au.getAttribute().getId(), au.getValue()));
+        attributeUpdates.forEach(au -> attributes.put(au.getAttributeId(), au.getValue()));
         return new StreamSegmentInformation(source, attributes);
     }
 
