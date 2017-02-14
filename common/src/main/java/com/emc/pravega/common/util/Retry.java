@@ -110,9 +110,9 @@ public final class Retry {
             this.params = params;
         }
         
-        public <ThrowsT extends Exception> RetryAndThrowExceptionly<RetryT, ThrowsT> throwingOn(Class<ThrowsT> throwType) {
+        public <ThrowsT extends Exception> RetryAndThrowExceptionally<RetryT, ThrowsT> throwingOn(Class<ThrowsT> throwType) {
             Preconditions.checkNotNull(throwType);
-            return new RetryAndThrowExceptionly<>(retryType, throwType, params);
+            return new RetryAndThrowExceptionally<>(retryType, throwType, params);
         }
     }
 
@@ -126,12 +126,12 @@ public final class Retry {
      * method to throw right away. If any subtype of this exception occurs the method will throw it right away unless
      * that subtype was passed as the RetryType to {@link RetryWithBackoff#retryingOn(Class)}
      */
-    public static final class RetryAndThrowExceptionly<RetryT extends Exception, ThrowsT extends Exception> {
+    public static final class RetryAndThrowExceptionally<RetryT extends Exception, ThrowsT extends Exception> {
         private final Class<RetryT> retryType;
         private final Class<ThrowsT> throwType;
         private final RetryWithBackoff params;
         
-        private RetryAndThrowExceptionly(Class<RetryT> retryType, Class<ThrowsT> throwType, RetryWithBackoff params) {
+        private RetryAndThrowExceptionally(Class<RetryT> retryType, Class<ThrowsT> throwType, RetryWithBackoff params) {
             this.retryType = retryType;
             this.throwType = throwType;
             this.params = params;
