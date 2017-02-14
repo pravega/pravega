@@ -22,6 +22,11 @@ import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
 
+/**
+ * Implementation of the EventPointer interface. We use
+ * an EventPointerInternal abstract class as an intermediate
+ * class to make pointer instances opaque.
+ */
 @EqualsAndHashCode(callSuper = false)
 @ToString
 public class EventPointerImpl extends EventPointerInternal {
