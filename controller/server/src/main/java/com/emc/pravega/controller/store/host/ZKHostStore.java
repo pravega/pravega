@@ -29,6 +29,7 @@ import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -95,9 +96,14 @@ public class ZKHostStore implements HostControllerStore {
     public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) {
         Preconditions.checkNotNull(newMapping, "newMapping");
         tryInit();
-
+        byte[] serializedMap;
+        if (newMapping instanceof Serializable) {
+            serializedMap = SerializationUtils.serialize((Serializable) newMapping);
+        } else {
+            serializedMap = SerializationUtils.serialize(new HashMap<>(newMapping));
+        }
         try {
-            zkClient.setData().forPath(zkPath, SerializationUtils.serialize(new HashMap<>(newMapping)));
+            zkClient.setData().forPath(zkPath, serializedMap);
             log.info("Successfully updated segment container map");
         } catch (Exception e) {
             throw new HostStoreException("Failed to persist segment container map to zookeeper", e);

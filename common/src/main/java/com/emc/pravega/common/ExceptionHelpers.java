@@ -16,9 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server;
-
-import com.emc.pravega.service.contracts.RuntimeStreamingException;
+package com.emc.pravega.common;
 
 import java.io.IOException;
 import java.util.concurrent.CompletionException;
@@ -59,7 +57,6 @@ public class ExceptionHelpers {
     private static boolean canInspectCause(Throwable ex) {
         return ex instanceof CompletionException
                 || ex instanceof ExecutionException
-                || ex instanceof IOException
-                || ex instanceof RuntimeStreamingException;
+                || ex instanceof IOException;
     }
 }

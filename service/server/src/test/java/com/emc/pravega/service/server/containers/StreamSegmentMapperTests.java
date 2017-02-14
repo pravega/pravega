@@ -54,11 +54,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import lombok.Cleanup;
+
 import org.apache.commons.lang.NotImplementedException;
 import org.junit.Assert;
 import org.junit.Test;
-
-import lombok.Cleanup;
 
 /**
  * Unit tests for StreamSegmentMapper class.

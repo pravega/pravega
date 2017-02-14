@@ -18,8 +18,10 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.common.util.PropertyBag;
@@ -30,11 +32,9 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.ReadIndex;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.service.server.TestDurableDataLogFactory;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
@@ -80,11 +80,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import lombok.Cleanup;
 import lombok.val;
+
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for DurableLog class.

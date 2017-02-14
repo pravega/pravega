@@ -31,12 +31,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.UUID;
+
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import lombok.extern.slf4j.Slf4j;
 
-import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -140,7 +138,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized ImutableDate getLastModified() {
+    public synchronized ImmutableDate getLastModified() {
         return this.lastModified;
     }
 

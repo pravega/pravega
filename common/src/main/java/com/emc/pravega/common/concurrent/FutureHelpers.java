@@ -404,18 +404,11 @@ public final class FutureHelpers {
      */
     @SneakyThrows(Exception.class)
     public static <T, R> R runOrFail(Callable<R> callable, CompletableFuture<T> future) {
-        boolean succeeded = false;
         try {
-            R result = callable.call();
-            succeeded = true;
-            return result;
-        } catch (Exception e) {
-            future.completeExceptionally(e);
-            throw e;
-        } finally {
-            if (!succeeded) {
-                future.completeExceptionally(new RuntimeException("An java.lang.Error was thrown by the calling thread."));
-            }
+            return callable.call();
+        } catch (Throwable t) {
+            future.completeExceptionally(t);
+            throw t;
         }
     }
 

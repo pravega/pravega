@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.selftest;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.function.CallbackHelpers;
@@ -27,7 +28,6 @@ import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.reading.AsyncReadResultHandler;
 import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
 import com.google.common.base.Preconditions;

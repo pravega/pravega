@@ -181,7 +181,7 @@ public class ZkStreamTest {
 
     @Ignore("run manually")
     //    @Test
-    public void testZkStreamChukning() throws Exception {
+    public void testZkStreamChunking() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 6);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
