@@ -90,20 +90,20 @@ public class StreamMetaDataTests extends JerseyTest {
     private final UpdateStreamRequest updateStreamRequest3 = new UpdateStreamRequest(
             scalingPolicyCommon, retentionPolicyCommon2);
 
-    private final CompletableFuture<StreamConfiguration> streamConfigFuture = CompletableFuture.supplyAsync(
-            () -> streamConfiguration);
-    private final CompletableFuture<CreateStreamStatus> createStreamStatus = CompletableFuture.supplyAsync(
-            () -> CreateStreamStatus.SUCCESS);
-    private final CompletableFuture<CreateStreamStatus> createStreamStatus2 = CompletableFuture.supplyAsync(
-            () -> CreateStreamStatus.STREAM_EXISTS);
-    private final CompletableFuture<CreateStreamStatus> createStreamStatus3 = CompletableFuture.supplyAsync(
-            () -> CreateStreamStatus.FAILURE);
-    private CompletableFuture<UpdateStreamStatus> updateStreamStatus = CompletableFuture.supplyAsync(
-            () -> UpdateStreamStatus.SUCCESS);
-    private CompletableFuture<UpdateStreamStatus> updateStreamStatus2 = CompletableFuture.supplyAsync(
-            () -> UpdateStreamStatus.STREAM_NOT_FOUND);
-    private CompletableFuture<UpdateStreamStatus> updateStreamStatus3 = CompletableFuture.supplyAsync(
-            () -> UpdateStreamStatus.FAILURE);
+    private final CompletableFuture<StreamConfiguration> streamConfigFuture = CompletableFuture.
+            completedFuture(streamConfiguration);
+    private final CompletableFuture<CreateStreamStatus> createStreamStatus = CompletableFuture.
+            completedFuture(CreateStreamStatus.SUCCESS);
+    private final CompletableFuture<CreateStreamStatus> createStreamStatus2 = CompletableFuture.
+            completedFuture(CreateStreamStatus.STREAM_EXISTS);
+    private final CompletableFuture<CreateStreamStatus> createStreamStatus3 = CompletableFuture.
+            completedFuture(CreateStreamStatus.FAILURE);
+    private CompletableFuture<UpdateStreamStatus> updateStreamStatus = CompletableFuture.
+            completedFuture(UpdateStreamStatus.SUCCESS);
+    private CompletableFuture<UpdateStreamStatus> updateStreamStatus2 = CompletableFuture.
+            completedFuture(UpdateStreamStatus.STREAM_NOT_FOUND);
+    private CompletableFuture<UpdateStreamStatus> updateStreamStatus3 = CompletableFuture.
+            completedFuture(UpdateStreamStatus.FAILURE);
 
     /**
      * Configure resource class.
