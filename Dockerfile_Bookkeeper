@@ -1,25 +1,26 @@
 FROM java:8
 
-MAINTAINER Abhijeet Jadhav  <Abhijeet.Jadhav@emc.com>
+MAINTAINER Jia Zhai <jia.zhai@emc.com>
 
-RUN apt-get -q update \
-    && apt-get -q install -y wget \
-    && mkdir -p /opt \
-    && wget -q -O -  http://www-us.apache.org/dist/bookkeeper/bookkeeper-4.4.0/bookkeeper-server-4.4.0-bin.tar.gz | tar -xzf - -C /opt \
-    && mv /opt/bookkeeper-server-4.4.0 /opt/bookkeeper 
+RUN apt-get update \
+&&  apt-get install -y wget unzip \
+&&  mkdir -p /opt \
+&&  cd /opt
 
-WORKDIR /opt/bookkeeper
+RUN wget https://github.com/twitter/distributedlog/releases/download/0.3.51-RC1/distributedlog-service-3ff9e33fa577f50eebb8ee971ddb265c971c3717.zip \
+&& unzip distributedlog-service-3ff9e33fa577f50eebb8ee971ddb265c971c3717.zip \
+&& mkdir -p /opt/dl_all \
+&& mv distributedlog-service /opt/dl_all/
 
+ENV bookiePort 3181
 
-RUN ["mkdir", "-p", "/tmp/bk1-txn", "/tmp/bk1-data","/tmp/bk2-txn","/tmp/bk2-data","/tmp/bk3-txn","/tmp/bk3-data" ]
+EXPOSE $bookiePort
 
-VOLUME ["/tmp"]
+# all execute-able bin, download from distributed_log
+WORKDIR /opt/dl_all
 
-EXPOSE 3181/tcp
-EXPOSE 3182/tcp
-EXPOSE 3183/tcp
-
-COPY /entry_point.sh .
-
-ENTRYPOINT ["./entry_point.sh"]
+# After container up, Following instructions to build bookie cluster
+# http://distributedlog.incubator.apache.org/docs/latest/deployment/cluster.html
+COPY /entry_point.sh /opt/dl_all/entry_point.sh
+ENTRYPOINT /opt/dl_all/entry_point.sh
 
