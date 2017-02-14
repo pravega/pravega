@@ -61,14 +61,10 @@ public interface EventRead<T> {
     Position getPosition();
 
     /**
-     * Returns the segment the event came from.
+     * Returns the pointer object for the event read. The event pointer enables a random read of the
+     * event at a future time.
      */
-    Segment getSegment();
-    
-    /**
-     * Returns the byte offset within the segment the event was read from.
-     */
-    Long getOffsetInSegment();
+    EventPointer getEventPointer();
 
     /**
      * Returns a boolean indicating if a rebalance of which events are being routed to which readers

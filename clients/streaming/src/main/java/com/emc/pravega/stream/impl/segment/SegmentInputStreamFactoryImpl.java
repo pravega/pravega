@@ -38,12 +38,17 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     
     @Override
     public SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config) {
-        AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment.getScopedName());
+        return createInputStreamForSegment(segment, config, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+    }
+
+    @Override
+    public SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config, int bufferSize) {
+    AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment.getScopedName());
         try {
             Exceptions.handleInterrupted(() -> result.getConnection().get());
         } catch (ExecutionException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
-        return new SegmentInputStreamImpl(result, 0);
+        return new SegmentInputStreamImpl(result, 0, bufferSize);
     }
 }

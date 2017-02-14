@@ -21,10 +21,12 @@ import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 
+import java.nio.ByteBuffer;
+
 /**
  * The mirror of {@link EventStreamReader} but that is specific to a single segment.
  */
-public interface SegmentEventReader<Type> extends AutoCloseable {
+public interface SegmentEventReader extends AutoCloseable {
     Segment getSegmentId();
 
     /**
@@ -35,7 +37,7 @@ public interface SegmentEventReader<Type> extends AutoCloseable {
      * @param timeout Timeout for the operation, in milliseconds.
      * @throws EndOfSegmentException If we reached the end of the segment.
      */
-    Type getNextEvent(long timeout) throws EndOfSegmentException;
+    ByteBuffer getNextEvent(long timeout) throws EndOfSegmentException;
 
     /**
      * Returns the current offset. This can be passed to {@link #setOffset(long)} to restore to the current position.

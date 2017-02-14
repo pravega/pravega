@@ -22,33 +22,30 @@ import java.nio.ByteBuffer;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 
 /**
- * Reads items from the segmentInputStream, deserializes them with the Serializer and returns them to the caller.
+ * Reads items from the segmentInputStream.
  */
-public class SegmentEventReaderImpl<Type> implements SegmentEventReader<Type> {
+public class SegmentEventReaderImpl implements SegmentEventReader {
 
     private final Segment segmentId;
     @GuardedBy("in")
     private final SegmentInputStream in;
-    private final Serializer<Type> deserializer;
 
-    SegmentEventReaderImpl(Segment segmentId, SegmentInputStream in, Serializer<Type> deserializer) {
+    SegmentEventReaderImpl(Segment segmentId, SegmentInputStream in) {
         this.segmentId = segmentId;
         this.in = in;
-        this.deserializer = deserializer;
     }
 
     @Override
-    public Type getNextEvent(long timeout) throws EndOfSegmentException {
+    public ByteBuffer getNextEvent(long timeout) throws EndOfSegmentException {
         ByteBuffer buffer;
         synchronized (in) { 
             buffer = in.read();
         }
-        return deserializer.deserialize(buffer);
+        return buffer;
     }
 
     @Override

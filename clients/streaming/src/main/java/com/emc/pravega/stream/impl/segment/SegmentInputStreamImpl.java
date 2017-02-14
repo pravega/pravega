@@ -41,13 +41,12 @@ import lombok.Synchronized;
  * @see SegmentInputStream
  */
 class SegmentInputStreamImpl implements SegmentInputStream {
-
     private static final int READ_LENGTH = MAX_WRITE_SIZE;
-    static final int BUFFER_SIZE = 2 * READ_LENGTH;
+    static final int DEFAULT_BUFFER_SIZE = 2 * SegmentInputStreamImpl.READ_LENGTH;
 
     private final AsyncSegmentInputStream asyncInput;
     @GuardedBy("$lock")
-    private final CircularBuffer buffer = new CircularBuffer(BUFFER_SIZE);
+    private final CircularBuffer buffer;
     @GuardedBy("$lock")
     private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(TYPE_PLUS_LENGTH_SIZE);
     @GuardedBy("$lock")
@@ -58,10 +57,15 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     private ReadFuture outstandingRequest = null;
 
     SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long offset) {
+        this(asyncInput, offset, DEFAULT_BUFFER_SIZE);
+    }
+
+    SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long offset, int bufferSize) {
         Preconditions.checkArgument(offset >= 0);
         Preconditions.checkNotNull(asyncInput);
         this.asyncInput = asyncInput;
         this.offset = offset;
+        this.buffer = new CircularBuffer(bufferSize);
         issueRequestIfNeeded();
     }
 
