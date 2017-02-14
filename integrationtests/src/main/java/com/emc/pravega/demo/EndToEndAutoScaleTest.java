@@ -63,6 +63,9 @@ public class EndToEndAutoScaleTest {
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+            ThresholdMonitor.setCooldownDuration(Duration.ofMinutes(1));
+            ThresholdMonitor.setMuteDuration(Duration.ofMinutes(1));
+
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
             server.startListening();
@@ -81,8 +84,9 @@ public class EndToEndAutoScaleTest {
 
             String str = new String(chars);
 
+            Thread.sleep(10000);
             CompletableFuture.runAsync(() -> {
-                while (System.currentTimeMillis() - start < Duration.ofMinutes(11).toMillis()) {
+                while (System.currentTimeMillis() - start < Duration.ofMinutes(3).toMillis()) {
                     try {
                         test.writeEvent("1", str).get();
                     } catch (Throwable e) {
@@ -92,7 +96,7 @@ public class EndToEndAutoScaleTest {
                 }
             });
 
-            Thread.sleep(11 * 60 * 1000);
+            Thread.sleep(130 * 1000);
 
             StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
             if (streamSegments.getSegments().size() > 3) {

@@ -59,13 +59,16 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
     // TODO: read from config
     private static final String STREAM_NAME = "requeststream";
     // Duration for which scale request posts to request stream will be muted for a segment.
-    private static final long MUTE_DURATION = Duration.ofMinutes(10).toMillis();
+    private static final Duration MUTE_DURATION = Duration.ofMinutes(10);
     // Duration for which no scale operation will be performed on a segment after its creation
-    private static final long MINIMUM_COOLDOWN_PERIOD = Duration.ofMinutes(10).toMillis();
+    private static final Duration MINIMUM_COOLDOWN_PERIOD = Duration.ofMinutes(10);
 
     private static final ScheduledExecutorService EXECUTOR = new ScheduledThreadPoolExecutor(100);
     private static final int MAX_CACHE_SIZE = 1000000;
     private static final int INITIAL_CAPACITY = 1000;
+
+    private static long muteDuration = MUTE_DURATION.toMillis();
+    private static long cooldownPeriod = MINIMUM_COOLDOWN_PERIOD.toMillis();
 
     private static AtomicReference<ThresholdMonitor> singletonMonitor = new AtomicReference<>();
 
@@ -103,6 +106,16 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
         this.initialized.set(true);
     }
 
+    @VisibleForTesting
+    public static void setMuteDuration(Duration duration) {
+        muteDuration = duration.toMillis();
+    }
+
+    @VisibleForTesting
+    public static void setCooldownDuration(Duration duration) {
+        cooldownPeriod = duration.toMillis();
+    }
+
     static ThresholdMonitor getMonitorSingleton(ClientFactory clientFactory) {
         if (singletonMonitor.get() == null) {
             singletonMonitor.compareAndSet(null, new ThresholdMonitor(clientFactory));
@@ -133,7 +146,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
 
         long timestamp = System.currentTimeMillis();
 
-        if (timestamp - lastRequestTs > MUTE_DURATION) {
+        if (timestamp - lastRequestTs > muteDuration) {
             Segment segment = Segment.fromScopedName(streamSegmentName);
             ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleRequest.UP, timestamp, numOfSplits);
             // Mute scale for timestamp for both scale up and down
@@ -156,7 +169,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
         }
 
         long timestamp = System.currentTimeMillis();
-        if (timestamp - lastRequestTs > MUTE_DURATION) {
+        if (timestamp - lastRequestTs > muteDuration) {
             Segment segment = Segment.fromScopedName(streamSegmentName);
             ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleRequest.DOWN, timestamp, 0);
             CompletableFuture.runAsync(() -> {
@@ -175,7 +188,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
         checkAndRun(() -> {
             if (type != WireCommands.CreateSegment.NO_SCALE) {
                 long currentTime = System.currentTimeMillis();
-                if (currentTime - startTime > MINIMUM_COOLDOWN_PERIOD) {
+                if (currentTime - startTime > cooldownPeriod) {
                     // process to see if a scale operation needs to be performed.
                     if ((twoMinuteRate > 5 * targetRate && currentTime - startTime > TWO_MINUTES) ||
                             (fiveMinuteRate > 2 * targetRate && currentTime - startTime > FIVE_MINUTES) ||
