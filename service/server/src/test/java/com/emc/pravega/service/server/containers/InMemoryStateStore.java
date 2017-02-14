@@ -16,12 +16,11 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server;
+package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.io.EnhancedByteArrayOutputStream;
 import com.emc.pravega.common.util.AsyncMap;
 import com.emc.pravega.common.util.ByteArraySegment;
-import com.emc.pravega.service.server.containers.SegmentState;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;

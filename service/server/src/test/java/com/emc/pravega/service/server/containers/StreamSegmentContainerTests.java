@@ -84,7 +84,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int SEGMENT_COUNT = 100;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
-    private static final int CLIENT_COUNT = 10;
     private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
     private static final Duration TIMEOUT = Duration.ofSeconds(100);
@@ -696,11 +695,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     private void mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
-        ArrayList<CompletableFuture<Long>> mergeFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Void>> mergeFutures = new ArrayList<>();
         for (Map.Entry<String, ArrayList<String>> e : transactionsBySegment.entrySet()) {
             String parentName = e.getKey();
             for (String transactionName : e.getValue()) {
-                mergeFutures.add(context.container.sealStreamSegment(transactionName, TIMEOUT));
+                mergeFutures.add(FutureHelpers.toVoid(context.container.sealStreamSegment(transactionName, TIMEOUT)));
                 mergeFutures.add(context.container.mergeTransaction(transactionName, TIMEOUT));
 
                 // Update parent length.

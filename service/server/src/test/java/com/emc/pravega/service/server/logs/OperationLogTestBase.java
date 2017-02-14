@@ -25,7 +25,7 @@ import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.server.ContainerMetadata;
-import com.emc.pravega.service.server.InMemoryStateStore;
+import com.emc.pravega.service.server.containers.InMemoryStateStore;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.SegmentMetadata;

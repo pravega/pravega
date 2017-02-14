@@ -65,8 +65,6 @@ import java.util.zip.GZIPOutputStream;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
-import static com.emc.pravega.common.util.CollectionHelpers.forEach;
-
 /**
  * Transaction-based Metadata Updater for Log Operations.
  */
@@ -651,7 +649,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 deserializeSegmentMetadata(stream);
             }
 
-            // 54. New Stream Segments.
+            // 5. New Stream Segments.
             segmentCount = stream.readInt();
             for (int i = 0; i < segmentCount; i++) {
                 deserializeSegmentMetadata(stream);
@@ -683,7 +681,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             // 4. New StreamSegments.
             Collection<UpdateableSegmentMetadata> newSegments = CollectionHelpers.filter(this.newStreamSegments.values(), sm -> !this.streamSegmentUpdates.containsKey(sm.getId()));
             stream.writeInt(newSegments.size());
-            forEach(newSegments, sm -> serializeSegmentMetadata(sm, stream));
+            CollectionHelpers.forEach(newSegments, sm -> serializeSegmentMetadata(sm, stream));
 
             // 5. Changed Segment Metadata.
             stream.writeInt(this.streamSegmentUpdates.size());

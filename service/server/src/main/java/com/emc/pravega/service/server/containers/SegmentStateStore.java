@@ -75,6 +75,7 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
         return this.storage
                 .getStreamSegmentInfo(stateSegment, timer.getRemaining())
                 .thenComposeAsync(sp -> {
+                    // Read the whole Segment.
                     contents.set(new byte[(int) sp.getLength()]);
                     return this.storage.read(stateSegment, 0, contents.get(), 0, contents.get().length, timer.getRemaining());
                 }, this.executor)
@@ -89,12 +90,14 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
     public CompletableFuture<Void> put(String segmentName, SegmentState state, Duration timeout) {
         String stateSegment = StreamSegmentNameUtils.getStateSegmentName(segmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-
         ByteArraySegment toWrite = serialize(state);
+
+        // We need to replace the contents of the Segment. The only way to do that with the Storage API is to
+        // delete the existing segment (if any), then create a new one and write the contents to it.
         return this.storage
-                .delete(stateSegment, timeout)
+                .delete(stateSegment, timer.getRemaining())
                 .exceptionally(this::handleSegmentNotExistsException)
-                .thenComposeAsync(v -> this.storage.create(stateSegment, timeout), this.executor)
+                .thenComposeAsync(v -> this.storage.create(stateSegment, timer.getRemaining()), this.executor)
                 .thenComposeAsync(
                         v -> this.storage.write(stateSegment, 0, toWrite.getReader(), toWrite.getLength(), timer.getRemaining()),
                         this.executor);
@@ -109,6 +112,8 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
     }
 
     //endregion
+
+    //region Helpers
 
     @SneakyThrows(IOException.class)
     private ByteArraySegment serialize(SegmentState state) {
@@ -137,4 +142,6 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
 
         throw ex;
     }
+
+    //endregion
 }

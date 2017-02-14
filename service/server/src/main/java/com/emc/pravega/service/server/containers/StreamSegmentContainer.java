@@ -24,7 +24,6 @@ import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.common.util.AsyncMap;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
@@ -306,7 +305,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout) {
+    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         ensureRunning();
 
         logRequest("mergeTransaction", transactionName);
@@ -321,7 +320,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
                     Operation op = new MergeTransactionOperation(transactionMetadata.getParentId(), transactionMetadata.getId());
                     return this.durableLog.add(op, timer.getRemaining());
-                });
+                })
+                .thenComposeAsync(v -> this.stateStore.remove(transactionName, timer.getRemaining()), this.executor);
     }
 
     @Override

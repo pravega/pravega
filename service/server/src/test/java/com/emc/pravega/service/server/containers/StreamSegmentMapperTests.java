@@ -28,7 +28,6 @@ import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.ContainerMetadata;
-import com.emc.pravega.service.server.InMemoryStateStore;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.SegmentMetadataComparer;
