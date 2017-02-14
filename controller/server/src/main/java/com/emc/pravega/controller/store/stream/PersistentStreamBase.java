@@ -45,7 +45,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -318,7 +317,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             (ex != null && ex instanceof DataNotFoundException)) {
                         return TxnStatus.UNKNOWN;
                     } else if (ex != null) {
-                        failureHandler().accept(ex);
+                        RetryableException.throwRetryableOrElseRuntime(ex);
                     }
                     return ActiveTxRecord.parse(ok.getData()).getTxnStatus();
                 });
@@ -332,7 +331,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                             (ex != null && ex instanceof DataNotFoundException)) {
                                         return TxnStatus.UNKNOWN;
                                     } else if (ex != null) {
-                                        failureHandler().accept(ex);
+                                        RetryableException.throwRetryableOrElseRuntime(ex);
                                     }
                                     return CompletedTxRecord.parse(ok.getData()).getCompletionStatus();
                                 });
@@ -608,15 +607,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenApply(segmentTableChunk -> new ImmutablePair<>(latestChunkNumber, segmentTableChunk));
     }
 
-    protected Consumer<Throwable> failureHandler() {
-        return (e) -> {
-            assert e != null;
-
-            RetryableException.throwRetryableOrElse(e, x -> {
-                throw new RuntimeException(x);
-            });
-        };
-    }
 
     abstract CompletableFuture<Void> checkStreamExists(final Create create) throws StreamAlreadyExistsException;
 

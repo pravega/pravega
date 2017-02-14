@@ -141,25 +141,26 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
         while (!stop.get()) {
             try {
                 // limiting number of concurrent processing. Otherwise we will keep picking messages from the stream
-                // and it could lead to memory bottlenecks.
+                // and it could lead to memory overload.
                 semaphore.acquire();
 
                 EventRead<R> event;
                 long next;
+                R request;
+                PositionCounter pc;
 
                 try {
                     next = getNextCounter();
 
                     event = reader.readNextEvent(60000);
+                    request = event.getEvent();
+                    pc = new PositionCounter(event.getPosition(), next);
+                    running.add(pc);
                 } catch (Exception e) {
                     semaphore.release();
                     log.warn("error reading event {}", e.getMessage());
                     throw e;
                 }
-
-                R request = event.getEvent();
-                PositionCounter pc = new PositionCounter(event.getPosition(), next);
-                running.add(pc);
 
                 CompletableFuture<Void> process;
                 try {
@@ -178,12 +179,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                     if (e != null) {
                         log.error("Processing failed RequestReader {}", e.getMessage());
 
-                        try {
-                            RetryableException.throwRetryableOrElse(e, null);
-                        } catch (RetryableException ex) {
-                            log.debug("processing failed RequestReader with retryable so putting it back");
-                            putBack(request.getKey(), request);
-                        }
+                        RetryableException.castRetryable(e).ifPresent(ex -> putBack(request.getKey(), request));
                     }
                 }, executor);
             } catch (Exception e) {
@@ -192,7 +188,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                 // an exception is thrown while doing reads for next events.
                 // And we should never stop processing of other requests in the queue even if processing a request throws
                 // an exception.
-                log.warn("Exception thrown while processing event. {}. Logging and continuing.", e.getMessage());
+                log.warn("Exception thrown while processing event. {}. Logging and continuing. Stack trace {}", e.getMessage(), e.getStackTrace());
             }
         }
     }
@@ -236,7 +232,6 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
     private void complete(PositionCounter pc) {
         running.remove(pc);
         completed.add(pc);
-        // find the lowest in running
 
         counterLock.readLock().lock();
         try {
@@ -258,17 +253,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
         Retry.withExpBackoff(100, 10, 3, 1000)
                 .retryingOn(RetryableException.class)
                 .throwingOn(RuntimeException.class)
-                .run(() ->
-                        FutureHelpers.getAndHandleExceptions(
-                                streamMetadataStore.checkpoint(readerId, readerGroup, serializer.serialize(checkpoint.get().position)),
-                                e -> {
-                                    Optional<RetryableException> opt = RetryableException.castRetryable(e);
-                                    if (opt.isPresent()) {
-                                        return opt.get();
-                                    } else {
-                                        return new RuntimeException(e);
-                                    }
-                                }));
+                .runAsync(() -> streamMetadataStore.checkpoint(readerId, readerGroup, serializer.serialize(checkpoint.get().position)), executor);
     }
 
     /**

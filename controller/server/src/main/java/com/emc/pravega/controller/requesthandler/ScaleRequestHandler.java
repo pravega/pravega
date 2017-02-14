@@ -335,7 +335,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                     if (ex != null) {
                         log.error("scale failed for request {}/{}/{} with exception", request.getScope(), request.getStream(), request.getSegmentNumber(), ex.getMessage());
 
-                        RetryableException.throwRetryableOrElse(ex, RuntimeException::new);
+                        RetryableException.throwRetryableOrElseRuntime(ex);
                         return ex;
                     } else {
                         return null;
@@ -346,13 +346,11 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                             if (ex != null) {
                                 // if scale operation had failed, we should throw the original exception. This has to be non-retryable as
                                 // scale task has exhausted all its lives
-                                RetryableException.throwRetryableOrElse(ex, x -> {
-                                    throw new RuntimeException(x);
-                                });
+                                RetryableException.throwRetryableOrElseRuntime(ex);
                             } else {
                                 // unblock failed with retryable.
                                 log.warn("Failed to unblock txn creation for stream {}/{}", request.getScope(), request.getStream());
-                                throw new RetryableException(e);
+                                throw new RuntimeException(e);
                             }
                             return null;
                         }), executor);
@@ -379,7 +377,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                         .collect(Collectors.toList())), executor)
                 .handle((res, ex) -> {
                     if (ex != null) {
-                        throw new RetryableException(ex);
+                        throw new RuntimeException(ex);
                     }
                     return null;
                 });

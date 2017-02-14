@@ -45,7 +45,7 @@ class TaskStepsRetryHelper {
             if (ex != null) {
                 Throwable cause = extractCause(ex);
                 if (cause instanceof WireCommandFailedException) {
-                    throw new RetryableException(ex);
+                    throw (WireCommandFailedException) cause;
                 } else {
                     throw new RuntimeException(ex);
                 }

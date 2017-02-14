@@ -26,7 +26,6 @@ import com.emc.pravega.common.netty.ReplyProcessor;
 import com.emc.pravega.common.netty.WireCommand;
 import com.emc.pravega.common.netty.WireCommandType;
 import com.emc.pravega.common.netty.WireCommands;
-import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.TxnStatus;
@@ -342,10 +341,11 @@ public class SegmentHelper {
     private <T> void whenComplete(CompletableFuture<Void> future, CompletableFuture<T> result) {
         future.whenComplete((res, ex) -> {
             if (ex != null) {
+
                 if (ex instanceof WireCommandFailedException) {
-                    result.completeExceptionally(new RetryableException(ex));
+                    result.completeExceptionally(ex);
                 } else if (ex.getCause() instanceof WireCommandFailedException) {
-                    result.completeExceptionally(new RetryableException(ex.getCause()));
+                    result.completeExceptionally(ex.getCause());
                 } else {
                     result.completeExceptionally(new RuntimeException(ex));
                 }

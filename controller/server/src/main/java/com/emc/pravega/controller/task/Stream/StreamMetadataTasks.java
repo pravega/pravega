@@ -201,9 +201,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                                     if (ex == null) {
                                         return true;
                                     } else {
-                                        RetryableException.throwRetryableOrElse(ex, e -> {
-                                            throw new RuntimeException(e);
-                                        });
+                                        RetryableException.throwRetryableOrElseRuntime(ex);
 
                                         return false;
                                     }

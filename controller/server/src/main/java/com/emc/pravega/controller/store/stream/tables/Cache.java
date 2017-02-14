@@ -47,9 +47,7 @@ public class Cache<T> {
                                 .whenComplete((res, ex) -> {
                                     if (ex != null) {
                                         invalidateCache(key);
-                                        RetryableException.throwRetryableOrElse(ex, x -> {
-                                            throw new RuntimeException(x);
-                                        });
+                                        RetryableException.throwRetryableOrElseRuntime(ex);
                                     }
                                 });
                     }

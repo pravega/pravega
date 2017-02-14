@@ -37,7 +37,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         if (streams.containsKey(name)) {
             return streams.get(name);
         } else {
-            throw new StreamNotFoundException(name);
+            throw new DataNotFoundException(name);
         }
     }
 

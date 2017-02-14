@@ -130,7 +130,7 @@ public class StreamMetadataStoreTest {
         try {
             store.setSealed(scope, "streamNonExistent", null).get();
         } catch (Exception e) {
-            assertEquals(StreamNotFoundException.class, e.getCause().getCause().getClass());
+            assertEquals(DataNotFoundException.class, e.getCause().getCause().getClass());
         }
         // endregion
     }

@@ -120,7 +120,6 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
                     serializer,
                     config);
             initialized.set(true);
-            return null;
         }, createWriter);
     }
 
@@ -216,10 +215,10 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
         }
     }
 
-    private static <T> void retryIndefinitely(Supplier<T> supplier, CompletableFuture<Void> promise) {
+    private static void retryIndefinitely(Runnable supplier, CompletableFuture<Void> promise) {
         try {
             if (!promise.isDone()) {
-                supplier.get();
+                supplier.run();
                 promise.complete(null);
             }
         } catch (Exception e) {

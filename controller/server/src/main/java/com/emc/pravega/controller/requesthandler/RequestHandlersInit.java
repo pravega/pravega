@@ -50,7 +50,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 @Slf4j
 public class RequestHandlersInit {
@@ -58,10 +57,10 @@ public class RequestHandlersInit {
             Config.SCALE_STREAM_NAME,
             new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 1000, 2, 1));
 
-    private static AtomicReference<ScaleRequestHandler> scaleHandler = new AtomicReference<>();
-    private static AtomicReference<EventStreamReader<ScaleRequest>> scaleReader = new AtomicReference<>();
-    private static AtomicReference<EventStreamWriter<ScaleRequest>> scaleWriter = new AtomicReference<>();
-    private static AtomicReference<RequestReader<ScaleRequest, ScaleRequestHandler>> scaleRequestReader = new AtomicReference<>();
+    private static final AtomicReference<ScaleRequestHandler> SCALE_HANDLER_REF = new AtomicReference<>();
+    private static final AtomicReference<EventStreamReader<ScaleRequest>> SCALE_READER_REF = new AtomicReference<>();
+    private static final AtomicReference<EventStreamWriter<ScaleRequest>> SCALE_WRITER_REF = new AtomicReference<>();
+    private static final AtomicReference<RequestReader<ScaleRequest, ScaleRequestHandler>> SCALE_REQUEST_READER_REF = new AtomicReference<>();
     private static StreamManager streamManager;
     private static ClientFactory clientFactory;
 
@@ -83,9 +82,9 @@ public class RequestHandlersInit {
                 executor, createScaleReader));
     }
 
-    private static void retryIndefinitely(Supplier<Void> supplier, ScheduledExecutorService executor, CompletableFuture<Void> result) {
+    private static void retryIndefinitely(Runnable supplier, ScheduledExecutorService executor, CompletableFuture<Void> result) {
         try {
-            supplier.get();
+            supplier.run();
             result.complete(null);
         } catch (Exception e) {
             // Until we are able to start these readers, keep retrying indefinitely by scheduling it back
@@ -100,7 +99,6 @@ public class RequestHandlersInit {
                     controller.getController().createStream(REQUEST_STREAM_CONFIG, System.currentTimeMillis()));
 
             FutureHelpers.getAndHandleExceptions(requestStreamFuture, RuntimeException::new);
-            return null;
         }, executor, result);
     }
 
@@ -111,36 +109,35 @@ public class RequestHandlersInit {
 
             streamManager.createReaderGroup(Config.SCALE_READER_GROUP, groupConfig, Lists.newArrayList(Config.SCALE_STREAM_NAME));
 
-            if (scaleHandler.get() == null) {
-                scaleHandler.compareAndSet(null, new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor));
+            if (SCALE_HANDLER_REF.get() == null) {
+                SCALE_HANDLER_REF.compareAndSet(null, new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor));
             }
 
-            if (scaleReader.get() == null) {
-                scaleReader.compareAndSet(null, clientFactory.createReader(Config.SCALE_READER_ID,
+            if (SCALE_READER_REF.get() == null) {
+                SCALE_READER_REF.compareAndSet(null, clientFactory.createReader(Config.SCALE_READER_ID,
                         Config.SCALE_READER_GROUP,
                         new JavaSerializer<>(),
                         new ReaderConfig()));
             }
 
-            if (scaleWriter.get() == null) {
-                scaleWriter.compareAndSet(null, clientFactory.createEventWriter(Config.SCALE_STREAM_NAME,
+            if (SCALE_WRITER_REF.get() == null) {
+                SCALE_WRITER_REF.compareAndSet(null, clientFactory.createEventWriter(Config.SCALE_STREAM_NAME,
                         new JavaSerializer<>(),
                         new EventWriterConfig(null)));
             }
 
-            if (scaleRequestReader.get() == null) {
-                scaleRequestReader.compareAndSet(null, new RequestReader<>(
+            if (SCALE_REQUEST_READER_REF.get() == null) {
+                SCALE_REQUEST_READER_REF.compareAndSet(null, new RequestReader<>(
                         Config.SCALE_READER_ID,
                         Config.SCALE_READER_GROUP,
-                        scaleWriter.get(),
-                        scaleReader.get(),
+                        SCALE_WRITER_REF.get(),
+                        SCALE_READER_REF.get(),
                         streamStore,
-                        scaleHandler.get(),
+                        SCALE_HANDLER_REF.get(),
                         executor));
             }
 
-            CompletableFuture.runAsync(scaleRequestReader.get(), Executors.newSingleThreadExecutor());
-            return null;
+            CompletableFuture.runAsync(SCALE_REQUEST_READER_REF.get(), Executors.newSingleThreadExecutor());
         }, executor, result);
     }
 
