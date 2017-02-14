@@ -21,7 +21,6 @@ package com.emc.pravega.service.server.containers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.AsyncMap;
-import com.emc.pravega.service.contracts.Attribute;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.SegmentProperties;
@@ -408,8 +407,8 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     private Collection<AttributeUpdate> createAttributes(int count) {
         Collection<AttributeUpdate> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            Attribute.UpdateType ut = Attribute.UpdateType.values()[i % Attribute.UpdateType.values().length];
-            result.add(new AttributeUpdate(Attribute.dynamic(UUID.randomUUID(), ut), i));
+            AttributeUpdateType ut = AttributeUpdateType.values()[i % AttributeUpdateType.values().length];
+            result.add(new AttributeUpdate(UUID.randomUUID(), ut, i));
         }
 
         return result;
@@ -419,7 +418,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         if (count != 0) {
             val attributes = createAttributes(count)
                     .stream()
-                    .collect(Collectors.toMap(au -> au.getAttribute().getId(), AttributeUpdate::getValue));
+                    .collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
             context.stateStore.put(
                     segmentName,
                     new SegmentState(new StreamSegmentInformation(segmentName, 0, false, false, attributes, new Date())),
