@@ -18,7 +18,7 @@ package com.emc.pravega.controller.eventProcessor;
 import com.emc.pravega.controller.server.ControllerServerException;
 
 /**
- * Controller store exception
+ * Controller store exception.
  */
 public class CheckpointStoreException extends ControllerServerException {
 

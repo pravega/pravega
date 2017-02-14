@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
+import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.stream.Position;
 import lombok.Synchronized;
 
@@ -71,9 +72,13 @@ class InMemoryCheckpointStore implements CheckpointStore {
     @Synchronized
     public void removeReaderGroup(String process, String readerGroup) {
         String key = getKey(process, readerGroup);
-        if (map.containsKey(key) && map.get(key).isEmpty()) {
+        if (map.containsKey(key)) {
             // Remove the reader group only if it has no active readers.
-            map.remove(key);
+            if (map.get(key).isEmpty()) {
+                map.remove(key);
+            } else {
+                throw new CheckpointStoreException("Entry not empty");
+            }
         }
     }
 

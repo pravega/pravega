@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
+import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.impl.PositionImpl;
 import org.junit.Assert;
@@ -72,7 +73,11 @@ public abstract class CheckpointStoreTests {
         Assert.assertNotNull(resultMap.get(reader1));
         Assert.assertEquals(position, resultMap.get(reader1));
 
-        checkpointStore.removeReaderGroup(process1, readerGroup1);
+        try {
+            checkpointStore.removeReaderGroup(process1, readerGroup1);
+            Assert.assertFalse(true);
+        } catch (CheckpointStoreException cse) { }
+        
         result = checkpointStore.getReaderGroups(process1);
         Assert.assertNotNull(result);
         Assert.assertEquals(1, result.size());
