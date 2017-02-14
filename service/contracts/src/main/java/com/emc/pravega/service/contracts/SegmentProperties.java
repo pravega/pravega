@@ -18,10 +18,9 @@
 
 package com.emc.pravega.service.contracts;
 
-import java.util.Date;
+import com.emc.pravega.common.util.ImmutableDate;
 import java.util.Map;
 import java.util.UUID;
-import com.emc.pravega.common.util.ImmutableDate;
 
 /**
  * General properties about a StreamSegment.
