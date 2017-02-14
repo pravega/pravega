@@ -24,8 +24,8 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestStorage;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -623,7 +623,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
     private byte[] getAppendData(String segmentName, long segmentId, int segmentAppendSeq, int writeId) {
         // NOTE: the data returned by this should be deterministic (not random) since the recovery test relies on it being that way.
-        return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d\n", segmentName, segmentId, segmentAppendSeq, writeId).getBytes();
+        return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d%n", segmentName, segmentId, segmentAppendSeq, writeId).getBytes();
     }
 
     private String getSegmentName(int i) {

@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.controller.server.rest.contract.common;
 
+import java.io.Serializable;
+
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -25,6 +27,6 @@ import lombok.Getter;
  */
 @Getter
 @AllArgsConstructor
-public class RetentionPolicyCommon {
+public class RetentionPolicyCommon implements Serializable {
     private long retentionTimeMillis;
 }

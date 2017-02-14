@@ -48,12 +48,10 @@ public abstract class TaskMetadataStoreTests {
     private final String host2 = "host2";
     private final String threadId1 = UUID.randomUUID().toString();
     private final String threadId2 = UUID.randomUUID().toString();
-    private final TaskData taskData = new TaskData();
+    private final TaskData taskData;
 
     public TaskMetadataStoreTests() {
-        taskData.setMethodName("test");
-        taskData.setMethodVersion("1.0");
-        taskData.setParameters(new String[]{"string1"});
+        taskData = new TaskData("test", "1.0", new String[]{"string1"});
     }
 
     @Before

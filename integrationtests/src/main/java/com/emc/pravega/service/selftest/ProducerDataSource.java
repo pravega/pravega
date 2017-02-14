@@ -18,9 +18,9 @@
 
 package com.emc.pravega.service.selftest;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.google.common.base.Preconditions;
 import lombok.val;
 

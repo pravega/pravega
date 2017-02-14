@@ -244,6 +244,6 @@ class InMemoryStream implements Stream {
     }
 
     public String toString() {
-        return String.format("Current Segments:%s\nSegments:%s\n", currentSegments.toString(), segments.toString());
+        return String.format("Current Segments:%s%nSegments:%s%n", currentSegments.toString(), segments.toString());
     }
 }

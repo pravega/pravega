@@ -25,6 +25,9 @@ import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.Attributes;
 import com.emc.pravega.service.contracts.BadAttributeUpdateException;
+import com.emc.pravega.common.util.ImmutableDate;
+import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.BadEventNumberException;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
@@ -47,6 +50,7 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
+
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -66,6 +70,8 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import static com.emc.pravega.common.util.CollectionHelpers.forEach;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Transaction-based Metadata Updater for Log Operations.
@@ -753,7 +759,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 metadata.markDeleted();
             }
             // S10. LastModified.
-            Date lastModified = new java.util.Date(stream.readLong());
+            ImmutableDate lastModified = new ImmutableDate(stream.readLong());
             metadata.setLastModified(lastModified);
 
             // S11. Attributes.
@@ -827,8 +833,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         @Override
-        public Date getLastModified() {
-            return new Date(); //TODO: implement properly.
+        public ImmutableDate getLastModified() {
+            return new ImmutableDate(); //TODO: implement properly.
         }
 
         //endregion
