@@ -433,6 +433,7 @@ project('systemtests:tests') {
 
     //This is  used to invoke systemTests
     task startSystemTests(type: Test) {
+        description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
         testClassesDir = sourceSets.test.output.classesDir
         classpath = sourceSets.test.runtimeClasspath
 
@@ -444,7 +445,7 @@ project('systemtests:tests') {
             systemProperty "execType", "REMOTE_SEQUENTIAL"
         }
         if (System.getProperty("masterIP") == null) {
-            systemProperty "masterIP ", "10.240.124.139"
+            systemProperty "masterIP ", "INVALID_MASTER_IP"
         }
     }
     publishing {
