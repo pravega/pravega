@@ -19,8 +19,10 @@ package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
 import com.emc.pravega.stream.Position;
+import lombok.Synchronized;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +40,8 @@ class InMemoryCheckpointStore implements CheckpointStore {
     }
 
     @Override
-    public boolean setPosition(String process, String readerGroup, String readerId, Position position) {
+    @Synchronized
+    public void setPosition(String process, String readerGroup, String readerId, Position position) {
         String key = getKey(process, readerGroup);
         if (map.containsKey(key)) {
             map.get(key).put(readerId, position);
@@ -47,34 +50,35 @@ class InMemoryCheckpointStore implements CheckpointStore {
             inner.put(readerId, position);
             map.put(key, inner);
         }
-        return true;
     }
 
     @Override
+    @Synchronized
     public Map<String, Position> getPositions(String process, String readerGroup) {
-        return map.get(getKey(process, readerGroup));
+        return Collections.unmodifiableMap(map.get(getKey(process, readerGroup)));
     }
 
     @Override
-    public boolean addReaderGroup(String process, String readerGroup) {
+    @Synchronized
+    public void addReaderGroup(String process, String readerGroup) {
         String key = getKey(process, readerGroup);
         if (!map.containsKey(key)) {
             map.put(key, new HashMap<>());
         }
-        return true;
     }
 
     @Override
-    public boolean removeReaderGroup(String process, String readerGroup) {
+    @Synchronized
+    public void removeReaderGroup(String process, String readerGroup) {
         String key = getKey(process, readerGroup);
         if (map.containsKey(key) && map.get(key).isEmpty()) {
             // Remove the reader group only if it has no active readers.
             map.remove(key);
         }
-        return true;
     }
 
     @Override
+    @Synchronized
     public List<String> getReaderGroups(String process) {
         List<String> list = new ArrayList<>();
         map.entrySet().stream().forEach(pair -> {
@@ -87,18 +91,18 @@ class InMemoryCheckpointStore implements CheckpointStore {
     }
 
     @Override
-    public boolean addReader(String process, String readerGroup, String readerId) {
+    @Synchronized
+    public void addReader(String process, String readerGroup, String readerId) {
         setPosition(process, readerGroup, readerId, null);
-        return true;
     }
 
     @Override
-    public boolean removeReader(String process, String readerGroup, String readerId) {
+    @Synchronized
+    public void removeReader(String process, String readerGroup, String readerId) {
         String key = getKey(process, readerGroup);
         if (map.containsKey(key)) {
             map.get(key).remove(readerId);
         }
-        return true;
     }
 
     private String getKey(String process, String readerGroup) {

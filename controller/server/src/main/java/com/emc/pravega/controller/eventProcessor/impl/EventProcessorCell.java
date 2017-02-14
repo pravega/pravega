@@ -19,10 +19,10 @@ package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
+import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.Decider;
 import com.emc.pravega.controller.eventProcessor.EventProcessorInitException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorReinitException;
-import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.Props;
 import com.emc.pravega.controller.eventProcessor.StreamEvent;
 import com.emc.pravega.stream.EventRead;
@@ -37,40 +37,53 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.InvocationTargetException;
 
+/**
+ * This is an internal class that embeds the following.
+ * 1. Event processor instance.
+ * 2. Checkpoint state encapsulating checkpoint persistence logic.
+ * 3. A reader reference that is part of the reader group associated
+ *    with the EventProcessor group to which this event processor belongs.
+ * 4. A delegate, which provides a single thread of execution for invoking
+ *    the event processor methods like process, beforeStart, afterStop, etc.
+ *
+ * This object manages life cycle of an event processor by invoking it's beforeStart, process, afterStop methods.
+ *
+ * @param <T> Event type parameter.
+ */
 @Slf4j
 class EventProcessorCell<T extends StreamEvent> {
 
-    private final EventProcessorSystem actorSystem;
-
     private final EventStreamReader<T> reader;
-
-    private final String readerId;
-
-    private final Props<T> props;
-
-    private final CheckpointStore checkpointStore;
 
     @VisibleForTesting
     @Getter(value = AccessLevel.PACKAGE)
     private EventProcessor<T> actor;
 
     /**
-     * Actor encapsulates a delegate which extends AbstractExecutionThreadService. This delegate provides a single
-     * thread of execution for the actor. This prevents sub-classes of Actor from controlling Actor's lifecycle.
+     * Event processor cell encapsulates a delegate which extends AbstractExecutionThreadService.
+     * This delegate provides a single thread of execution for the event processor.
+     * This prevents sub-classes of EventProcessor from controlling EventProcessor's lifecycle.
      */
-    private Service delegate;
-    private CheckpointState state;
-    private EventRead<T> event;
+    private final Service delegate;
+
+    private final CheckpointState state;
 
     private class Delegate extends AbstractExecutionThreadService {
+
+        private final Props<T> props;
+        private EventRead<T> event;
+
+        Delegate(Props<T> props) {
+            this.props = props;
+        }
 
         @Override
         protected final void startUp() {
             try {
                 actor.beforeStart();
-            } catch (Throwable t) {
-                log.warn("Failed while executing preStart for Actor " + this, t);
-                handleException(new EventProcessorInitException(actor, t));
+            } catch (Exception e) {
+                log.warn("Failed while executing preStart for event processor " + this, e);
+                handleException(new EventProcessorInitException(actor, e));
             }
         }
 
@@ -83,13 +96,13 @@ class EventProcessorCell<T extends StreamEvent> {
                     event = reader.readNextEvent(defaultTimeout);
 
                     // invoke the user specified event processing method
-                    actor.receive(event.getEvent());
+                    actor.process(event.getEvent());
 
                     // possibly persist event position
                     state.store(event.getPosition());
 
-                } catch (Throwable t) {
-                    handleException(t);
+                } catch (Exception e) {
+                    handleException(e);
                 }
             }
 
@@ -99,11 +112,11 @@ class EventProcessorCell<T extends StreamEvent> {
         protected final void shutDown() throws Exception {
             try {
                 actor.afterStop();
-            } catch (Throwable t) {
+            } catch (Exception e) {
                 // Error encountered while cleanup is just logged.
                 // AbstractExecutionThreadService shall transition the service to failed state.
-                log.warn("Failed while executing postStop for Actor " + this, t);
-                throw t;
+                log.warn("Failed while executing afterStop for event processor " + this, e);
+                throw e;
             } finally {
 
                 // If exception is thrown in any of the following operations, it is just logged.
@@ -122,21 +135,22 @@ class EventProcessorCell<T extends StreamEvent> {
 
                 actor.beforeRestart(error, event);
 
-                // Now clean up the actor state by re-creating it and then invoke startUp.
+                // Now clean up the event processor state by re-creating it and then invoke startUp.
                 actor = createEventProcessor(props);
+
                 startUp();
 
             } catch (Exception e) {
-                log.warn("Failed while executing preRestart for Actor " + this, e);
+                log.warn("Failed while executing preRestart for event processor " + this, e);
                 handleException(new EventProcessorReinitException(actor, e));
             }
         }
 
-        private void handleException(Throwable t) {
-            Decider.Directive directive = props.getDecider().run(t);
+        private void handleException(Exception e) {
+            Decider.Directive directive = props.getDecider().run(e);
             switch (directive) {
                 case Restart:
-                    this.restart(t, event == null ? null : event.getEvent());
+                    this.restart(e, event == null ? null : event.getEvent());
                     break;
 
                 case Resume:
@@ -151,11 +165,28 @@ class EventProcessorCell<T extends StreamEvent> {
     }
 
     private class CheckpointState {
+
+        private final CheckpointStore checkpointStore;
+        private final String process;
+        private final String readerGroupName;
+        private final String readerId;
+        private final CheckpointConfig.CheckpointPeriod checkpointPeriod;
+
         private int count;
         private int previousCheckpointIndex;
         private long previousCheckpointTimestamp;
 
-        CheckpointState() {
+        CheckpointState(final CheckpointStore checkpointStore,
+                        final String process,
+                        final String readerGroupName,
+                        final String readerId,
+                        final CheckpointConfig.CheckpointPeriod checkpointPeriod) {
+            this.checkpointStore = checkpointStore;
+            this.process = process;
+            this.readerGroupName = readerGroupName;
+            this.readerId = readerId;
+            this.checkpointPeriod = checkpointPeriod;
+
             count = 0;
             previousCheckpointIndex = 0;
             previousCheckpointTimestamp = System.currentTimeMillis();
@@ -167,40 +198,42 @@ class EventProcessorCell<T extends StreamEvent> {
 
             final int countInterval = count - previousCheckpointIndex;
             final long timeInterval = timestamp - previousCheckpointTimestamp;
-            final CheckpointConfig.CheckpointPeriod config =
-                    props.getConfig().getCheckpointConfig().getCheckpointPeriod();
 
-            if (countInterval >= config.getNumEvents() || timeInterval >= 1000 * config.getNumSeconds()) {
-                boolean success = checkpointStore.setPosition(actorSystem.getProcess(),
-                        props.getConfig().getReaderGroupName(), readerId, position);
-                // update the previous checkpoint stats if successful,
-                // otherwise, we again attempt checkpointing after processing next event
-                if (success) {
+            if (countInterval >= checkpointPeriod.getNumEvents() ||
+                    timeInterval >= 1000 * checkpointPeriod.getNumSeconds()) {
+
+                try {
+
+                    checkpointStore.setPosition(process, readerGroupName, readerId, position);
+                    // update the previous checkpoint stats if successful,
+                    // otherwise, we again attempt checkpointing after processing next event
                     previousCheckpointIndex = count;
                     previousCheckpointTimestamp = timestamp;
+
+                } catch (CheckpointStoreException cse) {
+                    // Log the exception, without updating previous checkpoint index or timestamp.
+                    // So that persisting checkpoint shall be attempted again after processing next message.
+                    log.warn("Failed persisting checkpoint", cse.getCause());
                 }
             }
         }
 
         void stop() {
-            checkpointStore.removeReader(actorSystem.getProcess(), props.getConfig().getReaderGroupName(), readerId);
+            checkpointStore.removeReader(process, readerGroupName, readerId);
         }
     }
 
-    EventProcessorCell(final EventProcessorSystem actorSystem,
-                       final Props<T> props,
+    EventProcessorCell(final Props<T> props,
                        final EventStreamReader<T> reader,
+                       final String process,
                        final String readerId,
                        final CheckpointStore checkpointStore) {
 
-        this.actorSystem = actorSystem;
         this.reader = reader;
-        this.readerId = readerId;
-        this.props = props;
-        this.checkpointStore = checkpointStore;
         this.actor = createEventProcessor(props);
-        this.delegate = new Delegate();
-        this.state = new CheckpointState();
+        this.delegate = new Delegate(props);
+        this.state = new CheckpointState(checkpointStore, process, props.getConfig().getReaderGroupName(),
+                readerId, props.getConfig().getCheckpointConfig().getCheckpointPeriod());
     }
 
     final void startAsync() {
@@ -216,18 +249,16 @@ class EventProcessorCell<T extends StreamEvent> {
             delegate.awaitTerminated();
         } catch (IllegalStateException e) {
             // This exception means that the delegate failed.
-            log.warn("Actor terminated with failure ", e);
+            log.warn("Event processor terminated with failure ", e);
         }
     }
 
     private EventProcessor<T> createEventProcessor(final Props<T> props) {
-        EventProcessor<T> temp;
         try {
-            temp = props.getConstructor().newInstance(props.getArgs());
+            return props.getConstructor().newInstance(props.getArgs());
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-            throw new RuntimeException("Error instantiating Actor");
+            throw new RuntimeException("Error instantiating event processor");
         }
-        return temp;
     }
 
 }

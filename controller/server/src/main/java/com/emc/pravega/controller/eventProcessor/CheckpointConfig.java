@@ -32,6 +32,11 @@ public class CheckpointConfig {
         Periodic
     }
 
+    public enum StoreType {
+        InMemory,
+        Zookeeper,
+    }
+
     @Data
     @Builder
     public static class CheckpointPeriod {
@@ -47,7 +52,7 @@ public class CheckpointConfig {
     }
 
     private final Type type;
-    private final CheckpointStore.StoreType storeType;
+    private final StoreType storeType;
     private final CheckpointPeriod checkpointPeriod;
     private final Object checkpointStoreClient;
 }

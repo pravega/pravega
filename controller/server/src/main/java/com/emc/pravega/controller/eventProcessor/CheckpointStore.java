@@ -29,11 +29,6 @@ import java.util.Map;
  */
 public interface CheckpointStore {
 
-    enum StoreType {
-        InMemory,
-        Zookeeper,
-    }
-
     /**
      * Store position of the specified reader that belongs the the specified readerGroup and created
      * in the specified process.
@@ -42,7 +37,7 @@ public interface CheckpointStore {
      * @param readerId Reader identifier.
      * @param position Position of reader in the stream.
      */
-    boolean setPosition(final String process, final String readerGroup, final String readerId, final Position position);
+    void setPosition(final String process, final String readerGroup, final String readerId, final Position position);
 
     /**
      * Returns the map of readers to their respective positions running in the specified
@@ -58,14 +53,14 @@ public interface CheckpointStore {
      * @param process Process identifier.
      * @param readerGroup Reader identifier.
      */
-    boolean addReaderGroup(final String process, final String readerGroup);
+    void addReaderGroup(final String process, final String readerGroup);
 
     /**
      * Removes the specified reader group only if it has no active readers.
      * @param process Process identifier.
      * @param readerGroup Reader group name.
      */
-    boolean removeReaderGroup(final String process, final String readerGroup);
+    void removeReaderGroup(final String process, final String readerGroup);
 
     /**
      * List all the reader groups added to a specified process.
@@ -80,7 +75,7 @@ public interface CheckpointStore {
      * @param readerGroup Reader group name.
      * @param readerId Reader identifier.
      */
-    boolean addReader(final String process, final String readerGroup, final String readerId);
+    void addReader(final String process, final String readerGroup, final String readerId);
 
     /**
      * Removes the specified reader in the specified reader group in the specified process.
@@ -88,5 +83,5 @@ public interface CheckpointStore {
      * @param readerGroup Reader group name.
      * @param readerId Reader identifier.
      */
-    boolean removeReader(final String process, final String readerGroup, final String readerId);
+    void removeReader(final String process, final String readerGroup, final String readerId);
 }

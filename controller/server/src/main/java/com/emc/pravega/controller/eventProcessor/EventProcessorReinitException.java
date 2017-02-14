@@ -18,11 +18,12 @@
 package com.emc.pravega.controller.eventProcessor;
 
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
+import com.emc.pravega.controller.server.ControllerServerException;
 
 /**
  * Wrapper for exceptions thrown from Actor's preRestart reinitialization hook.
  */
-public class EventProcessorReinitException extends Exception {
+public class EventProcessorReinitException extends ControllerServerException {
 
     private final EventProcessor actor;
 

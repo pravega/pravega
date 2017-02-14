@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
+import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -25,7 +26,7 @@ import org.apache.curator.framework.CuratorFramework;
  */
 public class CheckpointStoreFactory {
 
-    static CheckpointStore create(CheckpointStore.StoreType type, Object client) {
+    static CheckpointStore create(CheckpointConfig.StoreType type, Object client) {
         switch (type) {
             case InMemory:
                 return new InMemoryCheckpointStore();

@@ -19,7 +19,6 @@ package com.emc.pravega.demo;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
-import com.emc.pravega.controller.eventProcessor.CheckpointStore;
 import com.emc.pravega.controller.eventProcessor.Decider;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
@@ -68,11 +67,11 @@ public class EventProcessorTest {
             Preconditions.checkNotNull(result);
             sum = 0;
             this.result = result;
-            this.throwErrors = throwErrors.booleanValue();
+            this.throwErrors = throwErrors;
         }
 
         @Override
-        protected void receive(TestEvent event) throws Exception {
+        protected void process(TestEvent event) {
             if (event.getNumber() < 0) {
                 result.complete(sum);
                 throw new RuntimeException();
@@ -148,13 +147,13 @@ public class EventProcessorTest {
         CheckpointConfig checkpointConfig =
                 CheckpointConfig.builder()
                         .type(CheckpointConfig.Type.Periodic)
-                        .storeType(CheckpointStore.StoreType.InMemory)
+                        .storeType(CheckpointConfig.StoreType.InMemory)
                         .checkpointPeriod(period)
                         .build();
 
         EventProcessorGroupConfig eventProcessorGroupConfig =
                 EventProcessorGroupConfigImpl.builder()
-                        .actorCount(1)
+                        .eventProcessorCount(1)
                         .readerGroupName(readerGroup)
                         .streamName(streamName)
                         .checkpointConfig(checkpointConfig)

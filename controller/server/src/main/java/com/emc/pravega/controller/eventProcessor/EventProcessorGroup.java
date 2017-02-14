@@ -45,7 +45,7 @@ public interface EventProcessorGroup<T extends StreamEvent> {
      *              decreasing the Actor count.
      * @return Boolean indicating success or failure.
      */
-    boolean changeEventProcessorCount(int count);
+    void changeEventProcessorCount(int count);
 
     /**
      * Returns a reference to its writer.

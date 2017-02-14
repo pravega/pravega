@@ -80,22 +80,14 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
         actorGroup = new EventProcessorGroupImpl<>(this, props);
 
         // Initialize it.
-        boolean success = actorGroup.initialize();
+        actorGroup.initialize();
 
-        if (success) {
+        // If successful in initializing it, add it to the list and start it.
+        actorGroups.add(actorGroup);
 
-            // If successful in initializing it, add it to the list and start it.
-            actorGroups.add(actorGroup);
+        actorGroup.startAsync();
 
-            actorGroup.startAsync();
-
-            return actorGroup.getWriter();
-
-        } else {
-
-            // Otherwise indicate failure by returning null.
-            return null;
-        }
+        return actorGroup.getWriter();
     }
 
     @Override
