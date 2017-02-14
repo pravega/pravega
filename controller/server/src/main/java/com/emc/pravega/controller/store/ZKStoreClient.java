@@ -29,7 +29,7 @@ public class ZKStoreClient implements StoreClient {
     private final CuratorFramework client;
 
     public ZKStoreClient() {
-        this.client = ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient();
+        this.client = ZKUtils.getCuratorClient();
     }
 
     @VisibleForTesting
