@@ -689,7 +689,7 @@ public class DataFrame {
     /**
      * Represents an iterator over all entries within a DataFrame.
      */
-    private static class DataFrameEntryIterator implements CloseableIterator<DataFrameEntry, SerializationException> {
+    private class DataFrameEntryIterator implements CloseableIterator<DataFrameEntry, SerializationException> {
         private final ByteArraySegment contents;
         private final LogAddress frameAddress;
         private final int maxLength;

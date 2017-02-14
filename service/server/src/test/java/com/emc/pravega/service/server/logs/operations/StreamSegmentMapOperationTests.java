@@ -18,9 +18,9 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.server.ContainerMetadata;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -40,7 +40,7 @@ public class StreamSegmentMapOperationTests extends OperationTestsBase<StreamSeg
                 random.nextBoolean(),
                 random.nextBoolean(),
                 createAttributes(10),
-                new Date()));
+                new ImmutableDate()));
     }
 
     @Override

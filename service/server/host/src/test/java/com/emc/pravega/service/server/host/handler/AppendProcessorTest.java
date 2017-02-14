@@ -24,6 +24,7 @@ import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.BadOffsetException;
@@ -33,7 +34,6 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import io.netty.buffer.Unpooled;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.junit.Ignore;
@@ -298,7 +298,7 @@ public class AppendProcessorTest {
     private void setupGetStreamSegmentInfo(String streamSegmentName, UUID clientId, long eventNumber, StreamSegmentStore store) {
         CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
                 new StreamSegmentInformation(streamSegmentName, 0, false, false,
-                        Collections.singletonMap(clientId, eventNumber), new Date()));
+                        Collections.singletonMap(clientId, eventNumber), new ImmutableDate()));
 
         when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT))
                 .thenReturn(propsFuture);
