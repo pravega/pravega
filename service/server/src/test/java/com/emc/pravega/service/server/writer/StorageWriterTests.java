@@ -27,7 +27,7 @@ import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.service.server.ServiceShutdownListener;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestStorage;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;

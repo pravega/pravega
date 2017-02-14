@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server;
+package com.emc.pravega.common.concurrent;
 
 import com.emc.pravega.common.TimeoutTimer;
 import com.google.common.util.concurrent.Service;

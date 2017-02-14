@@ -52,7 +52,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 
-import static com.emc.pravega.service.server.host.PravegaRequestStats.PENDING_APPEND_BYTES;
+import static com.emc.pravega.common.SegmentStoreMetricsNames.PENDING_APPEND_BYTES;
 
 /**
  * Process incomming Append requests and write them to the appropriate store.

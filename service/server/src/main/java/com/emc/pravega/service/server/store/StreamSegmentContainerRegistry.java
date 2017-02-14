@@ -25,7 +25,7 @@ import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.SegmentContainerFactory;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
-import com.emc.pravega.service.server.ServiceShutdownListener;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Service;
 import lombok.extern.slf4j.Slf4j;

@@ -17,11 +17,14 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.common.metrics.MetricsConfig;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.curator.framework.CuratorFramework;
+
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -31,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * ZK stream metadata store.
  */
+@Slf4j
 public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private static final long INITIAL_DELAY = 1;
     private static final long PERIOD = 1;
@@ -39,16 +43,16 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     public ZKStreamMetadataStore(ScheduledExecutorService executor) {
         this.executor = executor;
-        initialize(ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient());
+        initialize(ZKUtils.getCuratorClient(), ZKUtils.getMetricsConfig());
     }
 
     @VisibleForTesting
     public ZKStreamMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
         this.executor = executor;
-        initialize(client);
+        initialize(client, ZKUtils.getMetricsConfig());
     }
 
-    private void initialize(CuratorFramework client) {
+    private void initialize(CuratorFramework client, MetricsConfig metricsConfig) {
 
         // Garbage collector for completed transactions
         ZKStream.initialize(client);
@@ -70,10 +74,13 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                             }
                         });
             } catch (Exception e) {
-                // TODO: log!
+                log.error("Caught exception while attempting to find completed transactions in zookeeper store.", e);
             }
             // find completed transactions to be gc'd
         }, INITIAL_DELAY, PERIOD, TimeUnit.HOURS);
+        if (metricsConfig != null) {
+            METRICS_PROVIDER.start(metricsConfig);
+        }
     }
 
     @Override
