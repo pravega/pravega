@@ -19,14 +19,13 @@
 package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.AutoStopwatch;
-import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.MathHelpers;
+import com.emc.pravega.common.concurrent.AbstractThreadPoolService;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
-import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.Writer;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
@@ -35,10 +34,6 @@ import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractService;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -46,31 +41,25 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Storage Writer. Applies operations from Operation Log to Storage.
  */
 @Slf4j
-class StorageWriter extends AbstractService implements Writer {
+class StorageWriter extends AbstractThreadPoolService implements Writer {
     //region Members
 
-    private final String traceObjectId;
     private final WriterConfig config;
     private final WriterDataSource dataSource;
     private final Storage storage;
-    private final ScheduledExecutorService executor;
     private final HashMap<Long, SegmentAggregator> aggregators;
-    private final AtomicReference<Throwable> stopException;
     private final WriterState state;
     private final AutoStopwatch stopwatch;
     private final AckCalculator ackCalculator;
-    private final AtomicBoolean closed;
-    private CompletableFuture<Void> runTask;
 
     //endregion
 
@@ -85,119 +74,62 @@ class StorageWriter extends AbstractService implements Writer {
      * @param executor   The Executor to use for async callbacks and operations.
      */
     StorageWriter(WriterConfig config, WriterDataSource dataSource, Storage storage, ScheduledExecutorService executor) {
-        Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(dataSource, "dataSource");
-        Preconditions.checkNotNull(storage, "storage");
-        Preconditions.checkNotNull(executor, "executor");
+        super(String.format("StorageWriter[%d]", dataSource.getId()), executor);
 
-        this.traceObjectId = String.format("StorageWriter[%d]", dataSource.getId());
+        // No need to check dataSource or executor != null as the super() call above takes care of that.
+        Preconditions.checkNotNull(config, "config");
+        Preconditions.checkNotNull(storage, "storage");
+
         this.config = config;
         this.dataSource = dataSource;
         this.storage = storage;
-        this.executor = executor;
         this.aggregators = new HashMap<>();
         this.state = new WriterState();
         this.stopwatch = new AutoStopwatch();
-        this.stopException = new AtomicReference<>();
         this.ackCalculator = new AckCalculator(this.state);
-        this.closed = new AtomicBoolean();
     }
 
     //endregion
 
-    //region AutoCloseable Implementation
+    //region AbstractThreadPoolService Implementation
 
     @Override
-    public void close() {
-        if (!this.closed.get()) {
-            stopAsync();
-            ServiceShutdownListener.awaitShutdown(this, false);
-
-            log.info("{}: Closed.", this.traceObjectId);
-            this.closed.set(true);
-        }
-    }
-
-    //endregion
-
-    //region AbstractService Implementation
-
-    @Override
-    protected void doStart() {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        notifyStarted();
-        log.info("{}: Started.", this.traceObjectId);
-        runContinuously();
+    protected Duration getShutdownTimeout() {
+        return this.config.getShutdownTimeout();
     }
 
     @Override
-    protected void doStop() {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        log.info("{}: Stopping.", this.traceObjectId);
-
-        this.executor.execute(() -> {
-            Throwable cause = this.stopException.get();
-
-            // Cancel the last iteration and wait for it to finish.
-            if (this.runTask != null) {
-                try {
-                    // This doesn't actually cancel the task. We need to plumb through the code with 'checkRunning' to
-                    // make sure we stop any long-running tasks.
-                    this.runTask.get(this.config.getShutdownTimeout().toMillis(), TimeUnit.MILLISECONDS);
-                } catch (Exception ex) {
-                    if (cause != null) {
-                        cause = ex;
-                    }
-                }
-            }
-
-            if (cause == null) {
-                // Normal shutdown.
-                notifyStopped();
-            } else {
-                // Shutdown caused by some failure.
-                notifyFailed(cause);
-            }
-
-            log.info("{}: Stopped.", this.traceObjectId);
-        });
-    }
-
-    //endregion
-
-    // region Iteration Execution
-
-    private void runContinuously() {
+    protected CompletableFuture<Void> doRun() {
         // A Writer iteration is made of the following stages:
         // 1. Delay (if necessary).
         // 2. Read data.
         // 3. Load data into SegmentAggregators.
         // 4. Flush eligible SegmentAggregators.
         // 5. Acknowledge (truncate).
-        this.runTask = FutureHelpers.loop(
+        return FutureHelpers.loop(
                 this::canRun,
                 () -> FutureHelpers
                         .delayedFuture(getIterationStartDelay(), this.executor)
-                        .thenAccept(this::beginIteration)
+                        .thenRun(this::beginIteration)
                         .thenComposeAsync(this::readData, this.executor)
                         .thenAcceptAsync(this::processReadResult, this.executor)
                         .thenComposeAsync(this::flush, this.executor)
                         .thenComposeAsync(this::acknowledge, this.executor)
                         .exceptionally(this::iterationErrorHandler)
-                        .thenAccept(this::endIteration),
+                        .thenRun(this::endIteration),
                 this.executor);
     }
 
     private boolean canRun() {
-        return isRunning() && this.stopException.get() == null;
+        return isRunning() && !hasStopException();
     }
 
-    private void beginIteration(Void ignored) {
+    private void beginIteration() {
         this.state.recordIterationStarted(this.stopwatch);
         logStageEvent("Start", null);
     }
 
-    private void endIteration(Void ignored) {
+    private void endIteration() {
         logStageEvent("Finish", "Elapsed " + this.state.getElapsedSinceIterationStart(this.stopwatch).toMillis() + "ms");
     }
 
@@ -218,7 +150,7 @@ class StorageWriter extends AbstractService implements Writer {
         logError(ex, critical);
         if (critical) {
             // Setting a stop exception guarantees the main Writer loop will not continue running again.
-            this.stopException.set(ex);
+            super.errorHandler(ex);
             stopAsync();
         } else {
             this.state.recordIterationError();

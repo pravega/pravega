@@ -8,6 +8,6 @@
 *.xml text
 *.sh text
 
-# Files that should keep CLRF line endings
+# Files that should keep CRLF line endings
 *.bat text eol=crlf
 

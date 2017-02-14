@@ -101,8 +101,10 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Boolean> isTransactionOngoing() {
-        return getChildren(activeTxPath).thenApply(list -> list != null && !list.isEmpty());
+    public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
+        return getChildren(activeTxPath).thenApply(list -> { 
+            return list == null ? 0 : list.size();
+        });
     }
 
     @Override

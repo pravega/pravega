@@ -17,12 +17,14 @@
  */
 package com.emc.pravega.controller.util;
 
+import com.emc.pravega.common.metrics.MetricsConfig;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigResolveOptions;
 import com.typesafe.config.ConfigValue;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
 /**
@@ -81,5 +83,11 @@ public final class Config {
 
     public static void setZKURL(String replaceZKURL) {
         zKURL = replaceZKURL;
+    }
+
+    public static MetricsConfig getMetricsConfig() {
+        MetricsConfig metricsConfig = new MetricsConfig(new Properties());
+        metricsConfig.refresh();
+        return metricsConfig;
     }
 }
