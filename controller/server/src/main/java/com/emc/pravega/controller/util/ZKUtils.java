@@ -46,7 +46,7 @@ public final class ZKUtils {
             //Create and initialize the curator client framework.
             zkClient = CuratorFrameworkFactory.builder()
                     .connectString(Config.zKURL)
-                    .namespace("pravega/" + Config.CLUSTER_NAME)
+                    //.namespace("pravega/" + Config.CLUSTER_NAME)
                     .retryPolicy(new ExponentialBackoffRetry(Config.ZK_RETRY_SLEEP_MS,
                     Config.ZK_MAX_RETRIES))
                     .build();
