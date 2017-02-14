@@ -83,7 +83,7 @@ public class ControllerServiceTest {
                 executor, "host");
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, executor, "host");
-        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
     }
 
     @Before
@@ -95,8 +95,8 @@ public class ControllerServiceTest {
         final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
 
         // region createStream
-        streamStore.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null);
-        streamStore.createStream(SCOPE, stream2, configuration2, System.currentTimeMillis(), null);
+        streamStore.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null, executor);
+        streamStore.createStream(SCOPE, stream2, configuration2, System.currentTimeMillis(), null, executor);
         // endregion
 
         // region scaleSegments
@@ -105,12 +105,12 @@ public class ControllerServiceTest {
 
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20, context1);
+        streamStore.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20, context1, executor);
 
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(SCOPE, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20, context2);
+        streamStore.scale(SCOPE, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20, context2, executor);
         // endregion
     }
 

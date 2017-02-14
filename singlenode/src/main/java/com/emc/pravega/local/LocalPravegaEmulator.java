@@ -261,7 +261,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, controllerExecutor, hostId);
         RPCServer.start(new ControllerServiceAsyncImpl(
-                new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks)));
+                new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks, controllerExecutor)));
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature

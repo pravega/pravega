@@ -43,7 +43,9 @@ import javax.ws.rs.core.Application;
 import javax.ws.rs.core.Response;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static com.emc.pravega.stream.ScalingPolicy.Type.FIXED_NUM_SEGMENTS;
 import static org.junit.Assert.assertEquals;
@@ -95,6 +97,7 @@ public class StreamMetaDataTests extends JerseyTest {
             () -> UpdateStreamStatus.SUCCESS);
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus2 = CompletableFuture.supplyAsync(
             () -> UpdateStreamStatus.STREAM_NOT_FOUND);
+    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     /**
      * Configure resource class.
@@ -163,17 +166,16 @@ public class StreamMetaDataTests extends JerseyTest {
      */
     @Test
     public void testGetStreamConfig() throws ExecutionException, InterruptedException {
-        when(mockControllerService.getStreamStore()).thenReturn(mockStreamStore);
 
         // Test to get an existing stream
-        when(mockStreamStore.getConfiguration(scope1, stream1, null)).thenReturn(streamConfigFuture);
+        when(mockControllerService.getStreamConfiguration(scope1, stream1)).thenReturn(streamConfigFuture);
         response = target(resourceURI).request().async().get();
         streamResponseActual = response.get().readEntity(StreamResponse.class);
         assertEquals("Get Stream Config Status", 200, response.get().getStatus());
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
 
         // Get a non-existent stream
-        when(mockStreamStore.getConfiguration(scope1, stream2, null)).thenReturn(CompletableFuture.supplyAsync(() -> {
+        when(mockControllerService.getStreamConfiguration(scope1, stream2)).thenReturn(CompletableFuture.supplyAsync(() -> {
             throw new DataNotFoundException("Stream Not Found");
         }));
         response = target(resourceURI2).request().async().get();

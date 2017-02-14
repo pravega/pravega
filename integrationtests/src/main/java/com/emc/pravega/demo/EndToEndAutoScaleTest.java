@@ -39,6 +39,7 @@ import org.apache.curator.test.TestingServer;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 public class EndToEndAutoScaleTest {
@@ -80,15 +81,18 @@ public class EndToEndAutoScaleTest {
 
             String str = new String(chars);
 
-            while (System.currentTimeMillis() - start < Duration.ofMinutes(10).toMillis()) {
-                try {
-                    test.writeEvent("1", str).get();
-                } catch (Throwable e) {
-                    System.err.print("test exception writing events " + e.getMessage());
-                    break;
+            CompletableFuture.runAsync(() -> {
+                while (System.currentTimeMillis() - start < Duration.ofMinutes(11).toMillis()) {
+                    try {
+                        test.writeEvent("1", str).get();
+                    } catch (Throwable e) {
+                        System.err.print("test exception writing events " + e.getMessage());
+                        break;
+                    }
                 }
-            }
-            Thread.sleep(10000);
+            });
+
+            Thread.sleep(11 * 60 * 1000);
 
             StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
             if (streamSegments.getSegments().size() > 3) {

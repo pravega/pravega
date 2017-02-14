@@ -53,7 +53,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     private final String scope;
     private final String name;
 
-    protected PersistentStreamBase(String scope, final String name) {
+    PersistentStreamBase(String scope, final String name) {
         this.scope = scope;
         this.name = name;
     }

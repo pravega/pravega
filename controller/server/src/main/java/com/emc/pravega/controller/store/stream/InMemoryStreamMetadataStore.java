@@ -19,11 +19,10 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.stream.StreamConfiguration;
 
-import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * In-memory stream store.
@@ -42,7 +41,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public synchronized CompletableFuture<Boolean> createStream(String scope, String name, StreamConfiguration configuration, long timeStamp, OperationContext context) {
+    public synchronized CompletableFuture<Boolean> createStream(String scope, String name, StreamConfiguration configuration, long timeStamp, OperationContext context, Executor executor) {
         if (!streams.containsKey(name)) {
             InMemoryStream stream = new InMemoryStream(name, scope);
             stream.create(configuration, timeStamp);
@@ -53,15 +52,5 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             result.completeExceptionally(new StreamAlreadyExistsException(name));
             return result;
         }
-    }
-
-    @Override
-    public CompletableFuture<Void> checkpoint(String id, String group, ByteBuffer serialize) {
-        return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
-    public CompletableFuture<Optional<ByteBuffer>> readCheckpoint(String id, String group) {
-        return null;
     }
 }

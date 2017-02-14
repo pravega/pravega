@@ -107,7 +107,7 @@ public class RequestTest {
         // add a host in zk
         // mock pravega
         // create a stream
-        streamStore.createStream(scope, stream, new StreamConfigurationImpl(scope, stream, new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 0, 2, 3)), System.currentTimeMillis(), null).get();
+        streamStore.createStream(scope, stream, new StreamConfigurationImpl(scope, stream, new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 0, 2, 3)), System.currentTimeMillis(), null, executor).get();
     }
 
     @Test
@@ -116,7 +116,7 @@ public class RequestTest {
         ScaleRequest request = new ScaleRequest(scope, stream, 2, ScaleRequest.UP, System.currentTimeMillis(), 2);
 
         assert FutureHelpers.await(requestHandler.process(request));
-        List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null).get();
+        List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
         assert activeSegments.stream().noneMatch(z -> z.getNumber() == 2);
         assert activeSegments.stream().anyMatch(z -> z.getNumber() == 3);
@@ -126,7 +126,7 @@ public class RequestTest {
         request = new ScaleRequest(scope, stream, 4, ScaleRequest.DOWN, System.currentTimeMillis(), 0);
 
         assert FutureHelpers.await(requestHandler.process(request));
-        activeSegments = streamStore.getActiveSegments(scope, stream, null).get();
+        activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
         assert activeSegments.stream().anyMatch(z -> z.getNumber() == 4);
         assert activeSegments.size() == 4;
@@ -134,7 +134,7 @@ public class RequestTest {
         request = new ScaleRequest(scope, stream, 3, ScaleRequest.DOWN, System.currentTimeMillis(), 0);
 
         assert FutureHelpers.await(requestHandler.process(request));
-        activeSegments = streamStore.getActiveSegments(scope, stream, null).get();
+        activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
         assert activeSegments.stream().noneMatch(z -> z.getNumber() == 3);
         assert activeSegments.stream().noneMatch(z -> z.getNumber() == 4);

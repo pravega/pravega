@@ -125,9 +125,9 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     }
 
     private CompletableFuture<UUID> createTxBody(final String scope, final String stream, final OperationContext context) {
-        return streamMetadataStore.createTransaction(scope, stream, context)
+        return streamMetadataStore.createTransaction(scope, stream, context, executor)
                 .thenCompose(txId ->
-                        withRetries(streamMetadataStore.getActiveSegments(scope, stream, context), executor)
+                        withRetries(streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
                                 .thenCompose(activeSegments ->
                                         FutureHelpers.allOf(
                                                 activeSegments.stream()
@@ -139,25 +139,25 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
 
     private CompletableFuture<TxnStatus> abortTxBody(final String scope, final String stream, final UUID txid, final OperationContext context) {
         // notify hosts to abort transaction
-        return streamMetadataStore.getActiveSegments(scope, stream, context)
+        return streamMetadataStore.getActiveSegments(scope, stream, context, executor)
                 .thenCompose(segments ->
                         FutureHelpers.allOf(
                                 segments.stream()
                                         .parallel()
                                         .map(segment -> notifyDropToHost(scope, stream, segment.getNumber(), txid))
                                         .collect(Collectors.toList())))
-                .thenCompose(x -> withRetries(streamMetadataStore.abortTransaction(scope, stream, txid, context), executor));
+                .thenCompose(x -> withRetries(streamMetadataStore.abortTransaction(scope, stream, txid, context, executor), executor));
     }
 
     private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid, final OperationContext context) {
-        return streamMetadataStore.sealTransaction(scope, stream, txid, context)
-                .thenCompose(x -> withRetries(streamMetadataStore.getActiveSegments(scope, stream, context), executor)
+        return streamMetadataStore.sealTransaction(scope, stream, txid, context, executor)
+                .thenCompose(x -> withRetries(streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
                         .thenCompose(segments ->
                                 FutureHelpers.allOf(segments.stream()
                                         .parallel()
                                         .map(segment -> notifyCommitToHost(scope, stream, segment.getNumber(), txid))
                                         .collect(Collectors.toList()))))
-                .thenCompose(x -> withRetries(streamMetadataStore.commitTransaction(scope, stream, txid, context), executor));
+                .thenCompose(x -> withRetries(streamMetadataStore.commitTransaction(scope, stream, txid, context, executor), executor));
     }
 
     private CompletableFuture<UUID> notifyTxCreation(final String scope, final String stream, final int segmentNumber, final UUID txid) {

@@ -89,7 +89,7 @@ public class ControllerServiceAsyncImplTest {
                 new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
 
         this.controllerService = new ControllerServiceAsyncImpl(new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks));
+                streamTransactionMetadataTasks, executor));
     }
 
     @Test

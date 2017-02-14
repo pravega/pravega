@@ -73,11 +73,17 @@ public class Main {
 
         //1. LOAD configuration.
         //Initialize the executor service.
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
+        ScheduledExecutorService controllerServiceExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
+                new ThreadFactoryBuilder().setNameFormat("servicepool-%d").build());
+
+        ScheduledExecutorService taskExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
                 new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
         ScheduledExecutorService storeExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
-                new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
+                new ThreadFactoryBuilder().setNameFormat("storepool-%d").build());
+
+        final ScheduledExecutorService requestExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
+                new ThreadFactoryBuilder().setNameFormat("requestpool-%d").build());
 
         log.info("Creating store client");
         StoreClient storeClient = StoreClientFactory.createStoreClient(
@@ -88,7 +94,7 @@ public class Main {
                 StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), storeExecutor);
 
         log.info("Creating zk based task store");
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, taskExecutor);
 
         log.info("Creating the host store");
         HostControllerStore hostStore = HostStoreFactory.createStore(
@@ -105,11 +111,11 @@ public class Main {
         }
 
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                executor, hostId);
+                taskExecutor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId);
+                hostStore, taskMetadataStore, taskExecutor, hostId);
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks);
+                streamTransactionMetadataTasks, controllerServiceExecutor);
 
         //2. Start the RPC server.
         log.info("Starting RPC server");
@@ -130,8 +136,6 @@ public class Main {
         log.info("Starting Pravega REST Service");
         RESTServer.start(controllerService);
 
-        final ScheduledExecutorService requestExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
-                new ThreadFactoryBuilder().setNameFormat("requestpool-%d").build());
         final EmbeddedController controller = new EmbeddedControllerImpl(controllerService);
         RequestHandlersInit.bootstrapRequestHandlers(controller, requestExecutor);
     }

@@ -159,13 +159,13 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp, OperationContext contextOpt) {
 
-        return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null)
+        return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
                 .thenCompose(created -> {
                     log.debug("{}/{} created in metadata store", scope, stream);
                     if (created) {
                         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-                        return withRetries(streamMetadataStore.getActiveSegments(scope, stream, context), executor)
+                        return withRetries(streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
                                 .thenCompose(activeSegments -> notifyNewSegments(config.getScope(), stream, config, activeSegments, context)
                                         .thenApply(y -> CreateStreamStatus.SUCCESS));
                     } else {
@@ -189,13 +189,13 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream, StreamConfiguration config, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return streamMetadataStore.updateConfiguration(scope, stream, config, context)
+        return streamMetadataStore.updateConfiguration(scope, stream, config, context, executor)
                 .thenCompose(updated -> {
                     log.debug("{}/{} created in metadata store", scope, stream);
                     if (updated) {
                         // we are at a point of no return. Metadata has been updated, we need to notify hosts.
                         // wrap subsequent steps in retries.
-                        return withRetries(streamMetadataStore.getActiveSegments(scope, stream, context), executor)
+                        return withRetries(streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
                                 .thenCompose(activeSegments -> notifyPolicyUpdates(config.getScope(), stream, activeSegments, config.getScalingPolicy()))
                                 .handle((res, ex) -> {
                                     if (ex == null) {
@@ -222,7 +222,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     public CompletableFuture<UpdateStreamStatus> sealStreamBody(String scope, String stream, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return withRetries(streamMetadataStore.getActiveSegments(scope, stream, context), executor)
+        return withRetries(streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
                 .thenCompose(activeSegments -> {
                     if (activeSegments.isEmpty()) { //if active segments are empty then the stream is sealed.
                         //Do not update the state if the stream is already sealed.
@@ -231,7 +231,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                         List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
                                 collect(Collectors.toList());
                         return notifySealedSegments(scope, stream, segmentsToBeSealed)
-                                .thenCompose(v -> withRetries(streamMetadataStore.setSealed(scope, stream, context), executor))
+                                .thenCompose(v -> withRetries(streamMetadataStore.setSealed(scope, stream, context, executor), executor))
                                 .handle((result, ex) -> {
                                     if (ex != null) {
                                         log.warn("Exception thrown in trying to notify sealed segments {}", ex.getMessage());
@@ -268,8 +268,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         // we should stop retrying indefinitely and notify administrator.
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        CompletableFuture<Pair<Boolean, Boolean>> checkValidity = withRetries(streamMetadataStore.getActiveSegments(scope, stream, context), executor)
-                .thenCompose(activeSegments -> withRetries(streamMetadataStore.isTransactionOngoing(scope, stream, context), executor)
+        CompletableFuture<Pair<Boolean, Boolean>> checkValidity = withRetries(streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
+                .thenCompose(activeSegments -> withRetries(streamMetadataStore.isTransactionOngoing(scope, stream, context, executor), executor)
                         .thenApply(active -> {
                             boolean result = false;
                             Set<Integer> activeNum = activeSegments.stream().mapToInt(Segment::getNumber).boxed().collect(Collectors.toSet());
@@ -288,7 +288,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         return checkValidity.thenCompose(result -> {
                     if (result.getLeft() && result.getRight()) {
                         return notifySealedSegments(scope, stream, segmentsToSeal)
-                                .thenCompose(results -> withRetries(streamMetadataStore.scale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, context), executor))
+                                .thenCompose(results -> withRetries(streamMetadataStore.scale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, context, executor), executor))
                                 .thenCompose((List<Segment> newSegments) -> notifyNewSegments(scope, stream, newSegments, context)
                                         .thenApply((Void v) -> newSegments))
                                 .thenApply((List<Segment> newSegments) -> {
@@ -316,7 +316,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     private CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers, OperationContext context) {
-        return withRetries(streamMetadataStore.getConfiguration(scope, stream, context), executor)
+        return withRetries(streamMetadataStore.getConfiguration(scope, stream, context, executor), executor)
                 .thenCompose(configuration -> notifyNewSegments(scope, stream, configuration, segmentNumbers, context));
     }
 

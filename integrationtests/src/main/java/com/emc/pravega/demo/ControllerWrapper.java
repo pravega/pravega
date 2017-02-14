@@ -79,7 +79,7 @@ public class ControllerWrapper extends EmbeddedControllerImpl {
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, executor, hostId);
 
-        ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
 
         ControllerWrapper controllerWrapper = new ControllerWrapper(controller);
         RequestHandlersInit.bootstrapRequestHandlers(controllerWrapper, Executors.newScheduledThreadPool(100));

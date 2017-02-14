@@ -21,13 +21,13 @@ import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 
-import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * Stream Metadata.
@@ -54,11 +54,14 @@ public interface StreamMetadataStore {
      * @param createTimestamp stream creation timestamp.
      * @param scope           stream scope
      * @param context         operation context
+     * @param executor        callers executor
      * @return boolean indicating whether the stream was created
      */
     CompletableFuture<Boolean> createStream(final String scope, final String name,
                                             final StreamConfiguration configuration,
-                                            final long createTimestamp, final OperationContext context);
+                                            final long createTimestamp,
+                                            final OperationContext context,
+                                            final Executor executor);
 
     /**
      * Updates the configuration of an existing stream.
@@ -66,61 +69,71 @@ public interface StreamMetadataStore {
      * @param scope         stream scope
      * @param context       operation context
      * @param name          stream name.
-     * @param configuration new stream configuration
+     * @param configuration new stream configuration.
+     * @param executor      callers executor
      * @return boolean indicating whether the stream was updated
      */
-    CompletableFuture<Boolean> updateConfiguration(final String scope, final String name, final StreamConfiguration configuration, final OperationContext context);
+    CompletableFuture<Boolean> updateConfiguration(final String scope, final String name, final StreamConfiguration configuration,
+                                                   final OperationContext context,
+                                                   final Executor executor);
 
     /**
      * Fetches the current stream configuration.
      *
-     * @param scope   stream scope
-     * @param context operation context
-     * @param name    stream name.
+     * @param scope    stream scope
+     * @param context  operation context
+     * @param name     stream name.
+     * @param executor callers executor
      * @return current stream configuration.
      */
-    CompletableFuture<StreamConfiguration> getConfiguration(final String scope, final String name, final OperationContext context);
+    CompletableFuture<StreamConfiguration> getConfiguration(final String scope, final String name,
+                                                            final OperationContext context,
+                                                            final Executor executor);
 
     /**
      * Set the stream state to sealed.
      *
-     * @param scope   stream scope
-     * @param context operation context
-     * @param name    stream name.
+     * @param scope    stream scope
+     * @param context  operation context
+     * @param name     stream name.
+     * @param executor callers executor
      * @return boolean indicating whether the stream was updated.
      */
-    CompletableFuture<Boolean> setSealed(final String scope, final String name, final OperationContext context);
+    CompletableFuture<Boolean> setSealed(final String scope, final String name, final OperationContext context, final Executor executor);
 
     /**
      * Get the stream sealed status.
      *
-     * @param scope   stream scope
-     * @param context operation context
-     * @param name    stream name.
+     * @param scope    stream scope
+     * @param context  operation context
+     * @param name     stream name.
+     * @param executor callers executor
      * @return boolean indicating whether the stream is sealed.
      */
-    CompletableFuture<Boolean> isSealed(final String scope, final String name, final OperationContext context);
+    CompletableFuture<Boolean> isSealed(final String scope, final String name, final OperationContext context, final Executor executor);
 
     /**
      * Get Segment.
      *
-     * @param scope   stream scope
-     * @param context operation context
-     * @param name    stream name.
-     * @param number  segment number.
+     * @param scope    stream scope
+     * @param context  operation context
+     * @param name     stream name.
+     * @param number   segment number.
+     * @param executor callers executor
      * @return segment at given number.
      */
-    CompletableFuture<Segment> getSegment(final String scope, final String name, final int number, final OperationContext context);
+    CompletableFuture<Segment> getSegment(final String scope, final String name, final int number, final OperationContext context, final Executor executor);
 
     /**
      * Get active segments.
      *
-     * @param scope   stream scope
-     * @param context operation context
-     * @param name    stream name.
+     * @param scope    stream scope
+     * @param context  operation context
+     * @param name     stream name.
+     * @param executor callers executor
      * @return currently active segments
      */
-    CompletableFuture<List<Segment>> getActiveSegments(final String scope, final String name, final OperationContext context);
+    CompletableFuture<List<Segment>> getActiveSegments(final String scope, final String name, final OperationContext context, final Executor executor);
 
     /**
      * Get active segments at given timestamp.
@@ -129,9 +142,10 @@ public interface StreamMetadataStore {
      * @param context   operation context
      * @param name      stream name.
      * @param timestamp point in time.
+     * @param executor  callers executor
      * @return the list of segments active at timestamp.
      */
-    CompletableFuture<SegmentFutures> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context);
+    CompletableFuture<SegmentFutures> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context, final Executor executor);
 
     /**
      * Given a segment return a map containing the numbers of the segments immediately succeeding it
@@ -141,10 +155,11 @@ public interface StreamMetadataStore {
      * @param context       operation context
      * @param streamName    stream name.
      * @param segmentNumber the segment number
+     * @param executor      callers executor
      * @return segments that immediately follow the specified segment and the segments they follow.
      */
     public CompletableFuture<Map<Integer, List<Integer>>> getSuccessors(final String scope, final String streamName,
-                                                                        final int segmentNumber, final OperationContext context);
+                                                                        final int segmentNumber, final OperationContext context, final Executor executor);
 
     /**
      * Scales in or out the currently set of active segments of a stream.
@@ -156,107 +171,117 @@ public interface StreamMetadataStore {
      * @param newRanges      new key ranges to be added to the stream which maps to a new segment per range in the stream
      * @param scaleTimestamp scaling timestamp, all sealed segments shall have it as their end time and
      *                       all new segments shall have it as their start time.
+     * @param executor       callers executor
      * @return the list of newly created segments
      */
     CompletableFuture<List<Segment>> scale(final String scope, final String name,
                                            final List<Integer> sealedSegments,
                                            final List<SimpleEntry<Double, Double>> newRanges,
-                                           final long scaleTimestamp, final OperationContext context);
+                                           final long scaleTimestamp, final OperationContext context, final Executor executor);
 
     /**
      * Method to create a new transaction on a stream.
      *
-     * @param scope   stream scope
-     * @param context operation context
-     * @param stream  stream
+     * @param scope    stream scope
+     * @param context  operation context
+     * @param stream   stream
+     * @param executor callers executor
      * @return new Transaction Id
      */
-    CompletableFuture<UUID> createTransaction(final String scope, final String stream, final OperationContext context);
+    CompletableFuture<UUID> createTransaction(final String scope, final String stream, final OperationContext context, final Executor executor);
 
     /**
      * Get transaction status from the stream store.
      *
-     * @param scope   stream scope
-     * @param stream  stream
-     * @param txId    transaction id
-     * @param context operation context
+     * @param scope    stream scope
+     * @param stream   stream
+     * @param txId     transaction id
+     * @param context  operation context
+     * @param executor callers executor
      * @return
      */
-    CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId, final OperationContext context);
+    CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
 
     /**
      * Update stream store to mark transaction as committed.
      *
-     * @param scope   scope
-     * @param stream  stream
-     * @param txId    transaction id
-     * @param context operation context
+     * @param scope    scope
+     * @param stream   stream
+     * @param txId     transaction id
+     * @param context  operation context
+     * @param executor callers executor
      * @return
      */
-    CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId, final OperationContext context);
+    CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
 
     /**
      * Update stream store to mark transaction as sealed.
      *
-     * @param scope   scope
-     * @param stream  stream
-     * @param txId    transaction id
-     * @param context operation context
+     * @param scope    scope
+     * @param stream   stream
+     * @param txId     transaction id
+     * @param context  operation context
+     * @param executor callers executor
      * @return
      */
-    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId, final OperationContext context);
+    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
 
     /**
      * Update stream store to mark the transaction as aborted.
      *
-     * @param scope   scope
-     * @param stream  stream
-     * @param txId    transaction id
-     * @param context operation context
+     * @param scope    scope
+     * @param stream   stream
+     * @param txId     transaction id
+     * @param context  operation context
+     * @param executor callers executor
      * @return
      */
-    CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final UUID txId, final OperationContext context);
+    CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
 
     /**
      * Returns a boolean indicating whether any transaction is active on the specified stream.
      *
-     * @param scope   scope.
-     * @param stream  stream.
-     * @param context operation context
+     * @param scope    scope.
+     * @param stream   stream.
+     * @param context  operation context
+     * @param executor callers executor
      * @return boolean indicating whether any transaction is active on the specified stream.
      */
-    CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream, final OperationContext context);
+    CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream, final OperationContext context, final Executor executor);
 
     /**
      * Method to retrive all currently active transactions from the metadata store.
      *
-     * @param scope   scope of stream
-     * @param stream  name of stream
-     * @param context operation context
+     * @param scope    scope of stream
+     * @param stream   name of stream
+     * @param context  operation context
+     * @param executor callers executor
      * @return map of txId to TxRecord
      */
-    CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns(String scope, String stream, OperationContext context);
+    CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
 
     /**
      * Api to block new transactions from being created for the specified duration.
      * This is useful in scenarios where a scale operation may end up waiting indefinitely because there are always one or more on-going transactions.
      *
-     * @param scope   scope.
-     * @param stream  stream.
-     * @param context context in which this operation is taking place.
+     * @param scope    scope.
+     * @param stream   stream.
+     * @param context  context in which this operation is taking place.
+     * @param executor callers executor
      * @return Completable Future
      */
-    CompletableFuture<Void> blockTransactions(final String scope, final String stream, final OperationContext context);
+    CompletableFuture<Void> blockTransactions(final String scope, final String stream, final OperationContext context, final Executor executor);
 
     /**
      * Api to unblock creation of transactions.
      *
-     * @param scope   scope.
-     * @param stream  name.
-     * @param context context.
+     * @param scope    scope.
+     * @param stream   name.
+     * @param context  context.
+     * @param executor callers executor
      * @return
      */
-    CompletableFuture<Void> unblockTransactions(String scope, String stream, OperationContext context);
+    CompletableFuture<Void> unblockTransactions(final String scope, final String stream, final OperationContext context, final Executor executor);
 
     /**
      * Api to mark a segment as cold.
@@ -266,48 +291,32 @@ public interface StreamMetadataStore {
      * @param segmentNumber segment number
      * @param timestamp     time at which request for marking a segment cold was generated.
      * @param context       context in which this operation is taking place.
+     * @param executor      callers executor
      * @return Completable future
      */
-    CompletableFuture<Void> setMarker(final String scope, final String stream, final int segmentNumber, final long timestamp, final OperationContext context);
+    CompletableFuture<Void> setMarker(final String scope, final String stream, final int segmentNumber, final long timestamp, final OperationContext context, final Executor executor);
 
     /**
      * Api to return if a cold marker is set.
      *
-     * @param scope   scope for stream
-     * @param stream  name of stream
-     * @param number  segment nunmber
-     * @param context context in which this operation is taking place.
+     * @param scope    scope for stream
+     * @param stream   name of stream
+     * @param number   segment nunmber
+     * @param context  context in which this operation is taking place.
+     * @param executor callers executor
      * @return Completable future Optional of marker's creation time.
      */
-    CompletableFuture<Optional<Long>> getMarker(final String scope, final String stream, final int number, final OperationContext context);
+    CompletableFuture<Optional<Long>> getMarker(final String scope, final String stream, final int number, final OperationContext context, final Executor executor);
 
     /**
      * Api to clear marker.
      *
-     * @param scope   scope for stream
-     * @param stream  name of stream
-     * @param number  segment nunmber
-     * @param context context in which this operation is taking place.
+     * @param scope    scope for stream
+     * @param stream   name of stream
+     * @param number   segment nunmber
+     * @param context  context in which this operation is taking place.
+     * @param executor callers executor
      * @return Completable Future
      */
-    CompletableFuture<Void> removeMarker(final String scope, final String stream, final int number, final OperationContext context);
-
-    /**
-     * Api to store checkpoint for controller in the persistent store.
-     *
-     * @param id        id to uniquely identify the controller instance
-     * @param group     group to which controller instance belongs to
-     * @param serialize Serialized checkpoint data
-     * @return Completable Future
-     */
-    CompletableFuture<Void> checkpoint(final String id, final String group, final ByteBuffer serialize);
-
-    /**
-     * Api to retrieve checkpointed data.
-     *
-     * @param id    id to uniquely identify the controller instance
-     * @param group group to which controller instance belongs to
-     * @return Completable future of serialized checkpointed data
-     */
-    CompletableFuture<Optional<ByteBuffer>> readCheckpoint(final String id, final String group);
+    CompletableFuture<Void> removeMarker(final String scope, final String stream, final int number, final OperationContext context, final Executor executor);
 }

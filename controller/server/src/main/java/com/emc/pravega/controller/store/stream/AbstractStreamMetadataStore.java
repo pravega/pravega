@@ -17,8 +17,8 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -78,132 +79,145 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final String name,
                                                    final StreamConfiguration configuration,
                                                    final long createTimestamp,
-                                                   final OperationContext context) {
-        return getStream(scope, name, context).create(configuration, createTimestamp);
+                                                   final OperationContext context,
+                                                   final Executor executor) {
+        return withCompletion(getStream(scope, name, context).create(configuration, createTimestamp), executor);
     }
 
     @Override
     public CompletableFuture<Boolean> updateConfiguration(final String scope,
                                                           final String name,
                                                           final StreamConfiguration configuration,
-                                                          final OperationContext context) {
-        return getStream(scope, name, context).updateConfiguration(configuration);
+                                                          final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).updateConfiguration(configuration), executor);
     }
 
     @Override
     public CompletableFuture<StreamConfiguration> getConfiguration(final String scope,
                                                                    final String name,
-                                                                   final OperationContext context) {
-        return getStream(scope, name, context).getConfiguration();
+                                                                   final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getConfiguration(), executor);
     }
 
     @Override
-    public CompletableFuture<Boolean> isSealed(final String scope, final String name, final OperationContext context) {
-        return getStream(scope, name, context).getState().thenApply(state -> state.equals(State.SEALED));
+    public CompletableFuture<Boolean> isSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getState().thenApply(state -> state.equals(State.SEALED)), executor);
     }
 
     @Override
-    public CompletableFuture<Boolean> setSealed(final String scope, final String name, final OperationContext context) {
-        return getStream(scope, name, context).updateState(State.SEALED);
+    public CompletableFuture<Boolean> setSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).updateState(State.SEALED), executor);
     }
 
     @Override
-    public CompletableFuture<Segment> getSegment(final String scope, final String name, final int number, final OperationContext context) {
-        return getStream(scope, name, context).getSegment(number);
+    public CompletableFuture<Segment> getSegment(final String scope, final String name, final int number, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getSegment(number), executor);
     }
 
     @Override
-    public CompletableFuture<List<Segment>> getActiveSegments(final String scope, final String name, final OperationContext context) {
+    public CompletableFuture<List<Segment>> getActiveSegments(final String scope, final String name, final OperationContext context, final Executor executor) {
         final Stream stream = getStream(scope, name, context);
-        return stream.getState().thenCompose(state -> {
-            if (State.SEALED.equals(state)) {
-                return CompletableFuture.completedFuture(Collections.<Integer>emptyList());
-            } else {
-                return stream.getActiveSegments();
-            }
-        }).thenCompose(currentSegments -> FutureHelpers.allOfWithResults(currentSegments.stream().map(stream::getSegment).collect(Collectors.toList())));
+        return withCompletion(stream.getState()
+                        .thenComposeAsync(state -> {
+                            if (State.SEALED.equals(state)) {
+                                return CompletableFuture.completedFuture(Collections.<Integer>emptyList());
+                            } else {
+                                return stream.getActiveSegments();
+                            }
+                        }, executor)
+                        .thenComposeAsync(currentSegments ->
+                                FutureHelpers.allOfWithResults(currentSegments.stream().map(stream::getSegment)
+                                        .collect(Collectors.toList())), executor),
+                executor);
     }
 
     @Override
-    public CompletableFuture<SegmentFutures> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context) {
+    public CompletableFuture<SegmentFutures> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context, final Executor executor) {
         Stream stream = getStream(scope, name, context);
-        CompletableFuture<List<Integer>> futureActiveSegments = stream.getActiveSegments(timestamp);
-        return futureActiveSegments.thenCompose(activeSegments -> constructSegmentFutures(stream, activeSegments));
+        return withCompletion(stream.getActiveSegments(timestamp)
+                        .thenComposeAsync(activeSegments -> constructSegmentFutures(stream, activeSegments, executor), executor),
+                executor);
     }
 
     @Override
     public CompletableFuture<Map<Integer, List<Integer>>> getSuccessors(final String scope, final String streamName,
-                                                                        final int segmentNumber, final OperationContext context) {
+                                                                        final int segmentNumber, final OperationContext context, final Executor executor) {
         Stream stream = getStream(scope, streamName, context);
-        return stream.getSuccessorsWithPredecessors(segmentNumber);
+        return withCompletion(stream.getSuccessorsWithPredecessors(segmentNumber), executor);
     }
 
     @Override
     public CompletableFuture<List<Segment>> scale(final String scope, final String name,
                                                   final List<Integer> sealedSegments,
                                                   final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                                  final long scaleTimestamp, final OperationContext context) {
-        return getStream(scope, name, context).scale(sealedSegments, newRanges, scaleTimestamp);
+                                                  final long scaleTimestamp, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).scale(sealedSegments, newRanges, scaleTimestamp), executor);
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final String scope, final String stream, final OperationContext context) {
-        return getStream(scope, stream, context).createTransaction();
+    public CompletableFuture<UUID> createTransaction(final String scope, final String stream, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).createTransaction(), executor);
     }
 
     @Override
-    public CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId, final OperationContext context) {
-        return getStream(scope, stream, context).checkTransactionStatus(txId);
+    public CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).checkTransactionStatus(txId), executor);
     }
 
     @Override
-    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId, final OperationContext context) {
-        return getStream(scope, stream, context).commitTransaction(txId);
+    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).commitTransaction(txId), executor);
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId, final OperationContext context) {
-        return getStream(scope, stream, context).sealTransaction(txId);
+    public CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).sealTransaction(txId), executor);
     }
 
     @Override
-    public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final UUID txId, final OperationContext context) {
-        return getStream(scope, stream, context).abortTransaction(txId);
+    public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).abortTransaction(txId), executor);
     }
 
     @Override
-    public CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream, final OperationContext context) {
-        return getStream(scope, stream, context).isTransactionOngoing();
+    public CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).isTransactionOngoing(), executor);
     }
 
     @Override
-    public CompletableFuture<Void> setMarker(String scope, String stream, int segmentNumber, long timestamp, OperationContext context) {
-        return getStream(scope, stream, context).setMarker(segmentNumber, timestamp);
+    public CompletableFuture<Void> setMarker(final String scope, final String stream, final int segmentNumber, final long timestamp,
+                                             final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).setMarker(segmentNumber, timestamp), executor);
     }
 
     @Override
-    public CompletableFuture<Optional<Long>> getMarker(String scope, String stream, int number, OperationContext context) {
-        return getStream(scope, stream, context).getMarker(number);
+    public CompletableFuture<Optional<Long>> getMarker(final String scope, final String stream, final int number,
+                                                       final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).getMarker(number), executor);
     }
 
     @Override
-    public CompletableFuture<Void> removeMarker(String scope, String stream, int number, OperationContext context) {
-        return getStream(scope, stream, context).removeMarker(number);
+    public CompletableFuture<Void> removeMarker(final String scope, final String stream, final int number,
+                                                final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).removeMarker(number), executor);
     }
 
     @Override
-    public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns(String scope, String stream, OperationContext context) {
-        return getStream(scope, stream, context).getActiveTxns();
+    public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns(final String scope, final String stream,
+                                                                      final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).getActiveTxns(), executor);
     }
 
     @Override
-    public CompletableFuture<Void> blockTransactions(String scope, String stream, OperationContext context) {
-        return getStream(scope, stream, context).blockTransactions();
+    public CompletableFuture<Void> blockTransactions(final String scope, final String stream,
+                                                     final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).blockTransactions(), executor);
     }
 
     @Override
-    public CompletableFuture<Void> unblockTransactions(String scope, String stream, OperationContext context) {
-        return getStream(scope, stream, context).unblockTransactions();
+    public CompletableFuture<Void> unblockTransactions(final String scope, final String stream,
+                                                       final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).unblockTransactions(), executor);
     }
 
     private Stream getStream(String scope, final String name, OperationContext context) {
@@ -219,22 +233,21 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return stream;
     }
 
-    private CompletableFuture<SegmentFutures> constructSegmentFutures(final Stream stream, final List<Integer> activeSegments) {
+    private CompletableFuture<SegmentFutures> constructSegmentFutures(final Stream stream, final List<Integer> activeSegments, final Executor executor) {
         Map<Integer, Integer> futureSegments = new HashMap<>();
         List<CompletableFuture<List<Integer>>> list =
-                activeSegments.stream().map(number -> getDefaultFutures(stream, number)).collect(Collectors.toList());
+                activeSegments.stream().map(number -> getDefaultFutures(stream, number, executor)).collect(Collectors.toList());
 
         CompletableFuture<List<List<Integer>>> futureDefaultFutures = FutureHelpers.allOfWithResults(list);
         return futureDefaultFutures
-                .thenApply(futureList -> {
-                            for (int i = 0; i < futureList.size(); i++) {
-                                for (Integer future : futureList.get(i)) {
-                                    futureSegments.put(future, activeSegments.get(i));
-                                }
-                            }
-                            return new SegmentFutures(activeSegments, futureSegments);
+                .thenApplyAsync(futureList -> {
+                    for (int i = 0; i < futureList.size(); i++) {
+                        for (Integer future : futureList.get(i)) {
+                            futureSegments.put(future, activeSegments.get(i));
                         }
-                );
+                    }
+                    return new SegmentFutures(activeSegments, futureSegments);
+                }, executor);
     }
 
     /**
@@ -249,10 +262,29 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      * .filter(x -> stream.getPredecessors(x).size() == 1)
      * .*                collect(Collectors.toList());
      */
-    private CompletableFuture<List<Integer>> getDefaultFutures(final Stream stream, final int number) {
+    private CompletableFuture<List<Integer>> getDefaultFutures(final Stream stream, final int number, final Executor executor) {
         CompletableFuture<List<Integer>> futureSuccessors = stream.getSuccessors(number);
-        return futureSuccessors.thenCompose(
-                list -> FutureHelpers.filter(list, elem -> stream.getPredecessors(elem).thenApply(x -> x.size() == 1)));
+        return futureSuccessors.thenComposeAsync(
+                list -> FutureHelpers.filter(list, elem -> stream.getPredecessors(elem).thenApply(x -> x.size() == 1)), executor);
+    }
+
+    private <T> CompletableFuture<T> withCompletion(CompletableFuture<T> future, final Executor executor) {
+
+        // Following makes sure that the result future given out to caller is actually completed on
+        // caller's executor. So any chaining, if done without specifying an executor, will either happen on
+        // caller's executor or fork join pool but never on someone else's executor.
+
+        CompletableFuture<T> result = new CompletableFuture<>();
+
+        future.whenCompleteAsync((r, e) -> {
+            if (e != null) {
+                result.completeExceptionally(e);
+            } else {
+                result.complete(r);
+            }
+        }, executor);
+
+        return result;
     }
 
 }

@@ -22,9 +22,6 @@ import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
-import java.nio.ByteBuffer;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -48,16 +45,6 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     ZKStream newStream(final String scope, final String name) {
         return new ZKStream(scope, name);
-    }
-
-    @Override
-    public CompletableFuture<Void> checkpoint(final String id, final String group, final ByteBuffer checkpoint) {
-        return ZKStream.checkpoint(id, group, checkpoint);
-    }
-
-    @Override
-    public CompletableFuture<Optional<ByteBuffer>> readCheckpoint(final String id, final String group) {
-        return ZKStream.readCheckpoint(id, group);
     }
 
     static ZKStreamMetadataStore getSingleton(ScheduledExecutorService executor) {

@@ -24,8 +24,6 @@ import com.emc.pravega.controller.server.rest.contract.request.UpdateStreamReque
 import com.emc.pravega.controller.server.rest.v1.ApiV1;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
-import com.emc.pravega.controller.store.stream.OperationContext;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -128,10 +126,7 @@ public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
     public void getStreamConfig(String scope, String stream, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamConfig");
 
-        StreamMetadataStore streamStore = controllerService.getStreamStore();
-
-        OperationContext context = streamStore.createContext(scope, stream);
-        streamStore.getConfiguration(scope, stream, context)
+        controllerService.getStreamConfiguration(scope, stream)
                 .thenApply(streamConfig -> {
                     return Response.status(Status.OK).entity(ModelHelper.encodeStreamResponse(streamConfig)).build();
                 })

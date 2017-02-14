@@ -34,16 +34,17 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
+import lombok.Getter;
+import org.apache.thrift.TException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
-
-import lombok.Getter;
-import org.apache.thrift.TException;
 
 /**
  * Stream controller RPC server implementation.
@@ -56,14 +57,18 @@ public class ControllerService {
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
+    private final Executor executor;
+
     public ControllerService(final StreamMetadataStore streamStore,
                              final HostControllerStore hostStore,
                              final StreamMetadataTasks streamMetadataTasks,
-                             final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+                             final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                             final Executor executor) {
         this.streamStore = streamStore;
         this.hostStore = hostStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
+        this.executor = executor;
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig, final long createTimestamp) {
@@ -80,27 +85,25 @@ public class ControllerService {
 
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(final String scope, final String stream) {
         // fetch active segments from segment store
-        return streamStore.getActiveSegments(scope, stream, null)
-                .thenApply(activeSegments -> activeSegments
+        return streamStore.getActiveSegments(scope, stream, null, executor)
+                .thenApplyAsync(activeSegments -> activeSegments
                         .stream()
                         .map(segment -> convert(scope, stream, segment))
-                        .collect(Collectors.toList())
-                );
+                        .collect(Collectors.toList()), executor);
     }
 
     public CompletableFuture<List<Position>> getPositions(final String scope, final String stream, final long timestamp, final int count) {
         // first fetch segments active at specified timestamp from the specified stream
         // divide current segments in segmentFutures into at most count positions
-        return streamStore.getActiveSegments(scope, stream, timestamp, null)
-                .thenApply(segmentFutures -> shard(scope, stream, segmentFutures, count));
+        return streamStore.getActiveSegments(scope, stream, timestamp, null, executor)
+                .thenApplyAsync(segmentFutures -> shard(scope, stream, segmentFutures, count), executor);
     }
 
     public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatlyFollowing(SegmentId segment) {
-        return streamStore.getSuccessors(segment.getScope(), segment.getStreamName(), segment.getNumber(), null).thenApply(successors -> {
-            return successors.entrySet().stream().collect(
-                    Collectors.toMap(entry -> new SegmentId(segment.getScope(), segment.getStreamName(), entry.getKey()),
-                            entry -> entry.getValue()));
-        });
+        return streamStore.getSuccessors(segment.getScope(), segment.getStreamName(), segment.getNumber(), null, executor)
+                .thenApplyAsync(successors -> successors.entrySet().stream().collect(
+                        Collectors.toMap(entry -> new SegmentId(segment.getScope(), segment.getStreamName(), entry.getKey()),
+                                Map.Entry::getValue)), executor);
     }
 
     public CompletableFuture<ScaleResponse> scale(final String scope,
@@ -127,8 +130,8 @@ public class ControllerService {
     public CompletableFuture<Boolean> isSegmentValid(final String scope,
                                                      final String stream,
                                                      final int segmentNumber) throws TException {
-        return streamStore.getActiveSegments(scope, stream, null)
-                .thenApply(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber));
+        return streamStore.getActiveSegments(scope, stream, null, executor)
+                .thenApplyAsync(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber), executor);
     }
 
     /**
@@ -165,7 +168,7 @@ public class ControllerService {
 
             // Compute the current and future segments set for position i
             Map<SegmentId, Long> currentSegments = new HashMap<>();
-            current.stream().forEach(
+            current.forEach(
                     x -> {
                         // TODO fetch correct offset within the segment at specified timestamp by contacting pravega host
                         // put it in the currentSegments
@@ -180,39 +183,42 @@ public class ControllerService {
     }
 
     public CompletableFuture<TxnId> createTransaction(final String scope, final String stream) {
-        return streamTransactionMetadataTasks.createTx(scope, stream, null).thenApply(ModelHelper::decode);
+        return streamTransactionMetadataTasks.createTx(scope, stream, null)
+                .thenApplyAsync(ModelHelper::decode, executor);
     }
 
     public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId
             txnId) {
         return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txnId), null)
-                .handle((ok, ex) -> {
+                .handleAsync((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
                         return TxnStatus.FAILURE;
                     } else {
                         return TxnStatus.SUCCESS;
                     }
-                });
+                }, executor);
     }
 
     public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final TxnId txnId) {
         return streamTransactionMetadataTasks.abortTx(scope, stream, ModelHelper.encode(txnId), null)
-                .handle((ok, ex) -> {
+                .handleAsync((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
                         return TxnStatus.FAILURE;
                     } else {
                         return TxnStatus.SUCCESS;
                     }
-                });
+                }, executor);
     }
-
 
     public CompletableFuture<TxnState> checkTransactionStatus(final String scope, final String stream, final TxnId
             txnId) {
-        return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId), null)
-                .thenApply(ModelHelper::decode);
+        return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId), null, executor)
+                .thenApplyAsync(ModelHelper::decode, executor);
     }
 
+    public CompletionStage<StreamConfiguration> getStreamConfiguration(final String scope, final String stream) {
+        return streamStore.getConfiguration(scope, stream, null, executor);
+    }
 }

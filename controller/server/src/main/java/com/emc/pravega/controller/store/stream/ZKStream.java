@@ -38,7 +38,6 @@ import org.apache.curator.framework.api.CuratorEvent;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.KeeperException;
 
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Collections;
@@ -75,10 +74,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String ACTIVE_TX_PATH = ACTIVE_TX_ROOT_PATH + "/%s";
     private static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
     private static final String COMPLETED_TX_PATH = COMPLETED_TX_ROOT_PATH + "/%s";
-
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
-    private static final String CHECKPOINT_PATH = "/checkpoint";
-
     private static final String BLOCKER_PATH = STREAM_PATH + "/blocker";
 
     private static final long BLOCK_VALIDITY_PERIOD = Duration.ofSeconds(10).toMillis();
@@ -446,38 +442,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private String getCompletedTxPath(final String txId) {
         return ZKPaths.makePath(completedTxPath, txId);
     }
-
-    // region checkpoint -- not specific to a stream
-
-    static CompletableFuture<Void> checkpoint(String readerId, String readerGroup, ByteBuffer checkpoint) {
-        String path = ZKPaths.makePath(CHECKPOINT_PATH, readerGroup, readerId);
-        return checkExists(path)
-                .thenCompose(x -> {
-                    if (x) {
-                        return setData(path, new Data<>(checkpoint.array(), null));
-                    } else {
-                        return createZNodeIfNotExist(path, checkpoint.array());
-                    }
-                });
-    }
-
-    static CompletableFuture<Optional<ByteBuffer>> readCheckpoint(String readerId, String readerGroup) {
-        final String path = ZKPaths.makePath(CHECKPOINT_PATH, readerGroup, readerId);
-        return getData(path)
-                .handle((res, ex) -> {
-                    if (ex != null) {
-                        if (ex instanceof DataNotFoundException || ex.getCause() instanceof DataNotFoundException) {
-                            return Optional.empty();
-                        }
-                        RetryableException.throwRetryableOrElseRuntime(ex);
-                        return Optional.empty();
-                    } else {
-                        return Optional.of(ByteBuffer.wrap(res.getData()));
-                    }
-                });
-    }
-
-    // endregion
 
     public static void initialize(final CuratorFramework cf, final Executor executor) {
         ZKStream.executor = executor;

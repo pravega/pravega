@@ -18,7 +18,6 @@
 package com.emc.pravega.controller.requesthandler;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.requests.ControllerRequest;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -250,10 +249,8 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
     @Synchronized
     private void checkpoint() {
         // Even if this fails, its ok. Next checkpoint periodic trigger will store the checkpoint.
-        Retry.withExpBackoff(100, 10, 3, 1000)
-                .retryingOn(RetryableException.class)
-                .throwingOn(RuntimeException.class)
-                .runAsync(() -> streamMetadataStore.checkpoint(readerId, readerGroup, serializer.serialize(checkpoint.get().position)), executor);
+        // TODO: store it in persistent store
+        // checkpoint(readerId, readerGroup, serializer.serialize(checkpoint.get().position));
     }
 
     /**

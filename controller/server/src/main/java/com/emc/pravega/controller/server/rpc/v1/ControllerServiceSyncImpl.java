@@ -37,6 +37,7 @@ import com.emc.pravega.stream.impl.ModelHelper;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.thrift.TException;
@@ -47,12 +48,15 @@ import org.apache.thrift.TException;
 public class ControllerServiceSyncImpl implements com.emc.pravega.controller.stream.api.v1.ControllerService.Iface {
 
     private final ControllerService controllerService;
+    private final Executor executor;
 
     public ControllerServiceSyncImpl(final StreamMetadataStore streamStore,
                                      final HostControllerStore hostStore,
                                      final StreamMetadataTasks streamMetadataTasks,
-                                     final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
-        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+                                     final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                                     final Executor executor) {
+        this.executor = executor;
+        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks, this.executor);
     }
 
     /**
