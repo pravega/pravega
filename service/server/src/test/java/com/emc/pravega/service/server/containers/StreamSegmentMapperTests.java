@@ -20,8 +20,8 @@ package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
-import com.emc.pravega.service.contracts.Attribute;
 import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -377,8 +377,8 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     private Collection<AttributeUpdate> createAttributes() {
         Collection<AttributeUpdate> result = new ArrayList<>(ATTRIBUTE_COUNT);
         for (int i = 0; i < ATTRIBUTE_COUNT; i++) {
-            Attribute.UpdateType ut = Attribute.UpdateType.values()[i % Attribute.UpdateType.values().length];
-            result.add(new AttributeUpdate(Attribute.dynamic(UUID.randomUUID(), ut), i));
+            AttributeUpdateType ut = AttributeUpdateType.values()[i % AttributeUpdateType.values().length];
+            result.add(new AttributeUpdate(UUID.randomUUID(), ut, i));
         }
 
         return result;
@@ -393,7 +393,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         SegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
         Assert.assertNotNull("Segment '" + segmentName + "' has not been registered in the metadata.", sm);
         Assert.assertEquals("Wrong segment name in metadata .", segmentName, sm.getName());
-        val attributes = attributeUpdates.stream().collect(Collectors.toMap(au -> au.getAttribute().getId(), AttributeUpdate::getValue));
+        val attributes = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
         AssertExtensions.assertMapEquals("Wrong attributes.", attributes, sm.getAttributes());
     }
 

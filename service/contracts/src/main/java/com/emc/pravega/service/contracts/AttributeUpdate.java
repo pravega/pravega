@@ -18,24 +18,26 @@
 
 package com.emc.pravega.service.contracts;
 
+import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 
 /**
- * Represents an Attribute-Value pair.
+ * Represents an update to a value of an Attribute.
  */
 @AllArgsConstructor
 @Getter
 @Setter
-@EqualsAndHashCode(of = {"attribute", "value"})
+@EqualsAndHashCode(of = {"attributeId", "value"})
 public class AttributeUpdate {
-    private final Attribute attribute;
+    private final UUID attributeId;
+    private final AttributeUpdateType updateType;
     private long value;
 
     @Override
     public String toString() {
-        return String.format("Attribute = %s, Value = %s", this.attribute, this.value);
+        return String.format("AttributeId = %s, Value = %s, UpdateType = %s", this.attributeId, this.value, this.updateType);
     }
 }

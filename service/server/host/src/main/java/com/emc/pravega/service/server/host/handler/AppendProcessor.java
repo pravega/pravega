@@ -28,8 +28,8 @@ import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
-import com.emc.pravega.service.contracts.Attribute;
 import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -168,7 +168,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
         val attributes = Collections.singleton(new AttributeUpdate(
-                Attribute.dynamic(toWrite.getConnectionId(), Attribute.UpdateType.ReplaceIfGreater),
+                toWrite.getConnectionId(),
+                AttributeUpdateType.ReplaceIfGreater,
                 toWrite.getEventNumber()));
 
         CompletableFuture<Void> future;

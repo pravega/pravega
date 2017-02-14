@@ -24,8 +24,8 @@ import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
-import com.emc.pravega.service.contracts.Attribute;
 import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -288,8 +288,7 @@ public class AppendProcessorTest {
     }
 
     private Collection<AttributeUpdate> updateEventNumber(UUID clientId, long newValue) {
-        return Collections.singleton(
-                new AttributeUpdate(Attribute.dynamic(clientId, Attribute.UpdateType.ReplaceIfGreater), newValue));
+        return Collections.singleton(new AttributeUpdate(clientId, AttributeUpdateType.ReplaceIfGreater, newValue));
     }
 
     private void setupGetStreamSegmentInfo(String streamSegmentName, UUID clientId, StreamSegmentStore store) {

@@ -18,8 +18,9 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.service.contracts.Attribute;
 import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
+import com.emc.pravega.service.contracts.Attributes;
 import com.emc.pravega.service.contracts.BadAttributeUpdateException;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -71,9 +72,8 @@ public class OperationMetadataUpdaterTests {
     private static final long SEALED_TRANSACTION_LENGTH = 12;
     private static final long SEGMENT_LENGTH = 1234567;
     private static final byte[] DEFAULT_APPEND_DATA = "hello".getBytes();
-    private static final Attribute[] DEFAULT_ATTRIBUTES = new Attribute[]{
-            Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.Replace),
-            Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.Accumulate)};
+    private static final AttributeUpdateType[] ATTRIBUTE_UPDATE_TYPES = new AttributeUpdateType[]{
+            AttributeUpdateType.Replace, AttributeUpdateType.Accumulate};
     private static final Supplier<Long> NEXT_ATTRIBUTE_VALUE = System::nanoTime;
 
     //region StreamSegmentAppendOperation
@@ -219,21 +219,21 @@ public class OperationMetadataUpdaterTests {
      */
     @Test
     public void testStreamSegmentAppendWithAttributes() throws Exception {
-        final Attribute attributeNoUpdate = Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.None);
-        final Attribute attributeAccumulate = Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.Accumulate);
-        final Attribute attributeReplace = Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.Replace);
-        final Attribute attributeReplaceIfGreater = Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.ReplaceIfGreater);
+        final UUID attributeNoUpdate = UUID.randomUUID();
+        final UUID attributeAccumulate = UUID.randomUUID();
+        final UUID attributeReplace = UUID.randomUUID();
+        final UUID attributeReplaceIfGreater = UUID.randomUUID();
 
         UpdateableContainerMetadata metadata = createMetadata();
         OperationMetadataUpdater updater = createUpdater(metadata);
 
         // Append #1.
         Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
-        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, 1)); // Initial add, so it's ok.
-        attributeUpdates.add(new AttributeUpdate(attributeAccumulate, 1));
-        attributeUpdates.add(new AttributeUpdate(attributeReplace, 1));
-        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, 1));
-        val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(au -> au.getAttribute().getId(), AttributeUpdate::getValue));
+        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 1)); // Initial add, so it's ok.
+        attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1));
+        attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, 1));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 1));
+        val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
 
         StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates);
         updater.preProcessOperation(appendOp);
@@ -245,30 +245,31 @@ public class OperationMetadataUpdaterTests {
 
         // Append #2: update all attributes that can be updated.
         attributeUpdates.clear();
-        attributeUpdates.add(new AttributeUpdate(attributeAccumulate, 1)); // 1 + 1 = 2
-        attributeUpdates.add(new AttributeUpdate(attributeReplace, 2));
-        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, 2));
-        expectedValues.put(attributeAccumulate.getId(), 2L);
-        expectedValues.put(attributeReplace.getId(), 2L);
-        expectedValues.put(attributeReplaceIfGreater.getId(), 2L);
+        attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1)); // 1 + 1 = 2
+        attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, 2));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 2));
+        expectedValues.put(attributeAccumulate, 2L);
+        expectedValues.put(attributeReplace, 2L);
+        expectedValues.put(attributeReplaceIfGreater, 2L);
 
         appendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates);
         updater.preProcessOperation(appendOp);
         updater.acceptOperation(appendOp);
 
-        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, 1)); // This is still in the transaction, so we need to add it for comparison sake.
+        // This is still in the transaction, so we need to add it for comparison sake.
+        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 1));
         verifyAttributeUpdates("after acceptOperation (2)", updater, attributeUpdates, expectedValues);
 
         // Append #3: after commit, verify that attributes are committed when they need to.
         val previousAcceptedValues = new HashMap<UUID, Long>(expectedValues);
         updater.commit();
         attributeUpdates.clear();
-        attributeUpdates.add(new AttributeUpdate(attributeAccumulate, 1)); // 2 + 1 = 3
-        attributeUpdates.add(new AttributeUpdate(attributeReplace, 3));
-        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, 3));
-        expectedValues.put(attributeAccumulate.getId(), 3L);
-        expectedValues.put(attributeReplace.getId(), 3L);
-        expectedValues.put(attributeReplaceIfGreater.getId(), 3L);
+        attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1)); // 2 + 1 = 3
+        attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, 3));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 3));
+        expectedValues.put(attributeAccumulate, 3L);
+        expectedValues.put(attributeReplace, 3L);
+        expectedValues.put(attributeReplaceIfGreater, 3L);
 
         appendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates);
         updater.preProcessOperation(appendOp);
@@ -289,17 +290,17 @@ public class OperationMetadataUpdaterTests {
      */
     @Test
     public void testStreamSegmentAppendWithBadAttributes() throws Exception {
-        final Attribute attributeNoUpdate = Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.None);
-        final Attribute attributeReplaceIfGreater = Attribute.dynamic(UUID.randomUUID(), Attribute.UpdateType.ReplaceIfGreater);
+        final UUID attributeNoUpdate = UUID.randomUUID();
+        final UUID attributeReplaceIfGreater = UUID.randomUUID();
 
         UpdateableContainerMetadata metadata = createMetadata();
         OperationMetadataUpdater updater = createUpdater(metadata);
 
         // Append #1.
         Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
-        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, 2)); // Initial add, so it's ok.
-        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, 2));
-        val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(au -> au.getAttribute().getId(), AttributeUpdate::getValue));
+        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 2)); // Initial add, so it's ok.
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 2));
+        val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
 
         StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates);
         updater.preProcessOperation(appendOp);
@@ -307,7 +308,7 @@ public class OperationMetadataUpdaterTests {
 
         // Append #2: Try to update attribute that cannot be updated.
         attributeUpdates.clear();
-        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, 3));
+        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 3));
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted a StreamSegmentAppendOperation that was trying to update an unmodifiable attribute.",
                 () -> updater.preProcessOperation(new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates)),
@@ -315,7 +316,7 @@ public class OperationMetadataUpdaterTests {
 
         // Append #3: Try to update attribute with bad value for ReplaceIfGreater attribute.
         attributeUpdates.clear();
-        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, 1));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 1));
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted a StreamSegmentAppendOperation that was trying to update an attribute with the wrong value for ReplaceIfGreater.",
                 () -> updater.preProcessOperation(new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates)),
@@ -323,8 +324,8 @@ public class OperationMetadataUpdaterTests {
 
         // Reset the attribute update list to its original state so we can do the final verification.
         attributeUpdates.clear();
-        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, 2));
-        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, 2));
+        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 2));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 2));
         verifyAttributeUpdates("after rejected appends", updater, attributeUpdates, expectedValues);
         updater.commit();
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in segment metadata after commit.",
@@ -412,7 +413,7 @@ public class OperationMetadataUpdaterTests {
 
         // Set some attributes.
         val segmentAttributes = createAttributes();
-        segmentAttributes.put(Attribute.CREATION_TIME.getId(), 1L);
+        segmentAttributes.put(Attributes.CREATION_TIME, 1L);
         UpdateableSegmentMetadata segmentMetadata = metadata.getStreamSegmentMetadata(SEGMENT_ID);
         segmentMetadata.updateAttributes(segmentAttributes);
         OperationMetadataUpdater updater = createUpdater(metadata);
@@ -436,7 +437,7 @@ public class OperationMetadataUpdaterTests {
         updater.commit();
 
         // Check attributes.
-        segmentAttributes.keySet().removeIf(Attribute::isDynamic); // All dynamic attributes should be removed.
+        segmentAttributes.keySet().removeIf(Attributes::isDynamic); // All dynamic attributes should be removed.
         SegmentMetadataComparer.assertSameAttributes("Unexpected set of attributes after commit.", segmentAttributes, segmentMetadata);
     }
 
@@ -812,7 +813,7 @@ public class OperationMetadataUpdaterTests {
         operations.add(createSeal());
 
         UpdateableContainerMetadata metadata = createMetadata();
-        metadata.getStreamSegmentMetadata(SEGMENT_ID).updateAttributes(Collections.singletonMap(Attribute.CREATION_TIME.getId(), 0L));
+        metadata.getStreamSegmentMetadata(SEGMENT_ID).updateAttributes(Collections.singletonMap(Attributes.CREATION_TIME, 0L));
         OperationMetadataUpdater updater = createUpdater(metadata);
         for (StorageOperation op : operations) {
             updater.preProcessOperation(op);
@@ -965,12 +966,14 @@ public class OperationMetadataUpdaterTests {
     }
 
     private Collection<AttributeUpdate> createAttributeUpdates() {
-        return Arrays.stream(DEFAULT_ATTRIBUTES).map(a -> new AttributeUpdate(a, NEXT_ATTRIBUTE_VALUE.get()))
-                .collect(Collectors.toList());
+        return Arrays.stream(ATTRIBUTE_UPDATE_TYPES)
+                     .map(ut -> new AttributeUpdate(UUID.randomUUID(), ut, NEXT_ATTRIBUTE_VALUE.get()))
+                     .collect(Collectors.toList());
     }
 
     private Map<UUID, Long> createAttributes() {
-        return Arrays.stream(DEFAULT_ATTRIBUTES).collect(Collectors.toMap(Attribute::getId, a -> NEXT_ATTRIBUTE_VALUE.get()));
+        return Arrays.stream(ATTRIBUTE_UPDATE_TYPES)
+                     .collect(Collectors.toMap(a -> UUID.randomUUID(), a -> NEXT_ATTRIBUTE_VALUE.get()));
     }
 
     private StreamSegmentSealOperation createSeal() {
@@ -1046,12 +1049,12 @@ public class OperationMetadataUpdaterTests {
     private void verifyAttributeUpdates(String stepName, ContainerMetadata containerMetadata, Collection<AttributeUpdate> attributeUpdates, Map<UUID, Long> expectedValues) {
         // Verify that the Attribute Updates have their expected values and that the updater has internalized the attribute updates.
         val transactionMetadata = containerMetadata.getStreamSegmentMetadata(SEGMENT_ID);
-        val expectedTransactionAttributes = attributeUpdates.stream().collect(Collectors.toMap(au -> au.getAttribute().getId(), AttributeUpdate::getValue));
+        val expectedTransactionAttributes = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in transaction metadata " + stepName + ".",
                 expectedTransactionAttributes, transactionMetadata);
         for (AttributeUpdate au : attributeUpdates) {
-            Assert.assertEquals("Unexpected updated value for AttributeUpdate[" + au.getAttribute().getUpdateType() + "] " + stepName,
-                    (long) expectedValues.get(au.getAttribute().getId()), au.getValue());
+            Assert.assertEquals("Unexpected updated value for AttributeUpdate[" + au.getUpdateType() + "] " + stepName,
+                    (long) expectedValues.get(au.getAttributeId()), au.getValue());
         }
     }
 

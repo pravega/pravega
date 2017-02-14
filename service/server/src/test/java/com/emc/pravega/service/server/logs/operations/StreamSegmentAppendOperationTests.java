@@ -19,8 +19,8 @@
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.common.MathHelpers;
-import com.emc.pravega.service.contracts.Attribute;
 import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Random;
@@ -60,8 +60,8 @@ public class StreamSegmentAppendOperationTests extends OperationTestsBase<Stream
     static Collection<AttributeUpdate> createAttributes() {
         val result = new ArrayList<AttributeUpdate>();
         long currentValue = 0;
-        for (Attribute.UpdateType ut : Attribute.UpdateType.values()) {
-            result.add(new AttributeUpdate(Attribute.dynamic(UUID.randomUUID(), ut), ++currentValue));
+        for (AttributeUpdateType ut : AttributeUpdateType.values()) {
+            result.add(new AttributeUpdate(UUID.randomUUID(), ut, ++currentValue));
         }
 
         return result;
