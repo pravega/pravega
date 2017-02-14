@@ -49,6 +49,7 @@ import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.Retry.RetryWithBackoff;
 import com.emc.pravega.common.util.ReusableLatch;
+import com.emc.pravega.common.util.ZipKinTracer;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
@@ -206,6 +207,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     if (append.getKey().getEventNumber() <= ackLevel) {
                         result.add(append.getValue());
                         iter.remove();
+                        ZipKinTracer.getTracer().traceAppendAcked(append.getKey());
                     } else {
                         break;
                     }
@@ -323,6 +325,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         checkArgument(buff.remaining() <= SegmentOutputStream.MAX_WRITE_SIZE, "Write size too large: %s", buff.remaining());
         ClientConnection connection = getConnection();
         Append append = state.createNewInflightAppend(connectionId, segmentName, buff, callback, expectedLength);
+        ZipKinTracer.getTracer().traceStartAppend(append);
         try {
             connection.send(append);
         } catch (ConnectionFailedException e) {

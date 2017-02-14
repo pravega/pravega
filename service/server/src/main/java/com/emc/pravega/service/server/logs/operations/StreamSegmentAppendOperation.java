@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.util.ZipKinTracer;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
@@ -134,6 +135,8 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     protected void serializeContent(DataOutputStream target) throws IOException {
         ensureSerializationCondition(this.streamSegmentOffset >= 0, "StreamSegment Offset has not been assigned for this entry.");
 
+        ZipKinTracer.getTracer().traceDataFrameSerialize(this.appendContext.getClientId(),
+                this.appendContext.getStartEventNumber(), this.appendContext.getEventNumber());
         target.writeByte(CURRENT_VERSION);
         target.writeLong(getStreamSegmentId());
         target.writeLong(this.streamSegmentOffset);
@@ -141,6 +144,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         target.writeLong(clientId.getMostSignificantBits());
         target.writeLong(clientId.getLeastSignificantBits());
         target.writeLong(this.appendContext.getEventNumber());
+        target.writeLong(this.appendContext.getStartEventNumber());
         target.writeInt(data.length);
         target.write(data, 0, data.length);
     }
@@ -154,7 +158,8 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         long clientIdLeastSig = source.readLong();
         UUID clientId = new UUID(clientIdMostSig, clientIdLeastSig);
         long clientOffset = source.readLong();
-        this.appendContext = new AppendContext(clientId, clientOffset);
+        long startOffset = source.readLong();
+        this.appendContext = new AppendContext(clientId, startOffset, clientOffset);
         int dataLength = source.readInt();
         this.data = new byte[dataLength];
         int bytesRead = StreamHelpers.readAll(source, this.data, 0, this.data.length);

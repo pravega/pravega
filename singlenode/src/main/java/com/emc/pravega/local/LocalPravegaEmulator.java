@@ -184,6 +184,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE,
                     THREADPOOL_SIZE);
 
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ENABLE_ZIPKIN, "true");
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZIPKIN_ENDPOINT, "http://10.249.250.151:9411/api/v1/spans");
+
             ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE,
                     DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, "100");
             ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE,
@@ -196,9 +199,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
             ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE,
                     Long.toString(128 * 1024 * 1024));
 
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_HOSTNAME, "localhost");
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_PORT,
-                    new Integer(zkPort).toString());
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_URL, "localhost:"+zkPort);
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT,
                     new Integer(hostPort).toString());
 
@@ -206,6 +207,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     "localhost");
             ServiceBuilderConfig.set(p, DistributedLogConfig.COMPONENT_CODE, DistributedLogConfig.PROPERTY_PORT,
                     new Integer(zkPort).toString());
+
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ENABLE_ZIPKIN,
+                    "false");
 
             props = new ServiceBuilderConfig(p);
 

@@ -25,6 +25,7 @@ import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.metrics.MetricsConfig;
 import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.StatsProvider;
+import com.emc.pravega.common.util.ZipKinTracer;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -115,6 +116,13 @@ public final class ServiceStarter {
         log.info("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
+        log.info("Setting up zipkin logs ...");
+        boolean zipkinEnabled = this.serviceConfig.getEnableZipkin();
+        ZipKinTracer.enableZipkin(zipkinEnabled);
+        if ( zipkinEnabled ) {
+            ZipKinTracer.setZipkinEndpoint(this.serviceConfig.getZipkinEndpoint());
+        }
+
         this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningPort(), service);
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
@@ -185,7 +193,7 @@ public final class ServiceStarter {
 
     private CuratorFramework createZKClient() {
         CuratorFramework zkClient = CuratorFrameworkFactory.builder()
-                .connectString(this.serviceConfig.getZkHostName() + ":" + this.serviceConfig.getZkPort())
+                .connectString(this.serviceConfig.getZkURL())
                 .namespace("pravega/" + this.serviceConfig.getClusterName())
                 .retryPolicy(new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()))
                 .build();

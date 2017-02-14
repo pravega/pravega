@@ -120,7 +120,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
         FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(append), ConnectionFailedException::new);
     }
-    
+
     @Override
     public void close() {
         Channel ch = channel.get();
@@ -134,7 +134,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         Preconditions.checkState(ch != null, connectionName + " Connection not yet established.");
         return ch;
     }
-    
+
     @RequiredArgsConstructor
     private final class KeepAliveTask implements Runnable {
         private final ChannelHandlerContext ctx;

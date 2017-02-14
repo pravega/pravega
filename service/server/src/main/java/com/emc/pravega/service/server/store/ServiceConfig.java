@@ -22,6 +22,7 @@ import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
 
 import java.net.Inet4Address;
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Properties;
 
@@ -36,16 +37,16 @@ public class ServiceConfig extends ComponentConfig {
     public static final String PROPERTY_THREAD_POOL_SIZE = "threadPoolSize";
     public static final String PROPERTY_LISTENING_PORT = "listeningPort";
     public static final String PROPERTY_LISTENING_IP_ADDRESS = "listeningIPAddress";
-    public static final String PROPERTY_ZK_HOSTNAME = "zkHostName";
-    public static final String PROPERTY_ZK_PORT = "zkPort";
+    public static final String PROPERTY_ZK_URL = "zkURL";
     public static final String PROPERTY_ZK_RETRY_SLEEP_MS = "zkRetrySleepMs";
     public static final String PROPERTY_ZK_RETRY_COUNT = "zkRetryCount";
     public static final String PROPERTY_CLUSTER_NAME = "clusterName";
+    public static final String PROPERTY_ENABLE_ZIPKIN = "enablezipkin";
+    public static final String PROPERTY_ZIPKIN_ENDPOINT = "zipkinendpoint";
 
     private static final int DEFAULT_LISTENING_PORT = 12345;
     private static final int DEFAULT_THREAD_POOL_SIZE = 50;
-    private static final String DEFAULT_ZK_HOSTNAME = "zk1";
-    private static final int DEFAULT_ZK_PORT = 2181;
+    private static final String DEFAULT_ZK_URL = "zk1:2181";
     private static final int DEFAULT_ZK_RETRY_SLEEP_MS = 100;
     private static final int DEFAULT_ZK_RETRY_COUNT = 5;
     private static final String DEFAULT_CLUSTER_NAME = "pravega-cluster";
@@ -54,11 +55,13 @@ public class ServiceConfig extends ComponentConfig {
     private int threadPoolSize;
     private int listeningPort;
     private String listeningIPAddress;
-    private String zkHostName;
+    private String zkURL;
     private int zkPort;
     private int zkRetrySleepMs;
     private int zkRetryCount;
     private String clusterName;
+    private boolean enableZipkin;
+    private String zipkinEndpoint;
 
     //endregion
 
@@ -108,14 +111,19 @@ public class ServiceConfig extends ComponentConfig {
      * Gets a value indicating the IP address to listen to.
      */
     public String getListeningIPAddress() {
+        try {
+            return InetAddress.getLocalHost().getHostName();
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        }
         return this.listeningIPAddress;
     }
 
     /**
-     * Gets a value indicating the Zookeeper host name.
+     * Gets a value indicating the Zookeeper URL.
      */
-    public String getZkHostName() {
-        return zkHostName;
+    public String getZkURL() {
+        return zkURL;
     }
 
     /**
@@ -146,6 +154,22 @@ public class ServiceConfig extends ComponentConfig {
         return clusterName;
     }
 
+    /**
+     * Gets whether Zipkin logs are enabled.
+     */
+
+    public boolean getEnableZipkin() {
+        return enableZipkin;
+    }
+
+    /**
+     * Gets Zipkin endpoint.
+     */
+
+    public String getZipkinEndpoint() {
+        return zipkinEndpoint;
+    }
+
     //endregion
 
     //region ComponentConfig Implementation
@@ -160,11 +184,13 @@ public class ServiceConfig extends ComponentConfig {
             // Can't put this in the 'defaultValue' above because that would cause getHostAddress to be evaluated every time.
             this.listeningIPAddress = getHostAddress();
         }
-        this.zkHostName = getProperty(PROPERTY_ZK_HOSTNAME, DEFAULT_ZK_HOSTNAME);
-        this.zkPort = getInt32Property(PROPERTY_ZK_PORT, DEFAULT_ZK_PORT);
+        this.zkURL = getProperty(PROPERTY_ZK_URL, DEFAULT_ZK_URL);
         this.zkRetrySleepMs = getInt32Property(PROPERTY_ZK_RETRY_SLEEP_MS, DEFAULT_ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = getInt32Property(PROPERTY_ZK_RETRY_COUNT, DEFAULT_ZK_RETRY_COUNT);
         this.clusterName = getProperty(PROPERTY_CLUSTER_NAME, DEFAULT_CLUSTER_NAME);
+
+        this.enableZipkin = getBooleanProperty(PROPERTY_ENABLE_ZIPKIN, false);
+        this.zipkinEndpoint = getProperty(PROPERTY_ZIPKIN_ENDPOINT, "");
     }
 
     private static String getHostAddress() {
@@ -175,6 +201,7 @@ public class ServiceConfig extends ComponentConfig {
             throw new RuntimeException("Unable to get the Host Address", e);
         }
     }
+
 
     //endregion
 }

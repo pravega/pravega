@@ -10,6 +10,8 @@ sudo: required
 services:
   - docker
 
+script: ./gradlew check && ./gradlew distTar && ./gradlew pushPravegaHostImage && ./gradlew pushPravegaControllerImage
+
 notifications:
   slack: emcnautilus:UZK3F72LSRYWXUuvlzSilFyy
   email:

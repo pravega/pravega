@@ -76,6 +76,9 @@ public final class Config {
         Set<Map.Entry<String, ConfigValue>> entries = CONFIG.entrySet();
         entries.forEach(entry -> log.debug("{} = {}", entry.getKey(), entry.getValue()));
     }
+    public static void overRideZKURL(String replaceZKURL) {
+        zKURL = replaceZKURL;
+    }
 
     //REST server configuration
     public static final String REST_SERVER_IP = CONFIG.getString("config.controller.server.rest.serverIp");

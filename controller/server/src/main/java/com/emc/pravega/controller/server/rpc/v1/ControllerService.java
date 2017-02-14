@@ -34,6 +34,8 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
+import lombok.Getter;
+import org.apache.thrift.TException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,9 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-
-import lombok.Getter;
-import org.apache.thrift.TException;
 
 /**
  * Stream controller RPC server implementation.
@@ -93,7 +92,7 @@ public class ControllerService {
         // divide current segments in segmentFutures into at most count positions
         return streamStore.getActiveSegments(stream, timestamp)
                 .thenApply(segmentFutures -> shard(scope, stream, segmentFutures, count));
-    }    
+    }
 
     public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatlyFollowing(SegmentId segment) {
         return streamStore.getSuccessors(segment.getStreamName(), segment.getNumber()).thenApply(successors -> {

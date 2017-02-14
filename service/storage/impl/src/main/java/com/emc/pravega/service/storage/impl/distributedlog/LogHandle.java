@@ -24,6 +24,7 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.CloseableIterator;
+import com.emc.pravega.common.util.ZipKinTracer;
 import com.emc.pravega.service.storage.DataLogInitializationException;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;
@@ -251,11 +252,23 @@ class LogHandle implements AutoCloseable {
 
         // Send the write to DistributedLog.
         log.debug("{}: LogWriter.write (TransactionId = {}, Length = {}).", this.logName, transactionId, buffer.length);
+        long startTimeMillis = 0;
+        if ( ZipKinTracer.getEnable()) {
+            startTimeMillis = System.currentTimeMillis();
+        }
         Future<DLSN> writeFuture = this.logWriter.write(new LogRecord(transactionId, buffer));
         CompletableFuture<LogAddress> result = toCompletableFuture(writeFuture, dlsn -> new DLSNAddress(transactionId, dlsn));
         if (log.isTraceEnabled()) {
             result = result.thenApply(r -> {
                 LoggerHelpers.traceLeave(log, this.logName, "append", traceId, transactionId, buffer.length);
+                return r;
+            });
+        }
+
+        if ( ZipKinTracer.getEnable() ) {
+            long finalStartTimeMillis = startTimeMillis;
+            result = result.thenApply(r -> {
+                ZipKinTracer.getTracer().traceDLActions(finalStartTimeMillis, r.getSequence());
                 return r;
             });
         }

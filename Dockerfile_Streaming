@@ -3,6 +3,7 @@ FROM java:8
 MAINTAINER Arvind Kandhare [arvind.kandhare@emc.com]
 
 COPY service/server/host/build/distributions/ /opt
+COPY integrationtests/config.properties /opt/config.properties
 
 COPY integrationtests/config.properties /opt/config.properties
 

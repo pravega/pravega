@@ -17,16 +17,6 @@
  */
 package com.emc.pravega.common.netty;
 
-import static com.emc.pravega.common.netty.WireCommandType.APPEND_BLOCK_END;
-import static com.emc.pravega.common.netty.WireCommandType.PADDING;
-import static com.emc.pravega.common.netty.WireCommandType.PARTIAL_EVENT;
-import static io.netty.buffer.Unpooled.wrappedBuffer;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.UUID;
-
 import com.emc.pravega.common.netty.WireCommands.AppendBlock;
 import com.emc.pravega.common.netty.WireCommands.AppendBlockEnd;
 import com.emc.pravega.common.netty.WireCommands.ConditionalAppend;
@@ -34,11 +24,18 @@ import com.emc.pravega.common.netty.WireCommands.Padding;
 import com.emc.pravega.common.netty.WireCommands.PartialEvent;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.google.common.annotations.VisibleForTesting;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import lombok.Data;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.UUID;
+
+import static com.emc.pravega.common.netty.WireCommandType.*;
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 /**
  * AppendBlocks are decoded specially to avoid having to parse every append individually.
