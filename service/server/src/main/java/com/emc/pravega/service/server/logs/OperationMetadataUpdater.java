@@ -1061,6 +1061,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
                         }
 
                         break;
+                    default:
+                        break;
                 }
             }
         }
