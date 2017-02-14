@@ -26,6 +26,7 @@ import feign.gson.GsonDecoder;
 import feign.gson.GsonEncoder;
 import mesosphere.marathon.client.auth.TokenAuthRequestInterceptor;
 
+import static com.emc.pravega.framework.NautilusLoginClient.getClientHostVerificationDisabled;
 import static java.util.Arrays.asList;
 
 public class MetronomeClient {
@@ -54,7 +55,7 @@ public class MetronomeClient {
      * @param endpoint URL of Metronome
      */
     public static Metronome getInstance(String endpoint, RequestInterceptor... interceptors) {
-        Feign.Builder b = Feign.builder()
+        Feign.Builder b = Feign.builder().client(getClientHostVerificationDisabled())
                 .encoder(new GsonEncoder(mesosphere.marathon.client.utils.ModelUtils.GSON))
                 .decoder(new GsonDecoder(mesosphere.marathon.client.utils.ModelUtils.GSON))
                 .errorDecoder(new MetronomeClient.MetronomeErrorDecoder());

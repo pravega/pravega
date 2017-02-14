@@ -19,12 +19,22 @@
 package com.emc.pravega.framework.marathon;
 
 import com.emc.pravega.framework.NautilusLoginClient;
+import feign.Feign;
+import feign.RequestInterceptor;
+import feign.RequestTemplate;
+import feign.Response;
 import feign.auth.BasicAuthRequestInterceptor;
+import feign.codec.ErrorDecoder;
+import feign.gson.GsonDecoder;
+import feign.gson.GsonEncoder;
 import mesosphere.marathon.client.Marathon;
-import mesosphere.marathon.client.MarathonClient;
 import mesosphere.marathon.client.auth.TokenAuthRequestInterceptor;
+import mesosphere.marathon.client.utils.MarathonException;
+import mesosphere.marathon.client.utils.ModelUtils;
 
 import static com.emc.pravega.framework.NautilusLoginClient.MESOS_URL;
+import static com.emc.pravega.framework.NautilusLoginClient.getClientHostVerificationDisabled;
+import static java.util.Arrays.asList;
 
 /**
  * Marathon client with Nautilus authentication enabled.
@@ -38,10 +48,37 @@ public class MarathonClientNautilus {
         return createMarathonClient();
     }
 
+    static class MarathonHeadersInterceptor implements RequestInterceptor {
+        @Override
+        public void apply(RequestTemplate template) {
+            template.header("Accept", "application/json");
+            template.header("Content-Type", "application/json");
+        }
+    }
+
+    static class MarathonErrorDecoder implements ErrorDecoder {
+        @Override
+        public Exception decode(String methodKey, Response response) {
+            return new MarathonException(response.status(), response.reason());
+        }
+    }
+
     private static Marathon createMarathonClient() {
         //TODO: Remove username and password hardcoding.
         final BasicAuthRequestInterceptor requestInterceptor = new BasicAuthRequestInterceptor("admin", "password");
         String token = NautilusLoginClient.getAuthToken(LOGIN_URL, requestInterceptor);
-        return MarathonClient.getInstance(ENDPOINT, new TokenAuthRequestInterceptor(token));
+        return getInstance(ENDPOINT, new TokenAuthRequestInterceptor(token));
+    }
+
+    private static Marathon getInstance(String endpoint, RequestInterceptor... interceptors) {
+        Feign.Builder b = Feign.builder().client(getClientHostVerificationDisabled())
+                .encoder(new GsonEncoder(ModelUtils.GSON))
+                .decoder(new GsonDecoder(ModelUtils.GSON))
+                .errorDecoder(new MarathonErrorDecoder());
+        if (interceptors != null) {
+            b.requestInterceptors(asList(interceptors));
+        }
+        b.requestInterceptor(new MarathonHeadersInterceptor());
+        return b.target(Marathon.class, endpoint);
     }
 }

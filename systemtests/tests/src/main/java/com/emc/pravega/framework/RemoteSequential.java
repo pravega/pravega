@@ -34,6 +34,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import static com.emc.pravega.framework.NautilusLoginClient.MESOS_MASTER;
+
 @Slf4j
 public class RemoteSequential implements TestExecutor {
     private static Metronome client = MetronomeClientNautilus.getClient();
@@ -81,7 +83,7 @@ public class RemoteSequential implements TestExecutor {
 
         //This can be used to set environment variables while executing the job on Metronome.
         Map<String, String> env = new HashMap<>(2);
-        env.put("env1", "value101");
+        env.put("masterIP", System.getProperty("masterIP"));
         env.put("env2", "value102");
 
         Artifact art = new Artifact();
@@ -99,8 +101,9 @@ public class RemoteSequential implements TestExecutor {
         Run run = new Run();
         run.setArtifacts(Collections.singletonList(art));
 
-        run.setCmd("docker run --rm --name=\"testCase-1\" -v $(pwd):/data cogniteev/oracle-java:latest java -cp " +
-                "/data/systemtests-0.1.jar com.emc.pravega.SingleJUnitTestRunner " +
+        run.setCmd("docker run --rm --name=\"testCase-1\" -v $(pwd):/data cogniteev/oracle-java:latest java" +
+                " -DmasterIP=" + MESOS_MASTER +
+                " -cp /data/systemtests-0.1.jar com.emc.pravega.SingleJUnitTestRunner " +
                 className + "#" + methodName + " > server.log 2>&1" +
                 "; exit $?");
 

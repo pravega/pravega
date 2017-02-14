@@ -16,18 +16,21 @@
 
 package com.emc.pravega.framework;
 
+import feign.Client;
 import feign.Feign;
 import feign.RequestLine;
 import feign.Response;
 import feign.auth.BasicAuthRequestInterceptor;
 import feign.gson.GsonEncoder;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLSession;
 import java.util.Collection;
 
 public class NautilusLoginClient {
 
-    public static final String MESOS_MASTER = System.getProperty("masterIP", "10.240.124.139");
-    public static final String MESOS_URL = String.format("http://%s", MESOS_MASTER);
+    public static final String MESOS_MASTER = getMesosMasterIP();
+    public static final String MESOS_URL = String.format("https://%s", MESOS_MASTER);
 
     static final String TOKEN_HEADER_NAME = "X-AUTH-TOKEN";
 
@@ -37,7 +40,8 @@ public class NautilusLoginClient {
     }
 
     public static String getAuthToken(final String loginURL, final BasicAuthRequestInterceptor requestInterceptor) {
-        Login client = Feign.builder()
+
+        Login client = Feign.builder().client(getClientHostVerificationDisabled())
                 .encoder(new GsonEncoder())
                 .requestInterceptor(requestInterceptor)
                 .target(Login.class, loginURL);
@@ -51,5 +55,18 @@ public class NautilusLoginClient {
             throw new RuntimeException("Exception while logging into the nautilus cluster. Nautilus Authentication" +
                     "service returned an error" + response);
         }
+    }
+
+    public static Client.Default getClientHostVerificationDisabled() {
+        return new Client.Default(TrustingSSLSocketFactory.get(), new HostnameVerifier() {
+            @Override
+            public boolean verify(String s, SSLSession sslSession) {
+                return true;
+            }
+        });
+    }
+
+    private static String getMesosMasterIP() {
+        return System.getenv().getOrDefault("masterIP", System.getProperty("masterIP", "Invalid Master IP"));
     }
 }
