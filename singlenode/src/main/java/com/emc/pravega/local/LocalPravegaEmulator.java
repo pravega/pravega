@@ -47,6 +47,9 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.twitter.distributedlog.LocalDLMEmulator;
 import com.twitter.distributedlog.admin.DistributedLogAdmin;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
+
 import java.io.File;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -56,15 +59,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
+import lombok.extern.slf4j.Slf4j;
+
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.LoggerFactory;
 
 import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
-
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class LocalPravegaEmulator implements AutoCloseable {
