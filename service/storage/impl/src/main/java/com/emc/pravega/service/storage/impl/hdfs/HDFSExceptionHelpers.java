@@ -36,7 +36,7 @@ public class HDFSExceptionHelpers {
      * API to translated HDFS specific IOExceptions to StreamSegmentExceptions.
      * @param streamSegmentName Name of the stream segment on which the exception occurs.
      * @param e The exception to be translated
-     * @return
+     * @return a more specific exception
      */
     public static Exception translateFromException(String streamSegmentName, Exception e) {
         Exception retVal = e;

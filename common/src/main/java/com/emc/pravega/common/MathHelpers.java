@@ -21,19 +21,43 @@ import com.google.common.base.Preconditions;
 
 public class MathHelpers {
 
+    /**
+     * Returns absolute int value of given number.
+     * @param in value to be absoluted
+     * @return absolute value of in
+     */
     public static int abs(int in) {
         return in & Integer.MAX_VALUE;
     }
 
+    /**
+     * Returns absolute long value of given number.
+     * @param in number to needs to be converted to absolute value
+     * @return absolute value of in
+     */
     public static long abs(long in) {
         return in & Long.MAX_VALUE;
     }
 
+    /**
+     * Returns itself if it is between min and max, min if the value is less than min, or max if the value is greater than max.
+     * @param value actual value
+     * @param min minimum value to check against
+     * @param max maximum value to check against
+     * @return the middle value
+     */
     public static int minMax(int value, int min, int max) {
         Preconditions.checkArgument(min <= max, "min must be less than or equal to max");
         return Math.max(Math.min(value, max), min);
     }
-    
+
+    /**
+     * Returns itself if it is between min and max, min if the value is less than min, or max if the value is greater than max.
+     * @param value actual value
+     * @param min minimum value to check against
+     * @param max maximum value to check against
+     * @return the middle value
+     */
     public static long minMax(long value, long min, long max) {
         Preconditions.checkArgument(min <= max, "min must be less than or equal to max");
         return Math.max(Math.min(value, max), min);

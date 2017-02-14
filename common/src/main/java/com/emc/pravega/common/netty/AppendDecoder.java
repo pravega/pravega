@@ -73,7 +73,14 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             out.add(result);
         }
     }
-    
+
+    /**
+     * Parses wire command and creates append request object.
+     *
+     * @param command Append Wire Command
+     * @return Append Instance.
+     * @throws Exception thrown if command type is not append, or event block is constructed properly.
+     */
     @VisibleForTesting
     public Request processCommand(WireCommand command) throws Exception {
         if (currentBlock != null && command.getType() != APPEND_BLOCK_END) {

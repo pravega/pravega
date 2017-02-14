@@ -21,5 +21,9 @@ package com.emc.pravega.common.netty;
  * A request from the client to the server. Requests usually result in a corresponding Reply being sent back.
  */
 public interface Request {
+    /**
+     * Process request with given request type.
+     * @param cp A request processor
+     */
     void process(RequestProcessor cp);
 }

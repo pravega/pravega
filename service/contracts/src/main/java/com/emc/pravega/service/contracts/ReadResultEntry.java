@@ -27,17 +27,20 @@ import java.util.concurrent.CompletableFuture;
 public interface ReadResultEntry {
     /**
      * Gets a value indicating the offset in the StreamSegment that this entry starts at.
+     * @return offset that this entry starts at in the segment
      */
     long getStreamSegmentOffset();
 
     /**
      * Gets a value indicating the number of bytes requested for reading.
      * NOTE: The number of bytes actually read may differ from this value.
+     * @return number of bytes requested for reading
      */
     int getRequestedReadLength();
 
     /**
      * Gets a value indicating the Type of this ReadResultEntry.
+     * @return type of the entry, whether it is cache, storage, or future etc..
      */
     ReadResultEntryType getType();
 
@@ -45,6 +48,7 @@ public interface ReadResultEntry {
      * Returns a CompletableFuture that, when completed, will contain the contents of this ReadResultEntry. Simply
      * calling this method will not trigger any actions (such as data retrieval). Use the requestContent() method to do
      * that.
+     * @return CompletableFuture, when complete, it will contain contents of read result entry.
      */
     CompletableFuture<ReadResultEntryContents> getContent();
 

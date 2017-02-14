@@ -52,6 +52,7 @@ public final class AutoStopwatch {
     
     /**
      * Gets the elapsed time since the creation of this object.
+     * @return duration that it took since creation of the object
      */
     public Duration elapsed() {
         return Duration.ofMillis(Math.max(0, this.getMillis.get() - this.initialMillis));

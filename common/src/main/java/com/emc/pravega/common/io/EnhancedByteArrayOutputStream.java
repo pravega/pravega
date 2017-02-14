@@ -28,7 +28,8 @@ import com.emc.pravega.common.util.ByteArraySegment;
 public class EnhancedByteArrayOutputStream extends ByteArrayOutputStream {
     /**
      * Returns a readonly ByteArraySegment wrapping the current buffer of the ByteArrayOutputStream.
-     * @return
+     *
+     * @return a readonly ByteArraySegment.
      */
     public ByteArraySegment getData() {
         return new ByteArraySegment(this.buf, 0, this.count, true);

@@ -230,7 +230,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     /**
-     * if timestamp is < create time of stream, we will return empty list.
+     * if timestamp is less than create time of stream, we will return empty list.
      * 1. perform binary searchIndex on index table to find timestamp
      * 2. fetch the record from history table for the pointer in index.
      * Note: index may be stale so we may need to fall through

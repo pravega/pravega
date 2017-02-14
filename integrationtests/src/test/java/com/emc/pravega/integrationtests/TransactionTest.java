@@ -51,6 +51,10 @@ public class TransactionTest {
     private Level originalLevel;
     private ServiceBuilder serviceBuilder;
 
+    /**
+     * Sets up the Service builder, and initializes it.
+     * @throws Exception in case of failure
+     */
     @Before
     public void setup() throws Exception {
         originalLevel = ResourceLeakDetector.getLevel();
@@ -60,12 +64,19 @@ public class TransactionTest {
         this.serviceBuilder.initialize().get();
     }
 
+    /**
+     * Destroys the Service builder.
+     */
     @After
     public void teardown() {
         this.serviceBuilder.close();
         ResourceLeakDetector.setLevel(originalLevel);
     }
 
+    /**
+     * Publishes events with and without transaction, and verifies back if ordering were correct.
+     * @throws TxnFailedException in case a transaction failure occurs.
+     */
     @Test
     public void testTransactionalWritesOrderedCorrectly() throws TxnFailedException {
         int readTimeout = 5000;
@@ -132,6 +143,11 @@ public class TransactionTest {
         assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getEvent());
     }
 
+    /**
+     * Sends an event using transaction. Simple as that.
+     *
+     * @throws TxnFailedException in case of txn failure.
+     */
     @Test
     public void testDoubleCommit() throws TxnFailedException {
         String endpoint = "localhost";
@@ -156,6 +172,12 @@ public class TransactionTest {
         transaction.commit();
         AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit());
     }
+
+    /**
+     * Creates a transaction, sends an event, and aborts it. Verifies back by consuming an event, which shouldn't be there.
+     *
+     * @throws TxnFailedException in case of txn failure.
+     */
 
     @Test
     public void testDrop() throws TxnFailedException {

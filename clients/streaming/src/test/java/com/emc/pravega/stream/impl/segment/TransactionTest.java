@@ -25,36 +25,57 @@ import org.junit.Test;
 @Ignore
 public class TransactionTest {
 
+    /**
+     * Test if connection should be dropped once timeout is reached
+     */
     @Test
     public void testTimeoutDropsTxn() {
         fail();
     }
 
+    /**
+     * Test if calling commit() twice results in any failure.
+     */
     @Test
     public void testCommitTwice() {
         fail();
     }
 
+    /**
+     * Test if commit fails if drop is called prior to it.
+     */
     @Test
     public void testDropThenCommit() {
         fail();
     }
 
+    /**
+     * Test if calling drop() twice results in any failure.
+     */
     @Test
     public void testDropTwice() {
         fail();
     }
 
+    /**
+     * Test if commit succeeds once drop is trigger right after.
+     */
     @Test
     public void testCommitThenDrop() {
         fail();
     }
 
+    /**
+     * Test if transaction status is maintained properly.
+     */
     @Test
     public void testGetTxStatus() {
         fail();
     }
 
+    /**
+     * Check if log can be closed.
+     */
     @Test
     public void testLogCloses() {
         fail();

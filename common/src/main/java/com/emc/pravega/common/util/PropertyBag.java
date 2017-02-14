@@ -30,6 +30,7 @@ public class PropertyBag extends Properties {
 
     /**
      * Creates a new instance of the PropertyBag class.
+     * @return A PropertyBag instance.
      */
     public static PropertyBag create() {
         return new PropertyBag();

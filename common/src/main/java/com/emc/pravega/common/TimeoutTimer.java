@@ -61,6 +61,8 @@ public class TimeoutTimer {
     
     /**
      * Returns true if there is time remaining.
+     *
+     * @return false if time is elapsed
      */
     public boolean hasRemaining() {
         return (getNanos.get() - initialNanos) < timeout.toNanos();

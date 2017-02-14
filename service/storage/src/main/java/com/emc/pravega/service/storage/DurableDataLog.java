@@ -91,6 +91,7 @@ public interface DurableDataLog extends AutoCloseable {
 
     /**
      * Gets the maximum number of bytes allowed for a single append.
+     * @return max number of bytes for a single append
      */
     int getMaxAppendLength();
 
@@ -114,11 +115,13 @@ public interface DurableDataLog extends AutoCloseable {
     interface ReadItem {
         /**
          * Gets the payload associated with this ReadItem.
+         * @return byte array of the payload.
          */
         byte[] getPayload();
 
         /**
          * Gets a value indicating the Address within the Log that this ReadItem exists at.
+         * @return address value of ReadItem within the log
          */
         LogAddress getAddress();
     }

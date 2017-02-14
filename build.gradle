@@ -36,7 +36,8 @@ allprojects {
 
     javadoc {
         failOnError = false
-        exclude  "**/impl/**";
+        exclude  "**/impl/**"
+        exclude  "**/generated/**";
     }
 
     docker {

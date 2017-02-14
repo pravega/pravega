@@ -34,6 +34,7 @@ public final class ThriftHelper {
      * Eliminates boilerplate code of wrapping 'checked' thrift exception into a RuntimeException.
      *
      * @param call thrift method call
+     * @return result of the call
      */
     public static <ResultT> ResultT thriftCall(ThriftCall<ResultT> call) {
         try {

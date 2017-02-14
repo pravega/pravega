@@ -28,6 +28,11 @@ import com.emc.pravega.testcommon.AssertExtensions.RunnableWithException;
 
 public class Async {
 
+    /**
+     * Runs both blocking and non-blocking functions to verify.
+     * @param blockingFunction Reference to a blocking function.
+     * @param unblocker Reference to nonblocking function.
+     */
     public static void testBlocking(RunnableWithException blockingFunction, Runnable unblocker) {
         final AtomicReference<Exception> exception = new AtomicReference<>(null);
         final Semaphore isBlocked = new Semaphore(0);
@@ -61,7 +66,14 @@ public class Async {
             throw new RuntimeException(exception.get());
         } 
     }
-    
+
+    /**
+     * Runs both blocking and non-blocking functions to verify.
+     * @param blockingFunction Reference to a blocking function.
+     * @param unblocker Reference to nonblocking function.
+     * @param <ResultT> Result Type Parameter.
+     * @return Result of Blocking Function.
+     */
     public static <ResultT> ResultT testBlocking(Callable<ResultT> blockingFunction, Runnable unblocker) {
         final AtomicReference<ResultT> result = new AtomicReference<>(null);
         final AtomicReference<Exception> exception = new AtomicReference<>(null);

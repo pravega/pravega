@@ -71,6 +71,10 @@ public class ControllerWrapper implements Controller {
 
     private final ControllerService controller;
 
+    /**
+     * Constructs the Controller with the given connection string.
+     * @param connectionString Connection value.
+     */
     public ControllerWrapper(String connectionString) {
         String hostId;
         try {

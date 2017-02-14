@@ -24,21 +24,25 @@ package com.emc.pravega.service.server.logs.operations;
 public interface StreamSegmentMapping {
     /**
      * Gets a value indicating the Id of the StreamSegment.
+     * @return stream segment Id.
      */
     long getStreamSegmentId();
 
     /**
      * Gets a value indicating the Name of the StreamSegment.
+     * @return stream segment name.
      */
     String getStreamSegmentName();
 
     /**
      * Gets a value indicating the Length of the StreamSegment at the time of the mapping.
+     * @return length of the stream segment.
      */
     long getLength();
 
     /**
      * Gets a value indicating whether the StreamSegment is currently sealed at the time of the mapping.
+     * @return boolean indicating whether this segment is sealed or not.
      */
     boolean isSealed();
 }

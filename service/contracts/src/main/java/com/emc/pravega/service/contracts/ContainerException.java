@@ -52,6 +52,7 @@ abstract class ContainerException extends StreamingException {
 
     /**
      * Gets a value indicating the Container Id.
+     * @return Container ID
      */
     public int getContainerId() {
         return this.containerId;

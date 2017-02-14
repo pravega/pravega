@@ -35,6 +35,11 @@ public class PositionImpl extends PositionInternal {
     private static final long serialVersionUID = 1L;
     private final Map<Segment, Long> ownedSegments;
 
+    /**
+     * Instantiates Position with current and future owned segments.
+     *
+     * @param ownedSegments Current segments that the position refers to.
+     */
     public PositionImpl(Map<Segment, Long> ownedSegments) {
         this.ownedSegments = new HashMap<>(ownedSegments);
     }

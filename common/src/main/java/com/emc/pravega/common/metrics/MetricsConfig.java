@@ -72,6 +72,8 @@ public class MetricsConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the status of enable statistics.
+     *
+     * @return whether statistics is enabled or not
      */
     public static boolean enableStatistics() {
         return enableStatistics;
@@ -79,6 +81,8 @@ public class MetricsConfig extends ComponentConfig {
 
     /**
      * Gets cache size for dynamic metrics.
+     *
+     * @return cache size.
      */
     public static long getDynamicCacheSize() {
         return dynamicCacheSize;
@@ -86,6 +90,8 @@ public class MetricsConfig extends ComponentConfig {
 
     /**
      * Gets cache TTL for dynamic metrics.
+     *
+     * @return time to live value.
      */
     public static long getDynamicTTLSeconds() {
         return dynamicTTLSeconds;
@@ -93,6 +99,8 @@ public class MetricsConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating output frequency in seconds.
+     *
+     * @return frequency of output reporting in seconds
      */
     public int getStatsOutputFrequency() {
         return this.yammerStatsOutputFrequencySeconds;
@@ -100,6 +108,8 @@ public class MetricsConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the metrics prefix.
+     *
+     * @return prefix string of metrics
      */
     public String getMetricsPrefix() {
         return this.yammerMetricsPrefix;
@@ -107,6 +117,8 @@ public class MetricsConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the metrics csv endpoint.
+     *
+     * @return CSV endpoint
      */
     public String getCSVEndpoint() {
         return this.yammerCSVEndpoint;
@@ -114,6 +126,8 @@ public class MetricsConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the host name (no port) where StatsD is listening.
+     *
+     * @return StatsD server host name
      */
     public String getStatsDHost() {
         return this.yammerStatsDHost;
@@ -121,6 +135,8 @@ public class MetricsConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the port where StatsD is listening.
+     *
+     * @return StatsD server port number
      */
     public int getStatsDPort() {
         return this.yammerStatsDPort;

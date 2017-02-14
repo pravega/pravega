@@ -23,7 +23,7 @@ import java.util.concurrent.Future;
 /**
  * A writer can write events to a stream.
  * 
- * This class is safe to use across threads, but doing so will not increase performance.
+ * This class is safe to use across t`hreads, but doing so will not increase performance.
  * 
  * @param <Type> The type of events that go in this stream
  */
@@ -67,11 +67,14 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * Returns a previously created transaction.
      * 
      * @param transactionId The result retained from calling {@link Transaction#getTxnId()}
+     * @return transaction object with given UUID
      */
     Transaction<Type> getTxn(UUID transactionId);
 
     /**
      * Returns the configuration that this writer was create with.
+     *
+     * @return writer configuration
      */
     EventWriterConfig getConfig();
 

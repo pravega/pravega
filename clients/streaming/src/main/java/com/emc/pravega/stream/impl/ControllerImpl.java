@@ -61,6 +61,12 @@ public class ControllerImpl implements Controller {
 
     private final ControllerService.AsyncClient client;
 
+    /**
+     * Creates a new instance of Controller class.
+     *
+     * @param host The controller host name.
+     * @param port The controller port number.
+     */
     public ControllerImpl(final String host, final int port) {
         try {
             // initialize transport, protocol factory, and async client manager

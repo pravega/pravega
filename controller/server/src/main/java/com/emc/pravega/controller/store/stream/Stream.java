@@ -39,6 +39,7 @@ interface Stream {
      * Create the stream, by creating/modifying underlying data structures.
      *
      * @param configuration stream configuration.
+     * @param createTimestamp stream created timestamp value.
      * @return boolean indicating success.
      */
     CompletableFuture<Boolean> create(final StreamConfiguration configuration, final long createTimestamp);
@@ -60,13 +61,14 @@ interface Stream {
 
     /**
      * Update the state of the stream.
+     * @param state new state of the transaction
      * @return boolean indicating whether the state of stream is updated.
      */
     CompletableFuture<Boolean> updateState(final State state);
 
     /**
-     *  Get the state of the stream.
-     * @return state othe given stream.
+     * Get the state of the stream.
+     * @return state of the given stream.
      */
     CompletableFuture<State> getState();
 
@@ -108,7 +110,7 @@ interface Stream {
     CompletableFuture<List<Integer>> getActiveSegments(final long timestamp);
 
     /**
-     * Scale the stream by sealing few segments and creating few segments
+     * Scale the stream by sealing few segments and creating few segments.
      *
      * @param sealedSegments segments to be sealed
      * @param newRanges      key ranges of new segments to be created
@@ -120,40 +122,45 @@ interface Stream {
                                            final long scaleTimestamp);
 
     /**
-     * Method to start new transaction creation
-     * @return
+     * Method to start new transaction creation.
+     *
+     * @return Unique identifier of newly created transaction
      */
     CompletableFuture<UUID> createTransaction();
 
     /**
-     * Seal given transaction
-     * @param txId
-     * @return
+     * Seal given transaction.
+     *
+     * @param txId transaction unique identifier
+     * @return transaction status
      */
     CompletableFuture<TxnStatus> sealTransaction(final UUID txId);
 
     /**
-     * Returns transaction's status
-     * @param txId
-     * @return
+     * Returns transaction's status.
+     *
+     * @param txId transaction unique identifier
+     * @return transaction status
      */
     CompletableFuture<TxnStatus> checkTransactionStatus(final UUID txId);
 
     /**
-     * Commits a transaction
+     * Commits a transaction.
      * If already committed, return TxnStatus.Committed
      * If aborted, throw OperationOnTxNotAllowedException
-     * @param txId
-     * @return
+     *
+     * @param txId transaction unique identifier
+     * @return transaction status
      */
     CompletableFuture<TxnStatus> commitTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
 
     /**
-     * Commits a transaction
+     * Commits a transaction.
      * If already aborted, return TxnStatus.Aborted
      * If committed, throw OperationOnTxNotAllowedException
-     * @param txId
-     * @return
+     *
+     * @param txId transaction unique identifier
+     * @return transaction status
      */
     CompletableFuture<TxnStatus> abortTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
 

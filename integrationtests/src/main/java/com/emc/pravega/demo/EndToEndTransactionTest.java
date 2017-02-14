@@ -34,6 +34,12 @@ import org.apache.curator.test.TestingServer;
 import lombok.Cleanup;
 
 public class EndToEndTransactionTest {
+
+    /**
+     * Creates two transactions and publishes a message via each one.
+     * @param args command line arguments. not used for far.
+     * @throws Exception if a transaction fails.
+     */
     public static void main(String[] args) throws Exception {
         @Cleanup
         TestingServer zkTestServer = new TestingServer();

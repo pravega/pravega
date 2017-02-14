@@ -29,6 +29,7 @@ public interface ArrayView {
      *
      * @param index The index to query.
      * @throws ArrayIndexOutOfBoundsException If index is invalid.
+     * @return the value at the given index
      */
     byte get(int index);
 

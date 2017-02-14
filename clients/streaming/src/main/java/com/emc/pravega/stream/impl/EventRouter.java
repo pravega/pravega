@@ -53,7 +53,10 @@ public class EventRouter {
         }
         return streamSegments.getSegmentForKey(HASHER.hashToRange(routingKey));
     }
-    
+
+    /**
+     * Refresh the latest list of segments in the given stream.
+     */
     public void refreshSegmentList() {
         currentSegments.set(getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new));
     }

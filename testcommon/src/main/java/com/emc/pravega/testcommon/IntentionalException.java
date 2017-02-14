@@ -27,10 +27,19 @@ public class IntentionalException extends RuntimeException {
      */
     private static final long serialVersionUID = 1L;
 
+    /**
+     * Creates a new instance of the IntentionalException class.
+     *
+     */
     public IntentionalException() {
         this("intentional");
     }
 
+    /**
+     * Creates a new instance of the IntentionalException class.
+     *
+     * @param message description of exception.
+     */
     public IntentionalException(String message) {
         super(message);
     }

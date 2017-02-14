@@ -43,6 +43,7 @@ public class Timer {
     
     /**
      * Gets the elapsed time, in milliseconds, since the creation of this Timer instance.
+     * @return total milliseconds elapsed since creation of this timer
      */
     public long getElapsedMillis() {
         return getElapsedNanos() / NANOS_TO_MILLIS;
@@ -50,6 +51,7 @@ public class Timer {
 
     /**
      * Gets the elapsed time, in nanoseconds, since the creation of this Timer instance.
+     * @return total nanoseconds it elapsed since creation of this timer
      */
     public long getElapsedNanos() {
         return Math.max(0, System.nanoTime() - this.startNanos);
@@ -57,6 +59,7 @@ public class Timer {
 
     /**
      * Gets the elapsed time since the creation of this Timer instance.
+     * @return total time in nanoseconds that it elapsed since creation of the timer instance
      */
     public Duration getElapsed() {
         return Duration.ofNanos(getElapsedNanos());

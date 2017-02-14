@@ -103,6 +103,7 @@ public interface Controller {
      * 
      * @param stream stream name
      * @param txId transaction id
+     * @return void or TxnFailedException
      */
     CompletableFuture<Void> commitTransaction(final Stream stream, final UUID txId);
 
@@ -113,6 +114,7 @@ public interface Controller {
      * 
      * @param stream stream name
      * @param txId transaction id
+     * @return void or TxnFailedException
      */
     CompletableFuture<Void> abortTransaction(final Stream stream, final UUID txId);
 
@@ -173,6 +175,7 @@ public interface Controller {
      *
      * @param qualifiedSegmentName The name of the segment. Usually obtained from
      *        {@link Segment#getScopedName()}.
+     * @return Pravega node URI.
      */
     CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName);
 

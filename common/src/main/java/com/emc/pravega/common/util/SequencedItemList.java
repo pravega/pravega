@@ -86,6 +86,7 @@ public class SequencedItemList<T extends SequencedItemList.Element> {
      * Truncates items from the beginning of the list up to, and including, the element with the given Sequence Number.
      *
      * @param upToSequenceNumber The Sequence Number to truncate up to.
+     * @return number of truncated elements.
      */
     public int truncate(long upToSequenceNumber) {
         int count = 0;
@@ -247,6 +248,7 @@ public class SequencedItemList<T extends SequencedItemList.Element> {
         /**
          * Gets a value indicating the Sequence Number for this item.
          * The Sequence Number is a unique, strictly monotonically increasing number that assigns order to items.
+         * @return a sequence number.
          */
         long getSequenceNumber();
     }

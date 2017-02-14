@@ -27,6 +27,11 @@ import lombok.Cleanup;
 
 public class StartWriter {
 
+    /**
+     * Connects to local servers, and publishes 10 event via transaction, and 10 via non-transaction.
+     * @param args not used.
+     * @throws Exception in case of failure.
+     */
     public static void main(String[] args) throws Exception {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,

@@ -29,7 +29,12 @@ public class Append implements Request, Comparable<Append> {
     final long eventNumber;
     final ByteBuf data;
     final Long expectedLength;
-    
+
+    /**
+     * Returns a value indicating whether this is a conditional append.
+     *
+     * @return true if append is conditional.
+     */
     public boolean isConditional() {
         return expectedLength != null;
     }

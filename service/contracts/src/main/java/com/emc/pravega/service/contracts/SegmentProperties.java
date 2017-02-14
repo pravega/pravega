@@ -26,26 +26,31 @@ import java.util.Date;
 public interface SegmentProperties {
     /**
      * Gets a value indicating the name of this StreamSegment.
+     * @return segment name.
      */
     String getName();
 
     /**
      * Gets a value indicating whether this StreamSegment is sealed for modifications.
+     * @return boolean whether segment is sealed or not.
      */
     boolean isSealed();
 
     /**
      * Gets a value indicating whether this StreamSegment is deleted (does not exist).
+     * @return boolean whether segment is deleted or not.
      */
     boolean isDeleted();
 
     /**
      * Gets a value indicating the last modification time of the StreamSegment.
+     * @return timestamp when the segment was last modified
      */
     Date getLastModified();
 
     /**
      * Gets a value indicating the full, readable length of the StreamSegment.
+     * @return segment length
      */
     long getLength();
 }

@@ -25,6 +25,12 @@ import com.emc.pravega.common.netty.WireCommand;
  */
 public interface ClientConnection extends AutoCloseable {
 
+    /**
+     * Sends a wire command asynchronously.
+     *
+     * @param cmd The wire comment to be sent.
+     * @return A future.
+     */
     Future<Void> sendAsync(WireCommand cmd);
 
     /**

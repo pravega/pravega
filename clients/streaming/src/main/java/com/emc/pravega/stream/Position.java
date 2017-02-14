@@ -30,6 +30,8 @@ public interface Position extends Serializable {
     
     /**
      * Used internally. Do not call.
+     * 
+     * @return implementation of position object interface
      */
     PositionInternal asImpl();
 }

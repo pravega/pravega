@@ -52,6 +52,12 @@ public class SegmentOutputStreamTest {
         return ByteBuffer.wrap(s.getBytes());
     }
 
+    /**
+     * Tests if connection succeeds and written event is properly acked.
+     *
+     * @throws ConnectionFailedException in case of connection failure.
+     * @throws SegmentSealedException in case of attempt to the segment  that is ready sealed.
+     */
     @Test
     public void testConnectAndSend() throws SegmentSealedException, ConnectionFailedException {
         UUID cid = UUID.randomUUID();
@@ -68,7 +74,13 @@ public class SegmentOutputStreamTest {
         sendAndVerifyEvent(cid, connection, output, getBuffer("test"), 1, null);
         verifyNoMoreInteractions(connection);
     }
-    
+
+    /**
+     * Test if conditional write succeeds.
+     *
+     * @throws ConnectionFailedException in case of connection failure.
+     * @throws SegmentSealedException in case of attempt to the segment  that is ready sealed.
+     */
     @Test
     public void testConditionalSend() throws SegmentSealedException, ConnectionFailedException {
         UUID cid = UUID.randomUUID();
@@ -86,6 +98,12 @@ public class SegmentOutputStreamTest {
         verifyNoMoreInteractions(connection);
     }
 
+    /**
+     * Test if latter events are sent after the events that are already sent.
+     *
+     * @throws ConnectionFailedException in case of connection failure.
+     * @throws SegmentSealedException in case of attempt to the segment that is ready sealed.
+     */
     @Test(timeout = 20000)
     public void testNewEventsGoAfterInflight() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
@@ -132,6 +150,13 @@ public class SegmentOutputStreamTest {
         assertEquals(false, acked.isDone());
     }
 
+    /**
+     * Test if connection close() operation succeeds and no more interaction happend afterward.
+     *
+     * @throws ConnectionFailedException in case of connection failure.
+     * @throws SegmentSealedException in case of attempt to the segment that is ready sealed.
+     * @throws InterruptedException in case of interruption happened.
+     */
     @Test
     public void testClose() throws ConnectionFailedException, SegmentSealedException, InterruptedException {
         UUID cid = UUID.randomUUID();
@@ -159,36 +184,57 @@ public class SegmentOutputStreamTest {
         verifyNoMoreInteractions(connection);
     }
 
+    /**
+     * Tests in case of connection failure
+     */
     @Test
     @Ignore
     public void testConnectionFailure() {
         fail();
     }
 
+    /**
+     * Tests if flushing empties the buffer and send the content.
+     */
     @Test
     @Ignore
     public void testFlush() {
         fail();
     }
 
+    /**
+     * Tests if output stream is closed automatically upon timeout.
+     */
     @Test
     @Ignore
     public void testAutoClose() {
         fail();
     }
 
+    /**
+     * Tests if write fails after auto close.
+     */
     @Test
     @Ignore
     public void testFailOnAutoClose() {
         fail();
     }
 
+    /**
+     * Tests if out of order acks is observed or not.
+     */
     @Test
     @Ignore
     public void testOutOfOrderAcks() {
         fail();
     }
 
+    /**
+     * Tests if attempt to write an event with size that is greater than Max_Write_Size fails or not.
+     *
+     * @throws ConnectionFailedException in case of connection issues.
+     * @throws SegmentSealedException in case of attempt on sealed segment
+     */
     @Test
     public void testOverSizedWriteFails() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();

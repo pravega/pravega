@@ -39,6 +39,12 @@ import org.apache.curator.test.TestingServer;
 import lombok.Cleanup;
 
 public class StreamMetadataTest {
+
+    /**
+     * Verifies the metadata (i.e. configuration) of a stream, every time it does an operation on it.
+     * @param args not used so far.
+     * @throws Exception in case of failure.
+     */
     @SuppressWarnings("checkstyle:ReturnCount")
     public static void main(String[] args) throws Exception {
         TestingServer zkTestServer = new TestingServer();

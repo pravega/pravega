@@ -39,12 +39,16 @@ public interface SegmentInputStream extends AutoCloseable {
     /**
      * Gets the current offset. (Passing this to setOffset in the future will reset reads to the
      * current position in the segment.)
+     * 
+     * @return The current offset.
      */
     public abstract long getOffset();
     
     /**
      * Returns the length of the current segment. i.e. calling setOffset with the result of this
      * method followed by read would result in read blocking until more data is written.
+     * 
+     * @return The length of the current segment.
      */
     public abstract long fetchCurrentStreamLength();
 
@@ -66,6 +70,8 @@ public interface SegmentInputStream extends AutoCloseable {
     
     /**
      * Returns true if the data can be read from the local buffer without blocking the caller.
+     *
+     * @return false if data read is blocking.
      */
     public boolean canReadWithoutBlocking();
 }

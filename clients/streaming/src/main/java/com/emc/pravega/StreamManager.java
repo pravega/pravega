@@ -32,6 +32,13 @@ import java.util.List;
  */
 public interface StreamManager extends AutoCloseable {
 
+    /**
+     * Creates a new instance of StreamManager.
+     *
+     * @param scope The Scope string.
+     * @param controllerUri The Controller URI.
+     * @return Instance of Stream Manager implementation.
+     */
     public static StreamManager withScope(String scope, URI controllerUri) {
         return new StreamManagerImpl(scope, controllerUri, ClientFactory.withScope(scope, controllerUri));
     }
@@ -50,6 +57,7 @@ public interface StreamManager extends AutoCloseable {
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ReaderGroup.
      * @param streamNames The name of the streams the reader will read from.
+     * @return Newly created ReaderGroup object
      */
     ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames);
     
@@ -66,6 +74,7 @@ public interface StreamManager extends AutoCloseable {
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ReaderGroup.
      * @param streamNames The name of the streams the reader will read from.
+     * @return ReaderGroup with updated configuration
      */
     ReaderGroup updateReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames);
     
@@ -73,6 +82,7 @@ public interface StreamManager extends AutoCloseable {
      * Returns the requested reader group.
      * 
      * @param groupName The name of the group
+     * @return reader group with the given name
      */
     ReaderGroup getReaderGroup(String groupName);
     
@@ -113,6 +123,7 @@ public interface StreamManager extends AutoCloseable {
      * @param streamName The name of the stream which has to be sealed.
      */
     void sealStream(String streamName);
+
     
     /**
      * Deletes the provided stream. No more events may be written or read.

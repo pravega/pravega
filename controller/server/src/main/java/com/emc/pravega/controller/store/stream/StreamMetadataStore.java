@@ -142,7 +142,7 @@ public interface StreamMetadataStore {
      * @param scope  scope
      * @param stream stream
      * @param txId   transaction id
-     * @return
+     * @return transaction status
      */
     CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId);
 
@@ -152,7 +152,7 @@ public interface StreamMetadataStore {
      * @param scope  scope
      * @param stream stream
      * @param txId   transaction id
-     * @return
+     * @return transaction status
      */
     CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId);
 
@@ -162,7 +162,7 @@ public interface StreamMetadataStore {
      * @param scope  scope
      * @param stream stream
      * @param txId   transaction id
-     * @return
+     * @return transaction status
      */
     CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId);
 
@@ -172,7 +172,7 @@ public interface StreamMetadataStore {
      * @param scope  scope
      * @param stream stream
      * @param txId   transaction id
-     * @return
+     * @return transaction status
      */
     CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final UUID txId);
 
@@ -188,7 +188,7 @@ public interface StreamMetadataStore {
      * Returns all active transactions for all streams.
      * This is used for periodically identifying timedout transactions which can be aborted
      *
-     * @return
+     * @return list of all active transactions
      */
     CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx();
 }

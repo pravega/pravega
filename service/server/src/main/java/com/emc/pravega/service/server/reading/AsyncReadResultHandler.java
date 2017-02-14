@@ -29,10 +29,10 @@ import java.time.Duration;
 public interface AsyncReadResultHandler {
     /**
      * Determines whether the AsyncReadResultProcessor should request data for the given ReadResultEntryType and Offset.
-     * <p/>
+     *
      * This method will only be invoked on those ReadResultEntries that do not currently have data available for consumption,
      * such as StorageReadResultEntry or FutureReadResultEntry.
-     * <p/>
+     *
      * If a call to this method returns false, the AsyncReadResultProcessor, as well as the underlying ReadResult, will be closed.
      *
      * @param entryType           The Type of the ReadResultEntry to process.

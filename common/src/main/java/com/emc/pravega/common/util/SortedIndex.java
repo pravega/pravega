@@ -57,6 +57,7 @@ public interface SortedIndex<V extends SortedIndex.IndexEntry> {
 
     /**
      * Gets a value indicating the number of items in the Index.
+     * @return number of items in this index.
      */
     int size();
 

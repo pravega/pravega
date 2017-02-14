@@ -46,11 +46,15 @@ public interface Counter {
 
     /**
      * Get the value associated with this stat.
+     *
+     * @return counter value.
      */
     long get();
 
     /**
      * Gets name.
+     *
+     * @return counter name.
      */
     String getName();
 }

@@ -59,6 +59,14 @@ import java.util.function.Supplier;
 @Slf4j
 public final class Retry {
 
+    /**
+     * Initializes retry with back off instance with given configurations, but no delay.
+     *
+     * @param initialMillis Initial milliseconds to wait before retry.
+     * @param multiplier Multiplier that will apply to initial milliseconds for next retry.
+     * @param attempts Number of attempts of retry.
+     * @return An Retry with back off instance.
+     */
     private Retry() {
     }
 
@@ -66,6 +74,15 @@ public final class Retry {
         return withExpBackoff(initialMillis, multiplier, attempts, Long.MAX_VALUE);
     }
 
+    /**
+     * Initializes retry with back off instance with given configurations.
+     *
+     * @param initialMillis Initial milliseconds to wait before retry.
+     * @param multiplier Multiplier that will apply to initial milliseconds for next retry.
+     * @param attempts Number of attempts of retry.
+     * @param maxDelay Maximum delay between retries.
+     * @return An Retry with back off instance.
+     */
     public static RetryWithBackoff withExpBackoff(long initialMillis, int multiplier, int attempts, long maxDelay) {
         Preconditions.checkArgument(initialMillis >= 1, "InitialMillis must be a positive integer.");
         Preconditions.checkArgument(multiplier >= 1, "multiplier must be a positive integer.");
@@ -91,6 +108,13 @@ public final class Retry {
             this.maxDelay = maxDelay;
         }
 
+        /**
+         * An exception that should result in a retry.
+         *
+         * @param retryType The type of retry.
+         * @param <RetryT> Retry type.
+         * @return Exception with all required retry params.
+         */
         public <RetryT extends Exception> RetryingOnException<RetryT> retryingOn(Class<RetryT> retryType) {
             Preconditions.checkNotNull(retryType);
             return new RetryingOnException<>(retryType, this);
@@ -99,6 +123,7 @@ public final class Retry {
 
     /**
      * Returned by {@link RetryWithBackoff#retryingOn(Class)} to add the type of exception that should result in a retry.
+     *
      * Any subtype of this exception will be retried unless the subtype is passed to {@link RetryingOnException#throwingOn(Class)}.
      */
     public static final class RetryingOnException<RetryT extends Exception> {
@@ -110,6 +135,13 @@ public final class Retry {
             this.params = params;
         }
 
+        /**
+         * An exception that should result in a retry.
+         *
+         * @param throwType Type of throwable.
+         * @param <ThrowsT> Exception Type.
+         * @return Exception with all required retry params.
+         */
         public <ThrowsT extends Exception> ThrowingOnException<RetryT, ThrowsT> throwingOn(Class<ThrowsT> throwType) {
             Preconditions.checkNotNull(throwType);
             return new ThrowingOnException<>(retryType, throwType, params);
@@ -118,6 +150,15 @@ public final class Retry {
 
     @FunctionalInterface
     public interface Retryable<ReturnT, RetryableET extends Exception, NonRetryableET extends Exception> {
+
+        /**
+         * A job that have been attempted to run and throws retry exception indicating whether it should be retried or not.
+         *
+         * @return Return Type.
+         * @throws RetryableET Retryable Type.
+         * @throws NonRetryableET NonRetryable Type.
+         */
+
         ReturnT attempt() throws RetryableET, NonRetryableET;
     }
 
@@ -137,6 +178,14 @@ public final class Retry {
             this.params = params;
         }
 
+        /**
+         * Attempts to run the given retryable job, and if failed, it schedules retry after 'delay'.
+         *
+         * @param r A job to be run.
+         * @param <ReturnT> A Return Type
+         * @return Job execution status or exception.
+         * @throws ThrowsT that attempt to run R has failed.
+         */
         @SuppressWarnings("unchecked")
         public <ReturnT> ReturnT run(Retryable<ReturnT, RetryT, ThrowsT> r) throws ThrowsT {
             Preconditions.checkNotNull(r);
@@ -164,6 +213,14 @@ public final class Retry {
             throw new RetriesExhaustedException(last);
         }
 
+        /**
+         * Runs the future using the given executor service for the first time.
+         *
+         * @param r A future to be run.
+         * @param executorService An executor service.
+         * @param <ReturnT> A Return Type
+         * @return ReturnT
+         */
         public <ReturnT> CompletableFuture<ReturnT> runAsync(final Supplier<CompletableFuture<ReturnT>> r,
                                                              final ScheduledExecutorService executorService) {
             Preconditions.checkNotNull(r);

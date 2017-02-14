@@ -82,6 +82,10 @@ public class ReadTest {
     private Level originalLevel;
     private ServiceBuilder serviceBuilder;
 
+    /**
+     * Sets up the Service builder, and initializes it.
+     * @throws Exception in case of failure
+     */
     @Before
     public void setup() throws Exception {
         originalLevel = ResourceLeakDetector.getLevel();
@@ -91,12 +95,21 @@ public class ReadTest {
         this.serviceBuilder.initialize().get();
     }
 
+    /**
+     * Destroys the Service builder.
+     */
     @After
     public void teardown() {
         this.serviceBuilder.close();
         ResourceLeakDetector.setLevel(originalLevel);
     }
 
+    /**
+     * Read directly from segment store.
+     * @throws InterruptedException If interrupted.
+     * @throws ExecutionException If failed during execution.
+     * @throws IOException If data is not constructed properly, or connection issue.
+     */
     @Test
     public void testReadDirectlyFromStore() throws InterruptedException, ExecutionException, IOException {
         String segmentName = "testReadFromStore";
@@ -127,6 +140,10 @@ public class ReadTest {
         assertEquals(entries * data.length, index);
     }
 
+    /**
+     * Tests receiving segment read call at wire command level.
+     * @throws Exception in case of a failure.
+     */
     @Test
     public void testReceivingReadCall() throws Exception {
         String segmentName = "testReceivingReadCall";
@@ -155,6 +172,11 @@ public class ReadTest {
         assertEquals(expected, result.getData());
     }
 
+    /**
+     * Send and receive bytes to/from a segment using streaming client api.
+     * @throws SegmentSealedException if segment has already been sealed/deleted.
+     * @throws EndOfSegmentException if segment has reached its end.
+     */
     @Test
     public void readThroughSegmentClient() throws SegmentSealedException, EndOfSegmentException {
         String endpoint = "localhost";
@@ -188,6 +210,9 @@ public class ReadTest {
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
     }
 
+    /**
+     * Send and receive bytes to/from a segment using Event Writer and Reader API.
+     */
     @Test
     public void readThroughStreamClient() {
         String endpoint = "localhost";

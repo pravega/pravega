@@ -32,6 +32,7 @@ public interface OperationLogFactory {
      * @param cacheUpdater      A CacheUpdater that can be used to store new appends in.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the metadata is already in recovery mode.
+     * @return Operation log instance
      */
     OperationLog createDurableLog(UpdateableContainerMetadata containerMetadata, CacheUpdater cacheUpdater);
 }

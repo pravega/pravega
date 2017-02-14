@@ -24,14 +24,27 @@ public class InvalidMessageException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * Creates a new instance of InvalidMessageException class.
+     */
     public InvalidMessageException() {
         super();
     }
 
+    /**
+     * Creates a new instance of InvalidMessageException class.
+     *
+     * @param string Description of exception
+     */
     public InvalidMessageException(String string) {
         super(string);
     }
 
+    /**
+     * Creates a new instance of InvalidMessageException class.
+     *
+     * @param throwable An exception
+     */
     public InvalidMessageException(Throwable throwable) {
         super(throwable);
     }

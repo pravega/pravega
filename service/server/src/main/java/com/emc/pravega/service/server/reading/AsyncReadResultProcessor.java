@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * for each ReadResultEntry returned by the result. This class is suitable for handling long-poll reads, as it does not
  * hog any threads while waiting for such future reads to become available. It only uses (a thread from) the Executor
  * when the data for a read becomes available, at which point it executes the handler on such a thread.
- * <p/>
+ *
  * The AsyncReadResultProcessor stops when any of the following conditions occur
  * <ul>
  * <li> The ReadResult reaches the end (hasNext() == false)

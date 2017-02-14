@@ -58,6 +58,7 @@ public class ServiceBuilderConfig {
      *
      * @param constructor The constructor for the new instance.
      * @param <T>         The type of the ComponentConfig to instantiate.
+     * @return ServiceBuilder's configuration.
      */
     public <T extends ComponentConfig> T getConfig(Function<Properties, ? extends T> constructor) {
         return constructor.apply(this.properties);
@@ -99,6 +100,7 @@ public class ServiceBuilderConfig {
      * Gets a default set of configuration values, in absence of any real configuration.
      * These configuration values are the default ones from all component configurations, except that it will
      * create only one container to host segments.
+     * @return default set of configuration values
      */
     public static ServiceBuilderConfig getDefaultConfig() {
         Properties p = new Properties();

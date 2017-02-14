@@ -79,6 +79,7 @@ public class ErrorInjector<T extends Throwable> {
      *
      * @param injector The Error Injector to use.
      * @param <T>      The type of exception to throw.
+     * @return a CompletableFuture.
      */
     public static <T extends Throwable> CompletableFuture<Void> throwAsyncExceptionIfNeeded(ErrorInjector<T> injector) {
         CompletableFuture<Void> result = null;
@@ -96,6 +97,7 @@ public class ErrorInjector<T extends Throwable> {
     /**
      * Gets a value indicating the Exception (T) that was thrown during the last call to throwIfNecessary(). If no
      * exception was thrown, null is returned.
+     * @return exception from last call to throwIfNecessary(), or null if none exists.
      */
     public T getLastCycleException() {
         return this.lastCycleException;
@@ -107,6 +109,7 @@ public class ErrorInjector<T extends Throwable> {
      *
      * @param injectors The injectors to inspect.
      * @param <T>       The type of exception to throw.
+     * @return An exception (T) that was thrown from last call.
      */
     @SafeVarargs
     public static <T extends Throwable> T getLastCycleException(ErrorInjector<T>... injectors) {
