@@ -113,7 +113,7 @@ public class RequestTest {
     @Test
     public void testScaleRequest() throws ExecutionException, InterruptedException {
         ScaleRequestHandler requestHandler = new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor);
-        ScaleRequest request = new ScaleRequest(scope, stream, 2, ScaleRequest.UP, System.currentTimeMillis(), 2);
+        ScaleRequest request = new ScaleRequest(scope, stream, 2, ScaleRequest.UP, System.currentTimeMillis(), 2, false);
 
         assert FutureHelpers.await(requestHandler.process(request));
         List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
@@ -123,7 +123,7 @@ public class RequestTest {
         assert activeSegments.stream().anyMatch(z -> z.getNumber() == 4);
         assert activeSegments.size() == 4;
 
-        request = new ScaleRequest(scope, stream, 4, ScaleRequest.DOWN, System.currentTimeMillis(), 0);
+        request = new ScaleRequest(scope, stream, 4, ScaleRequest.DOWN, System.currentTimeMillis(), 0, false);
 
         assert FutureHelpers.await(requestHandler.process(request));
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
@@ -131,7 +131,7 @@ public class RequestTest {
         assert activeSegments.stream().anyMatch(z -> z.getNumber() == 4);
         assert activeSegments.size() == 4;
 
-        request = new ScaleRequest(scope, stream, 3, ScaleRequest.DOWN, System.currentTimeMillis(), 0);
+        request = new ScaleRequest(scope, stream, 3, ScaleRequest.DOWN, System.currentTimeMillis(), 0, false);
 
         assert FutureHelpers.await(requestHandler.process(request));
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();

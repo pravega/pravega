@@ -113,7 +113,9 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     @Override
     public void createSegment(String streamSegmentName, byte type, int targetRate) {
         cache.put(streamSegmentName, new SegmentAggregates(targetRate, type));
-        monitors.forEach(x -> x.notify(streamSegmentName, SegmentTrafficMonitor.NotificationType.SegmentCreated));
+        if (type != WireCommands.CreateSegment.NO_SCALE) {
+            monitors.forEach(x -> x.notify(streamSegmentName, SegmentTrafficMonitor.NotificationType.SegmentCreated));
+        }
     }
 
     @Override

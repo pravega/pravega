@@ -289,7 +289,7 @@ public interface StreamMetadataStore {
      * @param scope         scope for stream
      * @param stream        name of stream
      * @param segmentNumber segment number
-     * @param timestamp     time at which request for marking a segment cold was generated.
+     * @param timestamp     time till which this cold marker is valid.
      * @param context       context in which this operation is taking place.
      * @param executor      callers executor
      * @return Completable future

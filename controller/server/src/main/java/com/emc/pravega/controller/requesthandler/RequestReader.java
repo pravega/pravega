@@ -187,7 +187,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                 // an exception is thrown while doing reads for next events.
                 // And we should never stop processing of other requests in the queue even if processing a request throws
                 // an exception.
-                log.warn("Exception thrown while processing event. {}. Logging and continuing. Stack trace {}", e.getMessage(), e.getStackTrace());
+                log.error("Exception thrown while processing event. {}. Logging and continuing. Stack trace {}", e.getMessage(), e.getStackTrace());
             }
         }
     }

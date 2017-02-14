@@ -42,7 +42,6 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 /**
  * This looks at segment aggregates and determines if a scale operation has to be triggered.
@@ -70,6 +69,9 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
     private static long muteDuration = MUTE_DURATION.toMillis();
     private static long cooldownPeriod = MINIMUM_COOLDOWN_PERIOD.toMillis();
 
+    private static long cacheCleanupInMinutes = 10;
+    private static long cacheExpiryInMinutes = 20;
+
     private static AtomicReference<ThresholdMonitor> singletonMonitor = new AtomicReference<>();
 
     private final AtomicReference<ClientFactory> clientFactory = new AtomicReference<>();
@@ -78,10 +80,10 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
     final Cache<String, Pair<Long, Long>> cache = CacheBuilder.newBuilder()
             .initialCapacity(INITIAL_CAPACITY)
             .maximumSize(MAX_CACHE_SIZE)
-            .expireAfterAccess(20, TimeUnit.MINUTES)
+            .expireAfterAccess(cacheExpiryInMinutes, TimeUnit.MINUTES)
             .removalListener((RemovalListener<String, Pair<Long, Long>>) notification -> {
                 if (notification.getCause().equals(RemovalCause.EXPIRED)) {
-                    triggerScaleDown(notification.getKey());
+                    triggerScaleDown(notification.getKey(), true);
                 }
             })
             .build();
@@ -107,13 +109,11 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
     }
 
     @VisibleForTesting
-    public static void setMuteDuration(Duration duration) {
-        muteDuration = duration.toMillis();
-    }
-
-    @VisibleForTesting
-    public static void setCooldownDuration(Duration duration) {
-        cooldownPeriod = duration.toMillis();
+    public static void setDefaults(Duration mute, Duration coolDown, long cacheCleanupInMinutes, long cacheExpiryInMinutes) {
+        muteDuration = mute.toMillis();
+        cooldownPeriod = coolDown.toMillis();
+        ThresholdMonitor.cacheCleanupInMinutes = cacheCleanupInMinutes;
+        ThresholdMonitor.cacheExpiryInMinutes = cacheExpiryInMinutes;
     }
 
     static ThresholdMonitor getMonitorSingleton(ClientFactory clientFactory) {
@@ -133,54 +133,62 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
                     serializer,
                     config);
             initialized.set(true);
+            // even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
+            // caches do not perform clean up if there is no activity. This is because they do not maintain their
+            // own background thread.
+            EXECUTOR.scheduleAtFixedRate(cache::cleanUp, 10, cacheCleanupInMinutes, TimeUnit.MINUTES);
         }, createWriter);
     }
 
     private void triggerScaleUp(String streamSegmentName, int numOfSplits) {
-        Pair<Long, Long> pair = cache.getIfPresent(streamSegmentName);
-        long lastRequestTs = 0;
+        checkAndRun(() -> {
+            Pair<Long, Long> pair = cache.getIfPresent(streamSegmentName);
+            long lastRequestTs = 0;
 
-        if (pair != null && pair.getKey() != null) {
-            lastRequestTs = pair.getKey();
-        }
+            if (pair != null && pair.getKey() != null) {
+                lastRequestTs = pair.getKey();
+            }
 
-        long timestamp = System.currentTimeMillis();
+            long timestamp = System.currentTimeMillis();
 
-        if (timestamp - lastRequestTs > muteDuration) {
-            Segment segment = Segment.fromScopedName(streamSegmentName);
-            ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleRequest.UP, timestamp, numOfSplits);
-            // Mute scale for timestamp for both scale up and down
-            CompletableFuture.runAsync(() -> {
-                try {
-                    writer.writeEvent(event.getKey(), event).get();
-                } catch (InterruptedException | ExecutionException e) {
-                    throw new RuntimeException(e);
-                }
-            }, EXECUTOR).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
-        }
+            if (timestamp - lastRequestTs > muteDuration) {
+                Segment segment = Segment.fromScopedName(streamSegmentName);
+                ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleRequest.UP, timestamp, numOfSplits, false);
+                // Mute scale for timestamp for both scale up and down
+                CompletableFuture.runAsync(() -> {
+                    try {
+                        writer.writeEvent(event.getKey(), event).get();
+                    } catch (InterruptedException | ExecutionException e) {
+                        throw new RuntimeException(e);
+                    }
+                }, EXECUTOR).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
+            }
+        });
     }
 
-    private void triggerScaleDown(String streamSegmentName) {
-        Pair<Long, Long> pair = cache.getIfPresent(streamSegmentName);
-        long lastRequestTs = 0;
+    private void triggerScaleDown(String streamSegmentName, boolean silent) {
+        checkAndRun(() -> {
+            Pair<Long, Long> pair = cache.getIfPresent(streamSegmentName);
+            long lastRequestTs = 0;
 
-        if (pair != null && pair.getValue() != null) {
-            lastRequestTs = pair.getValue();
-        }
+            if (pair != null && pair.getValue() != null) {
+                lastRequestTs = pair.getValue();
+            }
 
-        long timestamp = System.currentTimeMillis();
-        if (timestamp - lastRequestTs > muteDuration) {
-            Segment segment = Segment.fromScopedName(streamSegmentName);
-            ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleRequest.DOWN, timestamp, 0);
-            CompletableFuture.runAsync(() -> {
-                try {
-                    writer.writeEvent(event.getKey(), event).get();
-                } catch (InterruptedException | ExecutionException e) {
-                    throw new RuntimeException(e);
-                }
-                // mute only scale downs
-            }, EXECUTOR).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(0L, timestamp)));
-        }
+            long timestamp = System.currentTimeMillis();
+            if (timestamp - lastRequestTs > muteDuration) {
+                Segment segment = Segment.fromScopedName(streamSegmentName);
+                ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleRequest.DOWN, timestamp, 0, silent);
+                CompletableFuture.runAsync(() -> {
+                    try {
+                        writer.writeEvent(event.getKey(), event).get();
+                    } catch (InterruptedException | ExecutionException e) {
+                        throw new RuntimeException(e);
+                    }
+                    // mute only scale downs
+                }, EXECUTOR).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(0L, timestamp)));
+            }
+        });
     }
 
     @Override
@@ -202,29 +210,25 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
                             tenMinuteRate < targetRate &&
                             twentyMinuteRate < targetRate / 2 &&
                             currentTime - startTime > TWENTY_MINUTES) {
-                        triggerScaleDown(streamSegmentName);
+                        triggerScaleDown(streamSegmentName, false);
                     }
                 }
             }
-            return null;
         });
     }
 
     @Override
     public void notify(String segmentStreamName, NotificationType type) {
-        checkAndRun(() -> {
-            if (type.equals(NotificationType.SegmentCreated)) {
-                cache.put(segmentStreamName, new ImmutablePair<>(System.currentTimeMillis(), System.currentTimeMillis()));
-            } else if (type.equals(NotificationType.SegmentSealed)) {
-                cache.invalidate(segmentStreamName);
-            }
-            return null;
-        });
+        if (type.equals(NotificationType.SegmentCreated)) {
+            cache.put(segmentStreamName, new ImmutablePair<>(System.currentTimeMillis(), System.currentTimeMillis()));
+        } else if (type.equals(NotificationType.SegmentSealed)) {
+            cache.invalidate(segmentStreamName);
+        }
     }
 
-    private void checkAndRun(Supplier<Void> supplier) {
+    private void checkAndRun(Runnable supplier) {
         if (initialized.get()) {
-            supplier.get();
+            supplier.run();
         }
     }
 

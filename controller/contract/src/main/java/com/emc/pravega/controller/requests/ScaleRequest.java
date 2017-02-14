@@ -30,6 +30,7 @@ public class ScaleRequest implements ControllerRequest {
     private final byte direction;
     private final long timestamp;
     private final int numOfSplits;
+    private final boolean silent;
 
     @Override
     public RequestType getType() {

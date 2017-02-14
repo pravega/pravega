@@ -25,7 +25,6 @@ public interface ControllerRequest extends Serializable {
     String getKey();
 
     enum RequestType {
-        ScaleRequest,
-        TxTimeoutRequest
+        ScaleRequest
     }
 }

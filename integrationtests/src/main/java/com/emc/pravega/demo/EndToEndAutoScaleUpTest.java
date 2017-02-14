@@ -42,7 +42,7 @@ import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
-public class EndToEndAutoScaleTest {
+public class EndToEndAutoScaleUpTest {
     static StreamConfigurationImpl config = new StreamConfigurationImpl("test", "test",
             new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 10, 2, 3));
 
@@ -63,8 +63,7 @@ public class EndToEndAutoScaleTest {
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-            ThresholdMonitor.setCooldownDuration(Duration.ofMinutes(1));
-            ThresholdMonitor.setMuteDuration(Duration.ofMinutes(1));
+            ThresholdMonitor.setDefaults(Duration.ofMinutes(0), Duration.ofMinutes(0), 10, 10);
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
@@ -88,7 +87,7 @@ public class EndToEndAutoScaleTest {
             CompletableFuture.runAsync(() -> {
                 while (System.currentTimeMillis() - start < Duration.ofMinutes(3).toMillis()) {
                     try {
-                        test.writeEvent("1", str).get();
+                        test.writeEvent("0", str).get();
                     } catch (Throwable e) {
                         System.err.print("test exception writing events " + e.getMessage());
                         break;
@@ -100,8 +99,7 @@ public class EndToEndAutoScaleTest {
 
             StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
             if (streamSegments.getSegments().size() > 3) {
-                System.err.println("Success");
-                System.exit(0);
+                System.err.println("Success scale up");
             } else {
                 System.out.println("Failure");
                 System.exit(1);

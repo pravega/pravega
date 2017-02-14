@@ -79,12 +79,13 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
 
     @Override
     public CompletableFuture<Void> process(final ScaleRequest request) {
-        if (!isValid(request.getTimestamp())) {
+        if (!(request.getTimestamp() + REQUEST_VALIDITY_PERIOD > System.currentTimeMillis())) {
             // request no longer valid. Ignore.
             // log, because a request was fetched from the stream after its validity expired.
             // This should be a rare occurrence. Either the request was unable to acquire lock for a long time. Or
             // we are processing at much slower rate than the message ingestion rate into the stream. We should scale up.
             // Either way, logging this helps us know how often this is happening.
+
             log.debug(String.format("Scale Request for stream %s/%s expired", request.getScope(), request.getStream()));
             return CompletableFuture.completedFuture(null);
         }
@@ -158,7 +159,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
      * @return true if validity period has not elapsed since timestamp, else false.
      */
     private boolean isValid(long timestamp) {
-        return timestamp > System.currentTimeMillis() - REQUEST_VALIDITY_PERIOD;
+        return timestamp > System.currentTimeMillis();
     }
 
     private CompletableFuture<Void> processScaleUp(final ScaleRequest request, final ScalingPolicy policy, final OperationContext context) {
@@ -186,7 +187,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
             return streamMetadataStore.setMarker(request.getScope(),
                     request.getStream(),
                     request.getSegmentNumber(),
-                    request.getTimestamp(),
+                    request.isSilent() ? Long.MAX_VALUE : request.getTimestamp() + REQUEST_VALIDITY_PERIOD,
                     context, executor)
                     .thenCompose(x -> streamMetadataStore.getActiveSegments(request.getScope(), request.getStream(), context, executor))
                     .thenApply(activeSegments -> {
