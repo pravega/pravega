@@ -57,6 +57,11 @@ public final class SegmentMetadataComparer {
      */
     public static void assertSameAttributes(String message, Map<UUID, Long> expected, SegmentMetadata metadata) {
         val actual = metadata.getAttributes();
+        if (expected == null) {
+            Assert.assertEquals(message + " No attributes expected.", 0, actual.size());
+            return;
+        }
+
         Assert.assertEquals(message + " Counts differ.", expected.size(), actual.size());
         for (Map.Entry<UUID, Long> e : expected.entrySet()) {
             Assert.assertTrue(" attribute not found " + e.getKey(), actual.containsKey(e.getKey()));

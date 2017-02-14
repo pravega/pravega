@@ -103,6 +103,6 @@ public class StreamSegmentInformation implements SegmentProperties {
     }
 
     private static Map<UUID, Long> getAttributes(Map<UUID, Long> input) {
-        return input == null ? Collections.emptyMap() : Collections.unmodifiableMap(new HashMap<>(input));
+        return input == null || input.size() == 0 ? Collections.emptyMap() : Collections.unmodifiableMap(new HashMap<>(input));
     }
 }

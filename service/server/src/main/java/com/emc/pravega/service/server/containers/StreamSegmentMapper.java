@@ -23,12 +23,14 @@ import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.common.util.AsyncMap;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
@@ -57,6 +59,7 @@ public class StreamSegmentMapper {
     private final String traceObjectId;
     private final ContainerMetadata containerMetadata;
     private final OperationLog durableLog;
+    private final AsyncMap<String, SegmentState> stateStore;
     private final Storage storage;
     private final Executor executor;
     private final HashMap<String, CompletableFuture<Long>> pendingRequests;
@@ -72,19 +75,22 @@ public class StreamSegmentMapper {
      * @param containerMetadata The StreamSegmentContainerMetadata to bind to. All assignments are vetted from here,
      *                          but the Metadata is not touched directly from this component.
      * @param durableLog        The Durable Log to bind to. All assignments are durably stored here.
+     * @param stateStore        A AsyncMap that can be used to store Segment State.
      * @param storage           The Storage to use for all external operations (create segment, get info, etc.)
      * @param executor          The executor to use for async operations.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public StreamSegmentMapper(ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage, Executor executor) {
+    public StreamSegmentMapper(ContainerMetadata containerMetadata, OperationLog durableLog, AsyncMap<String, SegmentState> stateStore, Storage storage, Executor executor) {
         Preconditions.checkNotNull(containerMetadata, "containerMetadata");
         Preconditions.checkNotNull(durableLog, "durableLog");
+        Preconditions.checkNotNull(stateStore, "stateStore");
         Preconditions.checkNotNull(storage, "storage");
         Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("StreamSegmentMapper[%d]", containerMetadata.getContainerId());
         this.containerMetadata = containerMetadata;
         this.durableLog = durableLog;
+        this.stateStore = stateStore;
         this.storage = storage;
         this.executor = executor;
         this.pendingRequests = new HashMap<>();
@@ -322,8 +328,23 @@ public class StreamSegmentMapper {
      * same information as source, but with attributes attached.
      */
     private CompletableFuture<SegmentProperties> retrieveAttributes(SegmentProperties source, Duration timeout) {
-        // TODO: this will need to be implemented once we have attributes in Storage.
-        return CompletableFuture.completedFuture(source);
+        return this.stateStore
+                .get(source.getName(), timeout)
+                .thenApply(state -> {
+                    if (state == null) {
+                        // Nothing to change.
+                        return source;
+                    }
+
+                    if (!source.getName().equals(state.getSegmentName())) {
+                        throw new CompletionException(new DataCorruptionException(
+                                String.format("Stored State for segment '%s' is corrupted. It refers to a different segment '%s'.",
+                                        source.getName(),
+                                        state.getSegmentName())));
+                    }
+
+                    return new StreamSegmentInformation(source, state.getAttributes());
+                });
     }
 
     /**

@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.common.util.AsyncMap;
 import com.emc.pravega.service.contracts.Attribute;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.SegmentProperties;
@@ -27,8 +28,10 @@ import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.InMemoryStateStore;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.SegmentMetadata;
+import com.emc.pravega.service.server.SegmentMetadataComparer;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.Operation;
@@ -47,6 +50,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -56,6 +60,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.val;
@@ -95,12 +100,12 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         // Create some Segments and Transaction and verify they are properly created and registered.
         for (int i = 0; i < segmentCount; i++) {
             String segmentName = getName(i);
-            val segmentAttributes = createAttributes();
+            val segmentAttributes = createAttributes(ATTRIBUTE_COUNT);
             context.mapper.createNewStreamSegment(segmentName, segmentAttributes, TIMEOUT).join();
             assertStreamSegmentCreated(segmentName, segmentAttributes, context);
 
             for (int j = 0; j < transactionsPerSegment; j++) {
-                val transactionAttributes = createAttributes();
+                val transactionAttributes = createAttributes(ATTRIBUTE_COUNT);
                 String transactionName = context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), transactionAttributes, TIMEOUT).join();
                 assertTransactionCreated(transactionName, segmentName, transactionAttributes, context);
             }
@@ -187,21 +192,25 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         final int segmentCount = 10;
         final int transactionsPerSegment = 5;
 
+        @Cleanup
+        TestContext context = new TestContext();
+
         HashSet<String> storageSegments = new HashSet<>();
         for (int i = 0; i < segmentCount; i++) {
             String segmentName = getName(i);
             storageSegments.add(segmentName);
+            setAttributes(segmentName, storageSegments.size() % ATTRIBUTE_COUNT, context);
+
             for (int j = 0; j < transactionsPerSegment; j++) {
                 // There is a small chance of a name conflict here, but we don't care. As long as we get at least one
                 // Transaction per segment, we should be fine.
                 String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
                 storageSegments.add(transactionName);
+                setAttributes(transactionName, storageSegments.size() % ATTRIBUTE_COUNT, context);
             }
         }
 
         // We setup all necessary handlers, except the one for create. We do not need to create new Segments here.
-        @Cleanup
-        TestContext context = new TestContext();
         setupOperationLog(context);
         Predicate<String> isSealed = segmentName -> segmentName.hashCode() % 2 == 0;
         Function<String, Long> getInitialLength = segmentName -> (long) Math.abs(segmentName.hashCode());
@@ -218,6 +227,10 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 boolean expectedSeal = isSealed.test(name);
                 Assert.assertEquals("Metadata does not have the expected length for StreamSegment " + name, expectedLength, sm.getDurableLogLength());
                 Assert.assertEquals("Metadata does not have the expected value for isSealed for StreamSegment " + name, expectedSeal, sm.isSealed());
+
+                val segmentState = context.stateStore.get(name, TIMEOUT).join();
+                Map<UUID, Long> expectedAttributes = segmentState == null ? null : segmentState.getAttributes();
+                SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in metadata for StreamSegment " + name, expectedAttributes, sm);
             }
         }
 
@@ -233,6 +246,10 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 boolean expectedSeal = isSealed.test(name);
                 Assert.assertEquals("Metadata does not have the expected length for Transaction " + name, expectedLength, sm.getDurableLogLength());
                 Assert.assertEquals("Metadata does not have the expected value for isSealed for Transaction " + name, expectedSeal, sm.isSealed());
+
+                val segmentState = context.stateStore.get(name, TIMEOUT).join();
+                Map<UUID, Long> expectedAttributes = segmentState == null ? null : segmentState.getAttributes();
+                SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in metadata for Transaction " + name, expectedAttributes, sm);
 
                 // Check parenthood.
                 Assert.assertNotEquals("No parent defined in metadata for Transaction " + name, ContainerMetadata.NO_STREAM_SEGMENT_ID, sm.getParentId());
@@ -290,12 +307,10 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         // 1. Unable to access storage.
         context.storage.getInfoHandler = sn -> FutureHelpers.failedFuture(new IntentionalException());
-        System.out.println(1);
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception when the Storage access failed.",
                 () -> context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
-        System.out.println(2);
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception when the Storage access failed.",
                 () -> context.mapper.getOrAssignStreamSegmentId(transactionName, TIMEOUT),
@@ -303,7 +318,6 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         // 2a. StreamSegmentNotExists (Stand-Alone segment)
         setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new Date()));
-        System.out.println(3);
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a non-existent stand-alone StreamSegment.",
                 () -> context.mapper.getOrAssignStreamSegmentId(segmentName + "foo", TIMEOUT),
@@ -311,7 +325,6 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         // 2b. Transaction does not exist.
         final String inexistentTransactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
-        System.out.println(4);
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a non-existent Transaction.",
                 () -> context.mapper.getOrAssignStreamSegmentId(inexistentTransactionName, TIMEOUT),
@@ -320,11 +333,28 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         // 2c. Transaction exists, but not its parent.
         final String noValidParentTransactionName = StreamSegmentNameUtils.getTransactionNameFromId("foo", UUID.randomUUID());
         storageSegments.add(noValidParentTransactionName);
-        System.out.println(5);
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a Transaction with an inexistent parent.",
                 () -> context.mapper.getOrAssignStreamSegmentId(noValidParentTransactionName, TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
+
+        // 2d. Attribute fetch failure.
+        val testStateStore = new TestStateStore();
+        val badMapper = new StreamSegmentMapper(context.metadata, context.operationLog, testStateStore, context.storage, executorService());
+        val segmentName2 = segmentName + "2";
+        val transactionName2 = StreamSegmentNameUtils.getTransactionNameFromId(segmentName2, UUID.randomUUID());
+        context.storage.getInfoHandler = sn -> CompletableFuture.completedFuture(new StreamSegmentInformation(sn, 0, false, false, new Date()));
+        testStateStore.getHandler = () -> FutureHelpers.failedFuture(new IntentionalException("intentional"));
+
+        AssertExtensions.assertThrows(
+                "getOrAssignStreamSegmentId did not throw the right exception for a Segment when attributes could not be retrieved.",
+                () -> badMapper.getOrAssignStreamSegmentId(segmentName2, TIMEOUT),
+                ex -> ex instanceof IntentionalException);
+
+        AssertExtensions.assertThrows(
+                "getOrAssignStreamSegmentId did not throw the right exception for a Transaction when attributes could not be retrieved.",
+                () -> badMapper.getOrAssignStreamSegmentId(transactionName2, TIMEOUT),
+                ex -> ex instanceof IntentionalException);
     }
 
     /**
@@ -374,14 +404,26 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         return String.format("Segment_%d", segmentId);
     }
 
-    private Collection<AttributeUpdate> createAttributes() {
-        Collection<AttributeUpdate> result = new ArrayList<>(ATTRIBUTE_COUNT);
-        for (int i = 0; i < ATTRIBUTE_COUNT; i++) {
+    private Collection<AttributeUpdate> createAttributes(int count) {
+        Collection<AttributeUpdate> result = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
             Attribute.UpdateType ut = Attribute.UpdateType.values()[i % Attribute.UpdateType.values().length];
             result.add(new AttributeUpdate(Attribute.dynamic(UUID.randomUUID(), ut), i));
         }
 
         return result;
+    }
+
+    private void setAttributes(String segmentName, int count, TestContext context) {
+        if (count != 0) {
+            val attributes = createAttributes(count)
+                    .stream()
+                    .collect(Collectors.toMap(au -> au.getAttribute().getId(), AttributeUpdate::getValue));
+            context.stateStore.put(
+                    segmentName,
+                    new SegmentState(new StreamSegmentInformation(segmentName, 0, false, false, attributes, new Date())),
+                    TIMEOUT).join();
+        }
     }
 
     private void assertStreamSegmentCreated(String segmentName, Collection<AttributeUpdate> attributeUpdates, TestContext context) {
@@ -468,13 +510,15 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         final UpdateableContainerMetadata metadata;
         final TestStorage storage;
         final TestOperationLog operationLog;
+        final InMemoryStateStore stateStore;
         final StreamSegmentMapper mapper;
 
         TestContext() {
             this.storage = new TestStorage();
             this.operationLog = new TestOperationLog();
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-            this.mapper = new StreamSegmentMapper(this.metadata, this.operationLog, this.storage, executorService());
+            this.stateStore = new InMemoryStateStore();
+            this.mapper = new StreamSegmentMapper(this.metadata, this.operationLog, this.stateStore, this.storage, executorService());
         }
 
         @Override
@@ -657,6 +701,31 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
 
         //endregion
+    }
+
+    //endregion
+
+    //region TestStateStore
+
+    private static class TestStateStore implements AsyncMap<String, SegmentState> {
+        Supplier<CompletableFuture<SegmentState>> getHandler;
+
+        @Override
+        public CompletableFuture<SegmentState> get(String key, Duration timeout) {
+            return this.getHandler.get();
+        }
+
+        @Override
+        public CompletableFuture<Void> remove(String key, Duration timeout) {
+            // Not needed.
+            return null;
+        }
+
+        @Override
+        public CompletableFuture<Void> put(String key, SegmentState value, Duration timeout) {
+            // Not needed.
+            return null;
+        }
     }
 
     //endregion
