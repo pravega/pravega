@@ -46,11 +46,13 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent>  {
     private final ConnectionFactory connectionFactory;
     private final ScheduledExecutorService executor;
 
-    public AbortEventProcessor(final StreamMetadataStore streamMetadataStore, final HostControllerStore hostControllerStore) {
+    public AbortEventProcessor(final StreamMetadataStore streamMetadataStore,
+                               final HostControllerStore hostControllerStore,
+                               final ScheduledExecutorService executor) {
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.connectionFactory = new ConnectionFactoryImpl(false);
-        this.executor = Executors.newScheduledThreadPool(5);
+        this.executor = executor;
     }
 
     @Override

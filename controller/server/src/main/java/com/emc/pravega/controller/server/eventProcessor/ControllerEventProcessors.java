@@ -38,6 +38,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 // todo: use config values for constants defined in this file
 
@@ -53,6 +55,8 @@ public class ControllerEventProcessors {
                                   final CuratorFramework client,
                                   final StreamMetadataStore streamMetadataStore,
                                   final HostControllerStore hostControllerStore) {
+
+        final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
         final String controllerScope = "system";
         system = new EventProcessorSystemImpl("Controller", host, controllerScope, controller);
@@ -117,7 +121,7 @@ public class ControllerEventProcessors {
                         .decider(Decider.DEFAULT_DECIDER)
                         .serializer(new JavaSerializer<>())
                         .clazz(CommitEventProcessor.class)
-                        .args(streamMetadataStore, hostControllerStore)
+                        .args(streamMetadataStore, hostControllerStore, executor)
                         .build();
 
         commitEventProcessors = system.createEventProcessorGroup(commitProps);
@@ -152,7 +156,7 @@ public class ControllerEventProcessors {
                         .decider(Decider.DEFAULT_DECIDER)
                         .serializer(new JavaSerializer<>())
                         .clazz(AbortEventProcessor.class)
-                        .args(streamMetadataStore, hostControllerStore)
+                        .args(streamMetadataStore, hostControllerStore, executor)
                         .build();
 
         abortEventProcessors = system.createEventProcessorGroup(abortProps);
