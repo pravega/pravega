@@ -60,7 +60,7 @@ import lombok.extern.slf4j.Slf4j;
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
 @Slf4j
-public class StreamMetadataTasks extends TaskBase implements Cloneable {
+public class StreamMetadataTasks extends TaskBase {
     private static final long RETRY_INITIAL_DELAY = 100;
     private static final int RETRY_MULTIPLIER = 10;
     private static final int RETRY_MAX_ATTEMPTS = 100;
@@ -75,15 +75,18 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                                final TaskMetadataStore taskMetadataStore,
                                final ScheduledExecutorService executor,
                                final String hostId) {
-        super(taskMetadataStore, executor, hostId);
+        this(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, new Context(hostId));
+    }
+    
+    private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
+            final HostControllerStore hostControllerStore,
+            final TaskMetadataStore taskMetadataStore,
+            final ScheduledExecutorService executor,
+            final Context context) {
+        super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         connectionFactory = new ConnectionFactoryImpl(false);
-    }
-
-    @Override
-    public StreamMetadataTasks clone() throws CloneNotSupportedException {
-        return (StreamMetadataTasks) super.clone();
     }
 
     /**
@@ -326,5 +329,10 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
             log.warn("Update stream failed due to ", ex);
             return UpdateStreamStatus.FAILURE;
         }
+    }
+
+    @Override
+    public TaskBase copyWithContext(Context context) {
+        return new StreamMetadataTasks(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, context);
     }
 }

@@ -21,7 +21,7 @@ package com.emc.pravega.controller.util;
 import org.apache.thrift.TException;
 
 /**
- * Thrift helper functions
+ * Thrift helper functions.
  */
 public final class ThriftHelper {
 
@@ -33,6 +33,7 @@ public final class ThriftHelper {
     /**
      * Eliminates boilerplate code of wrapping 'checked' thrift exception into a RuntimeException.
      *
+     * @param <ResultT> The type of the result of the call
      * @param call thrift method call
      */
     public static <ResultT> ResultT thriftCall(ThriftCall<ResultT> call) {

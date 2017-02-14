@@ -31,6 +31,7 @@
         <property name="file" value="checkstyle/suppressions.xml"/>
   </module>
   <module name="SuppressWarningsFilter"/>
+  <module name="FileTabCharacter"/>
   <module name="TreeWalker">
     <module name="SuppressWarningsHolder" />
     <module name="SuppressWarnings"/>
@@ -39,6 +40,11 @@
     <module name="RedundantImport"/>
     <module name="IllegalImport" />
     <module name="EqualsHashCode"/>
+    <module name="NoClone"/>
+    <module name="IllegalThrows">
+        <property name="illegalClassNames" value="java.lang.Throwable, java.lang.Error, java.lang.RuntimeException, PravegaException"/>
+    </module>
+    <module name="FallThrough"/>
     <module name="SimplifyBooleanExpression"/>
     <module name="OneStatementPerLine"/>
     <module name="UnnecessaryParentheses" />
@@ -52,8 +58,10 @@
         <property name="max" value="4"/>
     </module>
     <module name="StringLiteralEquality"/>
+    
 
     <!-- style -->
+    <module name="NoLineWrap"/>
     <module name="DefaultComesLast"/>
     <module name="EmptyStatement"/>
     <module name="ArrayTypeStyle"/>
@@ -80,11 +88,11 @@
     <module name="ParameterName"/>
     <module name="StaticVariableName"/>
     <module name="TypeName"/>
-	<module name="AvoidStarImport">
-   	<!--	<property name="excludes" value="java.io,java.net,java.lang.Math"/> -->
-   		<property name="allowClassImports" value="false"/>
-   		<property name="allowStaticMemberImports" value="true"/>
-	</module>
+    <module name="AvoidStarImport">
+       <!--    <property name="excludes" value="java.io,java.net,java.lang.Math"/> -->
+           <property name="allowClassImports" value="false"/>
+           <property name="allowStaticMemberImports" value="true"/>
+    </module>
 
     <!-- dependencies -->
     <module name="ImportControl">
@@ -101,7 +109,7 @@
     <module name="WhitespaceAround">
       <property name="allowEmptyConstructors" value="true"/>
       <property name="allowEmptyMethods" value="true"/>
-	  <property name="tokens" value="ASSIGN, BAND, BAND_ASSIGN, BOR, BOR_ASSIGN, BSR, BSR_ASSIGN, BXOR, BXOR_ASSIGN, COLON, DIV, DIV_ASSIGN, DO_WHILE, EQUAL, GE, GT, LAMBDA, LAND, LCURLY, LE, LITERAL_CATCH, LITERAL_DO, LITERAL_ELSE, LITERAL_FINALLY, LITERAL_FOR, LITERAL_IF, LITERAL_RETURN, LITERAL_SWITCH, LITERAL_SYNCHRONIZED, LITERAL_TRY, LITERAL_WHILE, LOR, LT, MINUS_ASSIGN, MOD, MOD_ASSIGN, NOT_EQUAL, PLUS_ASSIGN, QUESTION, RCURLY, SL, SLIST, SL_ASSIGN, SR, SR_ASSIGN, STAR, STAR_ASSIGN, LITERAL_ASSERT, TYPE_EXTENSION_AND"/>
+      <property name="tokens" value="ASSIGN, BAND, BAND_ASSIGN, BOR, BOR_ASSIGN, BSR, BSR_ASSIGN, BXOR, BXOR_ASSIGN, COLON, DIV, DIV_ASSIGN, DO_WHILE, EQUAL, GE, GT, LAMBDA, LAND, LCURLY, LE, LITERAL_CATCH, LITERAL_DO, LITERAL_ELSE, LITERAL_FINALLY, LITERAL_FOR, LITERAL_IF, LITERAL_RETURN, LITERAL_SWITCH, LITERAL_SYNCHRONIZED, LITERAL_TRY, LITERAL_WHILE, LOR, LT, MINUS_ASSIGN, MOD, MOD_ASSIGN, NOT_EQUAL, PLUS_ASSIGN, QUESTION, RCURLY, SL, SLIST, SL_ASSIGN, SR, SR_ASSIGN, STAR, STAR_ASSIGN, LITERAL_ASSERT, TYPE_EXTENSION_AND"/>
     </module>
     <!--<module name="Indentation"/> TODO: this needs to be re-enabled once we figure out the lambda indentation problem. -->
     <module name="MethodParamPad"/>
@@ -118,6 +126,14 @@
       <property name="checkFirstSentence" value="true"/>
       <property name="checkEmptyJavadoc" value="true"/>
       <property name="checkHtml" value="true"/>
+    </module>
+    <module name="MissingOverride"/>
+    <module name="MissingDeprecated"/>
+    <module name="AnnotationLocation">
+        <property name="allowSamelineMultipleAnnotations" value="false"/>
+        <property name="allowSamelineSingleParameterlessAnnotation" value="false"/>
+        <property name="allowSamelineParameterizedAnnotation" value="false"/>
+        <property name="tokens" value="VARIABLE_DEF, PARAMETER_DEF"/>
     </module>
     <module name="JavadocMethod">
       <property name="scope" value="protected"/>

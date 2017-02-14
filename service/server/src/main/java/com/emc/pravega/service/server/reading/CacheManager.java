@@ -18,9 +18,9 @@
 
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.ObjectClosedException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;

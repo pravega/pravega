@@ -35,6 +35,10 @@ public class TestTasks extends TaskBase {
         super(taskMetadataStore, executor, hostId);
     }
 
+    public TestTasks(TaskMetadataStore taskMetadataStore, ScheduledExecutorService executor, Context context) {
+        super(taskMetadataStore, executor, context);
+    }
+
     @Task(name = "test", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<Void> testStreamLock(String scope, String stream) {
         return execute(
@@ -49,5 +53,10 @@ public class TestTasks extends TaskBase {
                     }
                     return  CompletableFuture.completedFuture(null);
                 });
+    }
+
+    @Override
+    public TaskBase copyWithContext(Context context) {
+        return new TestTasks(taskMetadataStore, executor, context);
     }
 }

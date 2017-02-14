@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.contracts;
 
-import java.util.Date;
+import com.emc.pravega.common.util.ImmutableDate;
 
 /**
  * General properties about a StreamSegment.
@@ -42,7 +42,7 @@ public interface SegmentProperties {
     /**
      * Gets a value indicating the last modification time of the StreamSegment.
      */
-    Date getLastModified();
+    ImmutableDate getLastModified();
 
     /**
      * Gets a value indicating the full, readable length of the StreamSegment.

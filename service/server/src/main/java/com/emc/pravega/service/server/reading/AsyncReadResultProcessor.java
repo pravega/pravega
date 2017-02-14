@@ -18,12 +18,12 @@
 
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.google.common.base.Preconditions;
 
 import java.util.concurrent.CompletableFuture;

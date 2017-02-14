@@ -17,19 +17,27 @@
  */
 package com.emc.pravega.controller.task;
 
-import lombok.Data;
+import java.io.Serializable;
+import java.util.Arrays;
+
 import org.apache.commons.lang.SerializationUtils;
 
-import java.io.Serializable;
+import lombok.Data;
 
 /**
  * Task data: task name and its parameters.
  */
 @Data
 public class TaskData implements Serializable {
-    private String methodName;
-    private String methodVersion;
-    private Serializable[] parameters;
+    private final String methodName;
+    private final String methodVersion;
+    private final Serializable[] parameters;
+
+    TaskData(String methodName, String methodVersion, Serializable[] parameters) {
+        this.methodName = methodName;
+        this.methodVersion = methodVersion;
+        this.parameters = Arrays.copyOf(parameters, parameters.length);
+    }
 
     public byte[] serialize() {
         return SerializationUtils.serialize(this);
@@ -37,5 +45,9 @@ public class TaskData implements Serializable {
 
     public static TaskData deserialize(final byte[] bytes) {
         return (TaskData) SerializationUtils.deserialize(bytes);
+    }
+    
+    public Serializable[] getParameters() {
+        return Arrays.copyOf(parameters, parameters.length);
     }
 }
