@@ -65,7 +65,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         synchronized (readers) {
             Segment segment;
             long offset;
-            Type result;
+            ByteBuffer buffer;
             int length = 0;
             boolean rebalance = false;
             do { // Loop handles retry on end of segment
@@ -75,23 +75,21 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 segment = segmentReader.getSegmentId();
                 offset = segmentReader.getOffset();
                 try {
-                    ByteBuffer buffer = segmentReader.getNextEvent(timeout);
-                    result = deserializer.deserialize(buffer);
-                    length = buffer.capacity();
+                    buffer = segmentReader.getNextEvent(timeout);
                 } catch (EndOfSegmentException e) {
                     handleEndOfSegment(segmentReader);
-                    result = null;
+                    buffer = null;
                     rebalance = true;
                 }
-            } while (result == null);
+            } while (buffer == null);
             Map<Segment, Long> positions = readers.stream()
                     .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
             Position position = new PositionImpl(positions);
             lastRead = Sequence.create(segment.getSegmentNumber(), offset);
             return new EventReadImpl<>(lastRead,
-                                        result,
+                                        deserializer.deserialize(buffer),
                                         position,
-                                        new EventPointerImpl(segment, offset, length),
+                                        new EventPointerImpl(segment, offset, buffer.capacity()),
                                         rebalance);
         }
     }

@@ -33,27 +33,27 @@ public class EventPointerImpl extends EventPointerInternal {
     private static final long serialVersionUID = 1L;
 
     private final Segment segment;
-    private final Long eventStartOffset;
-    private final Integer eventLength;
+    private final long eventStartOffset;
+    private final int eventLength;
 
-    public EventPointerImpl(Segment segment, Long eventStartOffset, Integer eventLength) {
+    EventPointerImpl(Segment segment, Long eventStartOffset, Integer eventLength) {
         this.segment = segment;
         this.eventStartOffset = eventStartOffset;
         this.eventLength = eventLength;
     }
 
     @Override
-    public Segment getSegment() {
+    Segment getSegment() {
         return segment;
     }
 
     @Override
-    public Long getEventStartOffset() {
+    long getEventStartOffset() {
         return eventStartOffset;
     }
 
     @Override
-    public Integer getEventLength() {
+    int getEventLength() {
         return eventLength;
     }
 

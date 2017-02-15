@@ -42,12 +42,12 @@ public abstract class EventPointerInternal implements EventPointer {
      *
      * @return the start offset for this event
      */
-    abstract Long getEventStartOffset();
+    abstract long getEventStartOffset();
 
     /**
      * Get the length of the event.
      *
      * @return the event length.
      */
-    abstract Integer getEventLength();
+    abstract int getEventLength();
 }

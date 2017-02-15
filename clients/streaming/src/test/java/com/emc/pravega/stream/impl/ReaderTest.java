@@ -55,7 +55,7 @@ public class ReaderTest {
     }
 
     @Test
-    public void testRateListenerInvokedSynchronusly() {
+    public void testRateListenerInvokedSynchronously() {
         fail();
     }
 
