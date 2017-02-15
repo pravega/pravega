@@ -1,11 +1,9 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the                                       +
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
+ * Copyright (c) 2016 Dell Inc. or its subsidiaries. All Rights Reserved
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -53,7 +51,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-
+/**
+ * Simple controller stress tests to calculate the time
+ * taken for given number of  concurrent calls.
+ * Controller Uri,number of calls to each api are user configurable
+ * To run the tests:
+ * 1../gradlew build
+ * 2. cd integrationtests/controller/build/distributions
+ * 3. untar controller.tar
+ * 4. ./controller/bin/controller -controller <controller uri>  -createstream <createstreamcallcount> .
+ */
 @Slf4j
 public class ControllerTests {
 
@@ -82,15 +89,6 @@ public class ControllerTests {
 
     public static void main(String[] args) {
         parseCmdLine(args);
-        createStream();
-        alterStream();
-        sealStream();
-        commitTransaction();
-        dropTransaction();
-        scaleStream();
-        getPositions();
-        getCurrentSegments();
-        createTransaction();
         System.exit(0);
     }
 
@@ -459,30 +457,39 @@ public class ControllerTests {
                 }
                 if (commandline.hasOption("createstream")) {
                     createStreamCallCount = Integer.parseInt(commandline.getOptionValue("createstream"));
+                    createStream();
                 }
                 if (commandline.hasOption("alterstream")) {
                     alterStreamCallCount = Integer.parseInt(commandline.getOptionValue("alterstream"));
+                    alterStream();
                 }
                 if (commandline.hasOption("sealstream")) {
                     sealStreamCallCount = Integer.parseInt(commandline.getOptionValue("sealstream"));
+                    sealStream();
                 }
                 if (commandline.hasOption("scalestream")) {
                     scaleStreamCallCount = Integer.parseInt(commandline.getOptionValue("scalestream"));
+                    scaleStream();
                 }
                 if (commandline.hasOption("getpositions")) {
                     getPositionsCallCount = Integer.parseInt(commandline.getOptionValue("getpositions"));
+                    getPositions();
                 }
                 if (commandline.hasOption("getcurrentsegments")) {
                     getCurrentSegmentsCallCount = Integer.parseInt(commandline.getOptionValue("getcurrentsegments"));
+                    getCurrentSegments();
                 }
                 if (commandline.hasOption("createtransaction")) {
                     createTransactionCallCount = Integer.parseInt(commandline.getOptionValue("createtransaction"));
+                    createTransaction();
                 }
                 if (commandline.hasOption("committransaction")) {
                     commitTransactionCallCount = Integer.parseInt(commandline.getOptionValue("committransaction"));
+                    commitTransaction();
                 }
                 if (commandline.hasOption("droptransaction")) {
                     dropTransactionCallCount = Integer.parseInt(commandline.getOptionValue("droptransaction"));
+                    dropTransaction();
                 }
             }
         } catch (Exception nfe) {
@@ -539,13 +546,19 @@ public class ControllerTests {
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
 
             CompletableFuture<CreateStreamStatus> createStreamStatus = controller.createStream(config);
+            ControllerImpl controllerAlter = null;
+            try {
+                controllerAlter = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
+                config = new StreamConfigurationImpl(scope,
+                        streamName,
+                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2 + i + 1, 2));
 
-            config = new StreamConfigurationImpl(scope,
-                    streamName,
-                    new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2 + i + 1, 2));
+                CompletableFuture<UpdateStreamStatus> updateStatus = controllerAlter.alterStream(config);
+                alterStatusList.add(updateStatus);
+            } catch (URISyntaxException uri) {
+                log.error("invalid controller uri {}", uri);
+            }
 
-            CompletableFuture<UpdateStreamStatus> updateStatus = controller.alterStream(config);
-            alterStatusList.add(updateStatus);
         }
     }
 
@@ -571,8 +584,13 @@ public class ControllerTests {
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
 
             CompletableFuture<CreateStreamStatus> createStreamStatus = controller.createStream(config);
-
-            CompletableFuture<UpdateStreamStatus> sealStreamStatus = controller.sealStream(scope, streamName);
+            ControllerImpl controllerSeal = null;
+            try {
+                controllerSeal = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
+            } catch (URISyntaxException uri) {
+                log.error("invalid controller uri {}", uri);
+            }
+            CompletableFuture<UpdateStreamStatus> sealStreamStatus = controllerSeal.sealStream(scope, streamName);
             sealStatusList.add(sealStreamStatus);
         }
     }
@@ -606,7 +624,13 @@ public class ControllerTests {
             Map<Double, Double> map = new HashMap<>();
             map.put(0.0, 0.5);
             map.put(0.5, 1.0);
-            CompletableFuture<ScaleResponse> scaleResponse = controller.scaleStream(stream, Collections.singletonList(0), map);
+            ControllerImpl controllerScale = null;
+            try {
+                controllerScale = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
+            } catch (URISyntaxException uri) {
+                log.error("invalid controller uri {}", uri);
+            }
+            CompletableFuture<ScaleResponse> scaleResponse = controllerScale.scaleStream(stream, Collections.singletonList(0), map);
             scaleStatusList.add(scaleResponse);
         }
     }
@@ -637,8 +661,13 @@ public class ControllerTests {
 
             Stream stream = new StreamImpl(scope, streamName, config);
             CompletableFuture<CreateStreamStatus> createStreamStatus = controller.createStream(config);
-
-            CompletableFuture<List<PositionInternal>> getPositions = controller.getPositions(stream, System.currentTimeMillis(), count);
+            ControllerImpl controllerGetPos = null;
+            try {
+                controllerGetPos = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
+            } catch (URISyntaxException uri) {
+                log.error("invalid controller uri {}", uri);
+            }
+            CompletableFuture<List<PositionInternal>> getPositions = controllerGetPos.getPositions(stream, System.currentTimeMillis(), count);
             getPositionsList.add(getPositions);
 
         }
@@ -667,8 +696,13 @@ public class ControllerTests {
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 2L, 2, 2));
 
             CompletableFuture<CreateStreamStatus> createStreamStatus = controller.createStream(config);
-
-            CompletableFuture<StreamSegments> getActiveSegments = controller.getCurrentSegments(scope, streamName);
+            ControllerImpl controllerGetCurSeg = null;
+            try {
+                controllerGetCurSeg = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
+            } catch (URISyntaxException uri) {
+                log.error("invalid controller uri {}", uri);
+            }
+            CompletableFuture<StreamSegments> getActiveSegments = controllerGetCurSeg.getCurrentSegments(scope, streamName);
             getCurrentSegmentsList.add(getActiveSegments);
         }
     }
@@ -701,7 +735,13 @@ public class ControllerTests {
 
             Stream stream = new StreamImpl(scope, streamName, config);
             //create transaction
-            CompletableFuture<UUID> txIdFuture = controller.createTransaction(stream, 60000);
+            ControllerImpl controllerCreateTxn = null;
+            try {
+                controllerCreateTxn = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
+            } catch (URISyntaxException uri) {
+                log.error("invalid controller uri {}", uri);
+            }
+            CompletableFuture<UUID> txIdFuture = controllerCreateTxn.createTransaction(stream, 60000);
             createTransactionList.add(txIdFuture);
         }
     }
@@ -735,9 +775,21 @@ public class ControllerTests {
             CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
 
             //create transaction
-            UUID txId = FutureHelpers.getAndHandleExceptions(controller.createTransaction(stream, 60000), RuntimeException::new);
+            ControllerImpl controllercommitTxn1 = null;
+            try {
+                controllercommitTxn1 = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
+            } catch (URISyntaxException uri) {
+                log.error("invalid controller uri {}", uri);
+            }
+            UUID txId = FutureHelpers.getAndHandleExceptions(controllercommitTxn1.createTransaction(stream, 60000), RuntimeException::new);
             //commit transaction
-            CompletableFuture<TxnStatus> commitTransaction = controller.commitTransaction(stream, txId);
+            ControllerImpl controllercommitTxn2 = null;
+            try {
+                controllercommitTxn2 = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
+            } catch (URISyntaxException uri) {
+                log.error("invalid controller uri {}", uri);
+            }
+            CompletableFuture<TxnStatus> commitTransaction = controllercommitTxn2.commitTransaction(stream, txId);
             commitTransactionList.add(commitTransaction);
         }
     }
@@ -771,9 +823,21 @@ public class ControllerTests {
             CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
 
             //create transaction
-            UUID txId = FutureHelpers.getAndHandleExceptions(controller.createTransaction(stream, 60000), RuntimeException::new);
+            ControllerImpl controllerDropTxn1 = null;
+            try {
+                controllerDropTxn1 = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
+            } catch (URISyntaxException uri) {
+                log.error("invalid controller uri {}", uri);
+            }
+            UUID txId = FutureHelpers.getAndHandleExceptions(controllerDropTxn1.createTransaction(stream, 60000), RuntimeException::new);
             //drop transaction
-            CompletableFuture<TxnStatus> dropTransaction = controller.dropTransaction(stream, txId);
+            ControllerImpl controllerDropTxn2 = null;
+            try {
+                controllerDropTxn2 = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
+            } catch (URISyntaxException uri) {
+                log.error("invalid controller uri {}", uri);
+            }
+            CompletableFuture<TxnStatus> dropTransaction = controllerDropTxn2.dropTransaction(stream, txId);
             dropTransactionList.add(dropTransaction);
 
         }
