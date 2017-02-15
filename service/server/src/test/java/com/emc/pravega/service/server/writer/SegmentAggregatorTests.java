@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.io.FixedByteArrayOutputStream;
 import com.emc.pravega.common.util.PropertyBag;
@@ -28,7 +27,6 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.ManualTimer;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.TestStorage;

@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.MathHelpers;
@@ -34,8 +33,6 @@ import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractService;
-
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -45,12 +42,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import lombok.SneakyThrows;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Storage Writer. Applies operations from Operation Log to Storage.
@@ -142,12 +136,6 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     }
 
     private Void iterationErrorHandler(Throwable ex) {
-        boolean critical = isCriticalError(ex);
-        if (!critical) {
-            // Perform internal cleanup (get rid of those SegmentAggregators that are closed).
-            cleanup();
-        }
-
         if (ExceptionHelpers.getRealException(ex) instanceof CancellationException && !canRun()) {
             // Writer is not running and we caught a CancellationException.
             // This is a normal behavior and it is triggered by stopAsync(); just exit without logging or triggering anything else.
@@ -155,6 +143,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
             return null;
         }
 
+        boolean critical = isCriticalError(ex);
         logError(ex, critical);
         if (critical) {
             // Setting a stop exception guarantees the main Writer loop will not continue running again.

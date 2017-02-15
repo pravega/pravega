@@ -45,7 +45,6 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -60,8 +59,6 @@ import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.common.util.CollectionHelpers.forEach;
-
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Transaction-based Metadata Updater for Log Operations.
