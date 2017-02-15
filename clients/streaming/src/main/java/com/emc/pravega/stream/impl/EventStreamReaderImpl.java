@@ -155,7 +155,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                                                                                         config.getSegmentConfig(),
                                                                                         pointer.asImpl().getEventLength());
         // Create SegmentEventReader and set start offset
-        SegmentReader segmentReader = new SegmentReaderImpl(pointer.asImpl().getSegment(), inputStream);
+        SegmentEventReader segmentReader = new SegmentEventReaderImpl(pointer.asImpl().getSegment(), inputStream);
         segmentReader.setOffset(pointer.asImpl().getEventStartOffset());
         // Read event
         try {
