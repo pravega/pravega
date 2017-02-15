@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.controller.server.rest.contract.common;
 
+import java.io.Serializable;
+
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -27,7 +29,7 @@ import javax.validation.constraints.NotNull;
  */
 @Getter
 @AllArgsConstructor
-public class ScalingPolicyCommon {
+public class ScalingPolicyCommon implements Serializable {
 
     public enum Type {
         /**

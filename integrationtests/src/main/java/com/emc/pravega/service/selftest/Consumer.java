@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.selftest;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.function.CallbackHelpers;
@@ -27,7 +28,6 @@ import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.reading.AsyncReadResultHandler;
 import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
 import com.google.common.base.Preconditions;
@@ -216,13 +216,7 @@ public class Consumer extends Actor {
                 this.segmentName,
                 (length, sealed) ->
                         this.storageVerificationQueue.queue(() -> {
-                            try {
-                                return storageSegmentChangedHandler(length, sealed, result);
-                            } catch (Throwable ex) {
-                                // Make sure we catch sync exceptions; otherwise this will be stuck in a loop forever.
-                                result.completeExceptionally(ex);
-                                throw ex;
-                            }
+                            return FutureHelpers.runOrFail(() -> storageSegmentChangedHandler(length, sealed, result), result);
                         }));
         this.store.getStorageAdapter().registerListener(listener);
 

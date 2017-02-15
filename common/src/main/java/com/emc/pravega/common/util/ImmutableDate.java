@@ -15,35 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store;
+package com.emc.pravega.common.util;
 
-import com.emc.pravega.controller.util.ZKUtils;
-import com.google.common.annotations.VisibleForTesting;
-import org.apache.curator.framework.CuratorFramework;
+import java.util.Date;
 
-/**
- * ZK client.
- */
-public class ZKStoreClient implements StoreClient {
+import lombok.Data;
 
-    private final CuratorFramework client;
-
-    public ZKStoreClient() {
-        this.client = ZKUtils.getCuratorClient();
+@Data
+public class ImmutableDate {
+    private final long time;
+    
+    public ImmutableDate() {
+        time = System.currentTimeMillis();
+    }
+    
+    public ImmutableDate(long time) {
+        this.time = time;
     }
 
-    @VisibleForTesting
-    public ZKStoreClient(CuratorFramework client) {
-        this.client = client;
-    }
-
-    @Override
-    public CuratorFramework getClient() {
-        return this.client;
-    }
-
-    @Override
-    public StoreClientFactory.StoreType getType() {
-        return StoreClientFactory.StoreType.Zookeeper;
+    public Date asDate() {
+        return new Date(time);
     }
 }

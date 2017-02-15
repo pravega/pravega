@@ -234,8 +234,8 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<Boolean> isTransactionOngoing() {
-        throw new NotImplementedException();
+    public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
+        return CompletableFuture.completedFuture(0); //Transactions are not supported in this implementation.
     }
 
     @Override
@@ -244,6 +244,6 @@ class InMemoryStream implements Stream {
     }
 
     public String toString() {
-        return String.format("Current Segments:%s\nSegments:%s\n", currentSegments.toString(), segments.toString());
+        return String.format("Current Segments:%s%nSegments:%s%n", currentSegments.toString(), segments.toString());
     }
 }
