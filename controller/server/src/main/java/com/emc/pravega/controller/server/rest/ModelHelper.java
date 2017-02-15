@@ -17,12 +17,9 @@
  */
 package com.emc.pravega.controller.server.rest;
 
-import com.emc.pravega.controller.server.rest.contract.common.RetentionPolicyCommon;
-import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommon;
-import com.emc.pravega.controller.server.rest.contract.request.CreateStreamRequest;
-import com.emc.pravega.controller.server.rest.contract.request.UpdateStreamRequest;
-import com.emc.pravega.controller.server.rest.contract.response.StreamProperty;
-import com.emc.pravega.controller.server.rest.contract.response.StreamResponse;
+import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
+import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -82,18 +79,26 @@ public class ModelHelper {
      * @param streamConfiguration The configuration of stream
      * @return Stream properties wrapped in StreamResponse object
      */
-    public static final StreamResponse encodeStreamResponse(final StreamConfiguration streamConfiguration) {
-        return new StreamResponse(new StreamProperty(
-                streamConfiguration.getScope(),
-                streamConfiguration.getName(),
-                new ScalingPolicyCommon(
-                        ScalingPolicyCommon.Type.valueOf(streamConfiguration.getScalingPolicy().getType().name()),
-                        streamConfiguration.getScalingPolicy().getTargetRate(),
-                        streamConfiguration.getScalingPolicy().getScaleFactor(),
-                        streamConfiguration.getScalingPolicy().getMinNumSegments()
-                ),
-                new RetentionPolicyCommon(streamConfiguration.getRetentionPolicy().getRetentionTimeMillis())
-        ));
+    public static final StreamProperty encodeStreamResponse(final StreamConfiguration streamConfiguration) {
 
+        com.emc.pravega.controller.server.rest.generated.model.ScalingPolicy scalingPolicy =
+                new com.emc.pravega.controller.server.rest.generated.model.ScalingPolicy();
+        scalingPolicy.setType(com.emc.pravega.controller.server.rest.generated.model.ScalingPolicy.TypeEnum.valueOf(
+                streamConfiguration.getScalingPolicy().getType().name()));
+        scalingPolicy.setTargetRate(streamConfiguration.getScalingPolicy().getTargetRate());
+        scalingPolicy.setScaleFactor(streamConfiguration.getScalingPolicy().getScaleFactor());
+        scalingPolicy.setMinNumSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
+
+        com.emc.pravega.controller.server.rest.generated.model.RetentionPolicy retentionPolicy =
+                new com.emc.pravega.controller.server.rest.generated.model.RetentionPolicy();
+        retentionPolicy.setRetentionTimeMillis(streamConfiguration.getRetentionPolicy().getRetentionTimeMillis());
+
+        StreamProperty streamProperty = new StreamProperty();
+        streamProperty.setName(streamConfiguration.getName());
+        streamProperty.setScope(streamConfiguration.getScope());
+        streamProperty.setScalingPolicy(scalingPolicy);
+        streamProperty.setRetentionPolicy(retentionPolicy);
+
+        return streamProperty;
     }
 }

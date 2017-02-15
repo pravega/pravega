@@ -1,0 +1,136 @@
+# Description of the Pravega Controller APIs.
+swagger: '2.0'
+info:
+  version: "0.0.1"
+  title: Pravega Controller APIs
+basePath: /v1
+schemes: 
+  - http
+paths:
+  /scopes/{scopeName}/streams:
+    parameters:
+      - in: path
+        name: scopeName
+        description: Scope name
+        required: true
+        type: string
+    post:
+      operationId: createStream
+      description: Creates a new stream
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: CreateStreamRequest
+          description: The stream configuration
+          required: true
+          schema:
+            type: object
+            properties:
+              streamName:
+                type: string
+              scalingPolicy:
+                  $ref: "#/definitions/ScalingPolicy"
+              retentionPolicy:
+                  $ref: "#/definitions/RetentionPolicy"
+      produces:
+        - application/json
+      responses:
+        201:
+          description: Successful created the stream
+          schema:
+            $ref: "#/definitions/StreamProperty"
+        409:
+          description: Stream already exists
+        500:
+          description: Server error
+  /scopes/{scopeName}/streams/{streamName}:
+    parameters:
+      - in: path
+        name: scopeName
+        description: Scope name
+        required: true
+        type: string
+      - in: path
+        name: streamName
+        description: Stream name
+        required: true
+        type: string
+    get:
+      operationId: getStream
+      description: Fetch the stream properties
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Found stream configuration
+          schema:
+            $ref: "#/definitions/StreamProperty"
+        404:
+          description: Stream not found
+        500:
+          description: Server error
+    put:
+      operationId: updateStream
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: UpdateStreamRequest
+          description: The new stream configuration
+          required: true
+          schema:
+            type: object
+            properties:
+              scalingPolicy:
+                  $ref: "#/definitions/ScalingPolicy"
+              retentionPolicy:
+                  $ref: "#/definitions/RetentionPolicy"
+      produces:
+        - application/json
+      responses:
+        201:
+          description: Successfully updated the stream configuration
+          schema:
+            $ref: "#/definitions/StreamProperty"
+        404:
+          description: Stream not found
+        500:
+          description: Server error
+
+definitions:
+  StreamProperty:
+    type: object
+    properties:
+      scope:
+        type: string
+      name:
+        type: string
+      scalingPolicy:
+          $ref: "#/definitions/ScalingPolicy"
+      retentionPolicy:
+          $ref: "#/definitions/RetentionPolicy"
+  ScalingPolicy:
+    type: object
+    properties:
+      type:
+        type: string
+        enum:
+        - FIXED_NUM_SEGMENTS
+        - BY_RATE_IN_BYTES
+        - BY_RATE_IN_EVENTS
+      targetRate:
+        type: integer
+        format: int64
+      scaleFactor:
+        type: integer
+        format: int32
+      minNumSegments:
+        type: integer
+        format: int32
+  RetentionPolicy:
+    type: object
+    properties:
+      retentionTimeMillis:
+        type: integer
+        format: int64
