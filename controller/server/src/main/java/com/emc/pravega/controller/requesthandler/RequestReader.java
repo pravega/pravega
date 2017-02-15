@@ -250,7 +250,8 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
     private void checkpoint() {
         // Even if this fails, its ok. Next checkpoint periodic trigger will store the checkpoint.
         // TODO: store it in persistent store
-        // checkpoint(readerId, readerGroup, serializer.serialize(checkpoint.get().position));
+        serializer.serialize(checkpoint.get().position);
+        // checkpoint(readerId, readerGroup, serialize);
     }
 
     /**

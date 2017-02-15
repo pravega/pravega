@@ -68,7 +68,7 @@ import static com.emc.pravega.controller.task.Stream.TaskStepsRetryHelper.withWi
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
 @Slf4j
-public class StreamMetadataTasks extends TaskBase implements Cloneable {
+public class StreamMetadataTasks extends TaskBase {
 
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;

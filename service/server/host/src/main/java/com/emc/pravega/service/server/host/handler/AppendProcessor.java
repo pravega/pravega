@@ -45,6 +45,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -144,8 +145,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 append = appends.remove(0);
             } else {
                 ByteBuf[] toAppend = new ByteBuf[appends.size()];
-                Append last = null;
                 Append first = appends.get(0);
+                Append last = first;
                 int i = -1;
                 for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext(); ) {
                     Append a = iterator.next();
@@ -161,7 +162,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 if (last != null) {
                     numOfEvents = last.getEventNumber() - first.getEventNumber() + 1;
                 }
-                append = new Append(last.getSegment(), writer, last.getEventNumber(), data, null);
+                
+                String segment = Optional.ofNullable(last).map(Append::getSegment).orElse(first.getSegment());
+                long eventNumber = Optional.ofNullable(last).map(Append::getEventNumber).orElse(first.getEventNumber());
+                append = new Append(segment, writer, eventNumber, data, null);
             }
             outstandingAppend = append;
         }

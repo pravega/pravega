@@ -43,9 +43,7 @@ import javax.ws.rs.core.Application;
 import javax.ws.rs.core.Response;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
 
 import static com.emc.pravega.stream.ScalingPolicy.Type.FIXED_NUM_SEGMENTS;
 import static org.junit.Assert.assertEquals;
@@ -110,6 +108,7 @@ public class StreamMetaDataTests extends JerseyTest {
 
     /**
      * Configure resource class.
+     *
      * @return JAX-RS application
      */
     @Override
@@ -130,6 +129,7 @@ public class StreamMetaDataTests extends JerseyTest {
 
     /**
      * Test for createStream REST API.
+     *
      * @throws ExecutionException
      * @throws InterruptedException
      */
@@ -155,6 +155,7 @@ public class StreamMetaDataTests extends JerseyTest {
 
     /**
      * Test for updateStreamConfig REST API
+     *
      * @throws ExecutionException
      * @throws InterruptedException
      */
@@ -180,6 +181,7 @@ public class StreamMetaDataTests extends JerseyTest {
 
     /**
      * Test for getStreamConfig REST API
+     *
      * @throws ExecutionException
      * @throws InterruptedException
      */

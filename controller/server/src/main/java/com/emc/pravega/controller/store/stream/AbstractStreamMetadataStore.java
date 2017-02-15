@@ -18,13 +18,13 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.OpStatsLogger;
 import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.metrics.StatsProvider;
 import com.emc.pravega.controller.server.MetricNames;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -46,8 +46,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import javax.annotation.ParametersAreNonnullByDefault;
 
 import static com.emc.pravega.controller.server.MetricNames.ABORT_TRANSACTION;
 import static com.emc.pravega.controller.server.MetricNames.COMMIT_TRANSACTION;
@@ -101,11 +99,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final OperationContext context,
                                                    final Executor executor) {
         return withCompletion(getStream(scope, name, context).create(configuration, createTimestamp), executor)
-        .thenApply(result -> {
-            CREATE_STREAM.reportSuccessValue(1);
-            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, "", name), 0);
-            return result;
-        });
+                .thenApply(result -> {
+                    CREATE_STREAM.reportSuccessValue(1);
+                    DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, "", name), 0);
+                    return result;
+                });
     }
 
     @Override
@@ -192,11 +190,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<UUID> createTransaction(final String scope, final String streamName, final OperationContext context, final Executor executor) {
         Stream stream = getStream(scope, streamName, context);
         return withCompletion(stream.createTransaction(), executor).thenApply(result -> {
-           stream.getNumberOfOngoingTransactions().thenAccept(count -> {
-               DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(CREATE_TRANSACTION, scope, streamName), 1);
-               DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
-           });
-           return result;
+            stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(CREATE_TRANSACTION, scope, streamName), 1);
+                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
+            });
+            return result;
         });
     }
 
@@ -214,7 +212,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
             });
             return result;
-         });
+        });
     }
 
     @Override
@@ -231,7 +229,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
             });
             return result;
-         });
+        });
     }
 
     @Override

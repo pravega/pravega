@@ -61,6 +61,7 @@ import java.util.stream.IntStream;
  */
 @Slf4j
 class ZKStream extends PersistentStreamBase<Integer> {
+
     private static final String STREAM_PATH = "/streams/%s";
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";
     private static final String CONFIGURATION_PATH = STREAM_PATH + "/configuration";

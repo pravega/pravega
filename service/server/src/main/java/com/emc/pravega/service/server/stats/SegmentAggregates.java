@@ -177,7 +177,7 @@ class SegmentAggregates implements Serializable {
     }
 
     private double decayingRate(long count, double rate, double alpha, long interval) {
-        final double instantRate = count / interval;
+        final double instantRate = (double) count / (double) interval;
         return rate + (alpha * (instantRate - rate));
     }
 

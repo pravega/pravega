@@ -212,7 +212,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
         @Override
         public boolean equals(Object obj) {
-            return obj instanceof String && key.equals(obj);
+            return obj != null && obj instanceof Key && obj.equals(this);
         }
     }
 }

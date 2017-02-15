@@ -42,6 +42,7 @@ import org.apache.commons.lang.NotImplementedException;
  * This class is no longer consistent and mostly not Implemented. Deprecating it.
  */
 class InMemoryStream implements Stream {
+
     private final String name;
     private final String scope;
     private StreamConfiguration configuration;
