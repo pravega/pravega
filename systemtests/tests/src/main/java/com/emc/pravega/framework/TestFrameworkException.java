@@ -16,30 +16,28 @@
  *
  */
 
-package com.emc.pravega.framework.metronome.model.v1;
+package com.emc.pravega.framework;
 
-import com.emc.pravega.framework.metronome.ModelUtils;
-import lombok.Getter;
-import lombok.Setter;
+/**
+ * TestFrameworkException is notify / convey errors (non-recoverable) while interacting with Marathon, Metronome
+ * frameworks.
+ */
+public class TestFrameworkException extends RuntimeException {
+    public enum Type {
+        ConnectionFailed,
+        RequestFailed,
+        NautilusLoginFailed,
+        InternalError,
+    }
 
-import java.util.List;
-import java.util.Map;
+    private final Type type;
 
-@Getter
-@Setter
-public class Run {
-    private List<Artifact> artifacts;
-    private String cmd;
-    private double cpus;
-    private double mem;
-    private double disk;
-    private Map<String, String> env;
-    private int maxLaunchDelay;
-    private Restart restart;
-    private String user;
+    public TestFrameworkException(Type type, String reason, Throwable cause) {
+        super(reason, cause);
+        this.type = type;
+    }
 
-    @Override
-    public String toString() {
-        return ModelUtils.toString(this);
+    public TestFrameworkException(Type type, String reason) {
+        this.type = type;
     }
 }

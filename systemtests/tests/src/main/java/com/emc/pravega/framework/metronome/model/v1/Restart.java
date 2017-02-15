@@ -25,7 +25,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class Restart {
-    private Integer activeDeadlineSeconds;
+    private int activeDeadlineSeconds;
     private String policy;
 
     @Override

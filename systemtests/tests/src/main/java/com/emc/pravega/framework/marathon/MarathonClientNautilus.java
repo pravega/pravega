@@ -23,7 +23,6 @@ import feign.Feign;
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
 import feign.Response;
-import feign.auth.BasicAuthRequestInterceptor;
 import feign.codec.ErrorDecoder;
 import feign.gson.GsonDecoder;
 import feign.gson.GsonEncoder;
@@ -33,6 +32,7 @@ import mesosphere.marathon.client.utils.MarathonException;
 import mesosphere.marathon.client.utils.ModelUtils;
 
 import static com.emc.pravega.framework.NautilusLoginClient.MESOS_URL;
+import static com.emc.pravega.framework.NautilusLoginClient.getAuthenticationRequestInterceptor;
 import static com.emc.pravega.framework.NautilusLoginClient.getClientHostVerificationDisabled;
 import static java.util.Arrays.asList;
 
@@ -64,9 +64,7 @@ public class MarathonClientNautilus {
     }
 
     private static Marathon createMarathonClient() {
-        //TODO: Remove username and password hardcoding.
-        final BasicAuthRequestInterceptor requestInterceptor = new BasicAuthRequestInterceptor("admin", "password");
-        String token = NautilusLoginClient.getAuthToken(LOGIN_URL, requestInterceptor);
+        String token = NautilusLoginClient.getAuthToken(LOGIN_URL, getAuthenticationRequestInterceptor());
         return getInstance(ENDPOINT, new TokenAuthRequestInterceptor(token));
     }
 

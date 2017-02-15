@@ -19,6 +19,7 @@ package com.emc.pravega;
 
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
+import com.emc.pravega.framework.metronome.MetronomeClientNautilus;
 import com.emc.pravega.framework.services.RedisService;
 import com.emc.pravega.framework.services.Service;
 import org.junit.BeforeClass;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
+import static com.emc.pravega.framework.metronome.MetronomeClientNautilus.getClient;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -44,6 +46,7 @@ public class RedisClientTest {
      */
     @Environment
     public static void setup() {
+        MetronomeClientNautilus.deleteAllJobs(getClient());
         if (!redis.isRunning()) {
             redis.start(true);
         }

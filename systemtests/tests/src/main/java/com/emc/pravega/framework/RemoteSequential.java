@@ -16,6 +16,7 @@
 
 package com.emc.pravega.framework;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.framework.metronome.Metronome;
 import com.emc.pravega.framework.metronome.MetronomeClientNautilus;
 import com.emc.pravega.framework.metronome.MetronomeException;
@@ -28,53 +29,74 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
 
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.emc.pravega.framework.NautilusLoginClient.MESOS_MASTER;
+import static javax.ws.rs.core.Response.Status.CREATED;
 
+/**
+ * Remote Sequential is TestExecutor which runs the test as Mesos Task.
+ * This is used to execute tests sequentially.
+ */
 @Slf4j
 public class RemoteSequential implements TestExecutor {
-    private static Metronome client = MetronomeClientNautilus.getClient();
+    private static final Metronome CLIENT = MetronomeClientNautilus.getClient();
+    private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     @Override
-    public CompletableFuture<Boolean> startTestExecution(Method method) {
+    public CompletableFuture<Void> startTestExecution(Method method) {
 
         log.debug("Starting test execution for method: {}", method);
 
         String className = method.getDeclaringClass().getName();
         String methodName = method.getName();
-        String jobId = (methodName + ".testJob").toLowerCase();
+        String jobId = (methodName + ".testJob").toLowerCase(); //All jobIds should have lowercase for metronome.
 
-        try {
-            Job job = client.createJob(newJob(jobId, className, methodName));
-            Response response = client.triggerJobRun(jobId);
-            if (response.status() != 201) {
-                throw new RuntimeException("Error while executing test" + method.toString());
+        return CompletableFuture.<Void>runAsync(() -> {
+            CLIENT.createJob(newJob(jobId, className, methodName));
+            Response response = CLIENT.triggerJobRun(jobId);
+            if (response.status() != CREATED.getStatusCode()) {
+                throw new TestFrameworkException(TestFrameworkException.Type.ConnectionFailed, "Error while starting " +
+                        "test " + method);
             }
+        }).thenCompose(v2 -> waitForJobCompletion(jobId))
+                .<Void>thenApply(v1 -> {
+                    if (CLIENT.getJob(jobId).getHistory().getFailureCount() != 0) {
+                        throw new AssertionError("Test failed. MethodName: " + methodName);
+                    }
+                    return null;
+                }).whenComplete((v, ex) -> {
+                    deleteJob(jobId); //deletejob once execution is complete.
+                    if (ex != null) {
+                        log.error("Error while executing the test. ClassName: {}, MethodName: {}", className,
+                                methodName);
 
-            //wait until the test is complete.
-            while (isTestRunning(jobId)) {
-                TimeUnit.SECONDS.sleep(3);
-            }
-            if (client.getJob(jobId).getHistory().getFailureCount() != 0) {
-                throw new AssertionError("Error while executing Test" + methodName);
-            }
-
-        } catch (MetronomeException | InterruptedException e) {
-            throw new RuntimeException("Error while starting test ", e);
-        } finally {
-            deleteJob(jobId);
-        }
-        return CompletableFuture.completedFuture(true);
+                    }
+                });
     }
 
     @Override
-    public CompletableFuture<Boolean> stopTestExcecution(String testID) {
+    public CompletableFuture<Void> stopTestExecution(String testID) {
         throw new NotImplementedException("Stop Execution is not used for Remote sequential execution");
+    }
+
+    private CompletableFuture<Void> waitForJobCompletion(final String jobId) {
+        AtomicBoolean mustWait = new AtomicBoolean(true);
+
+        return FutureHelpers.loop(mustWait::get, //condition
+                () -> CompletableFuture.runAsync(() -> {  //loop body
+                    mustWait.set(isTestRunning(jobId));
+                }).thenCompose(v ->
+                        FutureHelpers.delayedFuture(mustWait.get() ? Duration.ofSeconds(3) : Duration.ZERO,
+                                executorService)
+                ), executorService);
     }
 
     private Job newJob(String id, String className, String methodName) {
@@ -124,8 +146,8 @@ public class RemoteSequential implements TestExecutor {
         return job;
     }
 
-    private boolean isTestRunning(String jobId) throws MetronomeException {
-        Job jobStatus = client.getJob(jobId);
+    private boolean isTestRunning(String jobId) {
+        Job jobStatus = CLIENT.getJob(jobId);
         boolean isRunning = false;
         if (jobStatus.getHistory() == null) {
             isRunning = true;
@@ -137,9 +159,10 @@ public class RemoteSequential implements TestExecutor {
 
     private void deleteJob(String jobId) {
         try {
-            client.deleteJob(jobId);
+            CLIENT.deleteJob(jobId);
         } catch (MetronomeException e) {
-            throw new RuntimeException("Error while deletting the test run job", e);
+            throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while deleting the " +
+                    "test run job", e);
         }
     }
 }

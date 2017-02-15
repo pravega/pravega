@@ -18,6 +18,7 @@ package com.emc.pravega.framework;
 
 import feign.Client;
 import feign.Feign;
+import feign.RequestInterceptor;
 import feign.RequestLine;
 import feign.Response;
 import feign.auth.BasicAuthRequestInterceptor;
@@ -27,19 +28,26 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
 import java.util.Collection;
 
+import static javax.ws.rs.core.Response.Status.OK;
+
+/**
+ * This class is used to handle the Authentication with the nautilus-auth-service.
+ */
 public class NautilusLoginClient {
 
-    public static final String MESOS_MASTER = getMesosMasterIP();
+    static final String MESOS_MASTER = getMesosMasterIP();
     public static final String MESOS_URL = String.format("https://%s", MESOS_MASTER);
 
-    static final String TOKEN_HEADER_NAME = "X-AUTH-TOKEN";
+    private static final String TOKEN_HEADER_NAME = "X-AUTH-TOKEN";
 
-    private interface Login {
-        @RequestLine("POST /login")
-        Response login();
-    }
-
-    public static String getAuthToken(final String loginURL, final BasicAuthRequestInterceptor requestInterceptor) {
+    /**
+     * Fetch the authentication token from the nautilus authentication service.
+     *
+     * @param loginURL           Login Url to Nautilus.
+     * @param requestInterceptor Auth request interceptor for basic authentication.
+     * @return Auth token.
+     */
+    public static String getAuthToken(final String loginURL, final RequestInterceptor requestInterceptor) {
 
         Login client = Feign.builder().client(getClientHostVerificationDisabled())
                 .encoder(new GsonEncoder())
@@ -48,15 +56,21 @@ public class NautilusLoginClient {
 
         Response response = client.login();
 
-        if (response.status() == 200) {
+        if (response.status() == OK.getStatusCode()) {
             Collection<String> headers = response.headers().get(TOKEN_HEADER_NAME);
             return headers.toArray(new String[headers.size()])[0];
         } else {
-            throw new RuntimeException("Exception while logging into the nautilus cluster. Nautilus Authentication" +
-                    "service returned an error" + response);
+            throw new TestFrameworkException(TestFrameworkException.Type.NautilusLoginFailed, "Exception while " +
+                    "logging into the nautilus cluster. Nautilus Authentication service returned the following error: "
+                    + response);
         }
     }
 
+    /**
+     * Get a client with host verification disabled.
+     *
+     * @return feign.Client
+     */
     public static Client.Default getClientHostVerificationDisabled() {
         return new Client.Default(TrustingSSLSocketFactory.get(), new HostnameVerifier() {
             @Override
@@ -66,7 +80,29 @@ public class NautilusLoginClient {
         });
     }
 
+    public static RequestInterceptor getAuthenticationRequestInterceptor() {
+        return new BasicAuthRequestInterceptor("admin", "password");
+    }
+
     private static String getMesosMasterIP() {
-        return System.getenv().getOrDefault("masterIP", System.getProperty("masterIP", "Invalid Master IP"));
+        return getConfig("masterIP", "Invalid Master IP");
+    }
+
+    private static String getUsername() {
+        return getConfig("userName", "admin");
+    }
+
+    private static String getPassword() {
+        return getConfig("password", "password");
+    }
+
+    //Get configuration from environment or system property.
+    private static String getConfig(final String key, final String defaultValue) {
+        return System.getenv().getOrDefault(key, System.getProperty(key, defaultValue));
+    }
+
+    private interface Login {
+        @RequestLine("POST /login")
+        Response login();
     }
 }

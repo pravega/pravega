@@ -39,7 +39,6 @@ import java.util.Map;
 
 /**
  * Ensure the host verification is disabled.
- * TODO: refactor the code.
  */
 public final class TrustingSSLSocketFactory extends SSLSocketFactory
         implements X509TrustManager, X509KeyManager {
@@ -60,13 +59,14 @@ public final class TrustingSSLSocketFactory extends SSLSocketFactory
             sc.init(new KeyManager[]{this}, new TrustManager[]{this}, new SecureRandom());
             this.delegate = sc.getSocketFactory();
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Error while setting up " +
+                    "SSLSocketFactory", e);
         }
         this.serverAlias = serverAlias;
         if (serverAlias.isEmpty()) {
             this.privateKey = null;
             this.certificateChain = null;
-        } else { //TODO: the else part is not required, refactor it.
+        } else {
             try {
                 KeyStore
                         keyStore =
@@ -75,7 +75,8 @@ public final class TrustingSSLSocketFactory extends SSLSocketFactory
                 Certificate[] rawChain = keyStore.getCertificateChain(serverAlias);
                 this.certificateChain = Arrays.copyOf(rawChain, rawChain.length, X509Certificate[].class);
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Error while setting up " +
+                        "private key and certificate chain", e);
             }
         }
     }
@@ -102,7 +103,8 @@ public final class TrustingSSLSocketFactory extends SSLSocketFactory
             keyStore.load(inputStream, KEYSTORE_PASSWORD);
             return keyStore;
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Error while loading " +
+                    "keystore", e);
         } finally {
             inputStream.close();
         }

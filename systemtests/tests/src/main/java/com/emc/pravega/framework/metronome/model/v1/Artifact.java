@@ -26,9 +26,9 @@ import lombok.Setter;
 @Setter
 public class Artifact {
     private String uri;
-    private Boolean extract;
-    private Boolean executable;
-    private Boolean cache;
+    private boolean extract;
+    private boolean executable;
+    private boolean cache;
 
     @Override
     public String toString() {

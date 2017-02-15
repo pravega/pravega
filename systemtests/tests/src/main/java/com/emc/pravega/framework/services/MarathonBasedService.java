@@ -16,6 +16,8 @@
 
 package com.emc.pravega.framework.services;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.framework.TestFrameworkException;
 import com.emc.pravega.framework.marathon.MarathonClientNautilus;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.Marathon;
@@ -23,9 +25,16 @@ import mesosphere.marathon.client.model.v2.GetAppResponse;
 import mesosphere.marathon.client.utils.MarathonException;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+
+import static com.emc.pravega.framework.TestFrameworkException.Type.RequestFailed;
 
 /**
  * Marathon based service implementations.
@@ -34,10 +43,12 @@ import java.util.stream.Collectors;
 public abstract class MarathonBasedService implements Service {
     private static final String TCP = "tcp://";
 
-    protected String id;
-    protected Marathon marathonClient;
+    final String id;
+    final Marathon marathonClient;
 
-    public MarathonBasedService(final String id) {
+    private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
+
+    MarathonBasedService(final String id) {
         this.id = id;
         this.marathonClient = MarathonClientNautilus.getClient();
     }
@@ -60,12 +71,13 @@ public abstract class MarathonBasedService implements Service {
                 log.info("App {} is getting staged or no tasks are running", this.id);
                 return false;
             }
-        } catch (MarathonException e) {
-            if (e.getStatus() == 404) {
+        } catch (MarathonException ex) {
+            if (ex.getStatus() == 404) {
                 log.info("App is not running : {}", this.id);
                 return false;
             }
-            throw new RuntimeException("Marathon Exception while fetching service details", e);
+            throw new TestFrameworkException(RequestFailed, "Marathon Exception while " +
+                    "fetching service details", ex);
         }
     }
 
@@ -76,25 +88,31 @@ public abstract class MarathonBasedService implements Service {
                     .flatMap(task -> task.getPorts().stream()
                             .map(port -> URI.create(TCP + task.getHost() + ":" + port)))
                     .collect(Collectors.toList());
-        } catch (MarathonException e) {
-            throw new RuntimeException("Marathon Exception while fetching service details", e);
+        } catch (MarathonException ex) {
+            throw new TestFrameworkException(RequestFailed, "Marathon Exception while fetching service details", ex);
         }
     }
 
-    protected void handleMarathonException(MarathonException e) {
+    void handleMarathonException(MarathonException e) {
         if (e.getStatus() == 404) {
             log.info("App is not running : {}", this.id);
         }
-        throw new RuntimeException("Marathon Exception while fetching details of RedisService", e);
+        throw new TestFrameworkException(RequestFailed, "Marathon Exception while fetching details of RedisService", e);
     }
 
-    public void waitUntilServiceRunning() {
+    void waitUntilServiceRunning() {
+        AtomicBoolean mustWait = new AtomicBoolean(true);
         try {
-            while (!isRunning()) {
-                TimeUnit.SECONDS.sleep(5);
-            }
-        } catch (InterruptedException e) {
-            throw new RuntimeException("Error while waiting for service to start", e);
+            FutureHelpers.loop(mustWait::get, //condition
+                    () -> CompletableFuture.runAsync(() -> mustWait.set(!isRunning()))
+                            .thenCompose(v -> FutureHelpers.delayedFuture(mustWait.get() ? Duration.ofSeconds(5) :
+                                    Duration.ZERO, executorService)
+                            ), executorService
+
+            ).get();
+        } catch (InterruptedException | ExecutionException ex) {
+            throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Error while waiting for " +
+                    "service to start", ex);
         }
     }
 }

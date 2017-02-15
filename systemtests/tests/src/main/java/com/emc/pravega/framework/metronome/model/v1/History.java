@@ -26,8 +26,8 @@ import lombok.Setter;
 @Getter
 @Setter
 public class History {
-    private Integer successCount;
-    private Integer failureCount;
+    private int successCount;
+    private int failureCount;
     private String lastSuccessAt;
     private String lastFailureAt;
 
