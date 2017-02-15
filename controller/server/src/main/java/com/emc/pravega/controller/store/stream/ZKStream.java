@@ -141,7 +141,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         return null;
                     } else {
                         log.debug("Scope with name {} not found.", getScopeName());
-                        throw new ScopeNotFoundException(getScopeName());
+                        throw new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found.");
                     }
                 });
     }

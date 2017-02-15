@@ -29,6 +29,7 @@ import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.util.ThriftAsyncCallback;
@@ -116,12 +117,56 @@ public class ControllerServiceAsyncImplTest {
         // endregion
     }
 
+
+    @Test
+    public void deleteScopeTests() throws TException, ExecutionException, InterruptedException {
+        CreateScopeStatus createScopeStatus;
+        DeleteScopeStatus deleteScopeStatus;
+        CreateStreamStatus createStreamStatus;
+
+        // Delete empty scope (containing no streams) SCOPE1
+        ThriftAsyncCallback<CreateScopeStatus> result1 = new ThriftAsyncCallback<>();
+        this.controllerService.createScope(SCOPE1, result1);
+        createScopeStatus = result1.getResult().get();
+        assertEquals("Create Scope", CreateScopeStatus.SUCCESS, createScopeStatus);
+
+        ThriftAsyncCallback<DeleteScopeStatus> result2 = new ThriftAsyncCallback<>();
+        this.controllerService.deleteScope(SCOPE1, result2);
+        deleteScopeStatus = result2.getResult().get();
+        assertEquals("Delete Empty scope", DeleteScopeStatus.SUCCESS, deleteScopeStatus);
+
+        // Delete Non-empty Scope SCOPE2
+        ThriftAsyncCallback<CreateScopeStatus> result3 = new ThriftAsyncCallback<>();
+        this.controllerService.createScope(SCOPE2, result3);
+        createScopeStatus = result3.getResult().get();
+        assertEquals("Create Scope", CreateScopeStatus.SUCCESS, createScopeStatus);
+
+        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
+        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE1, stream1, policy1);
+        ThriftAsyncCallback<CreateStreamStatus> result4 = new ThriftAsyncCallback<>();
+        this.controllerService.createStream(ModelHelper.decode(configuration1), result4);
+        createStreamStatus = result4.getResult().get();
+        assertEquals(createStreamStatus, CreateStreamStatus.SUCCESS);
+
+        ThriftAsyncCallback<DeleteScopeStatus> result5 = new ThriftAsyncCallback<>();
+        this.controllerService.deleteScope(SCOPE1, result5);
+        deleteScopeStatus = result5.getResult().get();
+        assertEquals("Delete non empty scope", DeleteScopeStatus.SCOPE_NOT_EMPTY, deleteScopeStatus);
+
+        // Delete Non-existent scope SCOPE3
+        ThriftAsyncCallback<DeleteScopeStatus> result6 = new ThriftAsyncCallback<>();
+        this.controllerService.deleteScope("SCOPE3", result6);
+        deleteScopeStatus = result6.getResult().get();
+        assertEquals("Delete non empty scope", DeleteScopeStatus.SCOPE_NOT_FOUND, deleteScopeStatus);
+    }
+
     @Test
     public void createStreamTests() throws TException, ExecutionException, InterruptedException {
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
         final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE1, stream1, policy1);
         final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE1, stream2, policy2);
+        final StreamConfiguration configuration3 = new StreamConfigurationImpl("SCOPE3", stream2, policy2);
         CreateStreamStatus status;
 
         // region checkStream
@@ -145,5 +190,11 @@ public class ControllerServiceAsyncImplTest {
         status = result3.getResult().get();
         assertEquals(status, CreateStreamStatus.STREAM_EXISTS);
         // endregion
+
+        // create stream for non-existent scope
+        ThriftAsyncCallback<CreateStreamStatus> result4 = new ThriftAsyncCallback<>();
+        this.controllerService.createStream(ModelHelper.decode(configuration3), result4);
+        status = result4.getResult().get();
+        assertEquals(status, CreateStreamStatus.FAILURE);
     }
 }

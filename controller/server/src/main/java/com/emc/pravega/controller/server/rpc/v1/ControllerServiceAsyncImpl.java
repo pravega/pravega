@@ -78,7 +78,7 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
         log.debug("getPositions called for stream " + scope + "/" + stream);
         processResult(controllerService.getPositions(scope, stream, timestamp, count), resultHandler);
     }
-    
+
     @Override
     public void getSegmentsImmediatlyFollowing(SegmentId segment, AsyncMethodCallback resultHandler) throws TException {
         log.debug("getSegmentsImmediatlyFollowing called for segment " + segment);
@@ -130,9 +130,9 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
 
     @Override
     public void abortTransaction(final String scope,
-                                final String stream,
-                                final TxnId txid,
-                                final AsyncMethodCallback resultHandler) throws TException {
+                                 final String stream,
+                                 final TxnId txid,
+                                 final AsyncMethodCallback resultHandler) throws TException {
         log.debug("abortTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
         processResult(controllerService.abortTransaction(scope, stream, txid), resultHandler);
     }
@@ -148,13 +148,13 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
 
     @Override
     public void createScope(String scope, AsyncMethodCallback resultHandler) throws TException {
-        log.debug("createScope called for scope "+scope);
+        log.debug("createScope called for scope " + scope);
         processResult(controllerService.createScope(scope), resultHandler);
     }
 
     @Override
     public void deleteScope(String scope, AsyncMethodCallback resultHandler) throws TException {
-        log.debug("deleteScope called for scope "+scope);
+        log.debug("deleteScope called for scope " + scope);
         processResult(controllerService.deleteScope(scope), resultHandler);
     }
 

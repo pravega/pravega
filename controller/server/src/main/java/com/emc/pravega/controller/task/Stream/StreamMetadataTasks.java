@@ -26,8 +26,7 @@ import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamNotFoundException;
-import com.emc.pravega.controller.store.stream.ScopeNotFoundException;
-import com.emc.pravega.controller.store.stream.ScopeAlreadyExistsException;
+import com.emc.pravega.controller.store.stream.StoreException;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
@@ -57,6 +56,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
+
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_EMPTY;
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -120,7 +123,24 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     @Task(name = "deleteScope", version = "1.0", resource = "{scope}")
     public CompletableFuture<DeleteScopeStatus> deleteScope(String scope) {
-        return null;
+        return streamMetadataStore.deleteScope(scope)
+                .handle((result, ex) -> {
+                    if (ex != null) {
+                        if ((ex.getCause() instanceof StoreException &&
+                                ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) ||
+                                (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_FOUND))) {
+                            return DeleteScopeStatus.SCOPE_NOT_FOUND;
+                        } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_EMPTY ||
+                                (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_EMPTY))) {
+                            return DeleteScopeStatus.SCOPE_NOT_EMPTY;
+                        } else {
+                            log.debug("DeleteScope failed due to {} ", ex);
+                            return DeleteScopeStatus.FAILURE;
+                        }
+                    } else {
+                        return DeleteScopeStatus.SUCCESS;
+                    }
+                });
     }
 
     /**
@@ -188,7 +208,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                     if (ex != null) {
                         if (ex.getCause() instanceof StreamAlreadyExistsException) {
                             return CreateStreamStatus.STREAM_EXISTS;
-                        } else if (ex.getCause() instanceof ScopeNotFoundException) {
+                        } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) {
                             return CreateStreamStatus.FAILURE;
                         } else {
                             log.warn("Create stream failed due to ", ex);
@@ -201,20 +221,22 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     private CompletableFuture<CreateScopeStatus> createScopeBody(String scope) {
-        return this.streamMetadataStore.createScope(scope)
+        return streamMetadataStore.createScope(scope)
                 .handle((result, ex) -> {
-                    if (result != null) {
-                        return CreateScopeStatus.SUCCESS;
-                    } else if (ex != null) {
-                        if (ex.getCause() instanceof ScopeAlreadyExistsException ||
-                                ex instanceof ScopeAlreadyExistsException) {
+                    if (ex != null) {
+                        if (ex.getCause() instanceof StoreException &&
+                                ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
+                            return CreateScopeStatus.SCOPE_EXISTS;
+                        } else if (ex instanceof StoreException &&
+                                ((StoreException) ex).getType() == NODE_EXISTS) {
                             return CreateScopeStatus.SCOPE_EXISTS;
                         } else {
                             log.debug("Create scope failed due to ", ex);
                             return CreateScopeStatus.FAILURE;
                         }
+                    } else {
+                        return CreateScopeStatus.SUCCESS;
                     }
-                    return CreateScopeStatus.FAILURE;
                 });
     }
 

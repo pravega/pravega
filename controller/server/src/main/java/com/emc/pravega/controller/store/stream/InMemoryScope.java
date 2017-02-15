@@ -25,7 +25,7 @@ public class InMemoryScope implements Scope {
 
     private final String scopeName;
 
-    private List<InMemoryStream> streamsInScope;
+    private List<String> streamsInScope;
 
     InMemoryScope(String scopeName) {
         this.scopeName = scopeName;
@@ -37,19 +37,20 @@ public class InMemoryScope implements Scope {
     }
 
     @Override
-    public CompletableFuture<Boolean> createScope(String scope) {
-        streamsInScope = new ArrayList<>();
+    public CompletableFuture<Boolean> createScope() {
+        this.streamsInScope = new ArrayList<>();
         return CompletableFuture.completedFuture(true);
     }
 
     @Override
-    public CompletableFuture<Boolean> deleteScope(String scope) {
-        return null;
+    public CompletableFuture<Boolean> deleteScope() {
+        this.streamsInScope.clear();
+        return CompletableFuture.completedFuture(true);
     }
 
     @Override
-    public CompletableFuture<List<Stream>> listStreamsInScope(String scope) {
-        return null;
+    public CompletableFuture<List<String>> listStreamsInScope() {
+        return CompletableFuture.completedFuture(streamsInScope);
     }
 
     @Override
@@ -57,7 +58,7 @@ public class InMemoryScope implements Scope {
 
     }
 
-    public void addStreamToScope(InMemoryStream stream) {
+    public void addStreamToScope(String stream) {
         streamsInScope.add(stream);
     }
 }

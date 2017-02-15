@@ -63,6 +63,14 @@ public interface StreamMetadataStore {
     CompletableFuture<Boolean> deleteScope(final String scope);
 
     /**
+     * List existing streams in scopes.
+     *
+     * @param scope Name of the scope
+     * @return List of streams in scope
+     */
+    CompletableFuture<List<Stream>> listStreamsInScope(final String scope);
+
+    /**
      * Updates the configuration of an existing stream.
      *
      * @param scopeName     scope name.
@@ -132,14 +140,14 @@ public interface StreamMetadataStore {
      * Given a segment return a map containing the numbers of the segments immediately succeeding it
      * mapped to a list of the segments they succeed.
      *
-     * @param scopeName         scope name.
-     * @param streamName the stream name.
+     * @param scopeName     scope name.
+     * @param streamName    the stream name.
      * @param segmentNumber the segment number
      * @return segments that immediately follow the specified segment and the segments they follow.
      */
     public CompletableFuture<Map<Integer, List<Integer>>> getSuccessors(final String scopeName,
                                                                         final String streamName,
-            final int segmentNumber);
+                                                                        final int segmentNumber);
 
     /**
      * Scales in or out the currently set of active segments of a stream.

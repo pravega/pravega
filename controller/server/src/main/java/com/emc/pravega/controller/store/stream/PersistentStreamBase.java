@@ -168,9 +168,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     private CompletableFuture<List<Segment>> findOverlapping(Segment segment, List<Integer> candidates) {
         return FutureHelpers.allOfWithResults(candidates.stream().map(this::getSegment).collect(Collectors.toList()))
-                            .thenApply(successorCandidates -> successorCandidates.stream()
-                                                                                 .filter(x -> x.overlaps(segment))
-                                                                                 .collect(Collectors.toList()));
+                .thenApply(successorCandidates -> successorCandidates.stream()
+                        .filter(x -> x.overlaps(segment))
+                        .collect(Collectors.toList()));
     }
 
     @Override
@@ -408,9 +408,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                        final int startingSegmentNumber) {
         final List<CompletableFuture<Segment>> segments = IntStream.range(startingSegmentNumber,
                 startingSegmentNumber + count)
-                                                                   .boxed()
-                                                                   .map(this::getSegment)
-                                                                   .collect(Collectors.<CompletableFuture<Segment>>toList());
+                .boxed()
+                .map(this::getSegment)
+                .collect(Collectors.<CompletableFuture<Segment>>toList());
         return FutureHelpers.allOfWithResults(segments);
     }
 
@@ -523,8 +523,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
         segments.addAll(
                 IntStream.range(startingSegmentNumber,
                         startingSegmentNumber + scale.getNewRanges().size())
-                         .boxed()
-                         .collect(Collectors.toList()));
+                        .boxed()
+                        .collect(Collectors.toList()));
         return segments;
     }
 
@@ -609,5 +609,5 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp);
 
-    abstract CompletableFuture<Void> checkScopeExists() throws ScopeNotFoundException;
+    abstract CompletableFuture<Void> checkScopeExists() throws StoreException;
 }

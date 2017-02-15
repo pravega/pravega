@@ -36,26 +36,23 @@ public interface Scope {
     /**
      * Create the scope.
      *
-     * @param scope Name of the scope to be created
      * @return boolean indicating success of createScope
      */
-    CompletableFuture<Boolean> createScope(final String scope);
+    CompletableFuture<Boolean> createScope();
 
     /**
      * Delete the scope.
      *
-     * @param scope Name of the scope to be deleted
      * @return boolean indicating success of deleteScope
      */
-    CompletableFuture<Boolean> deleteScope(final String scope);
+    CompletableFuture<Boolean> deleteScope();
 
     /**
      * List existing streams in scopes.
      *
-     * @param scope Name of the scope
      * @return List of streams in scope
      */
-    CompletableFuture<List<Stream>> listStreamsInScope(final String scope);
+    CompletableFuture<List<String>> listStreamsInScope();
 
     /**
      * Refresh the scope object. Typically to be used to invalidate any caches.

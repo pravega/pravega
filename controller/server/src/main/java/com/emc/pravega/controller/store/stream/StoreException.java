@@ -15,19 +15,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.emc.pravega.controller.store.stream;
 
-public class ScopeNotFoundException extends RuntimeException {
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
-    private static final String FORMAT_STRING = "Scope %s not found.";
+@Slf4j
+@Getter
+public class StoreException extends RuntimeException {
+    public enum Type {
+        NODE_EXISTS,
+        NODE_NOT_FOUND,
+        NODE_NOT_EMPTY,
+        UNKNOWN
+    }
 
-    /**
-     * Creates a new instance of ScopeNotFoundException class.
-     *
-     * @param scopeName Name of the scope
-     */
-    public ScopeNotFoundException(final String scopeName) {
-        super(String.format(FORMAT_STRING, scopeName));
+    private final Type type;
+
+    public StoreException(final Type type, Exception e) {
+        super(e);
+        log.debug("Store exception of type {} occurred", type);
+        this.type = type;
+    }
+
+    public StoreException(final Type type, final String message) {
+        super(message);
+        this.type = type;
     }
 }

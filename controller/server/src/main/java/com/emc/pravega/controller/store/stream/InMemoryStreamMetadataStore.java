@@ -48,7 +48,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         if (scopes.containsKey(scopeName)) {
             return scopes.get(scopeName);
         } else {
-            throw new ScopeNotFoundException(scopeName);
+            throw new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found.");
         }
     }
 
@@ -58,11 +58,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
         if (scopes.containsKey(scopeName)) {
 
-            if (!streams.containsKey(new StringBuffer(scopeName).append("/").append(streamName).toString())) {
+            if (!streams.containsKey(scopedStreamName(scopeName, streamName))) {
                 InMemoryStream stream = new InMemoryStream(scopeName, streamName);
                 stream.create(configuration, timeStamp);
-                streams.put(new StringBuffer(scopeName).append("/").append(streamName).toString(), stream);
-                scopes.get(scopeName).addStreamToScope(stream);
+                streams.put(scopedStreamName(scopeName, streamName), stream);
+                scopes.get(scopeName).addStreamToScope(streamName);
                 return CompletableFuture.completedFuture(true);
             } else {
                 CompletableFuture<Boolean> result = new CompletableFuture<>();
@@ -72,33 +72,52 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
         } else {
             CompletableFuture<Boolean> result = new CompletableFuture<>();
-            result.completeExceptionally(new ScopeNotFoundException(scopeName));
+            result.completeExceptionally(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
             return result;
         }
     }
 
     @Override
     public synchronized CompletableFuture<Boolean> createScope(String scopeName) {
-
         if (!scopes.containsKey(scopeName)) {
             InMemoryScope scope = new InMemoryScope(scopeName);
-            scope.createScope(scopeName);
+            scope.createScope();
             scopes.put(scopeName, scope);
             return CompletableFuture.completedFuture(true);
         } else {
             CompletableFuture<Boolean> result = new CompletableFuture<>();
-            result.completeExceptionally(new ScopeAlreadyExistsException(scopeName));
+            result.completeExceptionally(new StoreException(StoreException.Type.NODE_EXISTS, "Scope Exists"));
             return result;
         }
     }
 
     @Override
     public synchronized CompletableFuture<Boolean> deleteScope(String scopeName) {
-        return null;
+        CompletableFuture<Boolean> result;
+        if (scopes.containsKey(scopeName)) {
+            return scopes.get(scopeName).listStreamsInScope().thenCompose(streams -> {
+                if (streams.size() == 0) {
+                    return scopes.get(scopeName).deleteScope();
+                } else {
+                    CompletableFuture<Boolean> result1 = new CompletableFuture<>();
+                    result1.completeExceptionally(new StoreException(StoreException.Type.NODE_NOT_EMPTY, "Scope not empty."));
+                    return result1;
+                }
+            });
+
+        } else {
+            result = new CompletableFuture<>();
+            result.completeExceptionally(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
+            return result;
+        }
     }
 
     @Override
     public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
         throw new NotImplementedException();
+    }
+
+    private String scopedStreamName(String scopeName, String streamName) {
+        return new StringBuilder(scopeName).append("/").append(streamName).toString();
     }
 }

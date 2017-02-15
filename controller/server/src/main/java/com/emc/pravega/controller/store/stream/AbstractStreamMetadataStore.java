@@ -29,6 +29,7 @@ import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -93,12 +94,30 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<Boolean> createScope(final String scopeName) {
-        return getScope(scopeName).createScope(scopeName);
+        return getScope(scopeName).createScope();
     }
 
     @Override
     public CompletableFuture<Boolean> deleteScope(final String scopeName) {
-        return null;
+        return getScope(scopeName).deleteScope();
+    }
+
+    /**
+     * List the streams in scope.
+     *
+     * @param scopeName Name of scope
+     * @return List of streams in scope
+     */
+    @Override
+    public CompletableFuture<List<Stream>> listStreamsInScope(final String scopeName) {
+        return getScope(scopeName).listStreamsInScope().
+                thenApply(streams -> {
+                    List<Stream> listOfStreamObj = new ArrayList<>();
+                    streams.forEach(stream -> {
+                        listOfStreamObj.add(getStream(scopeName, stream));
+                    });
+                    return listOfStreamObj;
+                });
     }
 
     @Override

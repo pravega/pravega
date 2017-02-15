@@ -39,11 +39,15 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_EMPTY;
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -69,7 +73,7 @@ public class ZkStreamTest {
     }
 
     @Test
-    public void TestZkScope() throws Exception {
+    public void TestZkCreateScope() throws Exception {
 
         // create new scope test
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
@@ -82,7 +86,58 @@ public class ZkStreamTest {
         try {
             createScopeStatus.get();
         } catch (ExecutionException e) {
-            assertEquals("Create duplicate scope ", "Scope Scope1 already exists.", e.getCause().getMessage());
+            assertEquals("Create duplicate scope ", true, e.getCause() instanceof StoreException);
+            assertEquals("Create duplicate scope ", NODE_EXISTS, ((StoreException) e.getCause()).getType());
+        }
+
+        //listStreamsInScope test
+        final String streamName1 = "Stream1";
+        final String streamName2 = "Stream2";
+        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
+        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(scopeName, streamName1, policy);
+        StreamConfigurationImpl streamConfig2 = new StreamConfigurationImpl(scopeName, streamName2, policy);
+        store.createStream(scopeName, streamName1, streamConfig, System.currentTimeMillis()).get();
+        store.createStream(scopeName, streamName2, streamConfig2, System.currentTimeMillis()).get();
+
+        List<Stream> listOfStreams = store.listStreamsInScope(scopeName).get();
+        assertEquals("Size of list", 2, listOfStreams.size());
+        assertEquals("Name of stream at index zero", "Stream1", listOfStreams.get(0).getName());
+        assertEquals("Name of stream at index one", "Stream2", listOfStreams.get(1).getName());
+    }
+
+    @Test
+    public void TestZkDeleteScope() throws Exception {
+        // create new scope
+        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
+        final String scopeName = "Scope1";
+        store.createScope(scopeName).get();
+
+        // Delete empty scope Scope1
+        CompletableFuture<Boolean> deleteScopeStatus = store.deleteScope(scopeName);
+        assertEquals("Delete Empty Scope", true, deleteScopeStatus.get());
+
+        // Delete non-existent scope Scope2
+        CompletableFuture<Boolean> deleteScopeStatus2 = store.deleteScope("Scope2");
+
+        try {
+            deleteScopeStatus2.get();
+        } catch (ExecutionException | CompletionException e) {
+            assertEquals("Delete non-existent Scope", true, e.getCause() instanceof StoreException);
+            assertEquals("Delete non-existent Scope", NODE_NOT_FOUND, ((StoreException) e.getCause()).getType());
+        }
+
+        // Delete non-empty scope Scope3
+        store.createScope("Scope3").get();
+        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
+        final StreamConfigurationImpl streamConfig = new StreamConfigurationImpl("Scope3", "Stream3", policy);
+        store.createStream("Scope3", "Stream3", streamConfig, System.currentTimeMillis()).get();
+
+        CompletableFuture<Boolean> deleteScopeStatus3 = store.deleteScope("Scope3");
+        try {
+            deleteScopeStatus3.get();
+        } catch (ExecutionException | CompletionException e) {
+            assertEquals("Delete non-empty Scope", true, e.getCause() instanceof StoreException);
+            assertEquals("Delete non-empty Scope", NODE_NOT_EMPTY, ((StoreException) e.getCause()).getType());
         }
     }
 

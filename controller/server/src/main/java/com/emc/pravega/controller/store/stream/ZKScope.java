@@ -24,6 +24,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -48,41 +49,23 @@ public class ZKScope implements Scope {
     }
 
     @Override
-    public CompletableFuture<Boolean> createScope(String scopeName) {
-        return checkScopeExists(scopeName)
-                .thenCompose(x -> createZNodeIfNotExist(scopePath))
-                .thenApply(x -> true);
+    public CompletableFuture<Boolean> createScope() {
+        return addNode(scopePath);
     }
 
     @Override
-    public CompletableFuture<Boolean> deleteScope(String scope) {
-        return null;
+    public CompletableFuture<Boolean> deleteScope() {
+        return deleteNode(scopePath);
     }
 
     @Override
-    public CompletableFuture<List<Stream>> listStreamsInScope(String scope) {
-        return null;
+    public CompletableFuture<List<String>> listStreamsInScope() {
+        return getChildren(scopePath);
     }
 
     @Override
     public void refresh() {
         cache.invalidateAll();
-    }
-
-    CompletableFuture<Void> checkScopeExists(String scopeName) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    try {
-                        return client.checkExists().forPath(scopePath);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                }).thenAccept(
-                (x) -> {
-                    if (x != null) {
-                        throw new ScopeAlreadyExistsException(scopeName);
-                    }
-                });
     }
 
     public static void initialize(final CuratorFramework cf) {
@@ -105,12 +88,40 @@ public class ZKScope implements Scope {
                 });
     }
 
-    private static CompletableFuture<Void> createZNodeIfNotExist(final String path) {
-        return CompletableFuture.runAsync(() -> {
+    private static CompletableFuture<Boolean> addNode(final String path) {
+        return CompletableFuture.supplyAsync(() -> {
             try {
                 client.create().creatingParentsIfNeeded().forPath(path);
             } catch (KeeperException.NodeExistsException e) {
-                log.debug("Exception occurred in createZNodeIfNotExist, Exception: {}" + e);
+                throw new StoreException(StoreException.Type.NODE_EXISTS, e);
+            } catch (Exception e) {
+                throw new StoreException(StoreException.Type.UNKNOWN, e);
+            }
+            return true;
+        });
+    }
+
+    private static CompletableFuture<Boolean> deleteNode(final String path) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                client.delete().forPath(path);
+            } catch (KeeperException.NoNodeException e) {
+                throw new StoreException(StoreException.Type.NODE_NOT_FOUND, e);
+            } catch (KeeperException.NotEmptyException e) {
+                throw new StoreException(StoreException.Type.NODE_NOT_EMPTY, e);
+            } catch (Exception e) {
+                throw new StoreException(StoreException.Type.UNKNOWN, e);
+            }
+            return true;
+        });
+    }
+
+    private static CompletableFuture<List<String>> getChildren(final String path) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return client.getChildren().forPath(path);
+            } catch (KeeperException.NoNodeException nne) {
+                return Collections.emptyList();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
