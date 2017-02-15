@@ -30,6 +30,7 @@ import javax.ws.rs.core.UriBuilder;
 
 import org.glassfish.jersey.netty.httpserver.NettyHttpContainerProvider;
 import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.server.ServerProperties;
 
 import static com.emc.pravega.controller.util.Config.REST_SERVER_IP;
 import static com.emc.pravega.controller.util.Config.REST_SERVER_PORT;
@@ -53,6 +54,7 @@ public class RESTServer {
 
         final ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
         final ResourceConfig resourceConfig = ResourceConfig.forApplication(controllerApplication);
+        resourceConfig.property(ServerProperties.BV_SEND_ERROR_IN_RESPONSE, true);
 
         try {
             NettyHttpContainerProvider.createServer(baseUri, resourceConfig, true);
