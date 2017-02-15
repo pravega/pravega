@@ -30,7 +30,6 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
@@ -56,7 +55,7 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent>  {
     }
 
     @Override
-    protected void receive(AbortEvent event) throws Exception {
+    protected void process(AbortEvent event) {
         String scope = event.getScope();
         String stream = event.getStream();
         UUID txId = event.getTxid();

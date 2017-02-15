@@ -121,6 +121,17 @@ public class EndToEndTransactionTest {
         Transaction.Status txn2Status = transaction2.checkStatus();
         assertTrue(txn2Status == Transaction.Status.ABORTING || txn2Status == Transaction.Status.ABORTED);
         System.err.println("SUCCESS: successful in dropping transaction. Transaction status=" + txn2Status);
+
+        Thread.sleep(2000);
+
+        txnStatus = transaction.checkStatus();
+        assertTrue(txnStatus == Transaction.Status.COMMITTED);
+        System.err.println("SUCCESS: successfully committed transaction. Transaction status=" + txnStatus);
+
+        txn2Status = transaction2.checkStatus();
+        assertTrue(txn2Status == Transaction.Status.ABORTED);
+        System.err.println("SUCCESS: successfully aborted transaction. Transaction status=" + txn2Status);
+
         producer.close();
         server.close();
         zkTestServer.close();

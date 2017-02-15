@@ -18,7 +18,6 @@
 package com.emc.pravega.controller.server.eventProcessor;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
-import com.emc.pravega.controller.eventProcessor.CheckpointStore;
 import com.emc.pravega.controller.eventProcessor.Decider;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
@@ -103,7 +102,7 @@ public class ControllerEventProcessors {
                                         .numEvents(commitPositionPersistenceFrequency)
                                         .numSeconds(commitPositionPersistenceFrequency)
                                         .build())
-                        .storeType(CheckpointStore.StoreType.Zookeeper)
+                        .storeType(CheckpointConfig.StoreType.Zookeeper)
                         .checkpointStoreClient(client)
                         .build();
 
@@ -111,7 +110,7 @@ public class ControllerEventProcessors {
                 EventProcessorGroupConfigImpl.builder()
                         .streamName(commitStream)
                         .readerGroupName(commitStreamReaderGroup)
-                        .actorCount(commitReaderGroupSize)
+                        .eventProcessorCount(commitReaderGroupSize)
                         .checkpointConfig(commitEventCheckpointConfig)
                         .build();
 
@@ -124,7 +123,7 @@ public class ControllerEventProcessors {
                         .args(streamMetadataStore, hostControllerStore, executor)
                         .build();
 
-        commitEventProcessors = system.createEventProcessorGroup(commitProps);
+        commitEventProcessors = system.createEventProcessorGroup(commitProps).getWriter();
 
         // endregion
 
@@ -138,7 +137,7 @@ public class ControllerEventProcessors {
                                         .numEvents(abortPositionPersistenceFrequency)
                                         .numSeconds(abortPositionPersistenceFrequency)
                                         .build())
-                        .storeType(CheckpointStore.StoreType.Zookeeper)
+                        .storeType(CheckpointConfig.StoreType.Zookeeper)
                         .checkpointStoreClient(client)
                         .build();
 
@@ -146,7 +145,7 @@ public class ControllerEventProcessors {
                 EventProcessorGroupConfigImpl.builder()
                         .streamName(abortStream)
                         .readerGroupName(abortStreamReaderGroup)
-                        .actorCount(abortReaderGroupSize)
+                        .eventProcessorCount(abortReaderGroupSize)
                         .checkpointConfig(abortEventCheckpointConfig)
                         .build();
 
@@ -159,7 +158,7 @@ public class ControllerEventProcessors {
                         .args(streamMetadataStore, hostControllerStore, executor)
                         .build();
 
-        abortEventProcessors = system.createEventProcessorGroup(abortProps);
+        abortEventProcessors = system.createEventProcessorGroup(abortProps).getWriter();
 
         // endregion
     }
