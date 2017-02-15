@@ -20,7 +20,7 @@ package com.emc.pravega.framework;
 import org.apache.commons.lang.NotImplementedException;
 
 public class TestExecutorFactory {
-    public static TestExecutor marathonSequentialExecutor = new RemoteSequential();
+    private static final TestExecutor MARATHON_SEQUENTIAL_EXECUTOR = new RemoteSequential();
 
     public enum TestExecutorType {
         LOCAL,
@@ -31,7 +31,7 @@ public class TestExecutorFactory {
     public static TestExecutor getTestExecutor(TestExecutorType type) {
         switch (type) {
             case REMOTE_SEQUENTIAL:
-                return marathonSequentialExecutor;
+                return MARATHON_SEQUENTIAL_EXECUTOR;
             case REMOTE_DISTRIBUTED:
                 throw new NotImplementedException("Distributed execution not implemented");
             default:

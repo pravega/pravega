@@ -17,6 +17,7 @@
  */
 package com.emc.pravega;
 
+import com.emc.pravega.framework.TestFrameworkException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.runners.BlockJUnit4ClassRunner;
 import org.junit.runners.model.FrameworkMethod;
@@ -46,10 +47,16 @@ public class SingleJUnitTestRunner extends BlockJUnit4ClassRunner {
 
     }
 
-    public void runMethod() throws Throwable {
-        Method m = className.getDeclaredMethod(methodName);
-        Statement statement = methodBlock(new FrameworkMethod(m));
-        statement.evaluate();
+    public void runMethod() {
+        Method m = null;
+        try {
+            m = className.getDeclaredMethod(methodName);
+            Statement statement = methodBlock(new FrameworkMethod(m));
+            statement.evaluate();
+        } catch (Throwable ex) {
+            throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Exception while running test" +
+                    " method: " + methodName, ex);
+        }
     }
 
     public static boolean execute(String className, String methodName) {

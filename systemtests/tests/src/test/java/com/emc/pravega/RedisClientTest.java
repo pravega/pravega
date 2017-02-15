@@ -29,8 +29,6 @@ import redis.clients.jedis.Jedis;
 
 import java.net.URI;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 
 import static com.emc.pravega.framework.metronome.MetronomeClientNautilus.getClient;
 import static org.junit.Assert.assertEquals;
@@ -56,7 +54,7 @@ public class RedisClientTest {
     }
 
     @BeforeClass
-    public static void BeforeClass() throws InterruptedException, ExecutionException, TimeoutException {
+    public static void beforeClass() {
         // This is the placeholder to perform any operation on the services before executing the system tests
     }
 

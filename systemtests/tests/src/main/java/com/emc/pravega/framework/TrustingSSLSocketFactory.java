@@ -112,12 +112,12 @@ public final class TrustingSSLSocketFactory extends SSLSocketFactory
 
     @Override
     public String[] getDefaultCipherSuites() {
-        return ENABLED_CIPHER_SUITES;
+        return ENABLED_CIPHER_SUITES.clone();
     }
 
     @Override
     public String[] getSupportedCipherSuites() {
-        return ENABLED_CIPHER_SUITES;
+        return ENABLED_CIPHER_SUITES.clone();
     }
 
     @Override
@@ -180,7 +180,7 @@ public final class TrustingSSLSocketFactory extends SSLSocketFactory
 
     @Override
     public X509Certificate[] getCertificateChain(String alias) {
-        return certificateChain;
+        return certificateChain.clone();
     }
 
     @Override
