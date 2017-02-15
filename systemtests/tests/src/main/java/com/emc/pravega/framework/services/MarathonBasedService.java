@@ -24,7 +24,6 @@ import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.model.v2.GetAppResponse;
 import mesosphere.marathon.client.utils.MarathonException;
 
-import javax.ws.rs.core.Response;
 import java.net.URI;
 import java.time.Duration;
 import java.util.List;
