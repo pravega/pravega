@@ -66,7 +66,6 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             Segment segment;
             long offset;
             ByteBuffer buffer;
-            int length = 0;
             boolean rebalance = false;
             do { // Loop handles retry on end of segment
                 rebalance |= releaseSegmentsIfNeeded();
