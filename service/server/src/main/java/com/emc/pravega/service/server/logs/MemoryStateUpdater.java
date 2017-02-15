@@ -108,6 +108,11 @@ class MemoryStateUpdater {
      *                                 append operations out of order.
      */
     void process(Operation operation) throws DataCorruptionException {
+        if (!operation.canSerialize()) {
+            // Nothing to do.
+            return;
+        }
+
         // Add entry to MemoryTransactionLog and ReadIndex/Cache. This callback is invoked from the QueueProcessor,
         // which always acks items in order of Sequence Number - so the entries should be ordered (but always check).
         if (operation instanceof StorageOperation) {

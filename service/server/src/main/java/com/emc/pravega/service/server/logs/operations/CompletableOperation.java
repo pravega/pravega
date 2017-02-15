@@ -21,10 +21,9 @@ package com.emc.pravega.service.server.logs.operations;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Binds a Operation with success and failure callbacks that will be invoked based on its outcome..
@@ -86,7 +85,8 @@ public class CompletableOperation {
      */
     public void complete() {
         long seqNo = this.operation.getSequenceNumber();
-        Preconditions.checkState(seqNo >= 0, "About to complete a CompletableOperation that has no sequence number.");
+        Preconditions.checkState(!this.operation.canSerialize() || seqNo >= 0,
+                "About to complete a CompletableOperation that has no sequence number.");
 
         this.done = true;
         if (this.successHandler != null) {

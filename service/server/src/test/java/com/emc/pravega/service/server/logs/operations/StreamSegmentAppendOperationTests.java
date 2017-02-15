@@ -19,11 +19,14 @@
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.common.MathHelpers;
-import com.emc.pravega.service.contracts.AppendContext;
-import org.junit.Assert;
-
+import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Random;
 import java.util.UUID;
+import lombok.val;
+import org.junit.Assert;
 
 /**
  * Unit tests for StreamSegmentAppendOperation class.
@@ -36,8 +39,8 @@ public class StreamSegmentAppendOperationTests extends OperationTestsBase<Stream
     protected StreamSegmentAppendOperation createOperation(Random random) {
         byte[] data = new byte[random.nextInt(MAX_LENGTH - MIN_LENGTH) + MIN_LENGTH];
         random.nextBytes(data);
-        AppendContext context = new AppendContext(new UUID(random.nextLong(), random.nextLong()), random.nextLong());
-        return new StreamSegmentAppendOperation(random.nextLong(), data, context);
+        val attributes = createAttributes();
+        return new StreamSegmentAppendOperation(random.nextLong(), data, attributes);
     }
 
     @Override
@@ -52,5 +55,15 @@ public class StreamSegmentAppendOperationTests extends OperationTestsBase<Stream
         } else if (isPreSerializationConfigRequired(operation)) {
             Assert.fail("isPreSerializationConfigRequired returned true but there is nothing to be done.");
         }
+    }
+
+    static Collection<AttributeUpdate> createAttributes() {
+        val result = new ArrayList<AttributeUpdate>();
+        long currentValue = 0;
+        for (AttributeUpdateType ut : AttributeUpdateType.values()) {
+            result.add(new AttributeUpdate(UUID.randomUUID(), ut, ++currentValue));
+        }
+
+        return result;
     }
 }

@@ -18,6 +18,9 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
+import java.util.Map;
+import java.util.UUID;
+
 /**
  * Defines a mapping between a StreamSegment Name and its Id.
  */
@@ -41,4 +44,9 @@ public interface StreamSegmentMapping {
      * Gets a value indicating whether the StreamSegment is currently sealed at the time of the mapping.
      */
     boolean isSealed();
+
+    /**
+     * Gets the Attributes for the StreamSegment at the time of the mapping.
+     */
+    Map<UUID, Long> getAttributes();
 }

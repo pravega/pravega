@@ -21,9 +21,7 @@ package com.emc.pravega.service.server.logs.operations;
 import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.server.ContainerMetadata;
-
 import java.util.Random;
-
 import org.junit.Assert;
 
 /**
@@ -32,7 +30,13 @@ import org.junit.Assert;
 public class TransactionMapOperationTests extends OperationTestsBase<TransactionMapOperation> {
     @Override
     protected TransactionMapOperation createOperation(Random random) {
-        return new TransactionMapOperation(random.nextLong(), new StreamSegmentInformation(super.getStreamSegmentName(random.nextLong()), random.nextLong(), random.nextBoolean(), random.nextBoolean(), new ImmutableDate()));
+        return new TransactionMapOperation(random.nextLong(), new StreamSegmentInformation(
+                super.getStreamSegmentName(random.nextLong()),
+                random.nextLong(),
+                random.nextBoolean(),
+                random.nextBoolean(),
+                StreamSegmentMapOperationTests.createAttributes(10),
+                new ImmutableDate()));
     }
 
     @Override

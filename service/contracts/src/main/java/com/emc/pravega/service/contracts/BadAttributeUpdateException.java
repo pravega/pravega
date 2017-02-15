@@ -19,26 +19,26 @@
 package com.emc.pravega.service.contracts;
 
 /**
- * Exception that is thrown whenever an Append Operation failed because of inconsistent AppendContext.EventNumbers.
+ * Exception that is thrown whenever an Append Operation failed because of bad Attribute Updates.
  */
-public class BadEventNumberException extends StreamSegmentException {
+public class BadAttributeUpdateException extends StreamSegmentException {
     /**
      *
      */
     private static final long serialVersionUID = 1L;
 
     /**
-     * Creates a new instance of the BadEventNumberException class.
+     * Creates a new instance of the BadAttributeUpdateException class.
      *
      * @param streamSegmentName The name of the StreamSegment.
-     * @param lastEventNumber   The last known Event Number for the StreamSegment.
-     * @param actualEventNumber The Event Number that was given as part of the Operation.
+     * @param attributeUpdate   The AttributeUpdate that failed the check.
+     * @param errorMessage      The Event Number that was given as part of the Operation.
      */
-    public BadEventNumberException(String streamSegmentName, long lastEventNumber, long actualEventNumber) {
-        super(streamSegmentName, getMessage(lastEventNumber, actualEventNumber));
+    public BadAttributeUpdateException(String streamSegmentName, AttributeUpdate attributeUpdate, String errorMessage) {
+        super(streamSegmentName, getMessage(attributeUpdate, errorMessage));
     }
 
-    private static String getMessage(long expectedOffset, long actualOffset) {
-        return String.format("Bad EventNumber. Expected greater than %d, given %d.", expectedOffset, actualOffset);
+    private static String getMessage(AttributeUpdate attributeUpdate, String errorMessage) {
+        return String.format("Bad Attribute Update (%s): %s.", attributeUpdate, errorMessage);
     }
 }

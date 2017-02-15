@@ -18,44 +18,34 @@
 
 package com.emc.pravega.service.contracts;
 
-import com.emc.pravega.common.util.ImmutableDate;
-import java.util.Map;
 import java.util.UUID;
 
 /**
- * General properties about a StreamSegment.
+ * Defines a set of well known attributes.
  */
-public interface SegmentProperties {
+public final class Attributes {
     /**
-     * Gets a value indicating the name of this StreamSegment.
+     * Prefix (Most Significant Bits) of the Id of all well-known attributes.
      */
-    String getName();
+    public static final long WELL_KNOWN_ID_PREFIX = Long.MIN_VALUE;
 
     /**
-     * Gets a value indicating whether this StreamSegment is sealed for modifications.
+     * Defines an attribute that can be used to denote Segment creation time.
      */
-    boolean isSealed();
+    public static final UUID CREATION_TIME = new UUID(WELL_KNOWN_ID_PREFIX, 0);
 
     /**
-     * Gets a value indicating whether this StreamSegment is deleted (does not exist).
+     * Defines an attribute that can be used to keep track of the number of events in a Segment.
      */
-    boolean isDeleted();
+    public static final UUID EVENT_COUNT = new UUID(WELL_KNOWN_ID_PREFIX, 1);
 
     /**
-     * Gets a value indicating the last modification time of the StreamSegment.
-     */
-    ImmutableDate getLastModified();
-
-    /**
-     * Gets a value indicating the full, readable length of the StreamSegment.
-     */
-    long getLength();
-
-    /**
-     * Gets a read-only Map of AttributeId-Values for this Segment.
+     * Determines whether the given Attribute Id refers to a dynamic attribute (vs a well-known one).
      *
-     * @return The map.
+     * @param attributeId The Attribute Id to check.
+     * @return True if dynamic, false otherwise.
      */
-    Map<UUID, Long> getAttributes();
+    public static boolean isDynamic(UUID attributeId) {
+        return attributeId.getMostSignificantBits() != WELL_KNOWN_ID_PREFIX;
+    }
 }
-

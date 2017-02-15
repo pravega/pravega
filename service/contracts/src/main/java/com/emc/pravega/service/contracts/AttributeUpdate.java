@@ -18,31 +18,28 @@
 
 package com.emc.pravega.service.contracts;
 
-import lombok.Data;
-
 import java.util.UUID;
+import javax.annotation.concurrent.NotThreadSafe;
+import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
- * Externally-specified Append Context.
+ * Represents an update to a value of an Attribute.
  */
-@Data
-public class AppendContext {
-    private final UUID clientId;
-    private final long eventNumber;
-
-    /**
-     * Creates a new instance of the AppendContext class.
-     *
-     * @param clientId    The Unique Id of the client this append was received from.
-     * @param eventNumber The client-assigned event number within the client context.
-     */
-    public AppendContext(UUID clientId, long eventNumber) {
-        this.clientId = clientId;
-        this.eventNumber = eventNumber;
-    }
+@AllArgsConstructor
+@Getter
+@Setter
+@EqualsAndHashCode(of = {"attributeId", "value"})
+@NotThreadSafe
+public class AttributeUpdate {
+    private final UUID attributeId;
+    private final AttributeUpdateType updateType;
+    private long value;
 
     @Override
     public String toString() {
-        return String.format("ClientId = %s, eventNumber = %d", getClientId().toString(), getEventNumber());
+        return String.format("AttributeId = %s, Value = %s, UpdateType = %s", this.attributeId, this.value, this.updateType);
     }
 }
