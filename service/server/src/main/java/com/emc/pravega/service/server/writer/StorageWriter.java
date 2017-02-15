@@ -19,13 +19,12 @@
 package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.AutoStopwatch;
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.MathHelpers;
 import com.emc.pravega.common.concurrent.AbstractThreadPoolService;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.server.DataCorruptionException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.Writer;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
@@ -34,6 +33,7 @@ import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
+
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -43,8 +43,10 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
+
+import lombok.SneakyThrows;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Storage Writer. Applies operations from Operation Log to Storage.
@@ -207,6 +209,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      *
      * @param readResult The read result to process.
      */
+    @SneakyThrows(DataCorruptionException.class)
     private void processReadResult(Iterator<Operation> readResult) {
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "processReadResult");
         InputReadStageResult result = new InputReadStageResult(this.state);
@@ -217,32 +220,28 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
             return;
         }
 
-        try {
-            while (readResult.hasNext()) {
-                checkRunning();
-                Operation op = readResult.next();
+        while (readResult.hasNext()) {
+            checkRunning();
+            Operation op = readResult.next();
 
-                // Verify that the Operation we got is in the correct order (check Sequence Number).
-                if (op.getSequenceNumber() <= this.state.getLastReadSequenceNumber()) {
-                    throw new DataCorruptionException(String.format("Operation '%s' has a sequence number that is lower than the previous one (%d).", op, this.state.getLastReadSequenceNumber()));
-                }
-
-                if (op instanceof MetadataOperation) {
-                    processMetadataOperation((MetadataOperation) op);
-                } else if (op instanceof StorageOperation) {
-                    result.bytes += processStorageOperation((StorageOperation) op);
-                } else {
-                    // Unknown operation. Better throw an error rather than skipping over what could be important data.
-                    throw new DataCorruptionException(String.format("Unsupported operation %s.", op));
-                }
-
-                // We have now internalized all operations from this batch; and even if subsequent operations in this iteration
-                // fail, we no longer need to re-read these operations, so update the state with the last read SeqNo.
-                this.state.setLastReadSequenceNumber(op.getSequenceNumber());
-                result.count++;
+            // Verify that the Operation we got is in the correct order (check Sequence Number).
+            if (op.getSequenceNumber() <= this.state.getLastReadSequenceNumber()) {
+                throw new DataCorruptionException(String.format("Operation '%s' has a sequence number that is lower than the previous one (%d).", op, this.state.getLastReadSequenceNumber()));
             }
-        } catch (DataCorruptionException ex) {
-            throw new RuntimeStreamingException(ex);
+
+            if (op instanceof MetadataOperation) {
+                processMetadataOperation((MetadataOperation) op);
+            } else if (op instanceof StorageOperation) {
+                result.bytes += processStorageOperation((StorageOperation) op);
+            } else {
+                // Unknown operation. Better throw an error rather than skipping over what could be important data.
+                throw new DataCorruptionException(String.format("Unsupported operation %s.", op));
+            }
+
+            // We have now internalized all operations from this batch; and even if subsequent operations in this iteration
+            // fail, we no longer need to re-read these operations, so update the state with the last read SeqNo.
+            this.state.setLastReadSequenceNumber(op.getSequenceNumber());
+            result.count++;
         }
 
         logStageEvent("InputRead", result);

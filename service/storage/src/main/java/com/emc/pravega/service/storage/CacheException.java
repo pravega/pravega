@@ -18,12 +18,10 @@
 
 package com.emc.pravega.service.storage;
 
-import com.emc.pravega.service.contracts.RuntimeStreamingException;
-
 /**
  * Exception that is thrown whenever a Cache operation could not be completed.
  */
-public class CacheException extends RuntimeStreamingException {
+public class CacheException extends RuntimeException {
     /**
      * Creates a new instance of the CacheException class.
      *

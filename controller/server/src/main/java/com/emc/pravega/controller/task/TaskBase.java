@@ -20,8 +20,6 @@ package com.emc.pravega.controller.task;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
-import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
@@ -29,6 +27,9 @@ import java.lang.reflect.Method;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * TaskBase contains the following.
@@ -38,7 +39,7 @@ import java.util.concurrent.ScheduledExecutorService;
  * Actual tasks are implemented in sub-classes of TaskBase and annotated with @Task annotation.
  */
 @Slf4j
-public class TaskBase implements Cloneable {
+public abstract class TaskBase {
 
     public interface FutureOperation<T> {
         CompletableFuture<T> apply();
@@ -68,24 +69,21 @@ public class TaskBase implements Cloneable {
 
     protected final ScheduledExecutorService executor;
 
-    private Context context;
+    protected final Context context;
 
-    private final TaskMetadataStore taskMetadataStore;
+    protected final TaskMetadataStore taskMetadataStore;
 
     public TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor, final String hostId) {
+        this(taskMetadataStore, executor, new Context(hostId));
+    }
+
+    protected TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor, Context context) {
         this.taskMetadataStore = taskMetadataStore;
         this.executor = executor;
-        context = new Context(hostId);
-    }
-
-    @Override
-    public TaskBase clone() throws CloneNotSupportedException {
-        return (TaskBase) super.clone();
-    }
-
-    public void setContext(final Context context) {
         this.context = context;
     }
+    
+    public abstract TaskBase copyWithContext(Context context);
 
     public Context getContext() {
         return this.context;
@@ -208,14 +206,10 @@ public class TaskBase implements Cloneable {
 
     private TaskData getTaskData(final Serializable[] parameters) {
         // Quirk of using stack trace shall be rendered redundant when Task Annotation's handler is coded up.
-        TaskData taskData = new TaskData();
         StackTraceElement[] stacktrace = Thread.currentThread().getStackTrace();
         StackTraceElement e = stacktrace[3];
         Task annotation = getTaskAnnotation(e.getMethodName());
-        taskData.setMethodName(annotation.name());
-        taskData.setMethodVersion(annotation.version());
-        taskData.setParameters(parameters);
-        return taskData;
+        return new TaskData(annotation.name(), annotation.version(), parameters);
     }
 
     private Task getTaskAnnotation(final String method) {

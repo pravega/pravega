@@ -129,6 +129,7 @@ class AppendContentGenerator {
         }
 
         // Extract ownerId.
+        @SuppressWarnings("unused")
         int ownerId = BitConverter.readInt(view, offset);
         offset += OWNER_ID_LENGTH;
 

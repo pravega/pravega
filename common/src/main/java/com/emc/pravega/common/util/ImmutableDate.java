@@ -15,24 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.impl;
+package com.emc.pravega.common.util;
 
-import java.util.List;
+import java.util.Date;
 
-/**
- * Used to select which event should go next when consuming from multiple segments.
- *
- * @param <Type> The type of events that are in the stream
- */
-public interface Orderer<Type> {
+import lombok.Data;
 
-    /**
-     * Given a list of segments this reader owns, (which contain their positions) returns the one that
-     * should be read from next. This is done in a consistent way. i.e. Calling this method with the
-     * same readers at the same positions, should yield the same result. (The passed collection is
-     * not modified)
-     *
-     * @param segments The logs to get the next reader for.
-     */
-    SegmentEventReader<Type> nextSegment(List<SegmentEventReader<Type>> segments);
+@Data
+public class ImmutableDate {
+    private final long time;
+    
+    public ImmutableDate() {
+        time = System.currentTimeMillis();
+    }
+    
+    public ImmutableDate(long time) {
+        this.time = time;
+    }
+
+    public Date asDate() {
+        return new Date(time);
+    }
 }

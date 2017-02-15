@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.contracts;
 
-import java.util.Date;
+import com.emc.pravega.common.util.ImmutableDate;
 
 import lombok.Data;
 
@@ -32,7 +32,7 @@ public class StreamSegmentInformation implements SegmentProperties {
     private final long length;
     private final boolean sealed;
     private final boolean deleted;
-    private final Date lastModified;
+    private final ImmutableDate lastModified;
 
     /**
      * Creates a new instance of the StreamSegmentInformation class.
@@ -43,14 +43,14 @@ public class StreamSegmentInformation implements SegmentProperties {
      * @param isDeleted         Whether the StreamSegment is deleted (does not exist).
      * @param lastModified      The last time the StreamSegment was modified.
      */
-    public StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, Date lastModified) {
+    public StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, ImmutableDate lastModified) {
         this.name = streamSegmentName;
         this.length = length;
         this.sealed = isSealed;
         this.deleted = isDeleted;
         this.lastModified = lastModified;
     }
-
+    
     @Override
     public String toString() {
         return String.format("Name = %s, Length = %d, Sealed = %s, Deleted = %s, LastModified = %s", getName(), getLength(), isSealed(), isDeleted(), getLastModified());

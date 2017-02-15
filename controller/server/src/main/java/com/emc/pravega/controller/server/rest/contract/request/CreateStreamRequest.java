@@ -23,13 +23,23 @@ import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommo
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import javax.validation.Valid;
+import javax.validation.constraints.NotNull;
+
 /**
  * Conforms to createStream REST API request object.
  */
 @Getter
 @AllArgsConstructor
 public class CreateStreamRequest {
+    @NotNull
     private final String streamName;
+
+    @Valid
+    @NotNull
     private final ScalingPolicyCommon scalingPolicy;
+
+    @Valid
+    @NotNull
     private final RetentionPolicyCommon retentionPolicy;
 }

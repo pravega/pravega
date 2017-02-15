@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.selftest;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -26,7 +27,6 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -199,8 +199,7 @@ class Producer extends Actor {
                                                      .get(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS);
                     reconciled = sp.isSealed() || sp.isDeleted();
                 } catch (Throwable ex2) {
-                    ex2 = ExceptionHelpers.getRealException(ex2);
-                    reconciled = isPossibleEndOfSegment(ex2);
+                    reconciled = isPossibleEndOfSegment(ExceptionHelpers.getRealException(ex2));
                 }
             }
         }

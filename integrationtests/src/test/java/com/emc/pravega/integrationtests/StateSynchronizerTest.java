@@ -153,7 +153,7 @@ public class StateSynchronizerTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-
+        @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         streamManager.createStream(stateName, null);
         SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
