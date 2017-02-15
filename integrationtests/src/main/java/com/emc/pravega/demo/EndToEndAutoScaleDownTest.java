@@ -68,10 +68,9 @@ public class EndToEndAutoScaleDownTest {
             PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
             server.startListening();
 
-            controller.createStream(config).get();
+            Thread.sleep(20000);
 
-            // keep writing. Scale should happen
-            long start = System.currentTimeMillis();
+            controller.createStream(config).get();
 
             Stream stream = new StreamImpl("test", "test");
             Map<Double, Double> map = new HashMap<>();

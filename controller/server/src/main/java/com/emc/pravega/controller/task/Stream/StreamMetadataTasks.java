@@ -26,6 +26,7 @@ import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
@@ -54,6 +55,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static com.emc.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
 import static com.emc.pravega.controller.task.Stream.TaskStepsRetryHelper.withWireCommandHandling;
@@ -160,16 +162,24 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp, OperationContext contextOpt) {
 
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
-                .thenCompose(created -> {
+                .thenComposeAsync(created -> {
                     log.debug("{}/{} created in metadata store", scope, stream);
-                    if (created) {
+                    if (created != null) {
                         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-                        return withRetries(streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
-                                .thenCompose(activeSegments -> notifyNewSegments(config.getScope(), stream, config, activeSegments, context)
-                                        .thenApply(y -> CreateStreamStatus.SUCCESS));
+                        List<Integer> newSegments = IntStream.range(0, config.getScalingPolicy().getMinNumSegments()).boxed().collect(Collectors.toList());
+                        return notifyNewSegments(config.getScope(), stream, config, newSegments)
+                                .thenApply(y -> CreateStreamStatus.SUCCESS);
                     } else {
                         return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
+                    }
+                }, executor)
+                .thenCompose(status -> {
+                    if (status.equals(CreateStreamStatus.FAILURE)) {
+                        return CompletableFuture.completedFuture(status);
+                    } else {
+                        return withRetries(streamMetadataStore.setState(scope, stream, State.ACTIVE, null, executor), executor)
+                                .thenApply(v -> status);
                     }
                 })
                 .handle((result, ex) -> {
@@ -317,14 +327,15 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     private CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers, OperationContext context) {
         return withRetries(streamMetadataStore.getConfiguration(scope, stream, context, executor), executor)
-                .thenCompose(configuration -> notifyNewSegments(scope, stream, configuration, segmentNumbers, context));
+                .thenCompose(configuration -> notifyNewSegments(scope, stream, configuration,
+                        segmentNumbers.stream().map(Segment::getNumber).collect(Collectors.toList())));
     }
 
-    private CompletableFuture<Void> notifyNewSegments(String scope, String stream, StreamConfiguration configuration, List<Segment> segmentNumbers, OperationContext context) {
+    private CompletableFuture<Void> notifyNewSegments(String scope, String stream, StreamConfiguration configuration, List<Integer> segmentNumbers) {
         return FutureHelpers.toVoid(FutureHelpers.allOfWithResults(segmentNumbers
                 .stream()
                 .parallel()
-                .map(segment -> notifyNewSegment(scope, stream, segment.getNumber(), configuration.getScalingPolicy()))
+                .map(segment -> notifyNewSegment(scope, stream, segment, configuration.getScalingPolicy()))
                 .collect(Collectors.toList())));
     }
 

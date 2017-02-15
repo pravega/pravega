@@ -355,11 +355,11 @@ public class StreamMetadataTest {
         //PS5:Get position at time before stream creation
         System.err.println(String.format("Get positions at time before (%s, %s) creation ", scope1, streamName1));
         getPositions = controller.getPositions(stream1, System.currentTimeMillis() - 36000, count1);
-        if (getPositions.get().isEmpty()) {
+        if (getPositions.get().size() == controller.getCurrentSegments(scope1, streamName1).get().getSegments().size()) {
             System.err.println("SUCCESS: Fetching positions at given time before stream creation");
         } else {
             System.err.println("FAILURE: Fetching positions at given time before stream creation failed, exiting");
-            return;
+            System.exit(1);
         }
 
         //PS6:Get positions at a time in future after stream creation

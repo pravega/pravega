@@ -25,9 +25,11 @@ import com.emc.pravega.controller.server.rpc.v1.SegmentHelperMock;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.ZKHostStore;
+import com.emc.pravega.controller.store.stream.PersistentStreamBase;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -73,7 +75,7 @@ public class RequestTest {
     @Before
     public void createStream() throws Exception {
         SegmentHelperMock.init();
-
+        PersistentStreamBase.setCreationState(State.ACTIVE);
         zkServer = new TestingServer();
         zkServer.start();
 

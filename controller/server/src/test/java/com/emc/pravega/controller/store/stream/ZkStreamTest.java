@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -59,6 +60,7 @@ public class ZkStreamTest {
         zkTestServer = new TestingServer();
         cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
+        PersistentStreamBase.setCreationState(State.ACTIVE);
     }
 
     @After
@@ -85,6 +87,27 @@ public class ZkStreamTest {
             assert e.getCause() instanceof StoreConnectionException;
         }
         zkTestServer.start();
+    }
+
+    @Test
+    public void TestCreateStreamState() throws Exception {
+        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 5);
+
+        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
+        final String streamName = "testfail";
+
+        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
+
+        PersistentStreamBase.setCreationState(State.CREATING);
+
+        store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
+        try {
+            store.getConfiguration(SCOPE, streamName, null, executor).get();
+        } catch (Exception e) {
+            assert e.getCause() != null && e.getCause() instanceof IllegalStateException;
+        }
+
+        PersistentStreamBase.setCreationState(State.ACTIVE);
     }
 
     @Test

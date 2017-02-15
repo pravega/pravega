@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 
@@ -62,6 +63,10 @@ public interface StreamMetadataStore {
                                             final long createTimestamp,
                                             final OperationContext context,
                                             final Executor executor);
+
+    CompletableFuture<Boolean> setState(String scope, String name,
+                                        State state, OperationContext context,
+                                        Executor executor);
 
     /**
      * Updates the configuration of an existing stream.

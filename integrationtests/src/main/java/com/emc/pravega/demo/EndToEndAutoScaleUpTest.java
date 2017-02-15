@@ -83,13 +83,12 @@ public class EndToEndAutoScaleUpTest {
 
             String str = new String(chars);
 
-            Thread.sleep(10000);
             CompletableFuture.runAsync(() -> {
                 while (System.currentTimeMillis() - start < Duration.ofMinutes(3).toMillis()) {
                     try {
                         test.writeEvent("0", str).get();
                     } catch (Throwable e) {
-                        System.err.print("test exception writing events " + e.getMessage());
+                        System.err.println("test exception writing events " + e.getMessage());
                         break;
                     }
                 }
@@ -101,7 +100,7 @@ public class EndToEndAutoScaleUpTest {
             if (streamSegments.getSegments().size() > 3) {
                 System.err.println("Success scale up");
             } else {
-                System.out.println("Failure");
+                System.err.println("Failure");
                 System.exit(1);
             }
         } catch (Throwable e) {

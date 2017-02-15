@@ -18,9 +18,11 @@
 
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.AbstractMap.SimpleEntry;
@@ -53,6 +55,11 @@ public class StreamMetadataStoreTest {
 
     private final StreamMetadataStore store =
             StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executor);
+
+    @Before
+    public void init() {
+        PersistentStreamBase.setCreationState(State.ACTIVE);
+    }
 
     @Test
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
