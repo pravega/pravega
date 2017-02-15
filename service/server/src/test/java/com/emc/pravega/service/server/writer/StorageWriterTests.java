@@ -22,13 +22,12 @@ import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.service.server.ServiceShutdownListener;
+import com.emc.pravega.common.ExceptionHelpers;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestStorage;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
@@ -40,17 +39,11 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperati
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
-import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
-import lombok.Cleanup;
-import lombok.val;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -66,6 +59,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import lombok.Cleanup;
+import lombok.val;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for the StorageWriter class.
@@ -157,7 +154,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
         // We clear up the cache after we have added the operations in the data source - this will cause the writer
         // to pick them up and end up failing when attempting to fetch the cache contents.
-        context.cache.clear();
+        context.dataSource.clearAppendData();
 
         AssertExtensions.assertThrows(
                 "StorageWriter did not fail when a fatal data retrieval error occurred.",
@@ -248,6 +245,8 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                     ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true);
                 },
                 ex -> ex instanceof IllegalStateException);
+
+        ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, false);
         Assert.assertTrue("Unexpected failure cause for StorageWriter.", ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof ReconciliationFailureException);
     }
 
@@ -271,6 +270,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             if (writeCount.incrementAndGet() % failWriteEvery == 0) {
                 return storage.write(segmentName, offset, data, length, TIMEOUT)
                               .thenAccept(v -> {
+                                  long segmentId = context.metadata.getStreamSegmentId(segmentName);
                                   writeFailCount.incrementAndGet();
                                   throw new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
                               });
@@ -555,13 +555,8 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         segmentMetadata.setDurableLogLength(offset + data.length);
         StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentMetadata.getId(), data, appendContext);
         op.setStreamSegmentOffset(offset);
-        if (writeId % 2 == 0) {
-            context.cache.insert(new CacheKey(segmentMetadata.getId(), offset), data);
-            context.dataSource.add(new CachedStreamSegmentAppendOperation(op));
-        } else {
-            context.dataSource.add(op);
-        }
-
+        context.dataSource.recordAppend(op);
+        context.dataSource.add(new CachedStreamSegmentAppendOperation(op));
         recordAppend(segmentMetadata.getId(), data, segmentContents);
     }
 
@@ -630,7 +625,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
     private byte[] getAppendData(String segmentName, long segmentId, int segmentAppendSeq, int writeId) {
         // NOTE: the data returned by this should be deterministic (not random) since the recovery test relies on it being that way.
-        return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d\n", segmentName, segmentId, segmentAppendSeq, writeId).getBytes();
+        return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d%n", segmentName, segmentId, segmentAppendSeq, writeId).getBytes();
     }
 
     private String getSegmentName(int i) {
@@ -646,7 +641,6 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         final TestWriterDataSource dataSource;
         final InMemoryStorage baseStorage;
         final TestStorage storage;
-        final InMemoryCache cache;
         final WriterConfig config;
         StorageWriter writer;
 
@@ -654,12 +648,11 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             this.baseStorage = new InMemoryStorage(executorService());
             this.storage = new TestStorage(this.baseStorage);
-            this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
             this.config = config;
 
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();
             dataSourceConfig.autoInsertCheckpointFrequency = METADATA_CHECKPOINT_FREQUENCY;
-            this.dataSource = new TestWriterDataSource(this.metadata, this.cache, executorService(), dataSourceConfig);
+            this.dataSource = new TestWriterDataSource(this.metadata, executorService(), dataSourceConfig);
             this.writer = new StorageWriter(this.config, this.dataSource, this.storage, executorService());
         }
 
@@ -673,7 +666,6 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         public void close() {
             this.writer.close();
             this.dataSource.close();
-            this.cache.close();
             this.storage.close(); // This also closes the baseStorage.
         }
     }

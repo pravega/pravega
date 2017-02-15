@@ -18,10 +18,10 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;

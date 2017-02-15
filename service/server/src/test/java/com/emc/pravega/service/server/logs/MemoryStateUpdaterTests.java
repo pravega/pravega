@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
@@ -35,20 +36,23 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperati
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.testcommon.AssertExtensions;
+
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import lombok.Cleanup;
+
 import org.junit.Assert;
 import org.junit.Test;
+
+import lombok.Cleanup;
 
 /**
  * Unit tests for MemoryStateUpdater class.
@@ -171,7 +175,7 @@ public class MemoryStateUpdaterTests {
         long offset = 0;
         for (int i = 0; i < segmentCount; i++) {
             for (int j = 0; j < operationCountPerType; j++) {
-                StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation("a", i * j, false, false, new Date()));
+                StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation("a", i * j, false, false, new ImmutableDate()));
                 mapOp.setStreamSegmentId(i);
                 operations.add(mapOp);
                 StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(i, Integer.toString(i).getBytes(), new AppendContext(UUID.randomUUID(), i * j));
@@ -195,6 +199,7 @@ public class MemoryStateUpdaterTests {
         static final String BEGIN_MERGE = "beginMerge";
         static final String COMPLETE_MERGE = "completeMerge";
         static final String READ = "read";
+        static final String READ_DIRECT = "readDirect";
         static final String TRIGGER_FUTURE_READS = "triggerFutureReads";
         static final String CLEANUP = "cleanup";
         static final String ENTER_RECOVERY_MODE = "enterRecoveryMode";
@@ -228,6 +233,14 @@ public class MemoryStateUpdaterTests {
             invoke(new MethodInvocation(COMPLETE_MERGE)
                     .withArg("targetStreamSegmentId", targetStreamSegmentId)
                     .withArg("sourceStreamSegmentId", sourceStreamSegmentId));
+        }
+
+        @Override
+        public InputStream readDirect(long streamSegmentId, long offset, int length) {
+            invoke(new MethodInvocation(READ_DIRECT)
+                    .withArg("offset", offset)
+                    .withArg("length", length));
+            return null;
         }
 
         @Override

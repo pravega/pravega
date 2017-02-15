@@ -66,7 +66,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @RequiredArgsConstructor
 @Slf4j
-class SegmentOutputStreamImpl extends SegmentOutputStream {
+class SegmentOutputStreamImpl implements SegmentOutputStream {
 
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
     private final String segmentName;

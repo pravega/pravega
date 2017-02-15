@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -36,15 +37,11 @@ import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.Service;
-import lombok.Cleanup;
-import org.apache.commons.lang.NotImplementedException;
-import org.junit.Assert;
-import org.junit.Test;
 
 import java.io.InputStream;
 import java.time.Duration;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.UUID;
@@ -56,6 +53,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
+
+import lombok.Cleanup;
+
+import org.apache.commons.lang.NotImplementedException;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for StreamSegmentMapper class.
@@ -83,7 +86,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         HashSet<String> storageSegments = new HashSet<>();
         setupStorageCreateHandler(context, storageSegments);
-        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, 0, false, false, new Date()));
+        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, 0, false, false, new ImmutableDate()));
 
         // Create some Segments and Transaction and verify they are properly created and registered.
         for (int i = 0; i < segmentCount; i++) {
@@ -151,7 +154,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         // Check how this behaves when Storage works, but the OperationLog cannot process the operations.
         context.operationLog.addHandler = op -> FutureHelpers.failedFuture(new TimeoutException("intentional"));
         setupStorageCreateHandler(context, storageSegments);
-        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new Date()));
+        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new ImmutableDate()));
 
         // 5. When Creating a Transaction.
         AssertExtensions.assertThrows(
@@ -196,7 +199,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         setupOperationLog(context);
         Predicate<String> isSealed = segmentName -> segmentName.hashCode() % 2 == 0;
         Function<String, Long> getInitialLength = segmentName -> (long) Math.abs(segmentName.hashCode());
-        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, getInitialLength.apply(segmentName), isSealed.test(segmentName), false, new Date()));
+        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, getInitialLength.apply(segmentName), isSealed.test(segmentName), false, new ImmutableDate()));
 
         // First, map all the parents (stand-alone segments).
         for (String name : storageSegments) {
@@ -249,7 +252,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext();
         setupOperationLog(context);
-        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, 0, false, false, new Date()));
+        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, 0, false, false, new ImmutableDate()));
 
         // Map all the segments, then delete them, then verify behavior.
         for (String name : storageSegments) {
@@ -291,7 +294,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof IntentionalException);
 
         // 2a. StreamSegmentNotExists (Stand-Alone segment)
-        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new Date()));
+        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new ImmutableDate()));
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a non-existent stand-alone StreamSegment.",
                 () -> context.mapper.getOrAssignStreamSegmentId(segmentName + "foo", TIMEOUT),
@@ -328,7 +331,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext();
-        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new Date()));
+        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new ImmutableDate()));
         CompletableFuture<Long> initialAddFuture = new CompletableFuture<>();
         AtomicBoolean operationLogInvoked = new AtomicBoolean(false);
         context.operationLog.addHandler = op -> {
@@ -413,7 +416,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                     return FutureHelpers.failedFuture(new StreamSegmentExistsException(segmentName));
                 } else {
                     storageSegments.add(segmentName);
-                    return CompletableFuture.completedFuture(new StreamSegmentInformation(segmentName, 0, false, false, new Date()));
+                    return CompletableFuture.completedFuture(new StreamSegmentInformation(segmentName, 0, false, false, new ImmutableDate()));
                 }
             }
         };
@@ -488,6 +491,16 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public ListenableFuture<State> start() {
+            return null;
+        }
+
+        @Override
+        public State startAndWait() {
+            return null;
+        }
+
+        @Override
         public Service startAsync() {
             return null;
         }
@@ -499,6 +512,16 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         @Override
         public State state() {
+            return null;
+        }
+
+        @Override
+        public ListenableFuture<State> stop() {
+            return null;
+        }
+
+        @Override
+        public State stopAndWait() {
             return null;
         }
 

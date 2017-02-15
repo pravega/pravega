@@ -16,17 +16,17 @@
  */
 package com.emc.pravega.common.metrics;
 
-import com.codahale.metrics.Timer;
-import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Timer;
 import com.google.common.base.Preconditions;
+import java.util.function.Supplier;
+
 
 import static com.codahale.metrics.MetricRegistry.name;
-import java.util.function.Supplier;
 
 public class YammerStatsLogger implements StatsLogger {
     protected final String basename;
-    final MetricRegistry metrics;
+    private final MetricRegistry metrics;
 
     YammerStatsLogger(MetricRegistry metrics, String basename) {
         Preconditions.checkNotNull(metrics, "metrics");
@@ -41,11 +41,50 @@ public class YammerStatsLogger implements StatsLogger {
         return new YammerOpStatsLogger(success, failure);
     }
 
+    @Override
+    public Counter createCounter(String statName) {
+        final com.codahale.metrics.Counter c = metrics.counter(name(basename, statName));
+        return new CounterImpl(c, name(basename, statName));
+    }
+
+    @Override
+    public <T extends Number> Gauge registerGauge(final String statName, Supplier<T> value) {
+        String metricName = name(basename, statName);
+        metrics.remove(metricName);
+        com.codahale.metrics.Gauge gauge = new com.codahale.metrics.Gauge<T>() {
+            @Override
+            public T getValue() {
+                return value.get();
+            }
+        };
+        metrics.register(metricName, gauge);
+        return new GaugeImpl(gauge, metricName);
+    }
+
+    @Override
+    public Meter createMeter(String statName) {
+        final com.codahale.metrics.Meter meter = metrics.meter(name(basename, statName));
+        return new MeterImpl(meter, name(basename, statName));
+    }
+
+    @Override
+    public StatsLogger createScopeLogger(String scope) {
+        String scopeName;
+        if (0 == basename.length()) {
+            scopeName = scope;
+        } else {
+            scopeName = name(basename, scope);
+        }
+        return new YammerStatsLogger(metrics, scopeName);
+    }
+
     private static class CounterImpl implements Counter {
         private final com.codahale.metrics.Counter counter;
+        private final String name;
 
-        CounterImpl(com.codahale.metrics.Counter c) {
-             counter = c;
+        CounterImpl(com.codahale.metrics.Counter c, String name) {
+            counter = c;
+            this.name = name;
         }
 
         @Override
@@ -73,35 +112,55 @@ public class YammerStatsLogger implements StatsLogger {
         public void add(long delta) {
             counter.inc(delta);
         }
-    }
 
-    @Override
-    public Counter createCounter(String statName) {
-        final com.codahale.metrics.Counter c = metrics.counter(name(basename, statName));
-        return new CounterImpl(c);
-    }
-
-    @Override
-    public <T extends Number> void registerGauge(final String statName, Supplier<T> value) {
-        String metricName = name(basename, statName);
-        metrics.remove(metricName);
-        Gauge gauge = new Gauge<T>() {
-            @Override
-            public T getValue() {
-                return value.get();
-            }
-        };
-        metrics.register(metricName, gauge);
-    }
-
-    @Override
-    public StatsLogger createScopeLogger(String scope) {
-        String scopeName;
-        if (0 == basename.length()) {
-            scopeName = scope;
-        } else {
-            scopeName = name(basename, scope);
+        @Override
+        public String getName() {
+            return name;
         }
-        return new YammerStatsLogger(metrics, scopeName);
+    }
+
+    private static class GaugeImpl implements Gauge {
+        private final com.codahale.metrics.Gauge gauge;
+        private final String name;
+
+        GaugeImpl(com.codahale.metrics.Gauge gauge, String name) {
+            this.gauge = gauge;
+            this.name = name;
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+    }
+
+    private static class MeterImpl implements Meter {
+        private final com.codahale.metrics.Meter meter;
+        private final String name;
+
+        MeterImpl(com.codahale.metrics.Meter meter, String name) {
+            this.meter = meter;
+            this.name = name;
+        }
+
+        @Override
+        public void recordEvent() {
+            meter.mark();
+        }
+
+        @Override
+        public void recordEvents(long n) {
+            meter.mark(n);
+        }
+
+        @Override
+        public long getCount() {
+            return meter.getCount();
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
     }
 }

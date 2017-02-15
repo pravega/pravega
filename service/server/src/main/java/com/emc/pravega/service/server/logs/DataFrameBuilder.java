@@ -18,10 +18,10 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.common.function.ConsumerWithException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.LogItem;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.LogAddress;
@@ -98,7 +98,16 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
     //endregion
 
-    //region Appending
+    //region Operations
+
+    /**
+     * Resets the DataFrameBuilder to its initial state.
+     */
+    public void reset() {
+        this.lastSerializedSequenceNumber = -1;
+        this.lastStartedSequenceNumber = -1;
+        this.outputStream.reset();
+    }
 
     /**
      * Appends a LogItem to the DataFrameBuilder. If any exceptions happened during serialization, whatever contents was

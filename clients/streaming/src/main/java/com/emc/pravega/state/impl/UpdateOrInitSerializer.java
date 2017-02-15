@@ -20,7 +20,6 @@ package com.emc.pravega.state.impl;
 import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Update;
-import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 
 import java.nio.ByteBuffer;
@@ -34,7 +33,6 @@ public final class UpdateOrInitSerializer<StateT extends Revisioned, UpdateT ext
         implements Serializer<UpdateOrInit<StateT>> {
     private static final int INITIALIZATION = 1;
     private static final int UPDATE = 2;
-    private final Segment segment;
     private final Serializer<UpdateT> updateSerializer;
     private final Serializer<InitT> initSerializer;
 
@@ -43,11 +41,8 @@ public final class UpdateOrInitSerializer<StateT extends Revisioned, UpdateT ext
     public ByteBuffer serialize(UpdateOrInit<StateT> value) {
         if (value.isInit()) {
             ByteBuffer buffer = initSerializer.serialize((InitT) value.getInit());
-            ByteBuffer result = ByteBuffer.allocate(buffer.capacity() + 3 * Integer.BYTES + Long.BYTES);
+            ByteBuffer result = ByteBuffer.allocate(buffer.capacity() + Integer.BYTES );
             result.putInt(INITIALIZATION);
-            result.putInt(value.getInitRevision().asImpl().getSegment().getSegmentNumber());
-            result.putLong(value.getInitRevision().asImpl().getOffsetInSegment());
-            result.putInt(value.getInitRevision().asImpl().getEventAtOffset());
             result.put(buffer);
             result.rewind();
             return result;
@@ -74,13 +69,7 @@ public final class UpdateOrInitSerializer<StateT extends Revisioned, UpdateT ext
     public UpdateOrInit<StateT> deserialize(ByteBuffer serializedValue) {
         int type = serializedValue.getInt();
         if (type == INITIALIZATION) {
-            int segmentNumber = serializedValue.getInt();
-            if (segmentNumber != segment.getSegmentNumber()) {
-                throw new CorruptedStateException(
-                        "Mismatched segment numbers. Was reading from: " + segment + " but read " + segmentNumber);
-            }
-            RevisionImpl revision = new RevisionImpl(segment, serializedValue.getLong(), serializedValue.getInt());
-            return new UpdateOrInit<>(initSerializer.deserialize(serializedValue), revision);
+            return new UpdateOrInit<>(initSerializer.deserialize(serializedValue));
         } else if (type == UPDATE) {
             ArrayList<Update<StateT>> result = new ArrayList<>();
             int origionalLimit = serializedValue.limit();

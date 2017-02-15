@@ -19,25 +19,33 @@ package com.emc.pravega.common.metrics;
 import java.util.function.Supplier;
 
 /**
- * A simple interface that exposes just 2 kind of methods. One to get the logger for an Op stat
- * and another to get the logger for a simple stat(Counter and Gauge)
+ * A simple interface provides create and register Counter/Gauge/OpStatsLogger,
+ * and create logger of new scope.
  */
 public interface StatsLogger {
     /**
-     * Gets op stats logger.
+     * Create op stats logger.
      *
      * @param name Stats Name
-     * @return Get the logger for an OpStat described by the <i>name</i>.
+     * @return logger for an OpStat described by the <i>name</i>.
      */
-    public OpStatsLogger createStats(String name);
+    OpStatsLogger createStats(String name);
 
     /**
-     * Gets counter.
+     * Create counter.
      *
      * @param name Stats Name
-     * @return Get the logger for a simple stat described by the <i>name</i>
+     * @return counter described by the <i>name</i>
      */
-    public Counter createCounter(String name);
+    Counter createCounter(String name);
+
+    /**
+     * Create meter.
+     *
+     * @param name the meter name
+     * @return Create and register Meter described by the <i>name</i>
+     */
+    Meter createMeter(String name);
 
     /**
      * Register gauge.
@@ -47,14 +55,14 @@ public interface StatsLogger {
      * @param name  the name of gauge
      * @param value the supplier to provide value through get()
      */
-    public <T extends Number> void registerGauge(String name, Supplier<T> value);
+    <T extends Number> Gauge registerGauge(String name, Supplier<T> value);
 
     /**
-     * Provide the stats logger under scope <i>scope</i>.
+     * Create the stats logger under scope <i>scope</i>.
      *
      * @param scope scope name.
      * @return stats logger under scope <i>scope</i>.
      */
-    public StatsLogger createScopeLogger(String scope);
+    StatsLogger createScopeLogger(String scope);
 
 }

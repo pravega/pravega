@@ -23,6 +23,7 @@ import com.emc.pravega.stream.impl.TxnStatus;
 
 import java.util.AbstractMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -82,6 +83,12 @@ interface Stream {
      * @return successors of specified segment.
      */
     CompletableFuture<List<Integer>> getSuccessors(final int number);
+    
+    /**
+     * @param number segment number.
+     * @return successors of specified segment mapped to the list of their predecessors
+     */
+    CompletableFuture<Map<Integer, List<Integer>>> getSuccessorsWithPredecessors(final int number);
 
     /**
      * @param number segment number.
@@ -151,10 +158,9 @@ interface Stream {
     CompletableFuture<TxnStatus> abortTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
 
     /**
-     * Return whether any transaction is active on the stream.
-     * @return a boolean indicating whether a transaction is active on the stream.
+     * Returns the number of transactions ongoing for the stream.
      */
-    CompletableFuture<Boolean> isTransactionOngoing();
+    CompletableFuture<Integer> getNumberOfOngoingTransactions();
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.

@@ -18,7 +18,8 @@ package com.emc.pravega.common.metrics;
 
 public class NullStatsProvider implements StatsProvider {
 
-    final StatsLogger nullStatsLogger = new NullStatsLogger();
+    private final StatsLogger nullStatsLogger = new NullStatsLogger();
+    private final DynamicLogger nullDynamicLogger = new NullDynamicLogger();
 
     @Override
     public void start(MetricsConfig metricsConfig ) {
@@ -35,4 +36,8 @@ public class NullStatsProvider implements StatsProvider {
         return nullStatsLogger;
     }
 
+    @Override
+    public DynamicLogger createDynamicLogger() {
+        return nullDynamicLogger;
+    }
 }

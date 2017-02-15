@@ -23,16 +23,23 @@ import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommo
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-import javax.ws.rs.Consumes;
-import javax.ws.rs.Produces;
-import javax.ws.rs.core.MediaType;
+import javax.validation.Valid;
+import javax.validation.constraints.NotNull;
 
+/**
+ * Conforms to createStream REST API request object.
+ */
 @Getter
 @AllArgsConstructor
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
 public class CreateStreamRequest {
-    private String name;
-    private ScalingPolicyCommon scalingPolicy;
-    private RetentionPolicyCommon retentionPolicy;
+    @NotNull
+    private final String streamName;
+
+    @Valid
+    @NotNull
+    private final ScalingPolicyCommon scalingPolicy;
+
+    @Valid
+    @NotNull
+    private final RetentionPolicyCommon retentionPolicy;
 }

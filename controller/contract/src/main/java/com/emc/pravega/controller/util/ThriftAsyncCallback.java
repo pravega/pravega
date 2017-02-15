@@ -23,7 +23,7 @@ import org.apache.thrift.async.AsyncMethodCallback;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Thrift AsyncCallback implementation using CompletableFuture
+ * Thrift AsyncCallback implementation using CompletableFuture.
  */
 public class ThriftAsyncCallback<T> implements AsyncMethodCallback<T> {
 

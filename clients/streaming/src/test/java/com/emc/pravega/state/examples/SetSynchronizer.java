@@ -200,8 +200,7 @@ public class SetSynchronizer<T extends Serializable> {
 
     private void compact() {
         countdownToCompaction.set(REMOVALS_BEFORE_COMPACTION);
-        UpdatableSet<T> current = stateSynchronizer.getState();
-        stateSynchronizer.compact(current.currentRevision, new CreateSet<T>(current.impl));
+        stateSynchronizer.compact(state -> new CreateSet<T>(state.impl));
     }
 
     /**

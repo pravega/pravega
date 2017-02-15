@@ -12,10 +12,10 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.stream.EventStreamReader;
-import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.EventRead;
+import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.Serializer;
@@ -24,11 +24,13 @@ import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactory;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Map.Entry;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import javax.annotation.concurrent.GuardedBy;
 
 import org.apache.commons.lang.NotImplementedException;
 
@@ -39,76 +41,94 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
 
     private final Orderer<Type> orderer;
     private final ReaderConfig config;
+    @GuardedBy("readers")
     private final List<SegmentReader<Type>> readers = new ArrayList<>();
-    private final Map<Segment, Long> completedSegments = new HashMap<>();
-    private final Map<FutureSegment, Long> futureOwnedSegments = new HashMap<>();
+    @GuardedBy("readers")
+    private Sequence lastRead;
+    private final ReaderGroupStateManager groupState;
+    private final Supplier<Long> clock;
 
-    EventReaderImpl(SegmentInputStreamFactory inputStreamFactory, Serializer<Type> deserializer, PositionInternal position,
-            Orderer<Type> orderer, ReaderConfig config) {
+    EventReaderImpl(SegmentInputStreamFactory inputStreamFactory, Serializer<Type> deserializer, ReaderGroupStateManager groupState,
+            Orderer<Type> orderer, Supplier<Long> clock, ReaderConfig config) {
         this.deserializer = deserializer;
         this.inputStreamFactory = inputStreamFactory;
+        this.groupState = groupState;
         this.orderer = orderer;
+        this.clock = clock;
         this.config = config;
-        setPosition(position);
     }
 
     @Override
     public EventRead<Type> readNextEvent(long timeout) {
         synchronized (readers) {
+            Segment segment;
+            long offset;
             Type result;
-            SegmentReader<Type> segment = orderer.nextSegment(readers);
-            Segment segmentId = segment.getSegmentId();
-            long offset = segment.getOffset();
-            try {
-                result = segment.getNextEvent(timeout);
-            } catch (EndOfSegmentException e) {
-                handleEndOfSegment(segment);
-                result = null;
-            }
+            boolean rebalance = false;
+            do { // Loop handles retry on end of segment
+                rebalance |= releaseSegmentsIfNeeded();
+                rebalance |= acquireSegmentsIfNeeded();
+                SegmentReader<Type> segmentReader = orderer.nextSegment(readers);
+                segment = segmentReader.getSegmentId();
+                offset = segmentReader.getOffset();
+                try {
+                    result = segmentReader.getNextEvent(timeout);
+                } catch (EndOfSegmentException e) {
+                    handleEndOfSegment(segmentReader);
+                    result = null;
+                    rebalance = true;
+                }
+            } while (result == null);
             Map<Segment, Long> positions = readers.stream()
                     .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
-            positions.putAll(completedSegments);
-            Position position = new PositionImpl(positions, futureOwnedSegments);
-            Sequence eventSequence = Sequence.create(segmentId.getSegmentNumber(), offset);
-            return new EventReadImpl<>(eventSequence, result, position, segmentId, offset, result == null);
+            Position position = new PositionImpl(positions);
+            lastRead = Sequence.create(segment.getSegmentNumber(), offset);
+            return new EventReadImpl<>(lastRead, result, position, segment, offset, rebalance);
         }
     }
 
-    /**
-     * When a segment ends we can immediately start consuming for any future logs that succeed it. If there are no such
-     * segments the rate change listener needs to get involved otherwise the reader may sit idle.
-     */
+    private boolean releaseSegmentsIfNeeded() {
+        Segment segment = groupState.findSegmentToReleaseIfRequired();
+        if (segment != null) {
+            SegmentReader<Type> reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
+            if (reader != null) {
+                groupState.releaseSegment(segment, reader.getOffset(), getLag());
+                readers.remove(reader);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean acquireSegmentsIfNeeded() {
+        Map<Segment, Long> newSegments = groupState.acquireNewSegmentsIfNeeded(getLag());
+        if (newSegments == null || newSegments.isEmpty()) {
+            return false;
+        }
+        for (Entry<Segment, Long> newSegment : newSegments.entrySet()) {
+            SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(newSegment.getKey(), config.getSegmentConfig());
+            in.setOffset(newSegment.getValue());
+            readers.add(new SegmentReaderImpl<>(newSegment.getKey(), in, deserializer));            
+        }
+        return true;
+    }
+
+    //TODO: This is broken until https://github.com/emccode/pravega/issues/191 is implemented.
+    private long getLag() {
+        if (lastRead == null) {
+            return 0;
+        }
+        return clock.get() - lastRead.getHighOrder();
+    }
+    
     private void handleEndOfSegment(SegmentReader<Type> oldSegment) {
         readers.remove(oldSegment);
-        completedSegments.put(oldSegment.getSegmentId(), oldSegment.getOffset());
-        Segment oldLogId = oldSegment.getSegmentId();
-        Optional<FutureSegment> replacment = futureOwnedSegments.keySet().stream().filter(future -> future.getPrecedingNumber() == oldLogId.getSegmentNumber()).findAny();
-        if (replacment.isPresent()) {
-            FutureSegment segmentId = replacment.get();
-            Long position = futureOwnedSegments.remove(segmentId);
-            SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(segmentId, config.getSegmentConfig());
-            in.setOffset(position);
-            readers.add(new SegmentReaderImpl<>(segmentId, in, deserializer));
-        }
+        groupState.handleEndOfSegment(oldSegment.getSegmentId());
     }
 
     @Override
     public ReaderConfig getConfig() {
         return config;
-    }
-
-    private void setPosition(Position state) {
-        PositionInternal position = state.asImpl();
-        synchronized (readers) {
-            completedSegments.clear();
-            futureOwnedSegments.clear();
-            futureOwnedSegments.putAll(position.getFutureOwnedSegmentsWithOffsets());
-            for (Segment s : position.getOwnedSegments()) {
-                SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(s, config.getSegmentConfig());
-                in.setOffset(position.getOffsetForOwnedSegment(s));
-                readers.add(new SegmentReaderImpl<>(s, in, deserializer));
-            }
-        }
     }
 
     @Override

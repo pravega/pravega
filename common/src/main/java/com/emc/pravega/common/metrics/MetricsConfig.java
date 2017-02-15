@@ -30,6 +30,8 @@ public class MetricsConfig extends ComponentConfig {
     //region Members
     public static final String COMPONENT_CODE = "metrics";
     public final static String ENABLE_STATISTICS = "enableStatistics";
+    public final static String DYNAMIC_CACHE_SIZE = "dynamicCacheSize";
+    public final static String DYNAMIC_TTL_SECONDS = "dynamicTTLSeconds";
     public final static String OUTPUT_FREQUENCY = "yammerStatsOutputFrequencySeconds";
     public final static String METRICS_PREFIX = "yammerMetricsPrefix";
     public final static String CSV_ENDPOINT = "yammerCSVEndpoint";
@@ -37,6 +39,8 @@ public class MetricsConfig extends ComponentConfig {
     public final static String STATSD_PORT = "yammerStatsDPort";
 
     public final static boolean DEFAULT_ENABLE_STATISTICS = true;
+    public final static long DEFAULT_DYNAMIC_CACHE_SIZE = 1000000L;
+    public final static long DEFAULT_DYNAMIC_TTL_SECONDS = 120L;
     public final static int DEFAULT_OUTPUT_FREQUENCY = 60;
     public final static String DEFAULT_METRICS_PREFIX = "pravega";
     public final static String DEFAULT_CSV_ENDPOINT = "/tmp/csv";
@@ -44,6 +48,8 @@ public class MetricsConfig extends ComponentConfig {
     public final static int DEFAULT_STATSD_PORT = 8125;
 
     private static boolean enableStatistics = true;
+    private static long dynamicCacheSize = 1000000L;
+    private static long dynamicTTLSeconds = 120L;
     private int yammerStatsOutputFrequencySeconds;
     private String yammerMetricsPrefix;
     private String yammerCSVEndpoint;
@@ -69,6 +75,20 @@ public class MetricsConfig extends ComponentConfig {
      */
     public static boolean enableStatistics() {
         return enableStatistics;
+    }
+
+    /**
+     * Gets cache size for dynamic metrics.
+     */
+    public static long getDynamicCacheSize() {
+        return dynamicCacheSize;
+    }
+
+    /**
+     * Gets cache TTL for dynamic metrics.
+     */
+    public static long getDynamicTTLSeconds() {
+        return dynamicTTLSeconds;
     }
 
     /**
@@ -108,8 +128,10 @@ public class MetricsConfig extends ComponentConfig {
 
 
     @Override
-    protected void refresh() throws ConfigurationException {
-        this.enableStatistics = getBooleanProperty(ENABLE_STATISTICS, DEFAULT_ENABLE_STATISTICS);
+    public void refresh() throws ConfigurationException {
+        MetricsConfig.enableStatistics = getBooleanProperty(ENABLE_STATISTICS, DEFAULT_ENABLE_STATISTICS);
+        MetricsConfig.dynamicCacheSize = getInt64Property(DYNAMIC_CACHE_SIZE, DEFAULT_DYNAMIC_CACHE_SIZE);
+        MetricsConfig.dynamicTTLSeconds = getInt64Property(DYNAMIC_TTL_SECONDS, DEFAULT_DYNAMIC_TTL_SECONDS);
         this.yammerStatsOutputFrequencySeconds = getInt32Property(OUTPUT_FREQUENCY, DEFAULT_OUTPUT_FREQUENCY);
         this.yammerMetricsPrefix = getProperty(METRICS_PREFIX, DEFAULT_METRICS_PREFIX);
         this.yammerCSVEndpoint = getProperty(CSV_ENDPOINT, DEFAULT_CSV_ENDPOINT);
