@@ -20,11 +20,11 @@ package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.io.EnhancedByteArrayOutputStream;
 import com.emc.pravega.common.util.ByteArraySegment;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.testcommon.AssertExtensions;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.UUID;
 import org.junit.Assert;
@@ -61,6 +61,6 @@ public class SegmentStateTests {
         }
 
         return new SegmentState(
-                new StreamSegmentInformation(Integer.toString(attributeCount), 0, false, false, attributes, new Date()));
+                new StreamSegmentInformation(Integer.toString(attributeCount), 0, false, false, attributes, new ImmutableDate()));
     }
 }

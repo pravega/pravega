@@ -316,7 +316,6 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof IntentionalException);
 
         // 2a. StreamSegmentNotExists (Stand-Alone segment)
-        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new Date()));
         setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new ImmutableDate()));
         System.out.println(3);
         AssertExtensions.assertThrows(
@@ -344,7 +343,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         val badMapper = new StreamSegmentMapper(context.metadata, context.operationLog, testStateStore, context.storage, executorService());
         val segmentName2 = segmentName + "2";
         val transactionName2 = StreamSegmentNameUtils.getTransactionNameFromId(segmentName2, UUID.randomUUID());
-        context.storage.getInfoHandler = sn -> CompletableFuture.completedFuture(new StreamSegmentInformation(sn, 0, false, false, new Date()));
+        context.storage.getInfoHandler = sn -> CompletableFuture.completedFuture(new StreamSegmentInformation(sn, 0, false, false, new ImmutableDate()));
         testStateStore.getHandler = () -> FutureHelpers.failedFuture(new IntentionalException("intentional"));
 
         AssertExtensions.assertThrows(
@@ -422,7 +421,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                     .collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
             context.stateStore.put(
                     segmentName,
-                    new SegmentState(new StreamSegmentInformation(segmentName, 0, false, false, attributes, new Date())),
+                    new SegmentState(new StreamSegmentInformation(segmentName, 0, false, false, attributes, new ImmutableDate())),
                     TIMEOUT).join();
         }
     }

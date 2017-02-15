@@ -19,12 +19,12 @@
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.util.AsyncMap;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -114,7 +114,7 @@ public abstract class StateStoreTests extends ThreadPooledTestSuite {
         }
 
         return new SegmentState(
-                new StreamSegmentInformation(segmentName, 0, false, false, attributes, new Date()));
+                new StreamSegmentInformation(segmentName, 0, false, false, attributes, new ImmutableDate()));
     }
 
     //region InMemoryStateStoreTests
