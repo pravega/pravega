@@ -17,17 +17,16 @@
  */
 package com.emc.pravega.controller.server.rest.contract.common;
 
+import java.io.Serializable;
+
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-import javax.ws.rs.Consumes;
-import javax.ws.rs.Produces;
-import javax.ws.rs.core.MediaType;
-
+/**
+ * REST representation of retention policy of a stream.
+ */
 @Getter
 @AllArgsConstructor
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
-public class RetentionPolicyCommon {
+public class RetentionPolicyCommon implements Serializable {
     private long retentionTimeMillis;
 }

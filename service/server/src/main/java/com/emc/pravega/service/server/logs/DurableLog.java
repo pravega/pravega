@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
@@ -26,10 +27,10 @@ import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamingException;
 import com.emc.pravega.service.server.DataCorruptionException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.LogItemFactory;
 import com.emc.pravega.service.server.OperationLog;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -112,7 +113,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.inMemoryOperationLog = new SequencedItemList<>();
         this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, readIndex, this::triggerTailReads);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
-        this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy);
+        this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy, executor);
         this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
         this.tailReads = new HashSet<>();
         this.closed = new AtomicBoolean();
@@ -471,16 +472,9 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             // Trigger all of them (no need to unregister them; the unregister handle is already wired up).
             for (TailRead tr : toTrigger) {
-                try {
-                    Iterator<Operation> logReadResult = this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount);
-                    tr.future.complete(logReadResult);
-                } catch (Throwable ex) {
-                    if (ExceptionHelpers.mustRethrow(ex)) {
-                        throw ex;
-                    }
-
-                    tr.future.completeExceptionally(ex);
-                }
+                tr.future.complete(FutureHelpers.runOrFail(() -> {
+                    return this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount);
+                }, tr.future));
             }
         });
     }

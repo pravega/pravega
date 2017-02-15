@@ -19,18 +19,18 @@
 package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.AbstractTimer;
+import com.emc.pravega.common.AutoStopwatch;
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.BadOffsetException;
-import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.SerializationException;
@@ -42,6 +42,7 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperati
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
+
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -55,7 +56,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -250,7 +254,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     // Check if the Storage segment is sealed, but it's not in metadata (this is 100% indicative of some data corruption happening).
                     if (segmentInfo.isSealed()) {
                         if (!this.metadata.isSealed()) {
-                            throw new RuntimeStreamingException(new DataCorruptionException(String.format("Segment '%s' is sealed in Storage but not in the metadata.", this.metadata.getName())));
+                            throw new CompletionException(new DataCorruptionException(String.format("Segment '%s' is sealed in Storage but not in the metadata.", this.metadata.getName())));
                         }
 
                         if (!this.metadata.isSealedInStorage()) {
@@ -1289,6 +1293,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     /**
      * Thin wrapper for a simple Queue[StorageOperation] that provides thread synchronization.
      */
+    @ThreadSafe
     private static class OperationQueue {
         @GuardedBy("this")
         private final ArrayDeque<StorageOperation> queue = new ArrayDeque<>();

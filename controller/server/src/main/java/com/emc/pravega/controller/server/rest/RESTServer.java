@@ -19,18 +19,22 @@
 package com.emc.pravega.controller.server.rest;
 
 import com.emc.pravega.controller.server.rest.resources.PingImpl;
-import io.netty.channel.Channel;
-import lombok.extern.slf4j.Slf4j;
-import org.glassfish.jersey.netty.httpserver.NettyHttpContainerProvider;
-import org.glassfish.jersey.server.ResourceConfig;
+import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
+import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 
-import javax.ws.rs.core.UriBuilder;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
 
+import javax.ws.rs.core.UriBuilder;
+
+import org.glassfish.jersey.netty.httpserver.NettyHttpContainerProvider;
+import org.glassfish.jersey.server.ResourceConfig;
+
 import static com.emc.pravega.controller.util.Config.REST_SERVER_IP;
 import static com.emc.pravega.controller.util.Config.REST_SERVER_PORT;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Netty REST server implementation.
@@ -38,21 +42,22 @@ import static com.emc.pravega.controller.util.Config.REST_SERVER_PORT;
 @Slf4j
 public class RESTServer {
 
-    public static final void start() {
+    public static final void start(ControllerService controllerService) {
 
-        Set<Object> resourceObjs = new HashSet<Object>();
+        final String serverURI = "http://" + REST_SERVER_IP + "/";
+        final URI baseUri = UriBuilder.fromUri(serverURI).port(REST_SERVER_PORT).build();
+
+        final Set<Object> resourceObjs = new HashSet<Object>();
         resourceObjs.add(new PingImpl());
-        ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
+        resourceObjs.add(new StreamMetadataResourceImpl(controllerService));
 
-        String serverURI = "http://" + REST_SERVER_IP + "/";
-        URI baseUri = UriBuilder.fromUri(serverURI).port(REST_SERVER_PORT).build();
-        ResourceConfig resourceConfig = ResourceConfig.forApplication(controllerApplication);
-        Channel server = null;
+        final ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
+        final ResourceConfig resourceConfig = ResourceConfig.forApplication(controllerApplication);
+
         try {
-            server = NettyHttpContainerProvider.createServer(baseUri, resourceConfig, true);
+            NettyHttpContainerProvider.createServer(baseUri, resourceConfig, true);
         } catch (Exception e) {
             log.error("Error starting Rest Service {}", e);
-            server.close();
         }
     }
 

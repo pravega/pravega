@@ -18,12 +18,16 @@
 
 package com.emc.pravega.service.server.containers;
 
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.testcommon.AssertExtensions;
+
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.UUID;
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -79,7 +83,7 @@ public class StreamSegmentMetadataTests {
         }
         baseMetadata.setStorageLength(1233);
         baseMetadata.setDurableLogLength(3235342);
-        baseMetadata.setLastModified(new Date());
+        baseMetadata.setLastModified(new ImmutableDate());
         baseMetadata.markDeleted();
         baseMetadata.markSealed();
         baseMetadata.markMerged();

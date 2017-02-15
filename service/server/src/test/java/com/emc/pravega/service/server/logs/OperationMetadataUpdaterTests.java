@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.BadEventNumberException;
 import com.emc.pravega.service.contracts.BadOffsetException;
@@ -41,12 +42,13 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
+
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -581,7 +583,7 @@ public class OperationMetadataUpdaterTests {
         assertMetadataEquals("Unexpected metadata before any operation.", metadata, checkpointedMetadata);
 
         // Map another StreamSegment, and add an append
-        StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation(newSegmentName, SEGMENT_LENGTH, false, false, new Date()));
+        StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation(newSegmentName, SEGMENT_LENGTH, false, false, new ImmutableDate()));
         processOperation(mapOp, updater, seqNo::incrementAndGet);
         processOperation(new StreamSegmentAppendOperation(mapOp.getStreamSegmentId(), DEFAULT_APPEND_DATA, nextAppendContext.get()), updater, seqNo::incrementAndGet);
         processOperation(checkpoint2, updater, seqNo::incrementAndGet);
@@ -881,7 +883,7 @@ public class OperationMetadataUpdaterTests {
     }
 
     private StreamSegmentMapOperation createMap(String name) {
-        return new StreamSegmentMapOperation(new StreamSegmentInformation(name, SEGMENT_LENGTH, true, false, new Date()));
+        return new StreamSegmentMapOperation(new StreamSegmentInformation(name, SEGMENT_LENGTH, true, false, new ImmutableDate()));
     }
 
     private TransactionMapOperation createTransactionMap(long parentId) {
@@ -889,7 +891,7 @@ public class OperationMetadataUpdaterTests {
     }
 
     private TransactionMapOperation createTransactionMap(long parentId, String name) {
-        return new TransactionMapOperation(parentId, new StreamSegmentInformation(name, SEALED_TRANSACTION_LENGTH, true, false, new Date()));
+        return new TransactionMapOperation(parentId, new StreamSegmentInformation(name, SEALED_TRANSACTION_LENGTH, true, false, new ImmutableDate()));
     }
 
     private MetadataCheckpointOperation createMetadataPersisted() {

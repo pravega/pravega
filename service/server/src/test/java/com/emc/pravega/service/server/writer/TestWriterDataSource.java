@@ -22,8 +22,6 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.common.util.SequencedItemList;
-import com.emc.pravega.service.contracts.RuntimeStreamingException;
-import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
@@ -33,6 +31,7 @@ import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
+
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -47,7 +46,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+
 import lombok.Setter;
 import lombok.val;
 
@@ -58,6 +60,7 @@ import lombok.val;
  * Note that even though it uses an UpdateableContainerMetadata, no changes to this metadata are performed (except recording truncation markers & Sequence Numbers).
  * All other changes (Segment-based) must be done externally.
  */
+@ThreadSafe
 class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     //region Members
 
@@ -157,7 +160,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         }
 
         if (!this.log.add(operation)) {
-            throw new RuntimeStreamingException(new DataCorruptionException("Sequence numbers out of order."));
+            throw new IllegalStateException("Sequence numbers out of order.");
         }
 
         notifyAddProcessed();
@@ -358,16 +361,14 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     private void notifyAddProcessed() {
-        if (this.addProcessed != null) {
-            CompletableFuture<Void> f;
-            synchronized (this.lock) {
-                f = this.addProcessed;
-                this.addProcessed = null;
-            }
+        CompletableFuture<Void> f;
+        synchronized (this.lock) {
+            f = this.addProcessed;
+            this.addProcessed = null;
+        }
 
-            if (f != null) {
-                f.complete(null);
-            }
+        if (f != null) {
+            f.complete(null);
         }
     }
 

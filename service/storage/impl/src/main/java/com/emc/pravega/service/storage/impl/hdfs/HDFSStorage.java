@@ -20,14 +20,31 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.SegmentStoreMetricsNames;
+import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.function.RunnableWithException;
+import com.emc.pravega.common.util.ImmutableDate;
+import com.emc.pravega.common.metrics.Counter;
+import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.OpStatsLogger;
+import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.time.Duration;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -38,16 +55,7 @@ import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.IOUtils;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.time.Duration;
-import java.util.Date;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Storage adapter for a backing HDFS Store which does lock implementation based on file permissions.
@@ -65,6 +73,8 @@ class HDFSStorage implements Storage {
     //region Members
 
     private static final String LOG_ID = "HDFSStorage";
+
+    private static final StatsLogger HDFS_LOGGER = MetricsProvider.createStatsLogger("HDFS");
     private final Executor executor;
     private final HDFSStorageConfig config;
     private final AtomicBoolean closed;
@@ -100,6 +110,16 @@ class HDFSStorage implements Storage {
         conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
         this.fileSystem = FileSystem.get(conf);
         log.info("{}: Initialized.", LOG_ID);
+    }
+
+    //endregion
+
+    //region metrics
+    public static class Metrics {
+        static final OpStatsLogger READ_LATENCY = HDFS_LOGGER.createStats(SegmentStoreMetricsNames.HDFS_READ_LATENCY);
+        static final OpStatsLogger WRITE_LATENCY = HDFS_LOGGER.createStats(SegmentStoreMetricsNames.HDFS_WRITE_LATENCY);
+        static final Counter READ_BYTES = HDFS_LOGGER.createCounter(SegmentStoreMetricsNames.HDFS_READ_BYTES);
+        static final Counter WRITTEN_BYTES = HDFS_LOGGER.createCounter(SegmentStoreMetricsNames.HDFS_WRITTEN_BYTES);
     }
 
     //endregion
@@ -185,7 +205,7 @@ class HDFSStorage implements Storage {
                 0,
                 false,
                 false,
-                new Date());
+                new ImmutableDate());
     }
 
     /**
@@ -233,6 +253,7 @@ class HDFSStorage implements Storage {
 
     private void writeSync(String streamSegmentName, long offset, int length, InputStream data)
             throws BadOffsetException, IOException {
+        Timer timer = new Timer();
         try (FSDataOutputStream stream = fileSystem.append(new Path(this.getOwnedSegmentFullPath(streamSegmentName)))) {
             if (stream.getPos() != offset) {
                 throw new BadOffsetException(streamSegmentName, offset, stream.getPos());
@@ -241,6 +262,8 @@ class HDFSStorage implements Storage {
             IOUtils.copyBytes(data, stream, length);
             stream.flush();
         }
+        Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
+        Metrics.WRITTEN_BYTES.add(length);
     }
 
     private SegmentProperties sealSync(String streamSegmentName) throws IOException {
@@ -259,7 +282,7 @@ class HDFSStorage implements Storage {
                 status.getLen(),
                 status.getPermission().getUserAction() == FsAction.READ,
                 false,
-                new Date(status.getModificationTime()));
+                new ImmutableDate(status.getModificationTime()));
     }
 
     private void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName) throws IOException, BadOffsetException, StreamSegmentSealedException {
@@ -292,7 +315,7 @@ class HDFSStorage implements Storage {
                     "Offset (%s) must be non-negative, and bufferOffset (%s) and length (%s) must be valid indices into buffer of size %s.",
                     offset, bufferOffset, length, buffer.length));
         }
-
+        Timer timer = new Timer();
         FSDataInputStream stream = fileSystem.open(new Path(this.getOwnedSegmentFullPath(streamSegmentName)));
         int retVal = stream.read(offset, buffer, bufferOffset, length);
         if (retVal < 0) {
@@ -302,7 +325,8 @@ class HDFSStorage implements Storage {
                 throw new IllegalArgumentException(String.format("Read offset (%s) is beyond the length of the segment (%s).", offset, segmentLength));
             }
         }
-
+        Metrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
+        Metrics.READ_BYTES.add(length);
         return retVal;
     }
 

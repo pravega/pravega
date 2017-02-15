@@ -22,16 +22,12 @@ import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommo
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-import javax.ws.rs.Consumes;
-import javax.ws.rs.Produces;
-import javax.ws.rs.core.MediaType;
-
+/**
+ * Conforms to updateStreamConfig REST API request object.
+ */
 @Getter
 @AllArgsConstructor
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
-
 public class UpdateStreamRequest {
-    private ScalingPolicyCommon scalingPolicy;
-    private RetentionPolicyCommon retentionPolicy;
+    private final ScalingPolicyCommon scalingPolicy;
+    private final RetentionPolicyCommon retentionPolicy;
 }

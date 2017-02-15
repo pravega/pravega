@@ -15,17 +15,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.util;
+package com.emc.pravega.common.netty;
 
-/**
- * Exception thrown by {@link Retry} utility class when all of the configured number of attempts have failed.
- * The cause for this exception will be set to the final failure.
- */
-public class RetriesExaustedException extends RuntimeException {
+public interface AppendBatchSizeTracker {
 
-    private static final long serialVersionUID = 1L;
+    /**
+     * Records that an append has been sent.
+     * 
+     * @param eventNumber the number of the event
+     * @param size the size of the event
+     */
+    void recordAppend(long eventNumber, int size);
 
-    public RetriesExaustedException(Exception last) {
-        super(last);
-    }
+    /**
+     * Records that one or more events have been acked.
+     * 
+     * @param eventNumber the number of the last event
+     */
+    void recordAck(long eventNumber);
+
+    /**
+     * Returns the size that should be used for the next append block.
+     */
+    int getAppendBlockSize();
+    
+    /**
+     * Returns the timeout that should be used for append blocks.
+     */
+    int getBatchTimeout();
+
 }

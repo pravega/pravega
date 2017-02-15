@@ -18,6 +18,8 @@
 
 package com.emc.pravega.service.server.writer;
 
+import com.emc.pravega.common.AutoStopwatch;
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.io.FixedByteArrayOutputStream;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
