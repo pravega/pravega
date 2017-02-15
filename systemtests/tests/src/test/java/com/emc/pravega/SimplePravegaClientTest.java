@@ -56,7 +56,8 @@ public class SimplePravegaClientTest {
 
     @Environment
     public static void setup() {
-    /*  Service zk = TF.serviceFactory().getZKService();
+    /*  Sample Code.
+        Service zk = TF.serviceFactory().getZKService();
         zk.setCPU(2.0);
         zk.instanceCount(3);
         zk.start(false);

@@ -24,6 +24,7 @@ import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.model.v2.GetAppResponse;
 import mesosphere.marathon.client.utils.MarathonException;
 
+import javax.ws.rs.core.Response;
 import java.net.URI;
 import java.time.Duration;
 import java.util.List;
@@ -35,6 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static com.emc.pravega.framework.TestFrameworkException.Type.RequestFailed;
+import static javax.ws.rs.core.Response.Status.NOT_FOUND;
 
 /**
  * Marathon based service implementations.
@@ -72,7 +74,7 @@ public abstract class MarathonBasedService implements Service {
                 return false;
             }
         } catch (MarathonException ex) {
-            if (ex.getStatus() == 404) {
+            if (ex.getStatus() == NOT_FOUND.getStatusCode()) {
                 log.info("App is not running : {}", this.id);
                 return false;
             }
@@ -94,7 +96,7 @@ public abstract class MarathonBasedService implements Service {
     }
 
     void handleMarathonException(MarathonException e) {
-        if (e.getStatus() == 404) {
+        if (e.getStatus() == NOT_FOUND.getStatusCode()) {
             log.info("App is not running : {}", this.id);
         }
         throw new TestFrameworkException(RequestFailed, "Marathon Exception while fetching details of RedisService", e);
