@@ -3,7 +3,7 @@ package com.emc.pravega.controller.server.rest.generated.api;
 import javax.xml.bind.annotation.XmlTransient;
 
 @javax.xml.bind.annotation.XmlRootElement
-@javax.annotation.Generated(value = "class io.swagger.codegen.languages.JavaJerseyServerCodegen", date = "2017-02-15T05:33:34.934-08:00")
+
 public class ApiResponseMessage {
     public static final int ERROR = 1;
     public static final int WARNING = 2;
