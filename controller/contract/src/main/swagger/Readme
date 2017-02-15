@@ -1,0 +1,5 @@
+** Utility to generate jaxrs server stubs from swagger **
+
+Download swagger-codegen-cli from maven - http://repo1.maven.org/maven2/io/swagger/swagger-codegen-cli/2.2.1/swagger-codegen-cli-2.2.1.jar
+
+Execute: java -jar swagger-codegen-cli.jar generate -i Controller.yaml -l jaxrs -c server.config.json -o <pravega root>/controller/server/

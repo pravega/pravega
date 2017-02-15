@@ -39,6 +39,11 @@ import javax.ws.rs.core.SecurityContext;
 /**
  * Controller APIs exposed via REST.
  * Different interfaces will hold different groups of APIs.
+ *
+ * ##############################IMPORTANT NOTE###################################
+ * Do not make any API changes here directly, you need to update swagger/Controller.yaml and generate
+ * the server stubs as documented in swagger/Readme before updating this file.
+ *
  */
 public final class ApiV1 {
 

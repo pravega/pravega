@@ -172,6 +172,8 @@ public class StreamMetaDataTests extends JerseyTest {
         // Test for validation of create stream request object
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus3);
         response = target(streamResourceURI).request().async().post(Entity.json(createStreamRequest2));
+        // TODO: Server should be returning 400 here, change this once issue
+        // https://github.com/pravega/pravega/issues/531 is fixed.
         assertEquals("Create Stream Status", 500, response.get().getStatus());
     }
 
