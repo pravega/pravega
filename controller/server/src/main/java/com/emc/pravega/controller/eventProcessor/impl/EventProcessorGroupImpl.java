@@ -135,6 +135,7 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
     @Override
     final protected void doStart() {
         eventProcessorMap.entrySet().forEach(entry -> entry.getValue().startAsync());
+        notifyStarted();
     }
 
     @Override

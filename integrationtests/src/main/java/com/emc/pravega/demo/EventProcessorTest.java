@@ -20,6 +20,7 @@ package com.emc.pravega.demo;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.eventProcessor.Decider;
+import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.Props;
@@ -172,7 +173,7 @@ public class EventProcessorTest {
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());
         producer.close();
-        system.getEventProcessorGroups().stream().forEach(x -> x.stopAll());
+        system.getEventProcessorGroups().stream().forEach(EventProcessorGroup::stopAll);
         server.close();
         zkTestServer.close();
     }

@@ -17,11 +17,13 @@ package com.emc.pravega.controller.eventProcessor;
 
 import com.emc.pravega.controller.server.ControllerServerException;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /**
  * Controller store exception.
  */
 @Data
+@EqualsAndHashCode(callSuper = true)
 public class CheckpointStoreException extends ControllerServerException {
 
     public enum Type {

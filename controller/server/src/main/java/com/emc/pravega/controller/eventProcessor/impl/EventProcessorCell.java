@@ -70,6 +70,7 @@ class EventProcessorCell<T extends StreamEvent> {
 
     private class Delegate extends AbstractExecutionThreadService {
 
+        private final long defaultTimeout = 2000L;
         private final Props<T> props;
         private EventRead<T> event;
 
@@ -79,6 +80,7 @@ class EventProcessorCell<T extends StreamEvent> {
 
         @Override
         protected final void startUp() {
+            log.debug("Event processor STARTUP " + this.serviceName());
             try {
                 actor.beforeStart();
             } catch (Exception e) {
@@ -89,7 +91,7 @@ class EventProcessorCell<T extends StreamEvent> {
 
         @Override
         protected final void run() throws Exception {
-            final long defaultTimeout = Long.MAX_VALUE;
+            log.debug("Event processor RUN " + this.serviceName());
 
             while (isRunning()) {
                 try {
@@ -110,6 +112,7 @@ class EventProcessorCell<T extends StreamEvent> {
 
         @Override
         protected final void shutDown() throws Exception {
+            log.debug("Event processor SHUTDOWN " + this.serviceName());
             try {
                 actor.afterStop();
             } catch (Exception e) {
@@ -131,6 +134,7 @@ class EventProcessorCell<T extends StreamEvent> {
         }
 
         private void restart(Throwable error, T event) {
+            log.debug("Event processor RESTART " + this.serviceName());
             try {
 
                 actor.beforeRestart(error, event);
