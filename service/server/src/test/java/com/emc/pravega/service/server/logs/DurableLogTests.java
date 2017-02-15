@@ -18,10 +18,12 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -29,7 +31,6 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.ReadIndex;
@@ -63,7 +64,6 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -927,7 +927,7 @@ public class DurableLogTests extends OperationLogTestBase {
             // Verify that we can still queue operations to the DurableLog and they can be read.
             // In this case we'll just queue some StreamSegmentMapOperations.
             StreamSegmentMapOperation newOp = new StreamSegmentMapOperation(
-                    new StreamSegmentInformation("foo", 0, false, false, new Date()));
+                    new StreamSegmentInformation("foo", 0, false, false, new ImmutableDate()));
             if (!fullTruncationPossible) {
                 // We were not able to do a full truncation before. Do one now, since we are guaranteed to have a new DataFrame available.
                 MetadataCheckpointOperation lastCheckpoint = new MetadataCheckpointOperation();

@@ -412,11 +412,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<Boolean> isTransactionOngoing() {
-        return verifyLegalState(areTxnsOngoing());
-    }
-
-    @Override
     public CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns() {
         return verifyLegalState(getCurrentTxns()
                 .thenApply(x -> x.entrySet().stream()
@@ -692,8 +687,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Void> unsetBlockFlag();
 
     abstract CompletableFuture<Boolean> isBlocked();
-
-    abstract CompletableFuture<Boolean> areTxnsOngoing();
 
     abstract CompletableFuture<Map<String, Data<T>>> getCurrentTxns();
 

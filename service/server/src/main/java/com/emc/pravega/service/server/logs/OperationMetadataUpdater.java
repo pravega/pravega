@@ -21,8 +21,10 @@ package com.emc.pravega.service.server.logs;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.io.EnhancedByteArrayOutputStream;
 import com.emc.pravega.common.util.CollectionHelpers;
-import com.emc.pravega.service.contracts.Attribute;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
+import com.emc.pravega.service.contracts.Attributes;
 import com.emc.pravega.service.contracts.BadAttributeUpdateException;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentException;
@@ -52,7 +54,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -752,7 +753,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 metadata.markDeleted();
             }
             // S10. LastModified.
-            Date lastModified = new java.util.Date(stream.readLong());
+            ImmutableDate lastModified = new ImmutableDate(stream.readLong());
             metadata.setLastModified(lastModified);
 
             // S11. Attributes.
@@ -826,8 +827,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         @Override
-        public Date getLastModified() {
-            return new Date(); //TODO: implement properly.
+        public ImmutableDate getLastModified() {
+            return new ImmutableDate(); //TODO: implement properly.
         }
 
         //endregion
@@ -1033,8 +1034,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             for (AttributeUpdate u : attributeUpdates) {
-                Attribute.UpdateType updateType = u.getAttribute().getUpdateType();
-                long previousValue = getAttributeValue(u.getAttribute().getId(), SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+                AttributeUpdateType updateType = u.getUpdateType();
+                long previousValue = getAttributeValue(u.getAttributeId(), SegmentMetadata.NULL_ATTRIBUTE_VALUE);
 
                 // Perform validation, and set the AttributeUpdate.value to the updated value, if necessary.
                 switch (updateType) {
@@ -1059,6 +1060,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
                             u.setValue(previousValue + u.getValue());
                         }
 
+                        break;
+                    default:
                         break;
                 }
             }
@@ -1102,9 +1105,9 @@ class OperationMetadataUpdater implements ContainerMetadata {
             this.sealed = true;
 
             // Clear all dynamic attributes.
-            this.updatedAttributeValues.keySet().removeIf(Attribute::isDynamic);
+            this.updatedAttributeValues.keySet().removeIf(Attributes::isDynamic);
             for (UUID attributeId : this.baseMetadata.getAttributes().keySet()) {
-                if (Attribute.isDynamic(attributeId)) {
+                if (Attributes.isDynamic(attributeId)) {
                     this.updatedAttributeValues.put(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
                 }
             }
@@ -1161,7 +1164,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             for (AttributeUpdate au : attributeUpdates) {
-                this.updatedAttributeValues.put(au.getAttribute().getId(), au.getValue());
+                this.updatedAttributeValues.put(au.getAttributeId(), au.getValue());
             }
         }
 

@@ -18,19 +18,19 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamingException;
 import com.emc.pravega.service.server.DataCorruptionException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.LogItemFactory;
 import com.emc.pravega.service.server.OperationLog;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
@@ -480,16 +480,9 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             // Trigger all of them (no need to unregister them; the unregister handle is already wired up).
             for (TailRead tr : toTrigger) {
-                try {
-                    Iterator<Operation> logReadResult = this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount);
-                    tr.future.complete(logReadResult);
-                } catch (Throwable ex) {
-                    if (ExceptionHelpers.mustRethrow(ex)) {
-                        throw ex;
-                    }
-
-                    tr.future.completeExceptionally(ex);
-                }
+                tr.future.complete(FutureHelpers.runOrFail(() -> {
+                    return this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount);                    
+                }, tr.future));
             }
         });
     }

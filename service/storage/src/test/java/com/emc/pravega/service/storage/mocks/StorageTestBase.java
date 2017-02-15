@@ -33,6 +33,7 @@ import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static com.emc.pravega.testcommon.AssertExtensions.assertThrows;
@@ -127,9 +128,10 @@ public abstract class StorageTestBase {
             HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
 
             // Do some reading.
-            for (String segmentName : appendData.keySet()) {
+            for (Entry<String, ByteArrayOutputStream> entry : appendData.entrySet()) {
+                String segmentName = entry.getKey();
                 s.open(segmentName).join();
-                byte[] expectedData = appendData.get(segmentName).toByteArray();
+                byte[] expectedData = entry.getValue().toByteArray();
 
                 for (int offset = 0; offset < expectedData.length / 2; offset++) {
                     int length = expectedData.length - 2 * offset;

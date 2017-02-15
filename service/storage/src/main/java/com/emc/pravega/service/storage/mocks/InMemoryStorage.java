@@ -20,6 +20,7 @@ package com.emc.pravega.service.storage.mocks;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
@@ -28,17 +29,12 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.TruncateableStorage;
 import com.google.common.base.Preconditions;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.ToString;
 
-import javax.annotation.concurrent.GuardedBy;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -46,6 +42,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+
+import javax.annotation.concurrent.GuardedBy;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.ToString;
 
 /**
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
@@ -454,7 +456,7 @@ public class InMemoryStorage implements TruncateableStorage {
             synchronized (this.lock) {
                 checkOpened();
                 this.sealed = true;
-                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date());
+                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new ImmutableDate());
             }
         }
 
@@ -512,7 +514,7 @@ public class InMemoryStorage implements TruncateableStorage {
         SegmentProperties getInfo() {
             synchronized (this.lock) {
                 checkOpened();
-                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date());
+                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new ImmutableDate());
             }
         }
 

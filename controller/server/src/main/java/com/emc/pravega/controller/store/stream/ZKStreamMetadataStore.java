@@ -17,11 +17,15 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.common.metrics.MetricsConfig;
+import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -34,12 +38,20 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private static final AtomicReference<ZKStreamMetadataStore> SINGLETON = new AtomicReference<>();
 
     private ZKStreamMetadataStore(ScheduledExecutorService executor) {
-        this(ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient(), executor);
+        this(ZKUtils.getCuratorClient(), executor);
+        initialize(ZKUtils.getCuratorClient(), ZKUtils.getMetricsConfig());
     }
 
     @VisibleForTesting
     public ZKStreamMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
         ZKStream.initialize(client, executor);
+        initialize(client, ZKUtils.getMetricsConfig());
+    }
+
+    private void initialize(CuratorFramework client, MetricsConfig metricsConfig) {
+        if (metricsConfig != null) {
+            METRICS_PROVIDER.start(metricsConfig);
+        }
     }
 
     @Override

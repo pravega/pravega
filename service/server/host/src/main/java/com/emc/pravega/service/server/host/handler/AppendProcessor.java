@@ -28,8 +28,8 @@ import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
-import com.emc.pravega.service.contracts.Attribute;
 import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -53,7 +53,8 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
-import static com.emc.pravega.service.server.host.PravegaRequestStats.PENDING_APPEND_BYTES;
+import static com.emc.pravega.common.SegmentStoreMetricsNames.PENDING_APPEND_BYTES;
+import static com.emc.pravega.service.contracts.Attributes.EVENT_COUNT;
 
 /**
  * Process incomming Append requests and write them to the appropriate store.
@@ -174,10 +175,12 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         ByteBuf buf = Unpooled.unmodifiableBuffer(toWrite.getData());
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
+
         val attributes = Sets.newHashSet(new AttributeUpdate(
-                Attribute.dynamic(toWrite.getConnectionId(), Attribute.UpdateType.ReplaceIfGreater),
-                toWrite.getEventNumber()),
-                new AttributeUpdate(Attribute.EVENT_COUNT, numOfEvents));
+                        toWrite.getConnectionId(),
+                        AttributeUpdateType.ReplaceIfGreater,
+                        toWrite.getEventNumber()),
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, numOfEvents));
 
         CompletableFuture<Void> future;
         String segment = toWrite.getSegment();

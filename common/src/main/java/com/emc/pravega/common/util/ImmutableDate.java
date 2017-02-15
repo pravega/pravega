@@ -15,20 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.common.util;
 
-package com.emc.pravega.service.server.host;
+import java.util.Date;
 
-public interface PravegaRequestStats {
-    // Stream Segment request Operations
-    public final static String CREATE_SEGMENT = "CREATE_SEGMENT";
-    public final static String UPDATE_SEGMENT = "UPDATE_SEGMENT";
-    public final static String DELETE_SEGMENT = "DELETE_SEGMENT";
-    public final static String READ_SEGMENT = "READ_SEGMENT";
-    // Bytes read by READ_SEGMENT operation, for read throughput
-    public final static String SEGMENT_READ_BYTES = "SEGMENT_READ_BYTES";
-    // Counter for all read bytes.
-    public final static String ALL_READ_BYTES = "ALL_READ_BYTES";
-    // Gauge for pending append bytes
-    public final static String PENDING_APPEND_BYTES = "PENDING_APPEND_BYTES";
+import lombok.Data;
 
+@Data
+public class ImmutableDate {
+    private final long time;
+    
+    public ImmutableDate() {
+        time = System.currentTimeMillis();
+    }
+    
+    public ImmutableDate(long time) {
+        this.time = time;
+    }
+
+    public Date asDate() {
+        return new Date(time);
+    }
 }

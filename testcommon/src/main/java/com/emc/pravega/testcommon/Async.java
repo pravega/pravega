@@ -44,7 +44,7 @@ public class Async {
         });
         t.start();
         try {
-            Assert.assertFalse(isBlocked.tryAcquire(100, TimeUnit.MILLISECONDS));
+            Assert.assertFalse(isBlocked.tryAcquire(200, TimeUnit.MILLISECONDS));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
@@ -79,7 +79,7 @@ public class Async {
         });
         t.start();
         try {
-            Assert.assertFalse(isBlocked.tryAcquire(100, TimeUnit.MILLISECONDS));
+            Assert.assertFalse(isBlocked.tryAcquire(200, TimeUnit.MILLISECONDS));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);

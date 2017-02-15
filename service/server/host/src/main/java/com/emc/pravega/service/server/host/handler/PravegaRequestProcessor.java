@@ -50,8 +50,8 @@ import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
-import com.emc.pravega.service.contracts.Attribute;
 import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -77,13 +77,16 @@ import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.common.netty.WireCommands.*;
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
+import static com.emc.pravega.service.contracts.Attributes.CREATION_TIME;
+import static com.emc.pravega.service.contracts.Attributes.SCALE_POLICY_RATE;
+import static com.emc.pravega.service.contracts.Attributes.SCALE_POLICY_TYPE;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Cache;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Future;
-import static com.emc.pravega.service.server.host.PravegaRequestStats.ALL_READ_BYTES;
-import static com.emc.pravega.service.server.host.PravegaRequestStats.CREATE_SEGMENT;
-import static com.emc.pravega.service.server.host.PravegaRequestStats.READ_SEGMENT;
-import static com.emc.pravega.service.server.host.PravegaRequestStats.SEGMENT_READ_BYTES;
+import static com.emc.pravega.common.SegmentStoreMetricsNames.ALL_READ_BYTES;
+import static com.emc.pravega.common.SegmentStoreMetricsNames.CREATE_SEGMENT;
+import static com.emc.pravega.common.SegmentStoreMetricsNames.READ_SEGMENT;
+import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_READ_BYTES;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
@@ -264,8 +267,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
         Collection<AttributeUpdate> attributes = Lists.newArrayList(
-                new AttributeUpdate(Attribute.SCALE_POLICY_TYPE, ((Byte) createStreamsSegment.getScaleType()).longValue()),
-                new AttributeUpdate(Attribute.SCALE_POLICY_RATE, ((Integer) createStreamsSegment.getTargetRate()).longValue())
+                new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamsSegment.getScaleType()).longValue()),
+                new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamsSegment.getTargetRate()).longValue())
         );
 
         CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), attributes, TIMEOUT);
@@ -307,7 +310,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void createTransaction(CreateTransaction createTransaction) {
         Collection<AttributeUpdate> attributes = Lists.newArrayList(
-                new AttributeUpdate(Attribute.CREATION_TIME, System.currentTimeMillis()));
+                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()));
 
         CompletableFuture<String> future = segmentStore.createTransaction(createTransaction.getSegment(), createTransaction.getTxid(), attributes, TIMEOUT);
         future.thenApply((String txName) -> {
@@ -381,8 +384,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void updateSegmentPolicy(UpdateSegmentPolicy updateSegmentPolicy) {
         Timer timer = new Timer();
         Collection<AttributeUpdate> attributes = Lists.newArrayList(
-                new AttributeUpdate(Attribute.SCALE_POLICY_TYPE, ((Byte) updateSegmentPolicy.getScaleType()).longValue()),
-                new AttributeUpdate(Attribute.SCALE_POLICY_RATE, ((Integer) updateSegmentPolicy.getTargetRate()).longValue())
+                new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) updateSegmentPolicy.getScaleType()).longValue()),
+                new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) updateSegmentPolicy.getTargetRate()).longValue())
         );
 
         CompletableFuture<Void> future = segmentStore.updateStreamSegmentPolicy(updateSegmentPolicy.getSegment(), attributes, TIMEOUT);

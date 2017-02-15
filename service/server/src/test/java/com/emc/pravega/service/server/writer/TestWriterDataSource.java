@@ -21,8 +21,6 @@ package com.emc.pravega.service.server.writer;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.SequencedItemList;
-import com.emc.pravega.service.contracts.RuntimeStreamingException;
-import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
@@ -32,6 +30,7 @@ import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
+
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -45,8 +44,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
 import lombok.Setter;
 
 /**
@@ -154,7 +155,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         }
 
         if (!this.log.add(operation)) {
-            throw new RuntimeStreamingException(new DataCorruptionException("Sequence numbers out of order."));
+            throw new IllegalStateException("Sequence numbers out of order.");
         }
 
         notifyAddProcessed();

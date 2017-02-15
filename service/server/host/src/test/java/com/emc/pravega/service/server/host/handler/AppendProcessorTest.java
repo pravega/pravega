@@ -24,8 +24,9 @@ import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
-import com.emc.pravega.service.contracts.Attribute;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -33,7 +34,6 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import io.netty.buffer.Unpooled;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -41,6 +41,7 @@ import com.google.common.collect.Sets;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import static com.emc.pravega.service.contracts.Attributes.EVENT_COUNT;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -291,8 +292,8 @@ public class AppendProcessorTest {
 
     private Collection<AttributeUpdate> updateEventNumber(UUID clientId, long newValue) {
         return Sets.newHashSet(
-                new AttributeUpdate(Attribute.dynamic(clientId, Attribute.UpdateType.ReplaceIfGreater), newValue),
-                new AttributeUpdate(Attribute.EVENT_COUNT, 1));
+                new AttributeUpdate(clientId, AttributeUpdateType.ReplaceIfGreater, newValue),
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 1));
     }
 
     private void setupGetStreamSegmentInfo(String streamSegmentName, UUID clientId, StreamSegmentStore store) {
@@ -302,7 +303,7 @@ public class AppendProcessorTest {
     private void setupGetStreamSegmentInfo(String streamSegmentName, UUID clientId, long eventNumber, StreamSegmentStore store) {
         CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
                 new StreamSegmentInformation(streamSegmentName, 0, false, false,
-                        Collections.singletonMap(clientId, eventNumber), new Date()));
+                        Collections.singletonMap(clientId, eventNumber), new ImmutableDate()));
 
         when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT))
                 .thenReturn(propsFuture);

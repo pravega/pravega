@@ -183,8 +183,9 @@ interface Stream extends OperationContext {
      * Return whether any transaction is active on the stream.
      *
      * @return a boolean indicating whether a transaction is active on the stream.
+     * Returns the number of transactions ongoing for the stream.
      */
-    CompletableFuture<Boolean> isTransactionOngoing();
+    CompletableFuture<Integer> getNumberOfOngoingTransactions();
 
     CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns();
 

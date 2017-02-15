@@ -116,6 +116,13 @@ class ZKStream extends PersistentStreamBase<Integer> {
     // region overrides
 
     @Override
+    public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
+        return getChildren(activeTxPath).thenApply(list -> {
+            return list == null ? 0 : list.size();
+        });
+    }
+
+    @Override
     public void refresh() {
         cache.invalidateAll();
     }
@@ -297,11 +304,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
                     }
                 }).thenApply(x ->
                         !(x == null || System.currentTimeMillis() - Utilities.toLong(x.getData()) > BLOCK_VALIDITY_PERIOD));
-    }
-
-    @Override
-    public CompletableFuture<Boolean> areTxnsOngoing() {
-        return getChildren(activeTxPath).thenApply(list -> list != null && !list.isEmpty());
     }
 
     @Override

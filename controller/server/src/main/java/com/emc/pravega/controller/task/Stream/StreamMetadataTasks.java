@@ -69,6 +69,7 @@ import static com.emc.pravega.controller.task.Stream.TaskStepsRetryHelper.withWi
  */
 @Slf4j
 public class StreamMetadataTasks extends TaskBase implements Cloneable {
+
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactoryImpl connectionFactory;
@@ -78,15 +79,18 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                                final TaskMetadataStore taskMetadataStore,
                                final ScheduledExecutorService executor,
                                final String hostId) {
-        super(taskMetadataStore, executor, hostId);
+        this(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, new Context(hostId));
+    }
+
+    private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
+            final HostControllerStore hostControllerStore,
+            final TaskMetadataStore taskMetadataStore,
+            final ScheduledExecutorService executor,
+            final Context context) {
+        super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         connectionFactory = new ConnectionFactoryImpl(false);
-    }
-
-    @Override
-    public StreamMetadataTasks clone() throws CloneNotSupportedException {
-        return (StreamMetadataTasks) super.clone();
     }
 
     /**
@@ -400,5 +404,10 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
             log.warn("Update stream failed due to ", ex);
             return UpdateStreamStatus.FAILURE;
         }
+    }
+
+    @Override
+    public TaskBase copyWithContext(Context context) {
+        return new StreamMetadataTasks(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, context);
     }
 }

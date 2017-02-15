@@ -19,15 +19,15 @@
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.google.common.base.Preconditions;
 import java.util.Collections;
-import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
@@ -45,7 +45,9 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private final long streamSegmentId;
     private final long parentStreamSegmentId;
     private final int containerId;
+    @GuardedBy("this")
     private final Map<UUID, Long> attributes;
+    @GuardedBy("this")
     private long storageLength;
     @GuardedBy("this")
     private long durableLogLength;
@@ -58,7 +60,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @GuardedBy("this")
     private boolean merged;
     @GuardedBy("this")
-    private Date lastModified;
+    private ImmutableDate lastModified;
 
     //endregion
 
@@ -101,8 +103,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.merged = false;
         this.storageLength = -1;
         this.durableLogLength = -1;
-        this.attributes = new ConcurrentHashMap<>();
-        this.lastModified = new Date(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
+        this.attributes = new HashMap<>();
+        this.lastModified = new ImmutableDate(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
     }
 
     //endregion
@@ -130,7 +132,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized Date getLastModified() {
+    public synchronized ImmutableDate getLastModified() {
         return this.lastModified;
     }
 
@@ -174,7 +176,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public Map<UUID, Long> getAttributes() {
+    public synchronized Map<UUID, Long> getAttributes() {
         return Collections.unmodifiableMap(this.attributes);
     }
 
@@ -241,13 +243,13 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized void setLastModified(Date date) {
+    public synchronized void setLastModified(ImmutableDate date) {
         this.lastModified = date;
         log.trace("{}: LastModified = {}.", this.lastModified);
     }
 
     @Override
-    public void updateAttributes(Map<UUID, Long> attributes) {
+    public synchronized void updateAttributes(Map<UUID, Long> attributes) {
         for (Map.Entry<UUID, Long> av : attributes.entrySet()) {
             long value = av.getValue();
             if (value == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {

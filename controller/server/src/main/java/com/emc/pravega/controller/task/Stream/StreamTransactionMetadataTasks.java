@@ -49,6 +49,7 @@ import static com.emc.pravega.controller.task.Stream.TaskStepsRetryHelper.withWi
  */
 @Slf4j
 public class StreamTransactionMetadataTasks extends TaskBase implements Cloneable {
+
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactoryImpl connectionFactory;
@@ -58,7 +59,15 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                                           final TaskMetadataStore taskMetadataStore,
                                           final ScheduledExecutorService executor,
                                           final String hostId) {
-        super(taskMetadataStore, executor, hostId);
+        this(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, new Context(hostId));
+    }
+
+    private StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
+            final HostControllerStore hostControllerStore,
+            final TaskMetadataStore taskMetadataStore,
+            final ScheduledExecutorService executor,
+            final Context context) {
+        super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.connectionFactory = new ConnectionFactoryImpl(false);
@@ -185,5 +194,14 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 txId,
                 this.hostControllerStore,
                 this.connectionFactory)), executor);
+    }
+
+    @Override
+    public TaskBase copyWithContext(Context context) {
+        return new StreamTransactionMetadataTasks(streamMetadataStore,
+                hostControllerStore,
+                taskMetadataStore,
+                executor,
+                context);
     }
 }

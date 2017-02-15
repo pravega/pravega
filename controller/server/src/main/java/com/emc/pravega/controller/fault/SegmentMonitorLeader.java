@@ -159,12 +159,8 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
                 hostsChange.acquire();
                 log.debug("Received rebalance event");
 
-                //Wait here until the rebalance timer is zero so that we honour the minimum rebalance interval.
-                if (timeoutTimer != null && timeoutTimer.getRemaining().getSeconds() > 0) {
-                    log.info("Waiting for {} seconds before attempting to rebalance",
-                            timeoutTimer.getRemaining().getSeconds());
-                    Thread.sleep(timeoutTimer.getRemaining().getSeconds() * 1000);
-                }
+                //Wait here until the rebalance timer is zero so that we honor the minimum rebalance interval.
+                waitForRebalance();
 
                 //Clear all events that has been received until this point.
                 hostsChange.drainPermits();
@@ -185,6 +181,17 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
                     throw e;
                 }
             }
+        }
+    }
+
+    /**
+     * Blocks until the rebalance timer is zero so that we honor the minimum rebalance interval.
+     */
+    private void waitForRebalance() throws InterruptedException {
+        if (timeoutTimer != null && timeoutTimer.getRemaining().getSeconds() > 0) {
+            log.info("Waiting for {} seconds before attempting to rebalance",
+                    timeoutTimer.getRemaining().getSeconds());
+            Thread.sleep(timeoutTimer.getRemaining().getSeconds() * 1000);
         }
     }
 

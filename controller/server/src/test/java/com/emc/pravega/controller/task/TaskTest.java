@@ -17,9 +17,23 @@
  */
 package com.emc.pravega.controller.task;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import com.emc.pravega.controller.store.ZKStoreClient;
+import com.emc.pravega.controller.store.host.HostControllerStore;
+import com.emc.pravega.controller.store.host.HostStoreFactory;
+import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
+import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.controller.store.task.LockFailedException;
+import com.emc.pravega.controller.store.task.Resource;
+import com.emc.pravega.controller.store.task.TaggedResource;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
+import com.emc.pravega.controller.store.task.TaskStoreFactory;
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.TestTasks;
+import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -64,6 +78,10 @@ import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
+
+import static junit.framework.TestCase.assertFalse;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 
 /**
@@ -156,12 +174,9 @@ public class TaskTest {
         final String stream = "streamSweeper";
         final StreamConfiguration configuration = new StreamConfigurationImpl(SCOPE, stream1, policy1);
 
-        final TaskData taskData = new TaskData();
         final Resource resource = new Resource(scope, stream);
         final long timestamp = System.currentTimeMillis();
-        taskData.setMethodName("createStream");
-        taskData.setMethodVersion("1.0");
-        taskData.setParameters(new Serializable[]{scope, stream, configuration, timestamp, null});
+        final TaskData taskData = new TaskData("createStream", "1.0", new Serializable[]{scope, stream, configuration, timestamp, null});
 
         for (int i = 0; i < 5; i++) {
             final TaggedResource taggedResource = new TaggedResource(UUID.randomUUID().toString(), resource);
@@ -201,19 +216,13 @@ public class TaskTest {
         final StreamConfiguration config1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
         final StreamConfiguration config2 = new StreamConfigurationImpl(SCOPE, stream2, policy1);
 
-        final TaskData taskData1 = new TaskData();
         final Resource resource1 = new Resource(scope, stream1);
         final long timestamp1 = System.currentTimeMillis();
-        taskData1.setMethodName("createStream");
-        taskData1.setMethodVersion("1.0");
-        taskData1.setParameters(new Serializable[]{scope, stream1, config1, timestamp1, null});
+        final TaskData taskData1 = new TaskData("createStream", "1.0", new Serializable[]{scope, stream1, config1, timestamp1, null});
 
-        final TaskData taskData2 = new TaskData();
         final Resource resource2 = new Resource(scope, stream2);
         final long timestamp2 = System.currentTimeMillis();
-        taskData2.setMethodName("createStream");
-        taskData2.setMethodVersion("1.0");
-        taskData2.setParameters(new Serializable[]{scope, stream2, config2, timestamp2, null});
+        final TaskData taskData2 = new TaskData("createStream", "1.0", new Serializable[]{scope, stream2, config2, timestamp2, null});
 
         for (int i = 0; i < 5; i++) {
             final TaggedResource taggedResource = new TaggedResource(UUID.randomUUID().toString(), resource1);

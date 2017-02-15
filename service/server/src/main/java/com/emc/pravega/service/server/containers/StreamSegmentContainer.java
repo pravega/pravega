@@ -23,8 +23,8 @@ import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.WireCommands;
-import com.emc.pravega.service.contracts.Attribute;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
@@ -57,7 +57,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -68,6 +67,11 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
+
+import static com.emc.pravega.service.contracts.Attributes.CREATION_TIME;
+import static com.emc.pravega.service.contracts.Attributes.EVENT_COUNT;
+import static com.emc.pravega.service.contracts.Attributes.SCALE_POLICY_RATE;
+import static com.emc.pravega.service.contracts.Attributes.SCALE_POLICY_TYPE;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -203,7 +207,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         ensureRunning();
-        final int numOfEvents = getValue(attributeUpdates, Attribute.EVENT_COUNT.getId(), 0L).intValue();
+        final int numOfEvents = getValue(attributeUpdates, EVENT_COUNT, 0L).intValue();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("append", streamSegmentName, data.length);
@@ -220,7 +224,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         ensureRunning();
-        final int numOfEvents = getValue(attributeUpdates, Attribute.EVENT_COUNT.getId(), 0L).intValue();
+        final int numOfEvents = getValue(attributeUpdates, EVENT_COUNT, 0L).intValue();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("appendWithOffset", streamSegmentName, data.length);
@@ -271,7 +275,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                             sm.isSealed(),
                             sm.isDeleted(),
                             new HashMap<>(sm.getAttributes()),
-                            new Date());
+                            new ImmutableDate());
                 });
     }
 
@@ -282,8 +286,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         logRequest("createStreamSegment", streamSegmentName);
         return this.segmentMapper.createNewStreamSegment(streamSegmentName, attributes, timeout)
                 .thenAccept((Void v) -> {
-                    byte scaleType = getValue(attributes, Attribute.SCALE_POLICY_TYPE.getId(), WireCommands.CreateSegment.NO_SCALE).byteValue();
-                    int scaleRate = getValue(attributes, Attribute.SCALE_POLICY_RATE.getId(), 0L).intValue();
+                    byte scaleType = getValue(attributes, SCALE_POLICY_TYPE, WireCommands.CreateSegment.NO_SCALE).byteValue();
+                    int scaleRate = getValue(attributes, SCALE_POLICY_RATE, 0L).intValue();
                     statsRecorder.createSegment(streamSegmentName, scaleType, scaleRate);
                 });
     }
@@ -325,8 +329,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         ensureRunning();
         // TODO: update policy in tier 2
         return CompletableFuture.runAsync(() -> {
-                    byte scaleType = getValue(attributes, Attribute.SCALE_POLICY_TYPE.getId(), WireCommands.CreateSegment.NO_SCALE).byteValue();
-                    int scaleRate = getValue(attributes, Attribute.SCALE_POLICY_RATE.getId(), 0L).intValue();
+                    byte scaleType = getValue(attributes, SCALE_POLICY_TYPE, WireCommands.CreateSegment.NO_SCALE).byteValue();
+                    int scaleRate = getValue(attributes, SCALE_POLICY_RATE, 0L).intValue();
 
                     logRequest("updateStreamSegmentPolicy", streamSegmentName);
                     statsRecorder.policyUpdate(streamSegmentName, scaleType, scaleRate);
@@ -340,7 +344,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         logRequest("mergeTransaction", transactionName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
-        CompletableFuture<Long> mergeFuture =  this.segmentMapper
+        return this.segmentMapper
                 .getOrAssignStreamSegmentId(transactionName, timer.getRemaining())
                 .thenCompose(transactionId -> {
                     SegmentMetadata transactionMetadata = this.metadata.getStreamSegmentMetadata(transactionId);
@@ -355,16 +359,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
                     addToLog.thenCompose(txId -> getStreamSegmentInfo(transactionName, false, timeout))
                             .thenAccept(txnSegmentProperties -> {
-                                long creationTime = txnSegmentProperties.getAttributes().get(Attribute.CREATION_TIME.getId());
-                                int eventCount = txnSegmentProperties.getAttributes().get(Attribute.EVENT_COUNT.getId()).intValue();
+                                long creationTime = txnSegmentProperties.getAttributes().get(CREATION_TIME);
+                                int eventCount = txnSegmentProperties.getAttributes().get(EVENT_COUNT).intValue();
                                 statsRecorder.merge(parentMetadata.getName(), txnSegmentProperties.getLength(), eventCount,
                                         txnSegmentProperties.getLastModified().getTime() - creationTime);
                             });
 
                     return addToLog;
                 });
-
-        return mergeFuture;
     }
 
     @Override
@@ -428,7 +430,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private Long getValue(Collection<AttributeUpdate> attributes, UUID id, long notFound) {
         return Optional.ofNullable(attributes).map(attribs ->
                 attribs.stream()
-                .filter(attrib -> attrib.getAttribute().getId().equals(id))
+                .filter(attrib -> attrib.getAttributeId().equals(id))
                 .findFirst().map(AttributeUpdate::getValue).orElse(notFound)).orElse(notFound);
     }
     //endregion

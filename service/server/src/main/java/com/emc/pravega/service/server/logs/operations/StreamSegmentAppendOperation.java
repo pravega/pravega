@@ -19,8 +19,8 @@
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.common.io.StreamHelpers;
-import com.emc.pravega.service.contracts.Attribute;
 import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
 import java.io.DataInputStream;
@@ -28,6 +28,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.UUID;
 
 /**
  * Log Operation that represents a StreamSegment Append. This operation, as opposed from CachedStreamSegmentAppendOperation,
@@ -50,9 +51,9 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     /**
      * Creates a new instance of the StreamSegmentAppendOperation class.
      *
-     * @param streamSegmentId The Id of the StreamSegment to append to.
-     * @param data            The payload to append.
-     * @param attributeUpdates      (Optional) The attributeUpdates to update with this append.
+     * @param streamSegmentId  The Id of the StreamSegment to append to.
+     * @param data             The payload to append.
+     * @param attributeUpdates (Optional) The attributeUpdates to update with this append.
      */
     public StreamSegmentAppendOperation(long streamSegmentId, byte[] data, Collection<AttributeUpdate> attributeUpdates) {
         this(streamSegmentId, NO_OFFSET, data, attributeUpdates);
@@ -61,10 +62,10 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     /**
      * Creates a new instance of the StreamSegmentAppendOperation class.
      *
-     * @param streamSegmentId The Id of the StreamSegment to append to.
-     * @param offset          The offset to append at.
-     * @param data            The payload to append.
-     * @param attributeUpdates      (Optional) The attributeUpdates to update with this append.
+     * @param streamSegmentId  The Id of the StreamSegment to append to.
+     * @param offset           The offset to append at.
+     * @param data             The payload to append.
+     * @param attributeUpdates (Optional) The attributeUpdates to update with this append.
      */
     public StreamSegmentAppendOperation(long streamSegmentId, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates) {
         super(streamSegmentId);
@@ -144,7 +145,10 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         target.writeShort(this.attributeUpdates == null ? 0 : this.attributeUpdates.size());
         if (this.attributeUpdates != null) {
             for (AttributeUpdate au : this.attributeUpdates) {
-                au.getAttribute().serialize(target);
+                UUID attributeId = au.getAttributeId();
+                target.writeLong(attributeId.getMostSignificantBits());
+                target.writeLong(attributeId.getLeastSignificantBits());
+                target.writeByte(au.getUpdateType().getTypeId());
                 target.writeLong(au.getValue());
             }
         }
@@ -165,9 +169,12 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         if (attributeCount > 0) {
             this.attributeUpdates = new ArrayList<>(attributeCount);
             for (int i = 0; i < attributeCount; i++) {
-                Attribute attribute = Attribute.deserialize(source);
+                long idMostSig = source.readLong();
+                long idLeastSig = source.readLong();
+                UUID attributeId = new UUID(idMostSig, idLeastSig);
+                AttributeUpdateType updateType = AttributeUpdateType.get(source.readByte());
                 long value = source.readLong();
-                this.attributeUpdates.add(new AttributeUpdate(attribute, value));
+                this.attributeUpdates.add(new AttributeUpdate(attributeId, updateType, value));
             }
         }
     }

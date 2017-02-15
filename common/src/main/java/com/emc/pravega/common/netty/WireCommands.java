@@ -30,6 +30,7 @@ import com.google.common.base.Preconditions;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.CorruptedFrameException;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
@@ -212,7 +213,14 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            in.skipBytes(length);
+            int skipped = 0;
+            while (skipped < length) {
+                int skipBytes = in.skipBytes(length - skipped);
+                if (skipBytes < 0) {
+                    throw new CorruptedFrameException("Not enough bytes in buffer. Was attempting to read: " + length);
+                }
+                skipped += skipBytes;
+            }
             return new Padding(length);
         }
     }

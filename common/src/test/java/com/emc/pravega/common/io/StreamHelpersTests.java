@@ -58,7 +58,7 @@ public class StreamHelpersTests {
         }
     }
 
-    private class TestInputStream extends InputStream {
+    private static class TestInputStream extends InputStream {
         private final byte[] buffer;
         private int pos;
         private boolean pause;

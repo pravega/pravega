@@ -19,6 +19,12 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
+import com.emc.pravega.common.metrics.DynamicLogger;
+import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.OpStatsLogger;
+import com.emc.pravega.common.metrics.StatsLogger;
+import com.emc.pravega.common.metrics.StatsProvider;
+import com.emc.pravega.controller.server.MetricNames;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -41,12 +47,25 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import javax.annotation.ParametersAreNonnullByDefault;
+
+import static com.emc.pravega.controller.server.MetricNames.ABORT_TRANSACTION;
+import static com.emc.pravega.controller.server.MetricNames.COMMIT_TRANSACTION;
+import static com.emc.pravega.controller.server.MetricNames.CREATE_TRANSACTION;
+import static com.emc.pravega.controller.server.MetricNames.OPEN_TRANSACTIONS;
+import static com.emc.pravega.controller.server.MetricNames.nameFromStream;
+
 /**
  * Abstract Stream metadata store. It implements various read queries using the Stream interface.
  * Implementation of create and update queries are delegated to the specific implementations of this abstract class.
  */
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
+    protected static final StatsProvider METRICS_PROVIDER = MetricsProvider.getMetricsProvider();
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+    private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("Controller");
+    private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricNames.CREATE_STREAM);
+    private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricNames.SEAL_STREAM);
     private final LoadingCache<Pair<String, String>, Stream> cache;
 
     protected AbstractStreamMetadataStore() {
@@ -81,7 +100,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final long createTimestamp,
                                                    final OperationContext context,
                                                    final Executor executor) {
-        return withCompletion(getStream(scope, name, context).create(configuration, createTimestamp), executor);
+        return withCompletion(getStream(scope, name, context).create(configuration, createTimestamp), executor)
+        .thenApply(result -> {
+            CREATE_STREAM.reportSuccessValue(1);
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, "", name), 0);
+            return result;
+        });
     }
 
     @Override
@@ -107,13 +131,16 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> isSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getState().thenApply(state -> state.equals(State.SEALED)), executor);
+    public CompletableFuture<Boolean> setSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).updateState(State.SEALED), executor).thenApply(result -> {
+            SEAL_STREAM.reportSuccessValue(1);
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, "", name), 0);
+            return result;
+        });
     }
 
-    @Override
-    public CompletableFuture<Boolean> setSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).updateState(State.SEALED), executor);
+    public CompletableFuture<Boolean> isSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getState().thenApply(state -> state.equals(State.SEALED)), executor);
     }
 
     @Override
@@ -162,8 +189,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final String scope, final String stream, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).createTransaction(), executor);
+    public CompletableFuture<UUID> createTransaction(final String scope, final String streamName, final OperationContext context, final Executor executor) {
+        Stream stream = getStream(scope, streamName, context);
+        return withCompletion(stream.createTransaction(), executor).thenApply(result -> {
+           stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+               DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(CREATE_TRANSACTION, scope, streamName), 1);
+               DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
+           });
+           return result;
+        });
     }
 
     @Override
@@ -172,8 +206,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).commitTransaction(txId), executor);
+    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String streamName, final UUID txId, final OperationContext context, final Executor executor) {
+        Stream stream = getStream(scope, streamName, context);
+        return withCompletion(stream.commitTransaction(txId), executor).thenApply(result -> {
+            stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(COMMIT_TRANSACTION, scope, streamName), 1);
+                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
+            });
+            return result;
+         });
     }
 
     @Override
@@ -182,13 +223,20 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).abortTransaction(txId), executor);
+    public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String streamName, final UUID txId, final OperationContext context, final Executor executor) {
+        Stream stream = getStream(scope, streamName, context);
+        return withCompletion(stream.abortTransaction(txId), executor).thenApply(result -> {
+            stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(ABORT_TRANSACTION, scope, streamName), 1);
+                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
+            });
+            return result;
+         });
     }
 
     @Override
     public CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).isTransactionOngoing(), executor);
+        return withCompletion(getStream(scope, stream, context).getNumberOfOngoingTransactions(), executor).thenApply(num -> num > 0);
     }
 
     @Override
