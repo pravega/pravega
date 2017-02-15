@@ -19,7 +19,6 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.Cache;
 import com.emc.pravega.controller.store.stream.tables.Data;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
@@ -28,7 +27,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-@Slf4j
 public class ZKScope implements Scope {
 
     private static final String SCOPE_PATH = "/store/%s";

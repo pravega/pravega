@@ -226,7 +226,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     private String getScopedStreamName(final String scopeName, final String streamName) {
-        return new StringBuffer(scopeName).append("/").append(streamName).toString();
+        return new StringBuilder(scopeName).append("/").append(streamName).toString();
     }
 
     private CompletableFuture<SegmentFutures> constructSegmentFutures(final Stream stream, final List<Integer> activeSegments) {
