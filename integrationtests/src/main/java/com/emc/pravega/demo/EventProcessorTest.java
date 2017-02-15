@@ -19,8 +19,8 @@ package com.emc.pravega.demo;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
-import com.emc.pravega.controller.eventProcessor.CheckpointStore;
 import com.emc.pravega.controller.eventProcessor.Decider;
+import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.Props;
@@ -72,7 +72,7 @@ public class EventProcessorTest {
         }
 
         @Override
-        protected void receive(TestEvent event) throws Exception {
+        protected void process(TestEvent event) {
             if (event.getNumber() < 0) {
                 result.complete(sum);
                 throw new RuntimeException();
@@ -149,13 +149,13 @@ public class EventProcessorTest {
         CheckpointConfig checkpointConfig =
                 CheckpointConfig.builder()
                         .type(CheckpointConfig.Type.Periodic)
-                        .storeType(CheckpointStore.StoreType.InMemory)
+                        .storeType(CheckpointConfig.StoreType.InMemory)
                         .checkpointPeriod(period)
                         .build();
 
         EventProcessorGroupConfig eventProcessorGroupConfig =
                 EventProcessorGroupConfigImpl.builder()
-                        .actorCount(1)
+                        .eventProcessorCount(1)
                         .readerGroupName(readerGroup)
                         .streamName(streamName)
                         .checkpointConfig(checkpointConfig)
@@ -175,7 +175,7 @@ public class EventProcessorTest {
         Assert.assertEquals(expectedSum, value.longValue());
         System.err.println("SUCCESS: received expected sum");
         producer.close();
-        system.stop();
+        system.getEventProcessorGroups().stream().forEach(EventProcessorGroup::stopAll);
         server.close();
         zkTestServer.close();
     }

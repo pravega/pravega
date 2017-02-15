@@ -18,11 +18,12 @@
 package com.emc.pravega.controller.eventProcessor;
 
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
+import com.emc.pravega.controller.server.ControllerServerException;
 
 /**
  * Wrapper for exceptions thrown from Actor's preStart initialization hook.
  */
-public class EventProcessorInitException extends Exception {
+public class EventProcessorInitException extends ControllerServerException {
 
     private final EventProcessor actor;
 

@@ -15,26 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.eventProcessor.impl;
-
-import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
-import com.emc.pravega.controller.eventProcessor.CheckpointStore;
-import org.apache.curator.framework.CuratorFramework;
+package com.emc.pravega.controller.server;
 
 /**
- * Factory for creating checkpoint store.
+ * Base class for exceptions thrown from controller server code base.
  */
-public class CheckpointStoreFactory {
+public class ControllerServerException extends RuntimeException {
 
-    static CheckpointStore create(CheckpointConfig.StoreType type, Object client) {
-        switch (type) {
-            case InMemory:
-                return new InMemoryCheckpointStore();
-            case Zookeeper:
-                return new ZKCheckpointStore((CuratorFramework) client);
-            default:
-                return null;
-        }
+    public ControllerServerException(Throwable t) {
+        super(t);
     }
 
+    public ControllerServerException(String message) {
+        super(message);
+    }
+
+    public ControllerServerException(String message, Throwable t) {
+        super(message, t);
+    }
 }

@@ -18,9 +18,14 @@
 package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
+import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.stream.Position;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.Synchronized;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,50 +36,94 @@ import java.util.Map;
 class InMemoryCheckpointStore implements CheckpointStore {
 
     private final static String SEPARATOR = ":::";
-    private final Map<String, Map<String, Position>> map;
+    private final Map<String, ReaderGroupData> map;
 
     InMemoryCheckpointStore() {
         this.map = new HashMap<>();
     }
 
+    @Data
+    @AllArgsConstructor
+    static class ReaderGroupData {
+        enum State {
+            Active,
+            Sealed,
+        }
+
+        private State state;
+        private Map<String, Position> map;
+
+        void update(String readerId, Position position) {
+            if (this.map.containsKey(readerId)) {
+                this.map.put(readerId, position);
+            } else {
+                throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, "Reader does not exist");
+            }
+        }
+    }
+
     @Override
-    public boolean setPosition(String process, String readerGroup, String readerId, Position position) {
+    @Synchronized
+    public void setPosition(String process, String readerGroup, String readerId, Position position) {
         String key = getKey(process, readerGroup);
         if (map.containsKey(key)) {
-            map.get(key).put(readerId, position);
+            map.get(key).update(readerId, position);
         } else {
-            Map<String, Position> inner = new HashMap<>();
-            inner.put(readerId, position);
-            map.put(key, inner);
+            throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, "ReaderGroup does not exist");
         }
-        return true;
     }
 
     @Override
+    @Synchronized
     public Map<String, Position> getPositions(String process, String readerGroup) {
-        return map.get(getKey(process, readerGroup));
+        return Collections.unmodifiableMap(map.get(getKey(process, readerGroup)).getMap());
     }
 
     @Override
-    public boolean addReaderGroup(String process, String readerGroup) {
+    @Synchronized
+    public void addReaderGroup(String process, String readerGroup) {
         String key = getKey(process, readerGroup);
         if (!map.containsKey(key)) {
-            map.put(key, new HashMap<>());
+            ReaderGroupData groupData = new ReaderGroupData(ReaderGroupData.State.Active, new HashMap<>());
+            map.put(key, groupData);
+        } else {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.NodeExists, "ReaderGroup exists");
         }
-        return true;
     }
 
     @Override
-    public boolean removeReaderGroup(String process, String readerGroup) {
+    @Synchronized
+    public Map<String, Position> sealReaderGroup(String process, String readerGroup) {
         String key = getKey(process, readerGroup);
-        if (map.containsKey(key) && map.get(key).isEmpty()) {
+        if (map.containsKey(key)) {
+            ReaderGroupData groupData = map.get(key);
+            groupData.setState(ReaderGroupData.State.Sealed);
+            map.put(key, groupData);
+            return Collections.unmodifiableMap(groupData.getMap());
+        } else {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, "ReaderGroup does not exist");
+        }
+    }
+
+    @Override
+    @Synchronized
+    public void removeReaderGroup(String process, String readerGroup) {
+        String key = getKey(process, readerGroup);
+        if (map.containsKey(key)) {
             // Remove the reader group only if it has no active readers.
+            ReaderGroupData groupData = map.get(key);
+            if (groupData.getState() == ReaderGroupData.State.Active) {
+                throw new CheckpointStoreException(CheckpointStoreException.Type.Active, "ReaderGroup is active.");
+            }
+            if (!groupData.getMap().isEmpty()) {
+                throw new CheckpointStoreException(CheckpointStoreException.Type.NodeNotEmpty, "ReaderGroup is not empty.");
+            }
             map.remove(key);
         }
-        return true;
     }
 
     @Override
+    @Synchronized
     public List<String> getReaderGroups(String process) {
         List<String> list = new ArrayList<>();
         map.entrySet().stream().forEach(pair -> {
@@ -87,18 +136,31 @@ class InMemoryCheckpointStore implements CheckpointStore {
     }
 
     @Override
-    public boolean addReader(String process, String readerGroup, String readerId) {
+    @Synchronized
+    public void addReader(String process, String readerGroup, String readerId) {
+        String key = getKey(process, readerGroup);
+        if (map.containsKey(key)) {
+            ReaderGroupData groupData = map.get(key);
+            if (groupData.getState() == ReaderGroupData.State.Sealed) {
+                throw new CheckpointStoreException(CheckpointStoreException.Type.Sealed, "ReaderGroup is sealed");
+            }
+            if (groupData.getMap().containsKey(readerId)) {
+                throw new CheckpointStoreException(CheckpointStoreException.Type.NodeExists, "Duplicate readerId");
+            }
+            groupData.getMap().put(readerId, null);
+        }
+
         setPosition(process, readerGroup, readerId, null);
-        return true;
     }
 
     @Override
-    public boolean removeReader(String process, String readerGroup, String readerId) {
+    @Synchronized
+    public void removeReader(String process, String readerGroup, String readerId) {
         String key = getKey(process, readerGroup);
         if (map.containsKey(key)) {
-            map.get(key).remove(readerId);
+            ReaderGroupData groupData = map.get(key);
+            groupData.getMap().remove(readerId);
         }
-        return true;
     }
 
     private String getKey(String process, String readerGroup) {

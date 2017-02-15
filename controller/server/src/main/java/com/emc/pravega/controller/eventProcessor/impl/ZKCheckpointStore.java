@@ -17,15 +17,22 @@
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
+import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.impl.JavaSerializer;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.data.Stat;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -37,16 +44,36 @@ import java.util.Map;
 @Slf4j
 class ZKCheckpointStore implements CheckpointStore {
 
+    private static long initialMillis = 100L;
+    private static int multiplier = 2;
+    private static int attempts = 10;
+    private static long maxDelay = 2000;
+
     private final CuratorFramework client;
+    private final JavaSerializer<Position> positionSerializer;
+    private final JavaSerializer<ReaderGroupData> groupDataSerializer;
 
     ZKCheckpointStore(CuratorFramework client) {
         this.client = client;
+        this.positionSerializer = new JavaSerializer<>();
+        this.groupDataSerializer = new JavaSerializer<>();
+    }
+
+    @Data
+    @AllArgsConstructor
+    static class ReaderGroupData implements Serializable {
+        enum State {
+            Active,
+            Sealed,
+        }
+
+        private State state;
+        private List<String> readerIds;
     }
 
     @Override
-    public boolean setPosition(String process, String readerGroup, String readerId, Position position) {
-        return updateNode(getReaderPath(process, readerGroup, readerId),
-                new JavaSerializer<Position>().serialize(position).array());
+    public void setPosition(String process, String readerGroup, String readerId, Position position) {
+        updateNode(getReaderPath(process, readerGroup, readerId), positionSerializer.serialize(position).array());
     }
 
     @Override
@@ -57,7 +84,7 @@ class ZKCheckpointStore implements CheckpointStore {
             Position position = null;
             byte[] data = getData(path + "/" + child);
             if (data != null && data.length > 0) {
-                position = new JavaSerializer<Position>().deserialize(ByteBuffer.wrap(data));
+                position = positionSerializer.deserialize(ByteBuffer.wrap(data));
             }
             map.put(child, position);
         }
@@ -65,13 +92,53 @@ class ZKCheckpointStore implements CheckpointStore {
     }
 
     @Override
-    public boolean addReaderGroup(String process, String readerGroup) {
-        return addNode(getReaderGroupPath(process, readerGroup));
+    public void addReaderGroup(String process, String readerGroup) {
+        ReaderGroupData data = new ReaderGroupData(ReaderGroupData.State.Active, new ArrayList<>());
+        addNode(getReaderGroupPath(process, readerGroup), groupDataSerializer.serialize(data).array());
     }
 
     @Override
-    public boolean removeReaderGroup(String process, String readerGroup) {
-        return removeEmptyNode(getReaderGroupPath(process, readerGroup));
+    public Map<String, Position> sealReaderGroup(String process, String readerGroup) {
+        String path = getReaderGroupPath(process, readerGroup);
+        Stat stat = new Stat();
+
+        try {
+            return Retry.withExpBackoff(initialMillis, multiplier, attempts, maxDelay)
+                    .retryingOn(KeeperException.BadVersionException.class)
+                    .throwingOn(Exception.class)
+                    .run(() -> {
+
+                        byte[] data = client.getData().storingStatIn(stat).forPath(path);
+                        ReaderGroupData groupData = groupDataSerializer.deserialize(ByteBuffer.wrap(data));
+                        groupData.setState(ReaderGroupData.State.Sealed);
+
+                        client.setData()
+                                .withVersion(stat.getVersion())
+                                .forPath(path, groupDataSerializer.serialize(groupData).array());
+                        return getPositions(process, readerGroup);
+
+                    });
+        } catch (KeeperException.NoNodeException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
+        } catch (Exception e) {
+            throw new CheckpointStoreException(e);
+        }
+    }
+
+    @Override
+    public void removeReaderGroup(String process, String readerGroup) {
+        String path = getReaderGroupPath(process, readerGroup);
+        byte[] data = getData(path);
+
+        ReaderGroupData groupData = groupDataSerializer.deserialize(ByteBuffer.wrap(data));
+
+        if (groupData.getState() == ReaderGroupData.State.Active) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.Active, "ReaderGroup is active.");
+        }
+        if (!groupData.getReaderIds().isEmpty()) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.NodeNotEmpty, "ReaderGroup is not empty.");
+        }
+        removeEmptyNode(path);
     }
 
     @Override
@@ -80,13 +147,81 @@ class ZKCheckpointStore implements CheckpointStore {
     }
 
     @Override
-    public boolean addReader(String process, String readerGroup, String readerId) {
-        return addNode(getReaderPath(process, readerGroup, readerId));
+    public void addReader(String process, String readerGroup, String readerId) {
+        String path = getReaderGroupPath(process, readerGroup);
+        Stat stat = new Stat();
+
+        try {
+            Retry.withExpBackoff(initialMillis, multiplier, attempts, maxDelay)
+                    .retryingOn(KeeperException.BadVersionException.class)
+                    .throwingOn(Exception.class)
+                    .run(() -> {
+
+                        byte[] data = client.getData().storingStatIn(stat).forPath(path);
+                        ReaderGroupData groupData = groupDataSerializer.deserialize(ByteBuffer.wrap(data));
+                        if (groupData.getState() == ReaderGroupData.State.Sealed) {
+                            throw new CheckpointStoreException(CheckpointStoreException.Type.Sealed,
+                                    "ReaderGroup is sealed");
+                        }
+                        List<String> list = groupData.getReaderIds();
+                        if (list.contains(readerId)) {
+                            throw new CheckpointStoreException(CheckpointStoreException.Type.NodeExists,
+                                    "Duplicate readerId");
+                        }
+
+                        list.add(readerId);
+                        groupData.setReaderIds(list);
+
+                        client.setData()
+                                .withVersion(stat.getVersion())
+                                .forPath(path, groupDataSerializer.serialize(groupData).array());
+
+                        addNode(getReaderPath(process, readerGroup, readerId));
+                        return null;
+                    });
+        } catch (KeeperException.NoNodeException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
+        } catch (CheckpointStoreException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CheckpointStoreException(e);
+        }
+
     }
 
     @Override
-    public boolean removeReader(String process, String readerGroup, String readerId) {
-        return removeEmptyNode(getReaderPath(process, readerGroup, readerId));
+    public void removeReader(String process, String readerGroup, String readerId) {
+        String path = getReaderGroupPath(process, readerGroup);
+        Stat stat = new Stat();
+
+        try {
+            Retry.withExpBackoff(initialMillis, multiplier, attempts, maxDelay)
+                    .retryingOn(KeeperException.BadVersionException.class)
+                    .throwingOn(Exception.class)
+                    .run(() -> {
+
+                        removeEmptyNode(getReaderPath(process, readerGroup, readerId));
+
+                        byte[] data = client.getData().storingStatIn(stat).forPath(path);
+                        ReaderGroupData groupData = groupDataSerializer.deserialize(ByteBuffer.wrap(data));
+
+                        List<String> list = groupData.getReaderIds();
+                        if (list.contains(readerId)) {
+                            list.remove(readerId);
+                            groupData.setReaderIds(list);
+
+                            client.setData()
+                                    .withVersion(stat.getVersion())
+                                    .forPath(path, groupDataSerializer.serialize(groupData).array());
+                        }
+
+                        return null;
+                    });
+        } catch (KeeperException.NoNodeException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
+        } catch (Exception e) {
+            throw new CheckpointStoreException(e);
+        }
     }
 
     private String getReaderPath(String process, String readerGroup, String readerId) {
@@ -101,64 +236,73 @@ class ZKCheckpointStore implements CheckpointStore {
         return String.format("/%s", process);
     }
 
-    private boolean addNode(String path) {
-        return addNode(path, new byte[0]);
+    private void addNode(String path) {
+        addNode(path, new byte[0]);
     }
 
-    private boolean addNode(String path, byte[] data) {
+    private void addNode(String path, byte[] data) {
         try {
+
             client.create()
                     .creatingParentsIfNeeded()
                     .withMode(CreateMode.PERSISTENT)
                     .forPath(path, data);
-            return true;
+
+        } catch (KeeperException.NodeExistsException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.NodeExists, e);
         } catch (Exception e) {
-            if (e instanceof KeeperException.NodeExistsException) {
-                return true;
-            } else {
-                // log this exception and return false
-                log.warn("Error creating node for path " + path, e);
-                return false;
-            }
+            throw new CheckpointStoreException(e);
         }
     }
 
-    private boolean removeEmptyNode(String path) {
+    private void removeEmptyNode(String path) {
         try {
-            client.delete()
-                    .forPath(path);
-            return true;
+
+            client.delete().forPath(path);
+
+        } catch (KeeperException.NoNodeException e) {
+            // Its ok if the node is already deleted, mask this exception.
+        } catch (KeeperException.NotEmptyException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.NodeNotEmpty, e);
         } catch (Exception e) {
-            // Return true for KeeperException.NoNodeException,
-            // else return false for KeeperException.NotEmptyException or any other exception.
-            return e instanceof KeeperException.NoNodeException;
+            throw new CheckpointStoreException(e);
         }
     }
 
-    private boolean updateNode(String path, byte[] data) {
+    private void updateNode(String path, byte[] data) {
         try {
+
             client.setData().forPath(path, data);
-            return true;
+
+        } catch (KeeperException.NoNodeException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
         } catch (Exception e) {
-            // return false for KeeperException.NoNodeException as well
-            return false;
+            throw new CheckpointStoreException(e);
         }
     }
 
     private List<String> getChildren(String path) {
         try {
+
             return client.getChildren().forPath(path);
-        } catch (Exception e) {
-            // Return empty list for KeeperException.NoNodeException or any other exception.
+
+        } catch (KeeperException.NoNodeException e) {
+            // Return empty list for KeeperException.NoNodeException.
             return Collections.emptyList();
+        } catch (Exception e) {
+            throw new CheckpointStoreException(e);
         }
     }
 
     private byte[] getData(String path) {
         try {
+
             return client.getData().forPath(path);
+
+        } catch (KeeperException.NoNodeException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
         } catch (Exception e) {
-            return null;
+            throw new CheckpointStoreException(e);
         }
     }
 }

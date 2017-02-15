@@ -30,22 +30,22 @@ public class EventProcessorGroupConfigImpl implements EventProcessorGroupConfig 
 
     private final String readerGroupName;
 
-    private final int actorCount;
+    private final int eventProcessorCount;
 
     private final CheckpointConfig checkpointConfig;
 
     @Builder
     private EventProcessorGroupConfigImpl(final String streamName,
                                          final String readerGroupName,
-                                         final int actorCount,
+                                         final int eventProcessorCount,
                                          final CheckpointConfig checkpointConfig) {
         Preconditions.checkNotNull(streamName);
         Preconditions.checkNotNull(readerGroupName);
-        Preconditions.checkArgument(actorCount > 0, "actorCount should be positive integer");
+        Preconditions.checkArgument(eventProcessorCount > 0, "Event processor count should be positive integer");
         Preconditions.checkNotNull(checkpointConfig);
         this.streamName = streamName;
         this.readerGroupName = readerGroupName;
-        this.actorCount = actorCount;
+        this.eventProcessorCount = eventProcessorCount;
         this.checkpointConfig = checkpointConfig;
     }
 }

@@ -77,7 +77,7 @@ public class EventProcessorTest {
         }
 
         @Override
-        protected void receive(TestEvent event) throws Exception {
+        protected void process(TestEvent event) {
             if (event == null) {
                 throw new RuntimeException();
             } else {
@@ -165,13 +165,13 @@ public class EventProcessorTest {
         CheckpointConfig checkpointConfig =
                 CheckpointConfig.builder()
                         .type(CheckpointConfig.Type.Periodic)
-                        .storeType(CheckpointStore.StoreType.InMemory)
+                        .storeType(CheckpointConfig.StoreType.InMemory)
                         .checkpointPeriod(period)
                         .build();
 
         EventProcessorGroupConfig config =
                 EventProcessorGroupConfigImpl.builder()
-                        .actorCount(1)
+                        .eventProcessorCount(1)
                         .readerGroupName(readerGroup)
                         .streamName(streamName)
                         .checkpointConfig(checkpointConfig)
@@ -190,6 +190,8 @@ public class EventProcessorTest {
         Mockito.when(system.getProcess()).thenReturn(process);
 
         EventStreamReader<TestEvent> reader = Mockito.mock(EventStreamReader.class);
+
+        checkpointStore.addReaderGroup(process, readerGroup);
 
         // Test case 1. Actor does not throw any exception during normal operation.
         Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
@@ -236,7 +238,8 @@ public class EventProcessorTest {
                                     final String readerId,
                                     final CheckpointStore checkpointStore,
                                     final int expectedSum) {
-        EventProcessorCell<TestEvent> cell = new EventProcessorCell<>(system, props, reader, readerId, checkpointStore);
+        EventProcessorCell<TestEvent> cell =
+                new EventProcessorCell<>(props, reader, system.getProcess(), readerId, checkpointStore);
 
         cell.startAsync();
 

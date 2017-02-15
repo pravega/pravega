@@ -26,22 +26,19 @@ public abstract class EventProcessor<T extends StreamEvent> {
 
     /**
      * AbstractActor initialization hook that is called before actor starts receiving events.
-     * @throws Exception Exception thrown from user defined preStart method.
      */
-    protected void beforeStart() throws Exception { }
+    protected void beforeStart() { }
 
     /**
      * User defined event processing logic.
      * @param event Event received from Pravega Stream.
-     * @throws Exception Exception thrown from user defined preStart method.
      */
-    protected abstract void receive(T event) throws Exception;
+    protected abstract void process(T event);
 
     /**
      * AbstractActor shutdown hook that is called on shut down.
-     * @throws Exception Exception thrown from user defined preStart method.
      */
-    protected void afterStop() throws Exception { }
+    protected void afterStop() { }
 
     /**
      * AbstractActor preRestart hook that is called before actor restarts
@@ -49,8 +46,7 @@ public abstract class EventProcessor<T extends StreamEvent> {
      * called before the Actor starts again.
      * @param t Throwable error.
      * @param event Event being processed when error is thrown.
-     * @throws Exception Exception thrown from user defined preStart method.
      */
-    protected void beforeRestart(Throwable t, T event) throws Exception { }
+    protected void beforeRestart(Throwable t, T event) { }
 
 }

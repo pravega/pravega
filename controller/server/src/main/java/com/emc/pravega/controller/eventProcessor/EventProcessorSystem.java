@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
-import com.emc.pravega.stream.EventStreamWriter;
+import java.util.List;
 
 /**
  * It acts as the manager and wrapper around EventProcessor groups
@@ -52,19 +52,11 @@ public interface EventProcessorSystem {
      * @param <T> Stream Event type parameter.
      * @return EventProcessorGroup reference.
      */
-    <T extends StreamEvent> EventStreamWriter<T> createEventProcessorGroup(Props<T> props);
+    <T extends StreamEvent> EventProcessorGroup<T> createEventProcessorGroup(Props<T> props);
 
     /**
-     * Notify process failure to EventProcessorGroups managed by the EventProcessorSystem.
-     * EventProcessorGroups may send a notification to the Pravega ReaderGroup
-     * so that the orphaned stream segments can be redistributed among existing hosts.
-     * @param process Failed process's identifier.
+     * Returns the list of all event processor groups created in the system.
+     * @return List of all event processor groups created in the system.
      */
-    void notifyProcessFailure(String process);
-
-    /**
-     * Stops all EventProcessors belonging to EventProcessorGroup created
-     * under the EventProcessorSystem.
-     */
-    void stop();
+    List<EventProcessorGroup> getEventProcessorGroups();
 }
