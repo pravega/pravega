@@ -19,29 +19,29 @@ package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.StreamManager;
+import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.Props;
 import com.emc.pravega.controller.eventProcessor.StreamEvent;
-import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
-import com.google.common.base.Preconditions;
-import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
 public class EventProcessorSystemImpl implements EventProcessorSystem {
 
-    protected final Controller controller;
-    protected final ClientFactory clientFactory;
-    protected final StreamManager streamManager;
+    final Controller controller;
+    final ClientFactory clientFactory;
+    final StreamManager streamManager;
 
     private final String name;
     private final String process;
-    private final List<EventProcessorGroupImpl> actorGroups;
+    @GuardedBy("actorGroups")
+    private final List<EventProcessorGroup> actorGroups;
 
     private final String scope;
 
@@ -72,8 +72,7 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
         return this.process;
     }
 
-    @Synchronized
-    public <T extends StreamEvent> EventStreamWriter<T> createEventProcessorGroup(Props<T> props) {
+    public <T extends StreamEvent> EventProcessorGroup<T> createEventProcessorGroup(Props<T> props) {
         EventProcessorGroupImpl<T> actorGroup;
 
         // Create event processor group.
@@ -83,27 +82,17 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
         actorGroup.initialize();
 
         // If successful in initializing it, add it to the list and start it.
-        actorGroups.add(actorGroup);
+        synchronized ("actorGroup") {
+            actorGroups.add(actorGroup);
+        }
 
         actorGroup.startAsync();
 
-        return actorGroup.getWriter();
+        return actorGroup;
     }
 
     @Override
-    @Synchronized
-    public void notifyProcessFailure(String process) {
-        Preconditions.checkNotNull(process);
-        if (process.equals(this.process)) {
-            this.actorGroups.forEach(EventProcessorGroupImpl::stopAsync);
-        } else {
-            // Notify all registered actor groups of host failure
-            this.actorGroups.forEach(group -> group.notifyProcessFailure(process));
-        }
-    }
-
-    @Synchronized
-    public void stop() {
-        this.actorGroups.forEach(EventProcessorGroupImpl::stopAll);
+    public List<EventProcessorGroup> getEventProcessorGroups() {
+        return actorGroups;
     }
 }

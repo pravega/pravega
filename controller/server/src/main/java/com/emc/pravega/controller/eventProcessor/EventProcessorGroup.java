@@ -53,10 +53,8 @@ public interface EventProcessorGroup<T extends StreamEvent> {
     EventStreamWriter<T> getWriter();
 
     /**
-     * Gets the list of physical representations of processes participating in
-     * the logical EventProcessorGroup.
-     * @return list of physical representations of processes participating
-     *          in the Logical EventProcessorGroup.
+     * Gets the list of processes participating in the logical EventProcessorGroup.
+     * @return list of processes participating in the Logical EventProcessorGroup.
      */
     Set<String> getProcesses();
 

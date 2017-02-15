@@ -49,14 +49,25 @@ public interface CheckpointStore {
     Map<String, Position> getPositions(final String process, final String readerGroup);
 
     /**
-     * Add a new entry (ProcessId, ReaderGroup) to the map.
+     * Add a new entry (process, readerGroup) to the map. This readerGroup entry is in ACTIVE
+     * state,which means readers can be added to this readerGroup in the specified process.
      * @param process Process identifier.
-     * @param readerGroup Reader identifier.
+     * @param readerGroup ReaderGroup identifier.
      */
     void addReaderGroup(final String process, final String readerGroup);
 
     /**
-     * Removes the specified reader group only if it has no active readers.
+     * Seals the readerGroup in the specified process. Once a readerGroup is sealed, no more readers can be added to it.
+     * @param process Process identifier.
+     * @param readerGroup ReaderGroup identifier.
+     * @return Map of readers to their respective positions in the specified readerGroup.
+     */
+    Map<String, Position> sealReaderGroup(final String process, final String readerGroup);
+
+    /**
+     * Removes the specified readerGroup from specified process if
+     * (1) it has no active readers, and
+     * (2) it is in SEALED state.
      * @param process Process identifier.
      * @param readerGroup Reader group name.
      */

@@ -191,6 +191,8 @@ public class EventProcessorTest {
 
         EventStreamReader<TestEvent> reader = Mockito.mock(EventStreamReader.class);
 
+        checkpointStore.addReaderGroup(process, readerGroup);
+
         // Test case 1. Actor does not throw any exception during normal operation.
         Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
 

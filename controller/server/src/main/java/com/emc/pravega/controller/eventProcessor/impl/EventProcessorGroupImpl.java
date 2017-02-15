@@ -31,7 +31,6 @@ import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
 import com.google.common.util.concurrent.AbstractService;
-import lombok.Synchronized;
 import org.apache.commons.lang.NotImplementedException;
 
 import java.lang.reflect.InvocationTargetException;
@@ -40,6 +39,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class EventProcessorGroupImpl<T extends StreamEvent> extends AbstractService implements EventProcessorGroup<T> {
 
@@ -47,7 +47,7 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
 
     private final Props<T> props;
 
-    private final List<EventProcessorCell<T>> actors;
+    private final ConcurrentHashMap<String, EventProcessorCell<T>> eventProcessorMap;
 
     private final EventStreamWriter<T> writer;
 
@@ -58,7 +58,7 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
     EventProcessorGroupImpl(final EventProcessorSystemImpl actorSystem, final Props<T> props) {
         this.actorSystem = actorSystem;
         this.props = props;
-        this.actors = new ArrayList<>();
+        this.eventProcessorMap = new ConcurrentHashMap<>();
         this.writer = actorSystem
                 .clientFactory
                 .createEventWriter(props.getConfig().getStreamName(),
@@ -82,7 +82,7 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
                 Collections.singletonList(props.getConfig().getStreamName()));
 
         try {
-            createActors(props.getConfig().getEventProcessorCount());
+            createEventProcessors(props.getConfig().getEventProcessorCount());
         } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
             throw new RuntimeException("Error instantiating Event Processors");
         }
@@ -101,10 +101,11 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
         //return  readerGroup;
     }
 
-    private void createActors(final int count) throws IllegalAccessException,
+    private List<String> createEventProcessors(final int count) throws IllegalAccessException,
             InvocationTargetException,
             InstantiationException {
 
+        List<String> readerIds = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             // Create a reader id.
             String readerId = UUID.randomUUID().toString();
@@ -124,69 +125,76 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
             EventProcessorCell<T> actorCell =
                     new EventProcessorCell<>(props, reader, actorSystem.getProcess(), readerId, checkpointStore);
 
-            actors.add(actorCell);
+            // Add new event processors to the map
+            eventProcessorMap.put(readerId, actorCell);
+            readerIds.add(readerId);
         }
+        return readerIds;
     }
 
     @Override
-    @Synchronized
     final protected void doStart() {
-        actors.stream().forEach(EventProcessorCell::startAsync);
+        eventProcessorMap.entrySet().forEach(entry -> entry.getValue().startAsync());
     }
 
     @Override
-    @Synchronized
     final protected void doStop() {
-        actors.stream().forEach(EventProcessorCell::stopAsync);
+        checkpointStore.sealReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName())
+                .entrySet()
+                .forEach(entry -> {
+                    if (eventProcessorMap.containsKey(entry.getKey())) {
+                        eventProcessorMap.get(entry.getKey()).stopAsync();
+                    } else {
+                        // 1. Notify reader group about stopped reader.
+                        readerGroup.readerOffline(entry.getKey(), entry.getValue());
+
+                        // 2. Clean up reader from checkpoint store.
+                        checkpointStore.removeReader(actorSystem.getProcess(), readerGroup.getGroupName(), entry.getKey());
+                    }
+                });
     }
 
-    @Synchronized
     final protected void awaitStopped() {
         // If exception is thrown in any of the following operations, it is just logged.
-        // Some other controller process is responsible for cleaning up reader group,
-        // its readers and their position objects from checkpoint store.
+        // Some other controller process is responsible for cleaning up reader group, its
+        // readers and their position objects from checkpoint store.
 
         // First, wait for all event processors to stop.
-        actors.stream().forEach(EventProcessorCell::awaitStopped);
+        eventProcessorMap.entrySet()
+                .forEach(entry -> entry.getValue().awaitStopped());
 
         // Next, clean up reader group from checkpoint store.
-        checkpointStore.removeReaderGroup(actorSystem.getProcess(), props.getConfig().getReaderGroupName());
+        checkpointStore.removeReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
     }
 
     @Override
-    @Synchronized
     public void notifyProcessFailure(String process) {
-        checkpointStore.getPositions(process, readerGroup.getGroupName())
+        checkpointStore.sealReaderGroup(process, readerGroup.getGroupName())
                 .entrySet()
-                // todo handle errors/exceptions
                 .forEach(entry -> {
-                    // first notify reader group about failed readers
+                    // 1. Notify reader group about failed readers
                     readerGroup.readerOffline(entry.getKey(), entry.getValue());
 
-                    // 2. clean up reader from checkpoint store
-                    checkpointStore.removeReader(actorSystem.getProcess(), props.getConfig().getReaderGroupName(),
-                            entry.getKey());
+                    // 2. Clean up reader from checkpoint store
+                    checkpointStore.removeReader(actorSystem.getProcess(), readerGroup.getGroupName(), entry.getKey());
                 });
 
         // finally, remove reader group from checkpoint store
-        checkpointStore.removeReaderGroup(this.actorSystem.getProcess(),
-                this.props.getConfig().getReaderGroupName());
+        checkpointStore.removeReaderGroup(process, readerGroup.getGroupName());
     }
 
     @Override
-    @Synchronized
     public void changeEventProcessorCount(int count) {
         if (count <= 0) {
             throw new NotImplementedException();
         } else {
             try {
 
-                int existingCount = actors.size();
-                createActors(count);
+                // create new event processors
+                List<String> readerIds = createEventProcessors(count);
+
                 // start the new event processors
-                for (int i = existingCount; i < actors.size(); i++) {
-                    actors.get(i).startAsync();
-                }
+                readerIds.stream().forEach(readerId -> eventProcessorMap.get(readerId).startAsync());
 
             } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
                 throw new RuntimeException("Error instantiating Actors");
@@ -205,7 +213,7 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
     }
 
     public void stopAll() {
-        this.doStop();
+        this.stopAsync();
         this.awaitStopped();
     }
 }

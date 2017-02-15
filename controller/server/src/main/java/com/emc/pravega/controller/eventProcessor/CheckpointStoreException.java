@@ -16,21 +16,52 @@
 package com.emc.pravega.controller.eventProcessor;
 
 import com.emc.pravega.controller.server.ControllerServerException;
+import lombok.Data;
 
 /**
  * Controller store exception.
  */
+@Data
 public class CheckpointStoreException extends ControllerServerException {
+
+    public enum Type {
+        Unknown,
+        NodeExists,
+        NoNode,
+        NodeNotEmpty,
+        Active,
+        Sealed,
+    }
+
+    private final Type type;
 
     public CheckpointStoreException(Throwable t) {
         super(t);
+        this.type = Type.Unknown;
+    }
+
+    public CheckpointStoreException(Type type, Throwable t) {
+        super(t);
+        this.type = type;
     }
 
     public CheckpointStoreException(String message) {
         super(message);
+        this.type = Type.Unknown;
+    }
+
+    public CheckpointStoreException(Type type, String message) {
+        super(message);
+        this.type = type;
     }
 
     public CheckpointStoreException(String message, Throwable t) {
         super(message, t);
+        this.type = Type.Unknown;
+    }
+
+    public CheckpointStoreException(Type type, String message, Throwable t) {
+        super(message, t);
+        this.type = Type.Unknown;
     }
 }

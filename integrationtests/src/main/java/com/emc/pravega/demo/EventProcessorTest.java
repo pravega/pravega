@@ -172,7 +172,7 @@ public class EventProcessorTest {
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());
         producer.close();
-        system.stop();
+        system.getEventProcessorGroups().stream().forEach(x -> x.stopAll());
         server.close();
         zkTestServer.close();
     }

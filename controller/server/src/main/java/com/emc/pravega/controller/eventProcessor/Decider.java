@@ -19,7 +19,7 @@ package com.emc.pravega.controller.eventProcessor;
 
 /**
  * Functional interface that provides a Directive, which is either Restart, Resume,
- * or Stop, on encountering an exception while executing Actor's user-defined methods.
+ * or Stop, on encountering an exception while executing event procssors's user-defined methods.
  */
 @FunctionalInterface
 public interface Decider {
@@ -31,7 +31,7 @@ public interface Decider {
     }
 
     /**
-     * The default decider that Stops the Actor on pre-defined Actor Exceptions,
+     * The default decider that Stops the event processor on pre-defined event processor exceptions,
      * and Restarts it otherwise.
      */
     Decider DEFAULT_DECIDER = (Throwable y) -> {
