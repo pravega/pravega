@@ -168,7 +168,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * Write the provided append to the store, and upon completion ack it back to the producer.
      */
     private void write(Append toWrite) {
-        ByteBuf buf = Unpooled.unmodifiableBuffer(toWrite.getData());
+        ByteBuf buf = toWrite.getData().asReadOnly();
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
         AppendContext context = new AppendContext(toWrite.getConnectionId(), toWrite.getEventNumber());

@@ -18,9 +18,8 @@
 
 package com.emc.pravega.service.server;
 
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AppendContext;
-
-import java.util.Date;
 
 /**
  * Defines an updateable StreamSegment Metadata.
@@ -76,7 +75,7 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
      *
      * @param date The Date to set.
      */
-    void setLastModified(Date date);
+    void setLastModified(ImmutableDate date);
 
     /**
      * Updates this instance of the UpdateableSegmentMetadata to have the same information as the other one.

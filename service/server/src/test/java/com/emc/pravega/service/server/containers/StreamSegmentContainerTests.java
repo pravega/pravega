@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.containers;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
@@ -33,7 +34,6 @@ import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ConfigHelpers;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndexFactory;

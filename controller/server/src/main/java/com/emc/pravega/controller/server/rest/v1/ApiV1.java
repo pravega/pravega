@@ -78,9 +78,9 @@ public final class ApiV1 {
 
                 @io.swagger.annotations.ApiResponse(
                         code = 500, message = "Server error", response = StreamProperty.class) })
-        void createStream(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName
-                , @ApiParam(value = "The stream configuration", required = true) CreateStreamRequest createStreamRequest
-                , @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
+        void createStream(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
+                @ApiParam(value = "The stream configuration", required = true) CreateStreamRequest createStreamRequest,
+                @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
 
         /**
          * REST API to get configuration of a stream.
@@ -105,9 +105,9 @@ public final class ApiV1 {
 
                 @io.swagger.annotations.ApiResponse(
                         code = 500, message = "Server error", response = StreamProperty.class) })
-        void getStream(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName
-                , @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName
-                , @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
+        void getStream(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
+                @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
+                @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
 
         /**
          * REST API to update stream configuration.
@@ -133,10 +133,10 @@ public final class ApiV1 {
 
                 @io.swagger.annotations.ApiResponse(
                         code = 500, message = "Server error", response = StreamProperty.class) })
-        void updateStream(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName
-                , @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName
-                , @ApiParam(value = "The new stream configuration", required = true)
-                        UpdateStreamRequest updateStreamRequest
-                , @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
+        void updateStream(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
+                @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
+                @ApiParam(value = "The new stream configuration", required = true)
+                        UpdateStreamRequest updateStreamRequest,
+                @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
     }
 }

@@ -18,13 +18,13 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.server.ContainerMetadata;
 
-import org.junit.Assert;
-
-import java.util.Date;
 import java.util.Random;
+
+import org.junit.Assert;
 
 /**
  * Unit tests for TransactionMapOperation class.
@@ -32,7 +32,7 @@ import java.util.Random;
 public class TransactionMapOperationTests extends OperationTestsBase<TransactionMapOperation> {
     @Override
     protected TransactionMapOperation createOperation(Random random) {
-        return new TransactionMapOperation(random.nextLong(), new StreamSegmentInformation(super.getStreamSegmentName(random.nextLong()), random.nextLong(), random.nextBoolean(), random.nextBoolean(), new Date()));
+        return new TransactionMapOperation(random.nextLong(), new StreamSegmentInformation(super.getStreamSegmentName(random.nextLong()), random.nextLong(), random.nextBoolean(), random.nextBoolean(), new ImmutableDate()));
     }
 
     @Override
