@@ -19,6 +19,7 @@
 package com.emc.pravega.service.contracts;
 
 import java.util.UUID;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -31,6 +32,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @EqualsAndHashCode(of = {"attributeId", "value"})
+@NotThreadSafe
 public class AttributeUpdate {
     private final UUID attributeId;
     private final AttributeUpdateType updateType;

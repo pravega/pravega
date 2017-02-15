@@ -24,6 +24,7 @@ import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.common.util.AsyncMap;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
@@ -53,7 +54,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -257,7 +257,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                             sm.isSealed(),
                             sm.isDeleted(),
                             new HashMap<>(sm.getAttributes()),
-                            new Date());
+                            new ImmutableDate());
                 });
     }
 

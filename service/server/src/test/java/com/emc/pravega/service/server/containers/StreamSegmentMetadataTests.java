@@ -18,10 +18,10 @@
 
 package com.emc.pravega.service.server.containers;
 
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.SegmentMetadataComparer;
 import com.emc.pravega.testcommon.AssertExtensions;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -90,7 +90,7 @@ public class StreamSegmentMetadataTests {
         baseMetadata.updateAttributes(generateAttributes(new Random(0)));
         baseMetadata.setStorageLength(1233);
         baseMetadata.setDurableLogLength(3235342);
-        baseMetadata.setLastModified(new Date());
+        baseMetadata.setLastModified(new ImmutableDate());
         baseMetadata.markDeleted();
         baseMetadata.markSealed();
         baseMetadata.markMerged();

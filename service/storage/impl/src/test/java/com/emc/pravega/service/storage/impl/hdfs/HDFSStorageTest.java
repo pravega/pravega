@@ -96,7 +96,7 @@ public class HDFSStorageTest extends StorageTestBase {
      * Wrapper for a storage class which handles the ACL behavior of MiniDFSCluster.
      * This keeps track of the sealed segments and throws error when a write is attempted on a segment.
      **/
-    private class MiniClusterPermFixer implements Storage {
+    private static class MiniClusterPermFixer implements Storage {
         private final HDFSStorage storage;
         private ArrayList<String> sealedList;
 

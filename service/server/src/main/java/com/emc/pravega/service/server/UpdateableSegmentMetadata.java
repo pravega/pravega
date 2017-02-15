@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server;
 
-import java.util.Date;
+import com.emc.pravega.common.util.ImmutableDate;
 import java.util.Map;
 import java.util.UUID;
 
@@ -76,7 +76,7 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
      *
      * @param date The Date to set.
      */
-    void setLastModified(Date date);
+    void setLastModified(ImmutableDate date);
 
     /**
      * Updates this instance of the UpdateableSegmentMetadata to have the same information as the other one.

@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.logs;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.io.EnhancedByteArrayOutputStream;
 import com.emc.pravega.common.util.CollectionHelpers;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.Attributes;
@@ -53,7 +54,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -751,7 +751,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 metadata.markDeleted();
             }
             // S10. LastModified.
-            Date lastModified = new java.util.Date(stream.readLong());
+            ImmutableDate lastModified = new ImmutableDate(stream.readLong());
             metadata.setLastModified(lastModified);
 
             // S11. Attributes.
@@ -825,8 +825,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         @Override
-        public Date getLastModified() {
-            return new Date(); //TODO: implement properly.
+        public ImmutableDate getLastModified() {
+            return new ImmutableDate(); //TODO: implement properly.
         }
 
         //endregion
@@ -1058,6 +1058,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
                             u.setValue(previousValue + u.getValue());
                         }
 
+                        break;
+                    default:
                         break;
                 }
             }

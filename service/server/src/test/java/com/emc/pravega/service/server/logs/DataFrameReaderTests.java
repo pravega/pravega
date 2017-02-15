@@ -18,9 +18,9 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.service.server.DataCorruptionException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.LogItemFactory;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;

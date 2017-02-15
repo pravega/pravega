@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -39,7 +40,6 @@ import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -172,7 +172,7 @@ public class MemoryStateUpdaterTests {
         for (int i = 0; i < segmentCount; i++) {
             for (int j = 0; j < operationCountPerType; j++) {
                 StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(
-                        new StreamSegmentInformation("a", i * j, false, false, new Date()));
+                        new StreamSegmentInformation("a", i * j, false, false, new ImmutableDate()));
                 mapOp.setStreamSegmentId(i);
                 operations.add(mapOp);
                 StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(i, Integer.toString(i).getBytes(), null);
