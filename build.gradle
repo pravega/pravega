@@ -542,13 +542,13 @@ project('systemtests:tests') {
 
         systemProperty "test_collection_jar_path", "$jar.archivePath.path"
         systemProperty "execType", System.getProperty("execType")
-        systemProperty "masterIP ", System.getProperty("masterIP")
+        systemProperty "masterIP", System.getProperty("masterIP")
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"
         }
         if (System.getProperty("masterIP") == null) {
-            systemProperty "masterIP ", "INVALID_MASTER_IP"
+            systemProperty "masterIP", "INVALID_MASTER_IP"
         }
     }
     publishing {
