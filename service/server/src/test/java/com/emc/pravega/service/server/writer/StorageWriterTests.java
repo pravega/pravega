@@ -430,10 +430,9 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         final UpdateableSegmentMetadata segment2 = context.metadata.getStreamSegmentMetadata(segmentIds.get(1));
         final UpdateableSegmentMetadata segment3 = context.metadata.getStreamSegmentMetadata(segmentIds.get(2));
         final byte[] data = new byte[1];
-        final AppendContext appendContext = new AppendContext(UUID.randomUUID(), 0);
 
         Function<UpdateableSegmentMetadata, Operation> createAppend = segment -> {
-            StreamSegmentAppendOperation append = new StreamSegmentAppendOperation(segment.getId(), data, appendContext);
+            StreamSegmentAppendOperation append = new StreamSegmentAppendOperation(segment.getId(), data, null);
             append.setStreamSegmentOffset(segment.getDurableLogLength());
             context.dataSource.recordAppend(append);
             segment.setDurableLogLength(segment.getDurableLogLength() + data.length);
