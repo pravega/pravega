@@ -17,15 +17,19 @@
  */
 package com.emc.pravega.controller.server.rest.contract.common;
 
+import java.io.Serializable;
+
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+
+import javax.validation.constraints.NotNull;
 
 /**
  * REST representation of scaling policy of a stream.
  */
 @Getter
 @AllArgsConstructor
-public class ScalingPolicyCommon {
+public class ScalingPolicyCommon implements Serializable {
 
     public enum Type {
         /**
@@ -42,8 +46,15 @@ public class ScalingPolicyCommon {
         BY_RATE_IN_EVENTS,
     }
 
+    @NotNull
     private ScalingPolicyCommon.Type type;
-    private long targetRate;
-    private int scaleFactor;
-    private int minNumSegments;
+
+    @NotNull
+    private Long targetRate;
+
+    @NotNull
+    private Integer scaleFactor;
+
+    @NotNull
+    private Integer minNumSegments;
 }

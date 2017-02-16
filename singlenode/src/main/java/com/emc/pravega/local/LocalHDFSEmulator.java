@@ -28,8 +28,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 
 public class LocalHDFSEmulator implements AutoCloseable {
-    private static File baseDir = null;
-    private static MiniDFSCluster hdfsCluster = null;
+    private File baseDir = null;
+    private MiniDFSCluster hdfsCluster = null;
     private final String baseDirName;
 
     private LocalHDFSEmulator(String baseDirName) {

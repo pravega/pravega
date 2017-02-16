@@ -17,12 +17,14 @@
  */
 package com.emc.pravega.controller.util;
 
+import com.emc.pravega.common.metrics.MetricsConfig;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigResolveOptions;
 import com.typesafe.config.ConfigValue;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
 /**
@@ -63,7 +65,7 @@ public final class Config {
     public static final int CLUSTER_MIN_REBALANCE_INTERVAL = CONFIG.getInt("config.controller.server.minRebalanceInterval");
 
     //Zookeeper configuration.
-    public static String zKURL = CONFIG.getString("config.controller.server.zk.url");
+    static String zKURL = CONFIG.getString("config.controller.server.zk.url");
     public static final int ZK_RETRY_SLEEP_MS = CONFIG.getInt("config.controller.server.zk.retryIntervalMS");
     public static final int ZK_MAX_RETRIES = CONFIG.getInt("config.controller.server.zk.maxRetries");
 
@@ -81,5 +83,11 @@ public final class Config {
 
     public static void setZKURL(String replaceZKURL) {
         zKURL = replaceZKURL;
+    }
+
+    public static MetricsConfig getMetricsConfig() {
+        MetricsConfig metricsConfig = new MetricsConfig(new Properties());
+        metricsConfig.refresh();
+        return metricsConfig;
     }
 }

@@ -34,7 +34,7 @@ import javax.annotation.concurrent.GuardedBy;
 
 import org.apache.commons.lang.NotImplementedException;
 
-public class EventReaderImpl<Type> implements EventStreamReader<Type> {
+public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     private final Serializer<Type> deserializer;
     private final SegmentInputStreamFactory inputStreamFactory;
@@ -42,14 +42,14 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
     private final Orderer<Type> orderer;
     private final ReaderConfig config;
     @GuardedBy("readers")
-    private final List<SegmentReader<Type>> readers = new ArrayList<>();
+    private final List<SegmentEventReader<Type>> readers = new ArrayList<>();
     @GuardedBy("readers")
     private Sequence lastRead;
     private final ReaderGroupStateManager groupState;
     private final Supplier<Long> clock;
 
-    EventReaderImpl(SegmentInputStreamFactory inputStreamFactory, Serializer<Type> deserializer, ReaderGroupStateManager groupState,
-            Orderer<Type> orderer, Supplier<Long> clock, ReaderConfig config) {
+    EventStreamReaderImpl(SegmentInputStreamFactory inputStreamFactory, Serializer<Type> deserializer, ReaderGroupStateManager groupState,
+                          Orderer<Type> orderer, Supplier<Long> clock, ReaderConfig config) {
         this.deserializer = deserializer;
         this.inputStreamFactory = inputStreamFactory;
         this.groupState = groupState;
@@ -68,7 +68,7 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
             do { // Loop handles retry on end of segment
                 rebalance |= releaseSegmentsIfNeeded();
                 rebalance |= acquireSegmentsIfNeeded();
-                SegmentReader<Type> segmentReader = orderer.nextSegment(readers);
+                SegmentEventReader<Type> segmentReader = orderer.nextSegment(readers);
                 segment = segmentReader.getSegmentId();
                 offset = segmentReader.getOffset();
                 try {
@@ -90,7 +90,7 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
     private boolean releaseSegmentsIfNeeded() {
         Segment segment = groupState.findSegmentToReleaseIfRequired();
         if (segment != null) {
-            SegmentReader<Type> reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
+            SegmentEventReader<Type> reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
             if (reader != null) {
                 groupState.releaseSegment(segment, reader.getOffset(), getLag());
                 readers.remove(reader);
@@ -108,7 +108,7 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
         for (Entry<Segment, Long> newSegment : newSegments.entrySet()) {
             SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(newSegment.getKey(), config.getSegmentConfig());
             in.setOffset(newSegment.getValue());
-            readers.add(new SegmentReaderImpl<>(newSegment.getKey(), in, deserializer));            
+            readers.add(new SegmentEventReaderImpl<>(newSegment.getKey(), in, deserializer));
         }
         return true;
     }
@@ -121,7 +121,7 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
         return clock.get() - lastRead.getHighOrder();
     }
     
-    private void handleEndOfSegment(SegmentReader<Type> oldSegment) {
+    private void handleEndOfSegment(SegmentEventReader<Type> oldSegment) {
         readers.remove(oldSegment);
         groupState.handleEndOfSegment(oldSegment.getSegmentId());
     }
@@ -134,7 +134,7 @@ public class EventReaderImpl<Type> implements EventStreamReader<Type> {
     @Override
     public void close() {
         synchronized (readers) {
-            for (SegmentReader<Type> reader : readers) {
+            for (SegmentEventReader<Type> reader : readers) {
                 reader.close();
             }
         }

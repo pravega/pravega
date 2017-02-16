@@ -33,10 +33,11 @@ public class Resource {
     public Resource(final String... parts) {
         Preconditions.checkNotNull(parts);
         Preconditions.checkArgument(parts.length > 0);
-        String representation = parts[0];
+        StringBuilder representation = new StringBuilder(parts[0]);
         for (int i = 1; i < parts.length; i++) {
-            representation += "/" + parts[i];
+            representation.append("/");
+            representation.append(parts[i]);
         }
-        string = representation;
+        string = representation.toString();
     }
 }

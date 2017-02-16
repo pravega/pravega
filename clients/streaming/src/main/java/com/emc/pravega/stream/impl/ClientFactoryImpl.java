@@ -123,7 +123,7 @@ public class ClientFactoryImpl implements ClientFactory {
                 controller,
                 System::nanoTime);
         stateManager.initializeReader();
-        return new EventReaderImpl<T>(inFactory,
+        return new EventStreamReaderImpl<T>(inFactory,
                                       s,
                                       stateManager,
                                       new RoundRobinOrderer<>(),
@@ -135,7 +135,7 @@ public class ClientFactoryImpl implements ClientFactory {
         private final AtomicInteger counter = new AtomicInteger(0);
 
         @Override
-        public SegmentReader<T> nextSegment(List<SegmentReader<T>> segments) {
+        public SegmentEventReader<T> nextSegment(List<SegmentEventReader<T>> segments) {
             int count = counter.incrementAndGet();
             return segments.get(count % segments.size());
         }

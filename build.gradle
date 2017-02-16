@@ -27,6 +27,7 @@ allprojects {
     apply plugin: 'maven'
     apply plugin: 'signing'
     apply plugin: 'checkstyle'
+    apply plugin: 'findbugs'
     apply plugin: 'com.bmuschko.docker-java-application'
     apply plugin: 'maven-publish'
 
@@ -38,7 +39,18 @@ allprojects {
         failOnError = false
         exclude  "**/impl/**";
     }
-
+    tasks.withType(FindBugs) {
+        effort = "default"
+        includeFilter = file("$rootDir/checkstyle/findbugs-include.xml")
+        excludeFilter = file("$rootDir/checkstyle/findbugs-exclude.xml")
+        reports {
+            xml.enabled false
+            html.enabled true
+        }
+    }
+    compileJava { 
+        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror" 
+    } 
     docker {
         url = dockerUrl
     }
@@ -390,6 +402,7 @@ project('controller:contract') {
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-netty-http', version: '2.25'
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: '2.25'
         compile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-netty', version: '2.25'
+        compile group: 'org.glassfish.jersey.ext', name: 'jersey-bean-validation', version: '2.25.1'
     }
 }
 

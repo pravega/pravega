@@ -476,7 +476,7 @@ public class DataFrame {
     /**
      * Header for the DataFrame.
      */
-    private class FrameHeader {
+    private static class FrameHeader {
         //region Members
 
         static final int SERIALIZATION_LENGTH = Byte.BYTES + Long.BYTES + Integer.BYTES + Byte.BYTES;
@@ -618,7 +618,7 @@ public class DataFrame {
     /**
      * Represents an Entry in the DataFrame.
      */
-    class DataFrameEntry {
+    static class DataFrameEntry {
         private final boolean firstRecordEntry;
         private final boolean lastRecordEntry;
         private final boolean lastEntryInDataFrame;
@@ -689,7 +689,7 @@ public class DataFrame {
     /**
      * Represents an iterator over all entries within a DataFrame.
      */
-    private class DataFrameEntryIterator implements CloseableIterator<DataFrameEntry, SerializationException> {
+    private static class DataFrameEntryIterator implements CloseableIterator<DataFrameEntry, SerializationException> {
         private final ByteArraySegment contents;
         private final LogAddress frameAddress;
         private final int maxLength;

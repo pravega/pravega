@@ -19,19 +19,22 @@
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.google.common.base.Preconditions;
+
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.UUID;
+
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -62,7 +65,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @GuardedBy("this")
     private boolean merged;
     @GuardedBy("this")
-    private Date lastModified;
+    private ImmutableDate lastModified;
+
 
     //endregion
 
@@ -106,7 +110,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.storageLength = -1;
         this.durableLogLength = -1;
         this.lastCommittedAppends = new HashMap<>();
-        this.lastModified = new Date(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
+        this.lastModified = new ImmutableDate(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
     }
 
     //endregion
@@ -134,7 +138,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized Date getLastModified() {
+    public synchronized ImmutableDate getLastModified() {
         return this.lastModified;
     }
 
@@ -250,7 +254,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized void setLastModified(Date date) {
+    public synchronized void setLastModified(ImmutableDate date) {
         this.lastModified = date;
         log.trace("{}: LastModified = {}.", this.lastModified);
     }

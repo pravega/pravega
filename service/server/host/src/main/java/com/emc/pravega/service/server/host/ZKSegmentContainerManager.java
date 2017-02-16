@@ -26,20 +26,12 @@ import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.segment.SegmentToContainerMapper;
-import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.SerializationUtils;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.recipes.cache.NodeCache;
-import org.apache.curator.framework.recipes.cache.NodeCacheListener;
-import org.apache.curator.utils.ZKPaths;
 
-import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -54,6 +46,16 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+
+import javax.annotation.concurrent.GuardedBy;
+
+import org.apache.commons.lang.SerializationUtils;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.recipes.cache.NodeCache;
+import org.apache.curator.framework.recipes.cache.NodeCacheListener;
+import org.apache.curator.utils.ZKPaths;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * ZK based implementation for SegmentContainerManager. The controller updates the segmentContainer ownership in zk.
@@ -197,7 +199,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
             segContainerHostMapping.start(); //NodeCache recipe is used listen to events on the mapping data.
             segContainerHostMapping.getListenable().addListener(getSegmentContainerListener(timeout, host));
         } catch (Exception e) {
-            throw new RuntimeStreamingException(
+            throw new RuntimeException(
                     "Unable to start zk based cache which has the segContainer to Host mapping", e);
         }
     }
