@@ -400,6 +400,7 @@ project('controller:contract') {
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-netty-http', version: '2.25'
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: '2.25'
         compile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-netty', version: '2.25'
+        compile group: 'org.glassfish.jersey.ext', name: 'jersey-bean-validation', version: '2.25.1'
     }
 }
 

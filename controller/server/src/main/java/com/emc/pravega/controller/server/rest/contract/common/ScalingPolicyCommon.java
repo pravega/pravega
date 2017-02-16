@@ -22,6 +22,8 @@ import java.io.Serializable;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import javax.validation.constraints.NotNull;
+
 /**
  * REST representation of scaling policy of a stream.
  */
@@ -44,8 +46,15 @@ public class ScalingPolicyCommon implements Serializable {
         BY_RATE_IN_EVENTS,
     }
 
+    @NotNull
     private ScalingPolicyCommon.Type type;
-    private long targetRate;
-    private int scaleFactor;
-    private int minNumSegments;
+
+    @NotNull
+    private Long targetRate;
+
+    @NotNull
+    private Integer scaleFactor;
+
+    @NotNull
+    private Integer minNumSegments;
 }
