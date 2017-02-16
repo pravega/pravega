@@ -69,8 +69,9 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
     private static long muteDuration = MUTE_DURATION.toMillis();
     private static long cooldownPeriod = MINIMUM_COOLDOWN_PERIOD.toMillis();
 
-    private static long cacheCleanupInMinutes = 10;
-    private static long cacheExpiryInMinutes = 20;
+    private static long cacheCleanup = 10;
+    private static long cacheExpiry = 20;
+    private static TimeUnit unit = TimeUnit.MINUTES;
 
     private static AtomicReference<ThresholdMonitor> singletonMonitor = new AtomicReference<>();
 
@@ -88,7 +89,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
         cache = CacheBuilder.newBuilder()
                 .initialCapacity(INITIAL_CAPACITY)
                 .maximumSize(MAX_CACHE_SIZE)
-                .expireAfterAccess(30, TimeUnit.SECONDS)
+                .expireAfterAccess(cacheExpiry, unit)
                 .removalListener((RemovalListener<String, Pair<Long, Long>>) notification -> {
                     if (notification.getCause().equals(RemovalCause.EXPIRED)) {
                         triggerScaleDown(notification.getKey(), true);
@@ -114,11 +115,12 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
     }
 
     @VisibleForTesting
-    public static void setDefaults(Duration mute, Duration coolDown, long cacheCleanupInMinutes, long cacheExpiryInMinutes) {
+    public static void setDefaults(Duration mute, Duration coolDown, long cacheCleanup, long cacheExpiry, TimeUnit unit) {
         muteDuration = mute.toMillis();
         cooldownPeriod = coolDown.toMillis();
-        ThresholdMonitor.cacheCleanupInMinutes = cacheCleanupInMinutes;
-        ThresholdMonitor.cacheExpiryInMinutes = cacheExpiryInMinutes;
+        ThresholdMonitor.cacheCleanup = cacheCleanup;
+        ThresholdMonitor.cacheExpiry = cacheExpiry;
+        ThresholdMonitor.unit = unit;
     }
 
     static ThresholdMonitor getMonitorSingleton(ClientFactory clientFactory) {
@@ -141,7 +143,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
             // even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
             // caches do not perform clean up if there is no activity. This is because they do not maintain their
             // own background thread.
-            EXECUTOR.scheduleAtFixedRate(cache::cleanUp, 0, cacheCleanupInMinutes, TimeUnit.SECONDS);
+            EXECUTOR.scheduleAtFixedRate(cache::cleanUp, 0, cacheCleanup, unit);
         }, createWriter);
     }
 

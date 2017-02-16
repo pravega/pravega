@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class EndToEndAutoScaleDownTest {
@@ -53,7 +54,7 @@ public class EndToEndAutoScaleDownTest {
 
             ControllerWrapper controller = ControllerWrapper.getControllerWrapper(zkTestServer.getConnectString());
             ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
-            ThresholdMonitor.setDefaults(Duration.ofMinutes(0), Duration.ofMinutes(0), 1, 1);
+            ThresholdMonitor.setDefaults(Duration.ofMinutes(0), Duration.ofMinutes(0), 10, 30, TimeUnit.SECONDS);
 
             MonitorFactory.setClientFactory(internalCF);
 

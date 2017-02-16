@@ -40,6 +40,7 @@ import org.apache.curator.test.TestingServer;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class EndToEndAutoScaleUpTest {
@@ -53,7 +54,7 @@ public class EndToEndAutoScaleUpTest {
 
             ControllerWrapper controller = ControllerWrapper.getControllerWrapper(zkTestServer.getConnectString());
             ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
-            ThresholdMonitor.setDefaults(Duration.ofMinutes(0), Duration.ofMinutes(0), 10, 10);
+            ThresholdMonitor.setDefaults(Duration.ofMinutes(0), Duration.ofMinutes(0), 10, 10, TimeUnit.MINUTES);
 
             MonitorFactory.setClientFactory(internalCF);
 
