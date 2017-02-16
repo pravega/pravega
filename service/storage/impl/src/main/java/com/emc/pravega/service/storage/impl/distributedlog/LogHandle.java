@@ -416,13 +416,12 @@ class LogHandle implements AutoCloseable {
                 Timer timer = new Timer();
                 LogRecordWithDLSN baseRecord = this.baseReader.readNext(false); // NonBlocking == false -> Blocking read
                 Metrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
-                Metrics.READ_BYTES.add(baseRecord.getPayload().length);
                 if (baseRecord == null) {
                     log.debug("{}: LogReader.readNext (EndOfStream).", this.traceObjectId);
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "getNext", traceId);
                     return null;
                 }
-
+                Metrics.READ_BYTES.add(baseRecord.getPayload().length);
                 this.lastTransactionId = baseRecord.getTransactionId();
                 log.debug("{}: LogReader.readNext (TransactionId {}, Length = {}).", this.traceObjectId, this.lastTransactionId, baseRecord.getPayload().length);
                 LoggerHelpers.traceLeave(log, this.traceObjectId, "getNext", traceId);
