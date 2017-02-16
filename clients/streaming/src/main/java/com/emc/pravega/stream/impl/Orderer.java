@@ -34,5 +34,5 @@ public interface Orderer<Type> {
      *
      * @param segments The logs to get the next reader for.
      */
-    SegmentReader<Type> nextSegment(List<SegmentReader<Type>> segments);
+    SegmentEventReader<Type> nextSegment(List<SegmentEventReader<Type>> segments);
 }
