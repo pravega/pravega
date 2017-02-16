@@ -17,11 +17,13 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
+import com.emc.pravega.controller.server.PingManager;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
+import com.emc.pravega.controller.stream.api.v1.PingStatus;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
@@ -55,6 +57,7 @@ public class ControllerService {
     private final HostControllerStore hostStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private final PingManager pingManager;
 
     public ControllerService(final StreamMetadataStore streamStore,
                              final HostControllerStore hostStore,
@@ -64,6 +67,7 @@ public class ControllerService {
         this.hostStore = hostStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
+        this.pingManager = new PingManager(this);
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig, final long createTimestamp) {
@@ -98,8 +102,8 @@ public class ControllerService {
     public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatlyFollowing(SegmentId segment) {
         return streamStore.getSuccessors(segment.getStreamName(), segment.getNumber()).thenApply(successors -> {
             return successors.entrySet().stream().collect(
-                   Collectors.toMap(entry -> new SegmentId(segment.getScope(), segment.getStreamName(), entry.getKey()), 
-                                    entry -> entry.getValue()));
+                    Collectors.toMap(entry -> new SegmentId(segment.getScope(), segment.getStreamName(), entry.getKey()),
+                            entry -> entry.getValue()));
         });
     }
 
@@ -208,6 +212,11 @@ public class ControllerService {
                 });
     }
 
+    public CompletableFuture<PingStatus> pingTransaction(final String scope, final String stream, final TxnId txnId,
+                                                         final long lease) {
+        pingManager.ping(scope, stream, txnId, lease);
+        return CompletableFuture.completedFuture(PingStatus.OK);
+    }
 
     public CompletableFuture<TxnState> checkTransactionStatus(final String scope, final String stream, final TxnId
             txnId) {

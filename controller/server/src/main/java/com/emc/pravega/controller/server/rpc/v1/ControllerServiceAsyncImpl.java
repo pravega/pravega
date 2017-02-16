@@ -138,6 +138,12 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
     }
 
     @Override
+    public void pingTransaction(String scope, String stream, TxnId txid, long lease, AsyncMethodCallback resultHandler) throws TException {
+        log.debug("pingTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
+        processResult(controllerService.pingTransaction(scope, stream, txid, lease), resultHandler);
+    }
+
+    @Override
     public void checkTransactionStatus(final String scope,
                                        final String stream,
                                        final TxnId txid,

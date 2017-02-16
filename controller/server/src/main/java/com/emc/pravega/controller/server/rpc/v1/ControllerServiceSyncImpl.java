@@ -22,6 +22,7 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
+import com.emc.pravega.controller.stream.api.v1.PingStatus;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
@@ -120,6 +121,12 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
     @Override
     public TxnStatus abortTransaction(final String scope, final String stream, final TxnId txnid) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.abortTransaction(scope, stream, txnid), RuntimeException::new);
+    }
+
+    @Override
+    public PingStatus pingTransaction(String scope, String stream, TxnId txnid, long lease) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.pingTransaction(scope, stream, txnid, lease),
+                RuntimeException::new);
     }
 
     @Override

@@ -26,6 +26,11 @@ enum TxnStatus {
     TRANSACTION_NOT_FOUND
 }
 
+enum PingStatus {
+    OK,
+    DISCONNECTED
+}
+
 enum TxnState {
 	UNKNOWN,
     OPEN,
@@ -101,6 +106,7 @@ service ControllerService {
     TxnId createTransaction(1:string scope, 2:string stream)
     TxnStatus commitTransaction(1:string scope, 2:string stream, 3:TxnId txnid)
     TxnStatus abortTransaction(1:string scope, 2:string stream, 3:TxnId txnid)
+    PingStatus pingTransaction(1:string scope, 2:string stream, 3:TxnId txnid, 4:i64 lease)
     TxnState  checkTransactionStatus(1:string scope, 2:string stream, 3:TxnId txnid)
 }
 //TODO: Placeholder for Pravega Host to Stream Controller APIs.
