@@ -178,7 +178,9 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                     if (e != null) {
                         log.error("Processing failed RequestReader {}", e.getMessage());
 
-                        RetryableException.castRetryable(e).ifPresent(ex -> putBack(request.getKey(), request));
+                        if (RetryableException.isRetryable(e)) {
+                            putBack(request.getKey(), request);
+                        }
                     }
                 }, executor);
             } catch (Exception e) {

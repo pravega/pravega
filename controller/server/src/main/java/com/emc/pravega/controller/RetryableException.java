@@ -17,9 +17,7 @@
  */
 package com.emc.pravega.controller;
 
-import java.util.Optional;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
+import static com.emc.pravega.controller.util.ExceptionHelper.extractCause;
 
 /**
  * Retryable exception. Throw this when you want to let the caller know that this exception is transient and
@@ -62,8 +60,10 @@ public abstract class RetryableException extends RuntimeException {
      * @param e exception thrown
      * @return whether it can be assigned to Retryable
      */
-    private static boolean isRetryable(Throwable e) {
-        return e instanceof RetryableException;
+    public static boolean isRetryable(Throwable e) {
+        Throwable cause = extractCause(e);
+
+        return cause instanceof RetryableException;
     }
 
     public static void throwRetryableOrElseRuntime(Throwable e) throws RetryableException {
@@ -77,20 +77,4 @@ public abstract class RetryableException extends RuntimeException {
         }
     }
 
-    public static Optional<RetryableException> castRetryable(Throwable e) {
-        Throwable cause = extractCause(e);
-
-        if (RetryableException.isRetryable(cause)) {
-            return Optional.of((RetryableException) cause);
-        }
-        return Optional.empty();
-    }
-
-    private static Throwable extractCause(Throwable ex) {
-        if (ex instanceof CompletionException || ex instanceof ExecutionException) {
-            return extractCause(ex.getCause());
-        } else {
-            return ex;
-        }
-    }
 }

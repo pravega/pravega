@@ -38,6 +38,7 @@ import lombok.Getter;
 import org.apache.thrift.TException;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,10 +87,14 @@ public class ControllerService {
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(final String scope, final String stream) {
         // fetch active segments from segment store
         return streamStore.getActiveSegments(scope, stream, null, executor)
-                .thenApplyAsync(activeSegments -> activeSegments
-                        .stream()
-                        .map(segment -> convert(scope, stream, segment))
-                        .collect(Collectors.toList()), executor);
+                .thenApplyAsync(activeSegments -> {
+                    List<SegmentRange> listOfSegment = activeSegments
+                            .stream()
+                            .map(segment -> convert(scope, stream, segment))
+                            .collect(Collectors.toList());
+                    listOfSegment.sort(Comparator.comparingDouble(SegmentRange::getMinKey));
+                    return listOfSegment;
+                }, executor);
     }
 
     public CompletableFuture<List<Position>> getPositions(final String scope, final String stream, final long timestamp, final int count) {

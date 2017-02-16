@@ -23,9 +23,10 @@ import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
+
+import static com.emc.pravega.controller.util.ExceptionHelper.extractCause;
 
 class TaskStepsRetryHelper {
     private static final long RETRY_INITIAL_DELAY = 100;
@@ -33,11 +34,11 @@ class TaskStepsRetryHelper {
     private static final int RETRY_MAX_ATTEMPTS = 100;
     private static final long RETRY_MAX_DELAY = Duration.ofSeconds(10).toMillis();
 
-    static <U> CompletableFuture<U> withRetries(CompletableFuture<U> future, ScheduledExecutorService executor) {
+    static <U> CompletableFuture<U> withRetries(Supplier<CompletableFuture<U>> future, ScheduledExecutorService executor) {
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                 .retryingOn(RetryableException.class)
                 .throwingOn(RuntimeException.class)
-                .runAsync(() -> future, executor);
+                .runAsync(future, executor);
     }
 
     static <U> CompletableFuture<U> withWireCommandHandling(CompletableFuture<U> future) {
@@ -52,13 +53,5 @@ class TaskStepsRetryHelper {
             }
             return res;
         });
-    }
-
-    private static Throwable extractCause(Throwable ex) {
-        if (ex instanceof CompletionException || ex instanceof ExecutionException) {
-            return extractCause(ex.getCause());
-        } else {
-            return ex;
-        }
     }
 }

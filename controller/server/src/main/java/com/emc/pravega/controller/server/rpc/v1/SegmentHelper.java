@@ -29,9 +29,11 @@ import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.TxnStatus;
+import com.emc.pravega.controller.util.ExceptionHelper;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.ModelHelper;
+import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.annotations.VisibleForTesting;
@@ -324,28 +326,50 @@ public class SegmentHelper {
                                                                  final ReplyProcessor replyProcessor,
                                                                  final ConnectionFactory connectionFactory,
                                                                  final PravegaNodeUri uri) {
-        return connectionFactory.establishConnection(uri, replyProcessor)
-                .thenApply(connection -> {
-                    try {
-                        connection.send(request);
-                    } catch (ConnectionFailedException cfe) {
-                        throw new WireCommandFailedException(cfe, request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
+        CompletableFuture<ClientConnection> connect = new CompletableFuture<>();
+        CompletableFuture<Void> result = new CompletableFuture<>();
 
-                    return null;
-                });
+        connectionFactory.establishConnection(uri, replyProcessor).whenComplete((r, e) -> {
+            if (e != null) {
+                connect.completeExceptionally(new ConnectionFailedException(e));
+            } else {
+                connect.complete(r);
+            }
+        });
+
+        connect.thenAccept(connection -> {
+            try {
+                connection.send(request);
+            } catch (ConnectionFailedException cfe) {
+                throw new WireCommandFailedException(cfe, request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+
+        }).whenComplete((r, e) -> {
+            if (e != null) {
+                Throwable cause = ExceptionHelper.extractCause(e);
+                if (cause instanceof WireCommandFailedException) {
+                    result.completeExceptionally(cause);
+                } else if (cause instanceof ConnectionFailedException) {
+                    result.completeExceptionally(new WireCommandFailedException(cause, request.getType(), WireCommandFailedException.Reason.ConnectionFailed));
+                } else {
+                    result.completeExceptionally(new RuntimeException(cause));
+                }
+            } else {
+                result.complete(r);
+            }
+        });
+
+        return result;
     }
 
     private <T> void whenComplete(CompletableFuture<Void> future, CompletableFuture<T> result) {
         future.whenComplete((res, ex) -> {
             if (ex != null) {
-
-                if (ex instanceof WireCommandFailedException) {
+                Throwable cause = ExceptionHelper.extractCause(ex);
+                if (cause instanceof WireCommandFailedException) {
                     result.completeExceptionally(ex);
-                } else if (ex.getCause() instanceof WireCommandFailedException) {
-                    result.completeExceptionally(ex.getCause());
                 } else {
                     result.completeExceptionally(new RuntimeException(ex));
                 }

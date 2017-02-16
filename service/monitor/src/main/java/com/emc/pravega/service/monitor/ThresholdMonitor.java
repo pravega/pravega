@@ -76,25 +76,29 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
 
     private final AtomicReference<ClientFactory> clientFactory = new AtomicReference<>();
 
-    @VisibleForTesting
-    final Cache<String, Pair<Long, Long>> cache = CacheBuilder.newBuilder()
-            .initialCapacity(INITIAL_CAPACITY)
-            .maximumSize(MAX_CACHE_SIZE)
-            .expireAfterAccess(cacheExpiryInMinutes, TimeUnit.MINUTES)
-            .removalListener((RemovalListener<String, Pair<Long, Long>>) notification -> {
-                if (notification.getCause().equals(RemovalCause.EXPIRED)) {
-                    triggerScaleDown(notification.getKey(), true);
-                }
-            })
-            .build();
-
     private final AtomicBoolean initialized = new AtomicBoolean(false);
+
+    private final Cache<String, Pair<Long, Long>> cache;
 
     private EventStreamWriter<ScaleRequest> writer;
     private EventWriterConfig config;
     private JavaSerializer<ScaleRequest> serializer;
 
+    private ThresholdMonitor() {
+        cache = CacheBuilder.newBuilder()
+                .initialCapacity(INITIAL_CAPACITY)
+                .maximumSize(MAX_CACHE_SIZE)
+                .expireAfterAccess(30, TimeUnit.SECONDS)
+                .removalListener((RemovalListener<String, Pair<Long, Long>>) notification -> {
+                    if (notification.getCause().equals(RemovalCause.EXPIRED)) {
+                        triggerScaleDown(notification.getKey(), true);
+                    }
+                })
+                .build();
+    }
+
     private ThresholdMonitor(ClientFactory clientFactory) {
+        this();
         serializer = new JavaSerializer<>();
         config = new EventWriterConfig(null);
 
@@ -104,6 +108,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
 
     @VisibleForTesting
     ThresholdMonitor(EventStreamWriter<ScaleRequest> writer) {
+        this();
         this.writer = writer;
         this.initialized.set(true);
     }
@@ -136,7 +141,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
             // even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
             // caches do not perform clean up if there is no activity. This is because they do not maintain their
             // own background thread.
-            EXECUTOR.scheduleAtFixedRate(cache::cleanUp, 10, cacheCleanupInMinutes, TimeUnit.MINUTES);
+            EXECUTOR.scheduleAtFixedRate(cache::cleanUp, 0, cacheCleanupInMinutes, TimeUnit.SECONDS);
         }, createWriter);
     }
 
@@ -226,6 +231,11 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
         }
     }
 
+    @VisibleForTesting
+    void put(String streamSegmentName, ImmutablePair<Long, Long> lrImmutablePair) {
+        cache.put(streamSegmentName, lrImmutablePair);
+    }
+
     private void checkAndRun(Runnable supplier) {
         if (initialized.get()) {
             supplier.run();
@@ -242,11 +252,6 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
             // Until we are able to start these readers, keep retrying indefinitely by scheduling it back
             EXECUTOR.schedule(() -> retryIndefinitely(supplier, promise), 10, TimeUnit.SECONDS);
         }
-    }
-
-    @VisibleForTesting
-    public void setClientFactory(ClientFactory clientFactory) {
-        this.clientFactory.set(clientFactory);
     }
 }
 

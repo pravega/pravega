@@ -39,6 +39,7 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 public class EndToEndAutoScaleDownTest {
@@ -52,23 +53,17 @@ public class EndToEndAutoScaleDownTest {
 
             ControllerWrapper controller = ControllerWrapper.getControllerWrapper(zkTestServer.getConnectString());
             ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
-            ThresholdMonitor monitor = (ThresholdMonitor) MonitorFactory.createMonitor(MonitorFactory.MonitorType.ThresholdMonitor);
-            if (monitor != null) {
-                monitor.setClientFactory(internalCF);
-            }
+            ThresholdMonitor.setDefaults(Duration.ofMinutes(0), Duration.ofMinutes(0), 1, 1);
 
             MonitorFactory.setClientFactory(internalCF);
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-            ThresholdMonitor.setDefaults(Duration.ofMinutes(0), Duration.ofMinutes(0), 1, 1);
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
             server.startListening();
-
-            Thread.sleep(20000);
 
             controller.createStream(config).get();
 
@@ -80,9 +75,10 @@ public class EndToEndAutoScaleDownTest {
             controller.scaleStream(stream, Collections.singletonList(0), map).get();
 
             // test scale down
-            Thread.sleep(Duration.ofMinutes(3).toMillis());
+            Thread.sleep(Duration.ofMinutes(1).toMillis());
 
-            StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
+            CompletableFuture<StreamSegments> currentSegments = controller.getCurrentSegments("test", "test");
+            StreamSegments streamSegments = currentSegments.get();
             if (streamSegments.getSegments().size() < 3) {
                 System.err.println("Success");
                 System.exit(0);

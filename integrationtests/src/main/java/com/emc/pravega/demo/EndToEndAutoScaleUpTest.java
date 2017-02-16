@@ -53,17 +53,13 @@ public class EndToEndAutoScaleUpTest {
 
             ControllerWrapper controller = ControllerWrapper.getControllerWrapper(zkTestServer.getConnectString());
             ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
-            ThresholdMonitor monitor = (ThresholdMonitor) MonitorFactory.createMonitor(MonitorFactory.MonitorType.ThresholdMonitor);
-            if (monitor != null) {
-                monitor.setClientFactory(internalCF);
-            }
+            ThresholdMonitor.setDefaults(Duration.ofMinutes(0), Duration.ofMinutes(0), 10, 10);
 
             MonitorFactory.setClientFactory(internalCF);
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-            ThresholdMonitor.setDefaults(Duration.ofMinutes(0), Duration.ofMinutes(0), 10, 10);
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);

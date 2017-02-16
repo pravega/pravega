@@ -30,6 +30,7 @@ import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.util.Config;
+import com.emc.pravega.controller.util.ExceptionHelper;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.base.Preconditions;
@@ -232,7 +233,9 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                     .thenCompose(toMerge -> {
                         if (toMerge != null && toMerge.size() > 1) {
                             final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
-                            simpleEntries.add(new AbstractMap.SimpleEntry<Double, Double>(toMerge.get(0).getKeyStart(), toMerge.get(toMerge.size() - 1).getKeyEnd()));
+                            double min = toMerge.stream().mapToDouble(Segment::getKeyStart).min().getAsDouble();
+                            double max = toMerge.stream().mapToDouble(Segment::getKeyEnd).max().getAsDouble();
+                            simpleEntries.add(new AbstractMap.SimpleEntry<>(min, max));
                             final ArrayList<Integer> segments = new ArrayList<>();
                             toMerge.forEach(segment -> segments.add(segment.getNumber()));
                             return executeScaleTask(request, segments, simpleEntries, context);
@@ -267,8 +270,8 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                         .whenCompleteAsync((result, e) -> {
                             if (e != null) {
                                 log.warn("Scale failed for request {}/{}/{} with exception", request.getScope(), request.getStream(), request.getSegmentNumber(), e.getMessage());
-
-                                if (e instanceof LockFailedException || e.getCause() instanceof LockFailedException) {
+                                Throwable cause = ExceptionHelper.extractCause(e);
+                                if (cause instanceof LockFailedException) {
                                     // lock failure, throw an exception here,
                                     // and that will result in several retries exhausting which the request will be put back
                                     // into request stream.
@@ -277,7 +280,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                                     // particularly bad during controller instance failover recovery and can also impact other
                                     // requests.
                                     blockTxCreationAndSweepTimedout(request, context); // block and sweep returns a future, but we dont need any callbacks linked with it.
-                                    throw e instanceof LockFailedException ? (LockFailedException) e : (LockFailedException) e.getCause();
+                                    throw (LockFailedException) cause;
                                 } else {
                                     // We could be here because of two reasons:
                                     // 1. Its a non-retryable Exception

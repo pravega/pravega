@@ -28,6 +28,7 @@ import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.controller.store.stream.tables.Utilities;
+import com.emc.pravega.controller.util.ExceptionHelper;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import lombok.extern.slf4j.Slf4j;
@@ -247,7 +248,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return cache.getCachedData(path)
                 .handle((res, ex) -> {
                     if (ex != null) {
-                        if (ex instanceof DataNotFoundException || ex.getCause() instanceof DataNotFoundException) {
+                        Throwable cause = ExceptionHelper.extractCause(ex);
+                        if (cause instanceof DataNotFoundException) {
                             return Optional.empty();
                         }
                         RetryableException.throwRetryableOrElseRuntime(ex);

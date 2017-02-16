@@ -131,7 +131,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private CompletableFuture<UUID> createTxBody(final String scope, final String stream, final OperationContext context) {
         return streamMetadataStore.createTransaction(scope, stream, context, executor)
                 .thenCompose(txId ->
-                        withRetries(streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
+                        withRetries(() -> streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
                                 .thenCompose(activeSegments ->
                                         FutureHelpers.allOf(
                                                 activeSegments.stream()
@@ -150,22 +150,22 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                                         .parallel()
                                         .map(segment -> notifyDropToHost(scope, stream, segment.getNumber(), txid))
                                         .collect(Collectors.toList())))
-                .thenCompose(x -> withRetries(streamMetadataStore.abortTransaction(scope, stream, txid, context, executor), executor));
+                .thenCompose(x -> withRetries(() -> streamMetadataStore.abortTransaction(scope, stream, txid, context, executor), executor));
     }
 
     private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid, final OperationContext context) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, context, executor)
-                .thenCompose(x -> withRetries(streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
+                .thenCompose(x -> withRetries(() -> streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
                         .thenCompose(segments ->
                                 FutureHelpers.allOf(segments.stream()
                                         .parallel()
                                         .map(segment -> notifyCommitToHost(scope, stream, segment.getNumber(), txid))
                                         .collect(Collectors.toList()))))
-                .thenCompose(x -> withRetries(streamMetadataStore.commitTransaction(scope, stream, txid, context, executor), executor));
+                .thenCompose(x -> withRetries(() -> streamMetadataStore.commitTransaction(scope, stream, txid, context, executor), executor));
     }
 
     private CompletableFuture<UUID> notifyTxCreation(final String scope, final String stream, final int segmentNumber, final UUID txid) {
-        return withRetries(withWireCommandHandling(SegmentHelper.getSingleton().createTransaction(scope,
+        return withRetries(() -> withWireCommandHandling(SegmentHelper.getSingleton().createTransaction(scope,
                 stream,
                 segmentNumber,
                 txid,
@@ -174,7 +174,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return withRetries(withWireCommandHandling(SegmentHelper.getSingleton().abortTransaction(scope,
+        return withRetries(() -> withWireCommandHandling(SegmentHelper.getSingleton().abortTransaction(scope,
                 stream,
                 segmentNumber,
                 txId,
@@ -183,7 +183,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return withRetries(withWireCommandHandling(SegmentHelper.getSingleton().commitTransaction(scope,
+        return withRetries(() -> withWireCommandHandling(SegmentHelper.getSingleton().commitTransaction(scope,
                 stream,
                 segmentNumber,
                 txId,
