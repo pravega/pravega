@@ -69,7 +69,8 @@ public class RemoteSequential implements TestExecutor {
         }).thenCompose(v2 -> waitForJobCompletion(jobId))
                 .<Void>thenApply(v1 -> {
                     if (CLIENT.getJob(jobId).getHistory().getFailureCount() != 0) {
-                        throw new AssertionError("Test failed. MethodName: " + methodName);
+                        throw new AssertionError("Test failed, detailed logs can be found at " +
+                                "https://MasterIP/mesos, under metronome framework tasks. MethodName: " + methodName);
                     }
                     return null;
                 }).whenComplete((v, ex) -> {
@@ -123,7 +124,7 @@ public class RemoteSequential implements TestExecutor {
         Run run = new Run();
         run.setArtifacts(Collections.singletonList(art));
 
-        run.setCmd("docker run --rm --name=\"testCase-1\" -v $(pwd):/data cogniteev/oracle-java:latest java" +
+        run.setCmd("docker run --rm --name=\"testCase-1\" -v $(pwd):/data asdrepo.isus.emc.com:8103/java:8 java" +
                 " -DmasterIP=" + MESOS_MASTER +
                 " -cp /data/systemtests-0.1.jar com.emc.pravega.SingleJUnitTestRunner " +
                 className + "#" + methodName + " > server.log 2>&1" +

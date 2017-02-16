@@ -563,8 +563,8 @@ project('systemtests:tests') {
         repositories {
             maven {
                 credentials {
-                    username "nautilus-dev-deployer"
-                    password "AP2EoXhGuCukoAmQua4iriAfnG3Lv1HYXZbLgt"
+                    username "$testFrameworkRepoUser"
+                    password "$testFrameworkRepoPass"
                 }
                 url "http://asdrepo.isus.emc.com:8081/artifactory/nautilus-pravega-testframework"
             }
