@@ -67,16 +67,16 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         this.asyncInput = asyncInput;
         this.offset = offset;
         /*
-         * The logic for read length and buffer size is the following. The buffer size needs
-         * to be such that it can accommodate all data we read. For example, if we need to read
-         * twice to fetch an event, then the buffer size must be at least two times the
-         * read length.
+         * The logic for determining the read length and buffer size are as follows.
+         * If we are reading a single event, then we set the read length to be the size
+         * of the event plus the header.
          *
-         * If we are reading a single event via the read() call of EventStreamReader, then
-         * we want to minimize the size of the buffer used to fetch the single event. In this
-         * case, we want to set it to be the header size plus the buffer size to hold the event.
+         * If this input stream is going to read many events of different sizes, then
+         * we set the read length to be equal to the max write size and the buffer
+         * size to be twice that. We do it so that we can have at least two events
+         * buffered for next event reads.
          */
-        this.readLength = Math.min(DEFAULT_READ_LENGTH, TYPE_PLUS_LENGTH_SIZE  + bufferSize);
+        this.readLength = Math.min(DEFAULT_READ_LENGTH, bufferSize);
         this.buffer = new CircularBuffer(Math.max(bufferSize, readLength + 1));
 
         issueRequestIfNeeded();

@@ -12,6 +12,7 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
@@ -86,10 +87,11 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
             Position position = new PositionImpl(positions);
             lastRead = Sequence.create(segment.getSegmentNumber(), offset);
+            int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
             return new EventReadImpl<>(lastRead,
                                         deserializer.deserialize(buffer),
                                         position,
-                                        new EventPointerImpl(segment, offset, buffer.capacity()),
+                                        new EventPointerImpl(segment, offset, length),
                                         rebalance);
         }
     }

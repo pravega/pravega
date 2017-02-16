@@ -36,7 +36,7 @@ public class EventPointerImpl extends EventPointerInternal {
     private final long eventStartOffset;
     private final int eventLength;
 
-    EventPointerImpl(Segment segment, Long eventStartOffset, Integer eventLength) {
+    EventPointerImpl(Segment segment, long eventStartOffset, int eventLength) {
         this.segment = segment;
         this.eventStartOffset = eventStartOffset;
         this.eventLength = eventLength;
