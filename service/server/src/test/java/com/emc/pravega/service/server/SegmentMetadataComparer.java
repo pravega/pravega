@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server;
 
+import com.emc.pravega.service.contracts.SegmentProperties;
 import java.util.Map;
 import java.util.UUID;
 import lombok.val;
@@ -55,7 +56,7 @@ public final class SegmentMetadataComparer {
      * @param expected The expected set of Attributes.
      * @param metadata The SegmentMetadata instance to verify.
      */
-    public static void assertSameAttributes(String message, Map<UUID, Long> expected, SegmentMetadata metadata) {
+    public static void assertSameAttributes(String message, Map<UUID, Long> expected, SegmentProperties metadata) {
         val actual = metadata.getAttributes();
         if (expected == null) {
             Assert.assertEquals(message + " No attributes expected.", 0, actual.size());

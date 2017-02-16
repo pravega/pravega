@@ -145,9 +145,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
         log.info("{}: Starting.", this.traceObjectId);
         this.cleanupTask = FutureHelpers.loop(
-                this::isRunning,
+                () -> state() == State.STARTING || isRunning(),
                 () -> FutureHelpers.delayedFuture(this.config.getSegmentMetadataExpiration(), this.executor)
                                    .thenCompose(this::metadataCleanup),
+                null,
                 this.executor);
 
         this.durableLog.startAsync();
@@ -341,10 +342,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     //region Helpers
 
-    private CompletableFuture<Void> metadataCleanup(Void ignored) {
+    protected CompletableFuture<Boolean> metadataCleanup(Void ignored) {
         if (this.closed || !isRunning()) {
             stopCleanupTask();
-            return CompletableFuture.completedFuture(null);
+            return CompletableFuture.completedFuture(false);
         }
 
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "metadataCleanup");
@@ -357,10 +358,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         return CompletableFuture
                 .allOf(cleanupTasks)
-                .thenAccept(v -> {
+                .thenApply(v -> {
                     Collection<SegmentMetadata> evictedSegments = this.metadata.cleanup(cleanupCandidates, expiration);
                     removeFromReadIndex(evictedSegments);
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "metadataCleanup", traceId, evictedSegments.size());
+                    return evictedSegments.size() > 0;
                 });
     }
 

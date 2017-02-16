@@ -186,7 +186,8 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability of the StreamSegmentMapper to generate/return the Id of an existing StreamSegment.
+     * Tests the ability of the StreamSegmentMapper to generate/return the Id of an existing StreamSegment, as well as
+     * retrieving existing attributes.
      */
     @Test
     public void testGetOrAssignStreamSegmentId() {
@@ -319,7 +320,6 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         // 2a. StreamSegmentNotExists (Stand-Alone segment)
         setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new ImmutableDate()));
-        System.out.println(3);
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a non-existent stand-alone StreamSegment.",
                 () -> context.mapper.getOrAssignStreamSegmentId(segmentName + "foo", TIMEOUT),
@@ -427,7 +427,6 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                     TIMEOUT).join();
         }
     }
-
 
     private void assertStreamSegmentCreated(String segmentName, Collection<AttributeUpdate> attributeUpdates, TestContext context) {
         SegmentProperties sp = context.storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();

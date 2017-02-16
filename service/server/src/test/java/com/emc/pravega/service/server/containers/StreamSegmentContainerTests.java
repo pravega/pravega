@@ -22,9 +22,11 @@ import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.AttributeUpdateType;
+import com.emc.pravega.service.contracts.Attributes;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
@@ -39,6 +41,7 @@ import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.SegmentMetadata;
+import com.emc.pravega.service.server.SegmentMetadataComparer;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
@@ -60,15 +63,22 @@ import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -604,6 +614,105 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         checkStorage(segmentContents, lengths, context);
     }
 
+    /**
+     * Tests the ability to clean up SegmentMetadata for those segments which have not been used recently.
+     * This test does the following:
+     * 1. Sets up a custom SegmentContainer with a hook into the metadataCleanup task
+     * 2. Creates a segment and appends something to it, each time updating attributes (and verifies they were updated correctly).
+     * 3. Waits for the segment to be forgotten (evicted).
+     * 4. Requests info on the segment, validates it, then makes another append, seals it, at each step verifying it was done
+     * correctly (checking Metadata, Attributes and Storage).
+     * 5. Deletes the segment, waits for metadata to be cleared (via forcing another log truncation), re-creates the
+     * same segment and validates that the old attributes did not "bleed in".
+     */
+    @Test
+    public void testMetadataCleanup() throws Exception {
+        final String segmentName = "segment";
+        final UUID[] attributes = new UUID[]{Attributes.CREATION_TIME, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
+        final byte[] appendData = "hello".getBytes();
+        final Map<UUID, Long> expectedAttributes = new HashMap<>();
+
+        // We need a special DL config so that we can force truncations after every operation - this will speed up metadata
+        // eviction eligibility.
+        final DurableLogConfig durableLogConfig = ConfigHelpers.createDurableLogConfig(
+                PropertyBag.create()
+                           .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 1)
+                           .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 2)
+                           .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024));
+
+        final TestContainerConfig containerConfig = new TestContainerConfig(PropertyBag.create());
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(250));
+
+        @Cleanup
+        TestContext context = new TestContext(containerConfig);
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(durableLogConfig, context.dataLogFactory, executorService());
+        @Cleanup
+        MetadataCleanupContainer localContainer = new MetadataCleanupContainer(CONTAINER_ID, containerConfig, localDurableLogFactory,
+                context.readIndexFactory, context.writerFactory, context.storageFactory, executorService());
+        localContainer.startAsync().awaitRunning();
+
+        // Create segment with initial attributes and verify they were set correctly.
+        CompletableFuture<Void> metadataCleanup = waitForMetadataCleanup(localContainer);
+        val initialAttributes = createAttributeUpdates(attributes);
+        applyAttributes(initialAttributes, expectedAttributes);
+        localContainer.createStreamSegment(segmentName, initialAttributes, TIMEOUT);
+        SegmentProperties sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after segment creation.", expectedAttributes, sp);
+
+        // Add one append with some attribute changes and verify they were set correctly.
+        val appendAttributes = createAttributeUpdates(attributes);
+        applyAttributes(appendAttributes, expectedAttributes);
+        localContainer.append(segmentName, appendData, appendAttributes, TIMEOUT);
+        sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after append.", expectedAttributes, sp);
+
+        // Wait until the segment is forgotten.
+        metadataCleanup.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Now get attributes again and verify them.
+        sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction & resurrection.", expectedAttributes, sp);
+
+        // Append again, and make sure we can append at the right offset.
+        val secondAppendAttributes = createAttributeUpdates(attributes);
+        applyAttributes(secondAppendAttributes, expectedAttributes);
+        localContainer.append(segmentName, appendData.length, appendData, secondAppendAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected length from segment after eviction & resurrection.", 2 * appendData.length, sp.getLength());
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction & resurrection.", expectedAttributes, sp);
+
+        // Seal (this should clear out non-dynamic attributes).
+        expectedAttributes.keySet().removeIf(Attributes::isDynamic);
+        localContainer.sealStreamSegment(segmentName, TIMEOUT);
+        sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after seal.", expectedAttributes, sp);
+
+        // Verify the segment actually made to Storage in one piece.
+        waitForSegmentInStorage(sp, context.storage).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val storageInfo = context.storage.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected length in storage for segment.", sp.getLength(), storageInfo.getLength());
+
+        // Delete segment and wait until it is forgotten again (we need to create another dummy segment so that we can
+        // force a Metadata Truncation in order to facilitate that; this is the purpose of segment2).
+        localContainer.deleteStreamSegment(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        metadataCleanup = waitForMetadataCleanup(localContainer);
+        final String segment2 = segmentName + "2";
+        FutureHelpers.delayedFuture(containerConfig.getSegmentMetadataExpiration(), executorService())
+                     .thenCompose(v -> localContainer.createStreamSegment(segment2, initialAttributes, TIMEOUT))
+                     .thenCompose(v -> localContainer.append(segment2, appendData, appendAttributes, TIMEOUT));
+
+        metadataCleanup.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Now Create the Segment again and verify the old attributes were not "remembered".
+        val newAttributes = createAttributeUpdates(attributes);
+        applyAttributes(newAttributes, expectedAttributes);
+        localContainer.createStreamSegment(segmentName, newAttributes, TIMEOUT)
+                      .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after deletion and re-creation.", expectedAttributes, sp);
+    }
+
     private static void checkStorage(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, TestContext context) {
         for (String segmentName : segmentContents.keySet()) {
             // 1. Deletion status
@@ -779,23 +888,48 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
         for (String segmentName : segmentNames) {
             SegmentProperties sp = context.container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
-            if (sp.isSealed()) {
-                // Sealed - add a seal trigger.
-                segmentsCompletion.add(context.storage.registerSealTrigger(segmentName, TIMEOUT));
-            } else {
-                // Not sealed - add a size trigger.
-                segmentsCompletion.add(context.storage.registerSizeTrigger(segmentName, sp.getLength(), TIMEOUT));
-            }
+            segmentsCompletion.add(waitForSegmentInStorage(sp, context.storage));
         }
 
         return FutureHelpers.allOf(segmentsCompletion);
+    }
+
+    private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, InMemoryStorage storage) {
+        if (sp.isSealed()) {
+            // Sealed - add a seal trigger.
+            return storage.registerSealTrigger(sp.getName(), TIMEOUT);
+        } else {
+            // Not sealed - add a size trigger.
+            return storage.registerSizeTrigger(sp.getName(), sp.getLength(), TIMEOUT);
+        }
+    }
+
+    private Collection<AttributeUpdate> createAttributeUpdates(UUID[] attributes) {
+        return Arrays.stream(attributes)
+                     .map(a -> new AttributeUpdate(a, AttributeUpdateType.Replace, System.nanoTime()))
+                     .collect(Collectors.toList());
+    }
+
+    private void applyAttributes(Collection<AttributeUpdate> updates, Map<UUID, Long> target) {
+        updates.forEach(au -> target.put(au.getAttributeId(), au.getValue()));
+    }
+
+    private CompletableFuture<Void> waitForMetadataCleanup(MetadataCleanupContainer container) {
+        val metadataCleanupCompleted = new CompletableFuture<Void>();
+        container.metadataCleanupFinishedCallback = evicted -> {
+            // We hook into the metadataCleanup() method and only complete this if an eviction was reported.
+            if (evicted) {
+                metadataCleanupCompleted.complete(null);
+            }
+        };
+        return metadataCleanupCompleted;
     }
 
     //region TestContext
 
     private class TestContext implements AutoCloseable {
         final SegmentContainer container;
-        private final StorageFactory storageFactory;
+        private final InMemoryStorageFactory storageFactory;
         private final DurableDataLogFactory dataLogFactory;
         private final OperationLogFactory operationLogFactory;
         private final ReadIndexFactory readIndexFactory;
@@ -804,13 +938,17 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final InMemoryStorage storage;
 
         TestContext() {
+            this(DEFAULT_CONFIG);
+        }
+
+        TestContext(ContainerConfig config) {
             this.storageFactory = new InMemoryStorageFactory(executorService());
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
             this.cacheFactory = new InMemoryCacheFactory();
             this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheFactory, this.storageFactory, executorService());
             this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, this.storageFactory, executorService());
-            StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(DEFAULT_CONFIG, this.operationLogFactory,
+            StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(config, this.operationLogFactory,
                     this.readIndexFactory, this.writerFactory, this.storageFactory, executorService());
             this.container = factory.createStreamSegmentContainer(CONTAINER_ID);
             this.storage = (InMemoryStorage) this.storageFactory.getStorageAdapter();
@@ -821,6 +959,35 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.container.close();
             this.dataLogFactory.close();
             this.storageFactory.close();
+        }
+    }
+
+    private static class MetadataCleanupContainer extends StreamSegmentContainer {
+        Consumer<Boolean> metadataCleanupFinishedCallback;
+
+        MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory, ScheduledExecutorService executor) {
+            super(streamSegmentContainerId, config, durableLogFactory, readIndexFactory, writerFactory, storageFactory, executor);
+        }
+
+        @Override
+        protected CompletableFuture<Boolean> metadataCleanup(Void ignored) {
+            CompletableFuture<Boolean> result = super.metadataCleanup(ignored);
+            Consumer<Boolean> callback = this.metadataCleanupFinishedCallback;
+            if (callback != null) {
+                result.thenAccept(callback);
+            }
+
+            return result;
+        }
+    }
+
+    private static class TestContainerConfig extends ContainerConfig {
+        @Getter
+        @Setter
+        private Duration segmentMetadataExpiration;
+
+        public TestContainerConfig(Properties properties) throws ConfigurationException {
+            super(properties);
         }
     }
 
