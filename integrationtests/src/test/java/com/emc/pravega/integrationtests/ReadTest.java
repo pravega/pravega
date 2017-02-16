@@ -230,7 +230,7 @@ public class ReadTest {
         String readerName = "reader";
         String readerGroup = "group";
         int port = TestUtils.randomPort();
-        String testString = "Hello world\n";
+        String testString = "Hello world ";
         String scope = "Scope1";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
@@ -245,16 +245,23 @@ public class ReadTest {
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, new EventWriterConfig(null));
 
-        producer.writeEvent("RoutingKey", testString);
+        for (int i = 0; i < 100; i++) {
+            producer.writeEvent("RoutingKey", testString + i);
+        }
         producer.flush();
 
         @Cleanup
         EventStreamReader<String> reader = clientFactory
                 .createReader(readerName, readerGroup, serializer, new ReaderConfig());
         try {
-            EventPointer pointer = reader.readNextEvent(5000).getEventPointer();
-            String read = reader.read(pointer);
-            assertEquals(testString, read);
+            EventPointer pointer;
+            String read;
+
+            for (int i = 0; i < 100; i++) {
+                pointer = reader.readNextEvent(5000).getEventPointer();
+                read = reader.read(pointer);
+                assertEquals(testString + i, read);
+            }
         } catch (NoSuchEventException e) {
             fail("Failed to read event using event pointer");
         }
