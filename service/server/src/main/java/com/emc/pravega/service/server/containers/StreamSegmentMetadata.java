@@ -305,9 +305,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.lastKnownSequenceNumber = Math.max(value, this.lastKnownSequenceNumber);
     }
 
-    /**
-     * Gets a value representing the Sequence Number of the last Operation that referenced this Segment.
-     */
+    @Override
     public synchronized long getLastKnownSequenceNumber() {
         return this.lastKnownSequenceNumber;
     }
@@ -317,14 +315,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
      *
      * @param value The value. This is only valid within the context of the ContainerMetadata that owns this object.
      */
-    public synchronized void setLastKnownRequestTime(long value) {
+    synchronized void setLastKnownRequestTime(long value) {
         this.lastKnownRequestTime = Math.max(value, this.lastKnownRequestTime);
     }
 
-    /**
-     * Gets a value representing the last time this Segment was referenced in the ContainerMetadata.
-     * The time returned is only valid within the context of the ContainerMetadata that owns this object.
-     */
+    @Override
     public synchronized long getLastKnownRequestTime() {
         return this.lastKnownRequestTime;
     }

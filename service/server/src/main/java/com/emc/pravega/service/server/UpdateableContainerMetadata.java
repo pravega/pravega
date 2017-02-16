@@ -20,7 +20,6 @@ package com.emc.pravega.service.server;
 
 import java.time.Duration;
 import java.util.Collection;
-import java.util.Map;
 
 /**
  * Defines an updateable StreamSegment Metadata.
@@ -56,10 +55,10 @@ public interface UpdateableContainerMetadata extends ContainerMetadata, Recovera
      * Marks the StreamSegment and all child StreamSegments as deleted.
      *
      * @param streamSegmentName The name of the StreamSegment to delete.
-     * @return A Map of SegmentIds-to-SegmentNames that have been deleted. This includes the given StreamSegment,
+     * @return A Collection of SegmentMetadatas for the Segments that have been deleted. This includes the given StreamSegment,
      * as well as any child StreamSegments that have been deleted.
      */
-    Map<Long, String> deleteStreamSegment(String streamSegmentName);
+    Collection<SegmentMetadata> deleteStreamSegment(String streamSegmentName);
 
     /**
      * Gets the next available Operation Sequence Number. Atomically increments the value by 1 with every call.
@@ -87,10 +86,20 @@ public interface UpdateableContainerMetadata extends ContainerMetadata, Recovera
     UpdateableSegmentMetadata getStreamSegmentMetadata(long streamSegmentId);
 
     /**
-     * Evicts those StreamSegments from the metadata which are eligible for removal.
+     * Gets a collection of SegmentMetadata referring to Segments that are currently eligible for removal.
      *
      * @param segmentExpiration The amount of time after which inactive segments expire.
-     * @return A Map of SegmentIds-to-SegmentNames that have been evicted from the metadata.
+     * @return The collection of SegmentMetadata that can be cleaned up.
      */
-    Map<Long, String> cleanup(Duration segmentExpiration);
+    Collection<SegmentMetadata> getEvictionCandidates(Duration segmentExpiration);
+
+    /**
+     * Evicts the StreamSegments that match the given SegmentMetadata, but only if they are still eligible for removal.
+     *
+     * @param evictionCandidates SegmentMetadata eviction candidates, obtained by calling getEvictionCandidates.
+     * @param segmentExpiration  The amount of time after which inactive segments expire.
+     * @return A Collection of SegmentMetadata for those segments that were actually removed. This will always be a
+     * subset of cleanupCandidates.
+     */
+    Collection<SegmentMetadata> cleanup(Collection<SegmentMetadata> evictionCandidates, Duration segmentExpiration);
 }

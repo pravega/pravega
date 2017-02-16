@@ -18,6 +18,8 @@
 
 package com.emc.pravega.service.server.writer;
 
+import com.emc.pravega.common.ExceptionHelpers;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.SegmentProperties;
@@ -26,8 +28,6 @@ import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ManualTimer;
 import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.common.ExceptionHelpers;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestStorage;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
@@ -54,7 +54,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -62,6 +61,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -419,6 +419,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     @Test
     public void testCleanup() throws Exception {
         final WriterConfig config = ConfigHelpers.createWriterConfig(DEFAULT_RAW_CONFIG.duplicate().with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1));
+        final Duration segmentExpiration = Duration.ofMillis(10);
         @Cleanup
         final TestContext context = new TestContext(config);
         context.metadataTimer.setElapsedMillis(0); // Base time reference.
@@ -451,7 +452,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         context.metadata.getStreamSegmentId(segment1.getName(), true);
         context.metadata.getStreamSegmentId(segment2.getName(), true);
         segment2.markDeleted();
-        Set<Long> evictedSegments = context.metadata.cleanup(Duration.ofMillis(10)).keySet();
+        Collection<Long> evictedSegments = evictSegments(segmentExpiration, context);
 
         // Make sure the right segment is evicted, and not the other two ones (there are other segments in this system which we don't care about).
         Assert.assertTrue("Expected segment was not evicted.", evictedSegments.contains(segment3.getId()));
@@ -465,7 +466,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         // Get rid of Segment2 from the metadata.
         context.metadataTimer.setElapsedMillis(2000);
         context.metadata.getStreamSegmentId(segment1.getName(), true);
-        evictedSegments = context.metadata.cleanup(Duration.ofMillis(10)).keySet();
+        evictedSegments = evictSegments(segmentExpiration, context);
         Assert.assertTrue("Expected segment was not evicted.", evictedSegments.contains(segment2.getId()));
 
         // Repopulate the metadata.
@@ -696,6 +697,15 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         }
 
         return transactions;
+    }
+
+    private Collection<Long> evictSegments(Duration segmentExpiration, TestContext context) {
+        Collection<SegmentMetadata> evictionCandidates = context.metadata.getEvictionCandidates(segmentExpiration);
+        context.metadata.cleanup(evictionCandidates, segmentExpiration);
+        return evictionCandidates
+                .stream()
+                .map(SegmentMetadata::getId)
+                .collect(Collectors.toSet());
     }
 
     private void initializeSegment(long segmentId, TestContext context) {

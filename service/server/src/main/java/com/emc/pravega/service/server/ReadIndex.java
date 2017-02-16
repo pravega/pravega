@@ -22,6 +22,7 @@ import com.emc.pravega.service.contracts.ReadResult;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Iterator;
 
 /**
  * Defines a ReadIndex for StreamSegments, that allows adding data only at the end.
@@ -123,10 +124,10 @@ public interface ReadIndex extends AutoCloseable {
      * Removes all internal indices that point to the given StreamSegments, but only if they are marked as Deleted in
      * the metadata or missing metadata altogether (i.e., they have been recycled).
      *
-     * @param segmentIds A Collection of SegmentIds for the Segments to clean up. If this is null, then all the Segment Ids
+     * @param segmentIds An Iterator of SegmentIds for the Segments to clean up. If this is null, then all the Segment Ids
      *                   registered in this ReadIndex are eligible for removal.
      */
-    void cleanup(Collection<Long> segmentIds);
+    void cleanup(Iterator<Long> segmentIds);
 
     /**
      * Puts the ReadIndex in Recovery Mode. Some operations may not be available in Recovery Mode.

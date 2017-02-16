@@ -23,6 +23,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.util.CollectionHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.Operation;
@@ -34,10 +35,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
@@ -189,20 +192,19 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
     @Override
-    public Map<Long, String> deleteStreamSegment(String streamSegmentName) {
-        Map<Long, String> result = new HashMap<>();
+    public Collection<SegmentMetadata> deleteStreamSegment(String streamSegmentName) {
+        Collection<SegmentMetadata> result = new ArrayList<>();
         synchronized (this.lock) {
             StreamSegmentMetadata segmentMetadata = this.metadataByName.getOrDefault(streamSegmentName, null);
             if (segmentMetadata == null) {
                 // We have no knowledge in our metadata about this StreamSegment. This means it has no transactions associated
                 // with it, so no need to do anything else.
-                result.put(NO_STREAM_SEGMENT_ID, streamSegmentName);
-                log.info("{}: DeleteStreamSegments {}", this.traceObjectId, result);
+                log.info("{}: DeleteStreamSegments (nothing)", this.traceObjectId);
                 return result;
             }
 
             // Mark this segment as deleted.
-            result.put(segmentMetadata.getId(), streamSegmentName);
+            result.add(segmentMetadata);
             segmentMetadata.markDeleted();
 
             // Find any transactions that point to this StreamSegment (as a parent).
@@ -211,7 +213,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
                     m -> m.getParentId() == segmentMetadata.getId(),
                     m -> {
                         m.markDeleted();
-                        result.put(m.getId(), m.getName());
+                        result.add(m);
                     });
         }
 
@@ -235,40 +237,59 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
     @Override
-    public Map<Long, String> cleanup(Duration segmentExpiration) {
-        HashMap<Long, String> evictedSegments = new HashMap<>();
-        HashMap<Long, Boolean> activeTransactions = new HashMap<>();
+    public Collection<SegmentMetadata> getEvictionCandidates(Duration segmentExpiration) {
         long timeExpirationThreshold = this.segmentUsageTimer.getElapsed().minus(segmentExpiration).toMillis();
         synchronized (this.lock) {
-            // Process all transactions first (we need to figure out which parent segments still have active transactions).
-            this.metadataById
-                    .values().stream()
-                    .filter(m -> m.getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID)
-                    .forEach(m -> {
-                        if (canEvict(m, timeExpirationThreshold)) {
-                            // Transaction is eligible for removal; remove it.
-                            evictedSegments.put(m.getId(), m.getName());
-                        } else {
-                            // Not eligible for removal; record that its parent still has an active transaction.
-                            activeTransactions.put(m.getParentId(), true);
-                        }
-                    });
+            // Find those segments that have active transactions associated with them.
+            Set<Long> activeTransactions = getSegmentsWithActiveTransactions(timeExpirationThreshold);
 
-            // Now process the Parent Segments that do not have any active transactions.
-            this.metadataById
+            // The result is all segments that are eligible for removal but that do not have any active transactions.
+            return this.metadataById
                     .values().stream()
-                    .filter(m -> m.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID
-                            && !activeTransactions.getOrDefault(m.getId(), false)
+                    .filter(m -> !activeTransactions.contains(m.getId())
                             && canEvict(m, timeExpirationThreshold))
-                    .forEach(m -> evictedSegments.put(m.getId(), m.getName()));
+                    .collect(Collectors.toList());
+        }
+    }
 
-            // Process the removal, in the order in which they were added to the removal list.
-            evictedSegments.keySet().forEach(this.metadataById::remove);
-            evictedSegments.values().forEach(this.metadataByName::remove);
+    @Override
+    public Collection<SegmentMetadata> cleanup(Collection<SegmentMetadata> evictionCandidates, Duration segmentExpiration) {
+        Collection<SegmentMetadata> evictedSegments = new ArrayList<>(evictionCandidates.size());
+        long timeExpirationThreshold = this.segmentUsageTimer.getElapsed().minus(segmentExpiration).toMillis();
+        synchronized (this.lock) {
+            // Find those segments that have active transactions associated with them.
+            Set<Long> activeTransactions = getSegmentsWithActiveTransactions(timeExpirationThreshold);
+
+            // Remove those candidates that are still eligible for removal and which do not have any active transactions.
+            evictionCandidates
+                    .stream()
+                    .filter(m -> canEvict((StreamSegmentMetadata) m, timeExpirationThreshold)
+                            && !activeTransactions.contains(m.getId()))
+                    .forEach(m -> {
+                        this.metadataById.remove(m.getId());
+                        this.metadataByName.remove(m.getName());
+                        evictedSegments.add(m);
+                    });
         }
 
         log.info("{}: EvictedStreamSegments {}", this.traceObjectId, evictedSegments);
         return evictedSegments;
+    }
+
+    /**
+     * Gets a Set of Segment Ids that have active transactions referring to them.
+     *
+     * @param timeExpirationThreshold The time expiration threshold, with a reference to segmentUsageTimer.
+     * @return A Set of Segment Ids that have active transactions referring to them.
+     */
+    @GuardedBy("lock")
+    private Set<Long> getSegmentsWithActiveTransactions(long timeExpirationThreshold) {
+        return this.metadataById
+                .values().stream()
+                .filter(m -> m.getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID
+                        && !canEvict(m, timeExpirationThreshold))
+                .map(SegmentMetadata::getParentId)
+                .collect(Collectors.toSet());
     }
 
     /**

@@ -64,4 +64,15 @@ public interface SegmentMetadata extends SegmentProperties {
      * Gets a value indicating the length of this entire StreamSegment (the part in Storage + the part in DurableLog).
      */
     long getDurableLogLength();
+
+    /**
+     * Gets a value representing the Sequence Number of the last Operation that referenced this Segment.
+     */
+    long getLastKnownSequenceNumber();
+
+    /**
+     * Gets a value representing the last time this Segment was referenced in the ContainerMetadata.
+     * The time returned is only valid within the context of the ContainerMetadata that owns this object.
+     */
+    long getLastKnownRequestTime();
 }

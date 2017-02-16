@@ -570,11 +570,13 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        @SuppressWarnings("deprecation")
         public ListenableFuture<State> start() {
             return null;
         }
 
         @Override
+        @SuppressWarnings("deprecation")
         public State startAndWait() {
             return null;
         }
@@ -595,11 +597,13 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        @SuppressWarnings("deprecation")
         public ListenableFuture<State> stop() {
             return null;
         }
 
         @Override
+        @SuppressWarnings("deprecation")
         public State stopAndWait() {
             return null;
         }

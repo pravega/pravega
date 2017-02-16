@@ -51,15 +51,13 @@ import com.google.common.util.concurrent.AbstractService;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -79,7 +77,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final AsyncMap<String, SegmentState> stateStore;
     private final StreamSegmentMapper segmentMapper;
     private final ScheduledExecutorService executor;
-    private ScheduledFuture<?> cleanupTask;
+    private CompletableFuture<Void> cleanupTask;
     private boolean closed;
 
     //endregion
@@ -146,9 +144,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     protected void doStart() {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
         log.info("{}: Starting.", this.traceObjectId);
-        this.cleanupTask = this.executor.scheduleWithFixedDelay(this::metadataCleanup,
-                this.config.getSegmentMetadataExpiration().toMillis(),
-                this.config.getSegmentMetadataExpiration().toMillis(), TimeUnit.MILLISECONDS);
+        this.cleanupTask = FutureHelpers.loop(
+                this::isRunning,
+                () -> FutureHelpers.delayedFuture(this.config.getSegmentMetadataExpiration(), this.executor)
+                                   .thenCompose(this::metadataCleanup),
+                this.executor);
+
         this.durableLog.startAsync();
         this.executor.execute(() -> {
             this.durableLog.awaitRunning();
@@ -289,19 +290,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // It returns a mapping of segment ids to names of StreamSegments that were deleted.
         // As soon as this happens, all operations that deal with those segments will start throwing appropriate exceptions
         // or ignore the segments altogether (such as StorageWriter).
-        Map<Long, String> streamSegmentsToDelete = this.metadata.deleteStreamSegment(streamSegmentName);
-        CompletableFuture[] deletionFutures = new CompletableFuture[streamSegmentsToDelete.size()];
-        int count = 0;
-        for (String s : streamSegmentsToDelete.values()) {
-            // Delete Segment and any associated attributes.
-            deletionFutures[count] = this.storage
-                    .delete(s, timer.getRemaining())
-                    .thenComposeAsync(v -> this.stateStore.remove(s, timer.getRemaining()), this.executor);
-            count++;
-        }
+        Collection<SegmentMetadata> deletedSegments = this.metadata.deleteStreamSegment(streamSegmentName);
+        CompletableFuture[] deletionFutures = mapToFutureArray(
+                deletedSegments,
+                s -> this.storage
+                        .delete(s.getName(), timer.getRemaining())
+                        .thenComposeAsync(v -> this.stateStore.remove(s.getName(), timer.getRemaining()), this.executor));
 
-        // Remove from Read Index.
-        this.readIndex.cleanup(streamSegmentsToDelete.keySet());
+        removeFromReadIndex(deletedSegments);
         return CompletableFuture.allOf(deletionFutures);
     }
 
@@ -345,27 +341,37 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     //region Helpers
 
-    private void metadataCleanup() {
-        if (this.closed) {
-            this.cleanupTask.cancel(true);
-            return;
+    private CompletableFuture<Void> metadataCleanup(Void ignored) {
+        if (this.closed || !isRunning()) {
+            stopCleanupTask();
+            return CompletableFuture.completedFuture(null);
         }
 
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "metadataCleanup");
 
         // Evict segments from the metadata.
-        Map<Long, String> evictedSegments = this.metadata.cleanup(this.config.getSegmentMetadataExpiration());
+        Duration expiration = this.config.getSegmentMetadataExpiration();
+        Collection<SegmentMetadata> cleanupCandidates = this.metadata.getEvictionCandidates(expiration);
+        CompletableFuture[] cleanupTasks = mapToFutureArray(cleanupCandidates,
+                sm -> this.stateStore.put(sm.getName(), new SegmentState(sm), this.config.getSegmentMetadataExpiration()));
 
-        if (evictedSegments.size() > 0) {
-            // Clean up those segments from the Read Index.
-            this.readIndex.cleanup(evictedSegments.keySet());
+        return CompletableFuture
+                .allOf(cleanupTasks)
+                .thenAccept(v -> {
+                    Collection<SegmentMetadata> evictedSegments = this.metadata.cleanup(cleanupCandidates, expiration);
+                    removeFromReadIndex(evictedSegments);
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "metadataCleanup", traceId, evictedSegments.size());
+                });
+    }
+
+    private void removeFromReadIndex(Collection<SegmentMetadata> segments) {
+        if (segments.size() > 0) {
+            this.readIndex.cleanup(segments.stream().map(SegmentMetadata::getId).iterator());
         }
-
-        LoggerHelpers.traceLeave(log, this.traceObjectId, "metadataCleanup", traceId, evictedSegments.size());
     }
 
     private void stopCleanupTask() {
-        ScheduledFuture<?> cleanupTask = this.cleanupTask;
+        CompletableFuture<?> cleanupTask = this.cleanupTask;
         if (cleanupTask != null && !cleanupTask.isDone()) {
             cleanupTask.cancel(true);
             this.cleanupTask = null;
@@ -405,6 +411,16 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 stopAsync().awaitTerminated();
             }
         };
+    }
+
+    private <T> CompletableFuture[] mapToFutureArray(Collection<T> source, Function<T, CompletableFuture> transformer) {
+        CompletableFuture[] result = new CompletableFuture[source.size()];
+        int count = 0;
+        for (T s : source) {
+            result[count++] = transformer.apply(s);
+        }
+
+        return result;
     }
 
     //endregion

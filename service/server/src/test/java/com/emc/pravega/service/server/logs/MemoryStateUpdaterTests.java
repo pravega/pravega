@@ -260,7 +260,7 @@ public class MemoryStateUpdaterTests {
         }
 
         @Override
-        public void cleanup(Collection<Long> segmentIds) {
+        public void cleanup(Iterator<Long> segmentIds) {
             invoke(new MethodInvocation(CLEANUP));
         }
 

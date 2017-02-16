@@ -872,6 +872,16 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         @Override
+        public long getLastKnownSequenceNumber() {
+            return this.baseMetadata.getLastKnownSequenceNumber();
+        }
+
+        @Override
+        public long getLastKnownRequestTime() {
+            return this.baseMetadata.getLastKnownRequestTime();
+        }
+
+        @Override
         public Map<UUID, Long> getAttributes() {
             // Important: This only returns the updated attributes, not the whole set of attributes. If it also returned
             // the base attributes, upon commit() they would be unnecessarily re-applied to the same segment.
