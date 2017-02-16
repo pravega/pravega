@@ -148,7 +148,7 @@ public class SegmentInputStreamTest {
     @Test
     public void testLongerThanRequestedRead() throws EndOfSegmentException {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-        int numEntries = SegmentInputStreamImpl.BUFFER_SIZE / data.length;
+        int numEntries = SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE / data.length;
 
         ByteBuffer wireData = ByteBuffer.allocate((data.length + WireCommands.TYPE_PLUS_LENGTH_SIZE) * numEntries);
         for (int i = 0; i < numEntries; i++) {
@@ -195,7 +195,7 @@ public class SegmentInputStreamTest {
     @Test
     public void testReadWithoutBlocking() throws EndOfSegmentException {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-        int numEntries = SegmentInputStreamImpl.BUFFER_SIZE / data.length;
+        int numEntries = SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE / data.length;
 
         ByteBuffer wireData = ByteBuffer.allocate((data.length + WireCommands.TYPE_PLUS_LENGTH_SIZE) * numEntries);
         for (int i = 0; i < numEntries; i++) {

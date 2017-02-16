@@ -22,9 +22,8 @@ import java.util.List;
 /**
  * Used to select which event should go next when consuming from multiple segments.
  *
- * @param <Type> The type of events that are in the stream
  */
-public interface Orderer<Type> {
+public interface Orderer {
 
     /**
      * Given a list of segments this reader owns, (which contain their positions) returns the one that
@@ -34,5 +33,5 @@ public interface Orderer<Type> {
      *
      * @param segments The logs to get the next reader for.
      */
-    SegmentEventReader<Type> nextSegment(List<SegmentEventReader<Type>> segments);
+    SegmentEventReader nextSegment(List<SegmentEventReader> segments);
 }

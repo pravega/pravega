@@ -18,6 +18,7 @@
 package com.emc.pravega.stream;
 
 import com.emc.pravega.stream.impl.EventReadImpl;
+import com.emc.pravega.stream.impl.segment.NoSuchEventException;
 
 /**
  * A reader for a stream.
@@ -46,19 +47,18 @@ public interface EventStreamReader<T> extends AutoCloseable {
     ReaderConfig getConfig();
 
     /**
-     * Re-read an event that was previously read, by passing the segment returned from
-     * {@link EventReadImpl#getSegment()} and the offset returned from
-     * {@link EventReadImpl#getOffsetInSegment()} 
+     * Re-read an event that was previously read, by passing the pointer returned from
+     * {@link EventReadImpl#getEventPointer()}.
      * This does not affect the current position of the reader.
      * 
      * This is a blocking call. Passing invalid offsets has undefined behavior.
      * 
-     * @param segment The segment to read the event from.
-     * @param offset The byte offset within the segment to read from.
+     * @param pointer The pointer object to enable a random read of the event.
      * @return The event at the position specified by the provided pointer or null if the event has
      *         been deleted.
+     * @throws NoSuchEventException Reader was not able to fetch the event.
      */
-    T read(Segment segment, long offset);
+    T read(EventPointer pointer) throws NoSuchEventException;
 
     /**
      * Close the reader. No further actions may be performed. If this reader is part of a

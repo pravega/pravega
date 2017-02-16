@@ -30,6 +30,7 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -43,6 +44,7 @@ import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
+import com.emc.pravega.stream.impl.segment.NoSuchEventException;
 import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactoryImpl;
@@ -69,6 +71,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ResourceLeakDetector;
@@ -214,10 +217,55 @@ public class ReadTest {
         producer.flush();
 
         @Cleanup
-        EventStreamReader<String> consumer = clientFactory
+        EventStreamReader<String> reader = clientFactory
                 .createReader(readerName, readerGroup, serializer, new ReaderConfig());
-        String read = consumer.readNextEvent(5000).getEvent();
+        String read = reader.readNextEvent(5000).getEvent();
         assertEquals(testString, read);
+    }
+
+    @Test(timeout = 10000)
+    public void testEventPointer() {
+        String endpoint = "localhost";
+        String streamName = "abc";
+        String readerName = "reader";
+        String readerGroup = "group";
+        int port = TestUtils.randomPort();
+        String testString = "Hello world ";
+        String scope = "Scope1";
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        MockClientFactory clientFactory = streamManager.getClientFactory();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        streamManager.createStream(streamName, null);
+        streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singletonList(streamName));
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, new EventWriterConfig(null));
+
+        for (int i = 0; i < 100; i++) {
+            producer.writeEvent("RoutingKey", testString + i);
+        }
+        producer.flush();
+
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory
+                .createReader(readerName, readerGroup, serializer, new ReaderConfig());
+        try {
+            EventPointer pointer;
+            String read;
+
+            for (int i = 0; i < 100; i++) {
+                pointer = reader.readNextEvent(5000).getEventPointer();
+                read = reader.read(pointer);
+                assertEquals(testString + i, read);
+            }
+        } catch (NoSuchEventException e) {
+            fail("Failed to read event using event pointer");
+        }
+
     }
 
     private void fillStoreForSegment(String segmentName, UUID clientId, byte[] data, int numEntries,
