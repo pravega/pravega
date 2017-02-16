@@ -115,6 +115,13 @@ public class ControllerServiceAsyncImplTest {
         status = result3.getResult().get();
         assertEquals(status, CreateScopeStatus.SCOPE_EXISTS);
         // endregion
+
+        // region scope with name "abc/def'
+        ThriftAsyncCallback<CreateScopeStatus> result4 = new ThriftAsyncCallback<>();
+        this.controllerService.createScope("abc/def", result4);
+        status = result4.getResult().get();
+        assertEquals(status, CreateScopeStatus.SUCCESS);
+        // endregion
     }
 
 

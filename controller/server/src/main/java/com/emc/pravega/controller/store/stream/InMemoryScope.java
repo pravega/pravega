@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.store.stream;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -50,7 +51,7 @@ public class InMemoryScope implements Scope {
 
     @Override
     public CompletableFuture<List<String>> listStreamsInScope() {
-        return CompletableFuture.completedFuture(streamsInScope);
+        return CompletableFuture.completedFuture(Collections.unmodifiableList(streamsInScope));
     }
 
     @Override
@@ -58,7 +59,7 @@ public class InMemoryScope implements Scope {
 
     }
 
-    public void addStreamToScope(String stream) {
+    public synchronized void addStreamToScope(String stream) {
         streamsInScope.add(stream);
     }
 }

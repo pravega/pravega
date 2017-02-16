@@ -34,7 +34,6 @@ public class StoreException extends RuntimeException {
 
     public StoreException(final Type type, Exception e) {
         super(e);
-        log.debug("Store exception of type {} occurred", type);
         this.type = type;
     }
 

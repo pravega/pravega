@@ -23,7 +23,6 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -118,10 +117,10 @@ public class ZKScope implements Scope {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return client.getChildren().forPath(path);
-            } catch (KeeperException.NoNodeException nne) {
-                return Collections.emptyList();
+            } catch (KeeperException.NoNodeException e) {
+                throw new StoreException(StoreException.Type.NODE_NOT_FOUND, e);
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                throw new StoreException(StoreException.Type.UNKNOWN, e);
             }
         });
     }
@@ -132,7 +131,7 @@ public class ZKScope implements Scope {
                     try {
                         return client.checkExists().forPath(path);
                     } catch (Exception e) {
-                        throw new RuntimeException(e);
+                        throw new StoreException(StoreException.Type.UNKNOWN, e);
                     }
                 })
                 .thenApply(x -> x != null);
