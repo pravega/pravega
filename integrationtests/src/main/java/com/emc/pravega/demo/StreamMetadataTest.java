@@ -41,6 +41,7 @@ import lombok.Cleanup;
 public class StreamMetadataTest {
     @SuppressWarnings("checkstyle:ReturnCount")
     public static void main(String[] args) throws Exception {
+        @Cleanup
         TestingServer zkTestServer = new TestingServer();
         ControllerWrapper controller = new ControllerWrapper(zkTestServer.getConnectString());
 
@@ -83,6 +84,7 @@ public class StreamMetadataTest {
         if ( createStream3Status != CreateStreamStatus.SUCCESS) {
            System.err.println("FAILURE: Create stream operation failed");
         }
+        @SuppressWarnings("unused")
         StreamSegments result = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
         UpdateStreamStatus sealStatus = controller.sealStream(scopeSeal, streamNameSeal).get();
         if (sealStatus == UpdateStreamStatus.SUCCESS) {

@@ -28,7 +28,7 @@ import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.ReadIndex;
-import com.emc.pravega.service.server.ServiceShutdownListener;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.service.server.TruncationMarkerRepository;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -99,7 +99,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -147,7 +147,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -230,7 +230,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -286,7 +286,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         ErrorInjector<Exception> syncErrorInjector = new ErrorInjector<>(
@@ -343,7 +343,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, stateUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, stateUpdater, dataLog, getNoOpCheckpointPolicy(), executorService());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.

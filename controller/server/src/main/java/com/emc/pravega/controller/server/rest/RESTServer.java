@@ -21,18 +21,21 @@ package com.emc.pravega.controller.server.rest;
 import com.emc.pravega.controller.server.rest.resources.PingImpl;
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
-import io.netty.channel.Channel;
-import lombok.extern.slf4j.Slf4j;
-import org.glassfish.jersey.netty.httpserver.NettyHttpContainerProvider;
-import org.glassfish.jersey.server.ResourceConfig;
 
-import javax.ws.rs.core.UriBuilder;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
 
+import javax.ws.rs.core.UriBuilder;
+
+import org.glassfish.jersey.netty.httpserver.NettyHttpContainerProvider;
+import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.server.ServerProperties;
+
 import static com.emc.pravega.controller.util.Config.REST_SERVER_IP;
 import static com.emc.pravega.controller.util.Config.REST_SERVER_PORT;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Netty REST server implementation.
@@ -51,13 +54,12 @@ public class RESTServer {
 
         final ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
         final ResourceConfig resourceConfig = ResourceConfig.forApplication(controllerApplication);
+        resourceConfig.property(ServerProperties.BV_SEND_ERROR_IN_RESPONSE, true);
 
-        Channel server = null;
         try {
-            server = NettyHttpContainerProvider.createServer(baseUri, resourceConfig, true);
+            NettyHttpContainerProvider.createServer(baseUri, resourceConfig, true);
         } catch (Exception e) {
             log.error("Error starting Rest Service {}", e);
-            server.close();
         }
     }
 

@@ -73,7 +73,7 @@ public class ZkStreamTest {
     }
 
     @Test
-    public void TestZkCreateScope() throws Exception {
+    public void testZkCreateScope() throws Exception {
 
         // create new scope test
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
@@ -106,7 +106,7 @@ public class ZkStreamTest {
     }
 
     @Test
-    public void TestZkDeleteScope() throws Exception {
+    public void testZkDeleteScope() throws Exception {
         // create new scope
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String scopeName = "Scope1";
@@ -142,7 +142,7 @@ public class ZkStreamTest {
     }
 
     @Test
-    public void TestZkStream() throws Exception {
+    public void testZkStream() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
@@ -205,7 +205,8 @@ public class ZkStreamTest {
 
         // start -1
         SegmentFutures segmentFutures = store.getActiveSegments(scopeName, streamName, start - 1).get();
-        assertEquals(segmentFutures.getCurrent().size(), 0);
+        assertEquals(segmentFutures.getCurrent().size(), 5);
+        assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 1, 2, 3, 4)));
 
         // start + 1
         segmentFutures = store.getActiveSegments(scopeName, streamName, start + 1).get();
@@ -255,7 +256,7 @@ public class ZkStreamTest {
 
     @Ignore("run manually")
     //    @Test
-    public void TestZkStreamChukning() throws Exception {
+    public void testZkStreamChunking() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 6);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
@@ -302,7 +303,7 @@ public class ZkStreamTest {
     }
 
     @Test
-    public void TestTransaction() throws Exception {
+    public void testTransaction() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);

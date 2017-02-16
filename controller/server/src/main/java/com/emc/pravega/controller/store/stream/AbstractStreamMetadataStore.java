@@ -18,6 +18,12 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.metrics.DynamicLogger;
+import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.OpStatsLogger;
+import com.emc.pravega.common.metrics.StatsLogger;
+import com.emc.pravega.common.metrics.StatsProvider;
+import com.emc.pravega.controller.server.MetricNames;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -35,7 +41,14 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
 import javax.annotation.ParametersAreNonnullByDefault;
+
+import static com.emc.pravega.controller.server.MetricNames.ABORT_TRANSACTION;
+import static com.emc.pravega.controller.server.MetricNames.COMMIT_TRANSACTION;
+import static com.emc.pravega.controller.server.MetricNames.CREATE_TRANSACTION;
+import static com.emc.pravega.controller.server.MetricNames.OPEN_TRANSACTIONS;
+import static com.emc.pravega.controller.server.MetricNames.nameFromStream;
 
 /**
  * Abstract Stream metadata store. It implements various read queries using the Stream interface.
@@ -43,6 +56,11 @@ import javax.annotation.ParametersAreNonnullByDefault;
  */
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
+    protected static final StatsProvider METRICS_PROVIDER = MetricsProvider.getMetricsProvider();
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+    private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("Controller");
+    private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricNames.CREATE_STREAM);
+    private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricNames.SEAL_STREAM);
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<String, Stream> streamCache;
 
@@ -89,7 +107,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final String streamName,
                                                    final StreamConfiguration configuration,
                                                    final long createTimestamp) {
-        return getStream(scopeName, streamName).create(configuration, createTimestamp);
+        Stream stream = getStream(scopeName, streamName);
+        return stream.create(configuration, createTimestamp).thenApply(result -> {
+            CREATE_STREAM.reportSuccessValue(1);
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), 0);
+            return result;
+        });
     }
 
     @Override
@@ -139,7 +162,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<Boolean> setSealed(final String scopeName, final String streamName) {
-        return getStream(scopeName, streamName).updateState(State.SEALED);
+        Stream stream = getStream(scopeName, streamName);
+        return stream.updateState(State.SEALED).thenApply(result -> {
+            SEAL_STREAM.reportSuccessValue(1);
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), 0);
+            return result;
+        });
     }
 
     @Override
@@ -184,7 +212,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<UUID> createTransaction(final String scopeName, final String streamName) {
-        return getStream(scopeName, streamName).createTransaction();
+        Stream stream = getStream(scopeName, streamName);
+        return stream.createTransaction().thenApply(result -> {
+           stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+               DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(CREATE_TRANSACTION, scopeName, streamName), 1);
+               DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), count);
+           });
+           return result;
+        });
     }
 
     @Override
@@ -194,7 +229,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<TxnStatus> commitTransaction(final String scopeName, final String streamName, final UUID txId) {
-        return getStream(scopeName, streamName).commitTransaction(txId);
+        Stream stream = getStream(scopeName, streamName);
+        return stream.commitTransaction(txId).thenApply(result -> {
+            stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(COMMIT_TRANSACTION, scopeName, streamName), 1);
+                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), count);
+            });
+            return result;
+         });
     }
 
     @Override
@@ -204,12 +246,20 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<TxnStatus> abortTransaction(final String scopeName, final String streamName, final UUID txId) {
-        return getStream(scopeName, streamName).abortTransaction(txId);
+        Stream stream = getStream(scopeName, streamName);
+        return stream.abortTransaction(txId).thenApply(result -> {
+            stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(ABORT_TRANSACTION, scopeName, streamName), 1);
+                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), count);
+            });
+            return result;
+         });
     }
 
     @Override
     public CompletableFuture<Boolean> isTransactionOngoing(final String scopeName, final String streamName) {
-        return getStream(scopeName, streamName).isTransactionOngoing();
+        Stream stream = getStream(scopeName, streamName);
+        return stream.getNumberOfOngoingTransactions().thenApply(num -> num > 0);
     }
 
     private Stream getStream(final String scopeName, final String streamName) {
