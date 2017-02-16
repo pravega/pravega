@@ -22,7 +22,12 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Defines a basic asynchronous Key-Value map.
+ * Defines a basic asynchronous Key-Value map which allows adding, getting and removing items. The purpose of this is to
+ * abstract a non-memory backed store that may take a while to perform operations (for example, if disk or a network
+ * resource is used as a store, significant latency may be part of every operation).
+ * <p>
+ * This contract definition does not make any guarantees as to the contents' consistency or concurrent access behavior.
+ * Please refer to the actual implementation's documentation for such behavior.
  *
  * @param <K> Type of the Keys.
  * @param <V> Type of the Values.

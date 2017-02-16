@@ -24,6 +24,7 @@ import com.emc.pravega.common.io.EnhancedByteArrayOutputStream;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.AsyncMap;
 import com.emc.pravega.common.util.ByteArraySegment;
+import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
@@ -34,11 +35,24 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import lombok.SneakyThrows;
 
 /**
  * Stores and Retrieves Segment Attribute values.
+ * <p>
+ * Expected concurrency behavior:
+ * <ul>
+ * <li> Concurrent calls to any method with different Keys (SegmentName) will work without issue.
+ * <li> Concurrent calls to get() with the same key will work without issue.
+ * <li> Concurrent calls to put() with the same key may have multiple behaviors, based on timing. If N calls are made,
+ * it could be that N-1 will fail with "BadOffsetException" or "StreamSegmentExistsException", and the other one
+ * succeeds (and that one will have its data set). However, it could be that all operations succeed, in which case the
+ * one that completes last will be the one that has its data set.
+ * <li> Concurrent calls to remove() with the same key will work without issue.
+ * <li> Concurrent calls to put() and remove() with the same key will either both succeed (in which case the outcome is
+ * undefined) or the remove() will succeed and put() will fail with StreamSegmentNotExistsException (in which case the
+ * call to put() has been neutered by the call to remove()).
+ * </ul>
  */
 class SegmentStateStore implements AsyncMap<String, SegmentState> {
     //region Members
@@ -71,18 +85,9 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
     public CompletableFuture<SegmentState> get(String segmentName, Duration timeout) {
         String stateSegment = StreamSegmentNameUtils.getStateSegmentName(segmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        AtomicReference<byte[]> contents = new AtomicReference<>();
         return this.storage
                 .getStreamSegmentInfo(stateSegment, timer.getRemaining())
-                .thenComposeAsync(sp -> {
-                    // Read the whole Segment.
-                    contents.set(new byte[(int) sp.getLength()]);
-                    return this.storage.read(stateSegment, 0, contents.get(), 0, contents.get().length, timer.getRemaining());
-                }, this.executor)
-                .thenApplyAsync(bytesRead -> {
-                    assert bytesRead == contents.get().length : "Expected to read " + contents.get().length + " bytes, read " + bytesRead;
-                    return deserialize(contents.get());
-                }, this.executor)
+                .thenComposeAsync(sp -> readSegmentState(sp, timer.getRemaining()), this.executor)
                 .exceptionally(this::handleSegmentNotExistsException);
     }
 
@@ -114,6 +119,16 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
     //endregion
 
     //region Helpers
+
+    private CompletableFuture<SegmentState> readSegmentState(SegmentProperties stateSegmentInfo, Duration timeout) {
+        byte[] contents = new byte[(int) stateSegmentInfo.getLength()];
+        return this.storage
+                .read(stateSegmentInfo.getName(), 0, contents, 0, contents.length, timeout)
+                .thenApplyAsync(bytesRead -> {
+                    assert bytesRead == contents.length : "Expected to read " + contents.length + " bytes, read " + bytesRead;
+                    return deserialize(contents);
+                }, this.executor);
+    }
 
     @SneakyThrows(IOException.class)
     private ByteArraySegment serialize(SegmentState state) {
