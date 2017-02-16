@@ -41,10 +41,11 @@ import lombok.Synchronized;
  * @see SegmentInputStream
  */
 class SegmentInputStreamImpl implements SegmentInputStream {
-    private static final int READ_LENGTH = MAX_WRITE_SIZE;
-    static final int DEFAULT_BUFFER_SIZE = 2 * SegmentInputStreamImpl.READ_LENGTH;
+    private static final int DEFAULT_READ_LENGTH = MAX_WRITE_SIZE;
+    static final int DEFAULT_BUFFER_SIZE = 2 * SegmentInputStreamImpl.DEFAULT_READ_LENGTH;
 
     private final AsyncSegmentInputStream asyncInput;
+    private final int readLength;
     @GuardedBy("$lock")
     private final CircularBuffer buffer;
     @GuardedBy("$lock")
@@ -65,7 +66,19 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         Preconditions.checkNotNull(asyncInput);
         this.asyncInput = asyncInput;
         this.offset = offset;
-        this.buffer = new CircularBuffer(bufferSize);
+        /*
+         * The logic for read length and buffer size is the following. The buffer size needs
+         * to be such that it can accommodate all data we read. For example, if we need to read
+         * twice to fetch an event, then the buffer size must be at least two times the
+         * read length.
+         *
+         * If we are reading a single event via the read() call of EventStreamReader, then
+         * we want to minimize the size of the buffer used to fetch the single event. In this
+         * case, we want to set it to be the header size plus the buffer size to hold the event.
+         */
+        this.readLength = Math.min(DEFAULT_READ_LENGTH, TYPE_PLUS_LENGTH_SIZE  + bufferSize);
+        this.buffer = new CircularBuffer(Math.max(bufferSize, readLength + 1));
+
         issueRequestIfNeeded();
     }
 
@@ -100,7 +113,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         if (buffer.dataAvailable() <= 0 && receivedEndOfSegment) {
             throw new EndOfSegmentException();
         }
-        long origionalOffset = offset;
+        long originalOffset = offset;
         boolean success = false;
         try {
             headerReadingBuffer.clear();
@@ -125,11 +138,12 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             return result;
         } finally {
             if (!success) {
-                offset = origionalOffset;
+                offset = originalOffset;
                 buffer.clear();
             }
         }
     }
+
 
     private boolean dataWaitingToGoInBuffer() {
         return outstandingRequest != null && outstandingRequest.isSuccess() && buffer.capacityAvailable() > 0;
@@ -153,8 +167,8 @@ class SegmentInputStreamImpl implements SegmentInputStream {
      * @return If there is enough room for another request, and we aren't already waiting on one
      */
     private void issueRequestIfNeeded() {
-        if (!receivedEndOfSegment && outstandingRequest == null && buffer.capacityAvailable() > READ_LENGTH) {
-            outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), READ_LENGTH);
+        if (!receivedEndOfSegment && outstandingRequest == null && buffer.capacityAvailable() > readLength) {
+            outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
         }
     }
 

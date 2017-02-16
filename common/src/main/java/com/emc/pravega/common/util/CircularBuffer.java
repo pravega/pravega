@@ -56,11 +56,11 @@ public class CircularBuffer {
      * @return the number of bytes put into toFill
      */
     public int read(ByteBuffer toFill) {
-        int origionalPos = toFill.position();
+        int originalPos = toFill.position();
         while (dataAvailable() > 0 && toFill.hasRemaining()) {
             readHelper(toFill);
         }
-        return toFill.position() - origionalPos;
+        return toFill.position() - originalPos;
     }
 
     private void readHelper(ByteBuffer toFill) {

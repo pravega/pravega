@@ -24,6 +24,7 @@ import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.NoSuchEventException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactory;
+import com.google.common.base.Preconditions;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -149,6 +150,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @Override
     public Type read(EventPointer pointer)
     throws NoSuchEventException {
+        Preconditions.checkNotNull(pointer);
         // Create SegmentInputBuffer
         SegmentInputStream inputStream = inputStreamFactory.createInputStreamForSegment(pointer.asImpl().getSegment(),
                                                                                         config.getSegmentConfig(),
