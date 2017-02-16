@@ -22,15 +22,13 @@ import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxnId;
 import com.emc.pravega.stream.impl.ModelHelper;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.thrift.TException;
+import org.apache.thrift.async.AsyncMethodCallback;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-
-import org.apache.thrift.TException;
-import org.apache.thrift.async.AsyncMethodCallback;
-
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Asynchronous controller service implementation.
@@ -78,7 +76,7 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
         log.debug("getPositions called for stream " + scope + "/" + stream);
         processResult(controllerService.getPositions(scope, stream, timestamp, count), resultHandler);
     }
-    
+
     @Override
     public void getSegmentsImmediatlyFollowing(SegmentId segment, AsyncMethodCallback resultHandler) throws TException {
         log.debug("getSegmentsImmediatlyFollowing called for segment " + segment);
@@ -130,9 +128,9 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
 
     @Override
     public void abortTransaction(final String scope,
-                                final String stream,
-                                final TxnId txid,
-                                final AsyncMethodCallback resultHandler) throws TException {
+                                 final String stream,
+                                 final TxnId txid,
+                                 final AsyncMethodCallback resultHandler) throws TException {
         log.debug("abortTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
         processResult(controllerService.abortTransaction(scope, stream, txid), resultHandler);
     }
@@ -152,7 +150,11 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
                     log.debug("result = " + (value == null ? "null" : value.toString()));
 
                     if (ex != null) {
-                        resultHandler.onError(new RuntimeException(ex));
+                        // OnError from Thrift callback has a bug. So we are completing with null
+                        // so that client gets an exception. Ideally we want to let the client know
+                        // of the exact error but at least with this we wont have client stuck waiting for
+                        // a response from server.
+                        resultHandler.onComplete(null);
                     } else if (value != null) {
                         resultHandler.onComplete(value);
                     }

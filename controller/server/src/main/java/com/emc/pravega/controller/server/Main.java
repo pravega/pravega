@@ -17,11 +17,6 @@
  */
 package com.emc.pravega.controller.server;
 
-import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
-import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
-import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
-import static com.emc.pravega.controller.util.Config.STORE_TYPE;
-
 import com.emc.pravega.controller.embedded.EmbeddedController;
 import com.emc.pravega.controller.embedded.EmbeddedControllerImpl;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
@@ -45,7 +40,6 @@ import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetAddress;
@@ -53,6 +47,11 @@ import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+
+import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
+import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
+import static com.emc.pravega.controller.util.Config.STORE_TYPE;
+import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 
 /**
  * Entry point of controller server.
@@ -132,11 +131,11 @@ public class Main {
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
 
+        final EmbeddedController controller = new EmbeddedControllerImpl(controllerService);
+        RequestHandlersInit.bootstrapRequestHandlers(controller, requestExecutor);
+
         // 4. Start the REST server.
         log.info("Starting Pravega REST Service");
         RESTServer.start(controllerService);
-
-        final EmbeddedController controller = new EmbeddedControllerImpl(controllerService);
-        RequestHandlersInit.bootstrapRequestHandlers(controller, requestExecutor);
     }
 }

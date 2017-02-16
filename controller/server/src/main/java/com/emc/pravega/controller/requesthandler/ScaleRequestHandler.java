@@ -164,6 +164,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
     }
 
     private CompletableFuture<Void> processScaleUp(final ScaleRequest request, final ScalingPolicy policy, final OperationContext context) {
+        log.debug("scale up request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
         return streamMetadataStore.getSegment(request.getScope(), request.getStream(), request.getSegmentNumber(), context, executor)
                 .thenComposeAsync(segment -> {
                     if (!policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
@@ -184,6 +185,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
     }
 
     private CompletableFuture<Void> processScaleDown(final ScaleRequest request, final ScalingPolicy policy, final OperationContext context) {
+        log.debug("scale down request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
         if (!policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
             return streamMetadataStore.setMarker(request.getScope(),
                     request.getStream(),
@@ -232,6 +234,10 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                     })
                     .thenCompose(toMerge -> {
                         if (toMerge != null && toMerge.size() > 1) {
+                            toMerge.forEach(x -> {
+                                log.debug("merging stream {}: segment {} ", request.getStream(), x.getNumber());
+                            });
+
                             final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
                             double min = toMerge.stream().mapToDouble(Segment::getKeyStart).min().getAsDouble();
                             double max = toMerge.stream().mapToDouble(Segment::getKeyEnd).max().getAsDouble();
@@ -342,6 +348,8 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                         RetryableException.throwRetryableOrElseRuntime(ex);
                         return ex;
                     } else {
+                        log.error("scale done for {}/{}/{}", request.getScope(), request.getStream(), request.getSegmentNumber());
+
                         return null;
                     }
                 })

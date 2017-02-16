@@ -20,7 +20,6 @@ package com.emc.pravega.controller.requesthandler;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.StreamManager;
-import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.embedded.EmbeddedController;
 import com.emc.pravega.controller.embedded.EmbeddedControllerImpl;
 import com.emc.pravega.controller.requests.ScaleRequest;
@@ -51,6 +50,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 @Slf4j
 public class RequestHandlersInit {
@@ -93,13 +93,34 @@ public class RequestHandlersInit {
         }
     }
 
+    private static <T> void retryIndefinitely(Supplier<CompletableFuture<T>> supplier, ScheduledExecutorService executor, CompletableFuture<Void> result) {
+        try {
+            supplier.get().whenComplete((r, e) -> {
+                if (e != null) {
+                    executor.schedule(() -> retryIndefinitely(supplier, executor, result), 10, TimeUnit.SECONDS);
+                } else {
+                    result.complete(null);
+                }
+            });
+        } catch (Exception e) {
+            // Until we are able to start these readers, keep retrying indefinitely by scheduling it back
+            executor.schedule(() -> retryIndefinitely(supplier, executor, result), 10, TimeUnit.SECONDS);
+        }
+    }
+
     private static void createStreams(EmbeddedControllerImpl controller, ScheduledExecutorService executor, CompletableFuture<Void> result) {
         retryIndefinitely(() -> {
+            return controller.getController().createStream(REQUEST_STREAM_CONFIG, System.currentTimeMillis())
+                    .whenComplete((res, ex) -> {
+                        if (ex != null && !(ex instanceof StreamAlreadyExistsException)) {
+                            // fail and exit
+                            throw new RuntimeException(ex);
+                        }
+                        if (res != null && res.equals(CreateStreamStatus.FAILURE)) {
+                            throw new RuntimeException("Failed to create stream while starting controller");
+                        }
+                    });
 
-            CompletableFuture<CreateStreamStatus> requestStreamFuture = streamCreationCompletionCallback(
-                    controller.getController().createStream(REQUEST_STREAM_CONFIG, System.currentTimeMillis()));
-
-            FutureHelpers.getAndHandleExceptions(requestStreamFuture, RuntimeException::new);
         }, executor, result);
     }
 
@@ -139,18 +160,9 @@ public class RequestHandlersInit {
             }
 
             CompletableFuture.runAsync(SCALE_REQUEST_READER_REF.get(), Executors.newSingleThreadExecutor());
+            log.debug("bootstrapping request handlers done");
+
         }, executor, result);
     }
 
-    private static CompletableFuture<CreateStreamStatus> streamCreationCompletionCallback(CompletableFuture<CreateStreamStatus> createFuture) {
-        return createFuture.whenComplete((res, ex) -> {
-            if (ex != null && !(ex instanceof StreamAlreadyExistsException)) {
-                // fail and exit
-                throw new RuntimeException(ex);
-            }
-            if (res != null && res.equals(CreateStreamStatus.FAILURE)) {
-                throw new RuntimeException("Failed to create stream while starting controller");
-            }
-        });
-    }
 }

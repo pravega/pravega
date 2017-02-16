@@ -135,16 +135,26 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
 
         CompletableFuture<Void> createWriter = new CompletableFuture<>();
 
-        retryIndefinitely(() -> {
-            this.writer = clientFactory.get().createEventWriter(STREAM_NAME,
-                    serializer,
-                    config);
+        // Starting with initial delay, in case request stream has not been created, to give it time to start
+        // However, we have this wrapped in retryIndefinitely which means the creation of writer will be retried.
+        // We are introducing a delay to avoid exceptions in the log in case creation of writer is attempted before
+        // creation of requeststream.
+        EXECUTOR.schedule(() -> retryIndefinitely(() -> {
+            try {
+                this.writer = clientFactory.get().createEventWriter(STREAM_NAME,
+                        serializer,
+                        config);
+            } catch (Throwable t) {
+                System.err.println(t);
+                throw new RuntimeException(t);
+            }
             initialized.set(true);
             // even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
             // caches do not perform clean up if there is no activity. This is because they do not maintain their
             // own background thread.
             EXECUTOR.scheduleAtFixedRate(cache::cleanUp, 0, cacheCleanup, unit);
-        }, createWriter);
+            log.debug("bootstrapping threshold monitor done");
+        }, createWriter), 10, TimeUnit.SECONDS);
     }
 
     private void triggerScaleUp(String streamSegmentName, int numOfSplits) {
@@ -159,6 +169,8 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
             long timestamp = System.currentTimeMillis();
 
             if (timestamp - lastRequestTs > muteDuration) {
+                log.debug("sending request for scale up for {}", streamSegmentName);
+
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleRequest.UP, timestamp, numOfSplits, false);
                 // Mute scale for timestamp for both scale up and down
@@ -166,6 +178,8 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
                     try {
                         writer.writeEvent(event.getKey(), event).get();
                     } catch (InterruptedException | ExecutionException e) {
+                        log.debug("sending request for scale up for {} failed {}", streamSegmentName, e.getMessage());
+
                         throw new RuntimeException(e);
                     }
                 }, EXECUTOR).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
@@ -184,12 +198,16 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
 
             long timestamp = System.currentTimeMillis();
             if (timestamp - lastRequestTs > muteDuration) {
+                log.debug("sending request for scale down for {}", streamSegmentName);
+
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleRequest.DOWN, timestamp, 0, silent);
                 CompletableFuture.runAsync(() -> {
                     try {
                         writer.writeEvent(event.getKey(), event).get();
                     } catch (InterruptedException | ExecutionException e) {
+                        log.error("sending request for scale down for {} threw exception {}", streamSegmentName, e.getMessage());
+
                         throw new RuntimeException(e);
                     }
                     // mute only scale downs
@@ -200,15 +218,20 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
 
     @Override
     public void process(String streamSegmentName, long targetRate, byte type, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
+        log.info("received traffic for {} with twoMinute rate = {} and targetRate = {}", streamSegmentName, twoMinuteRate, targetRate);
         checkAndRun(() -> {
             if (type != WireCommands.CreateSegment.NO_SCALE) {
                 long currentTime = System.currentTimeMillis();
                 if (currentTime - startTime > cooldownPeriod) {
+                    log.debug("cool down period elapsed for {}", streamSegmentName);
+
                     // process to see if a scale operation needs to be performed.
                     if ((twoMinuteRate > 5 * targetRate && currentTime - startTime > TWO_MINUTES) ||
                             (fiveMinuteRate > 2 * targetRate && currentTime - startTime > FIVE_MINUTES) ||
                             (tenMinuteRate > targetRate && currentTime - startTime > TEN_MINUTES)) {
                         int numOfSplits = (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate);
+                        log.debug("triggering scale up for {}", streamSegmentName);
+
                         triggerScaleUp(streamSegmentName, numOfSplits);
                     }
 
@@ -217,6 +240,8 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
                             tenMinuteRate < targetRate &&
                             twentyMinuteRate < targetRate / 2 &&
                             currentTime - startTime > TWENTY_MINUTES) {
+                        log.debug("triggering scale down for {}", streamSegmentName);
+
                         triggerScaleDown(streamSegmentName, false);
                     }
                 }
@@ -251,6 +276,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
                 promise.complete(null);
             }
         } catch (Exception e) {
+            log.error("threshold monitor writer creation failed {}", e);
             // Until we are able to start these readers, keep retrying indefinitely by scheduling it back
             EXECUTOR.schedule(() -> retryIndefinitely(supplier, promise), 10, TimeUnit.SECONDS);
         }
