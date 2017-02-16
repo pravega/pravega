@@ -148,13 +148,13 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
 
     @Override
     public void createScope(String scope, AsyncMethodCallback resultHandler) throws TException {
-        log.debug("createScope called for scope " + scope);
+        log.debug("createScope called for scope {}", scope);
         processResult(controllerService.createScope(scope), resultHandler);
     }
 
     @Override
     public void deleteScope(String scope, AsyncMethodCallback resultHandler) throws TException {
-        log.debug("deleteScope called for scope " + scope);
+        log.debug("deleteScope called for scope {}", scope);
         processResult(controllerService.deleteScope(scope), resultHandler);
     }
 
