@@ -320,7 +320,8 @@ public class StreamSegmentMapper {
     }
 
     /**
-     * Fetches the attributes for the given source segment and returns a new SegmentProperties with the merged result.
+     * Fetches the attributes for the given source segment and returns a new SegmentProperties with the same information
+     * as the given source, but the attributes fetched from the SegmentStateStore.
      *
      * @param source  A SegmentProperties describing the Segment to fetch attributes for.
      * @param timeout Timeout for the operation.
