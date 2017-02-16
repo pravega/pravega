@@ -28,11 +28,12 @@ final class AckFutureImpl extends AbstractFuture<Void> implements AckFuture {
         result.handle((bool, exception) -> {
             if (exception != null) {
                 this.setException(exception);
-            }
-            if (bool == true) {
-                this.set(null);
             } else {
-                this.setException(new IllegalStateException("Condition failed for non-conditional write!?"));
+                if (bool) {
+                    this.set(null);
+                } else {
+                    this.setException(new IllegalStateException("Condition failed for non-conditional write!?"));
+                }
             }
             return null;
         });
