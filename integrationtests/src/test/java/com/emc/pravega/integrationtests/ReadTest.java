@@ -223,7 +223,7 @@ public class ReadTest {
         assertEquals(testString, read);
     }
 
-    @Test(timeout=10000)
+    @Test(timeout = 10000)
     public void testEventPointer() {
         String endpoint = "localhost";
         String streamName = "abc";
