@@ -260,10 +260,9 @@ class LogHandle implements AutoCloseable {
         Timer timer = new Timer();
         Future<DLSN> writeFuture = this.logWriter.write(new LogRecord(transactionId, buffer));
         CompletableFuture<LogAddress> result = toCompletableFuture(writeFuture, dlsn -> new DLSNAddress(transactionId, dlsn));
-        result = result.thenApply( r -> {
+        result.thenRunAsync( () -> {
             Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
             Metrics.WRITE_BYTES.add(buffer.length);
-           return r;
         });
         if (log.isTraceEnabled()) {
             result = result.thenApply(r -> {
@@ -413,15 +412,12 @@ class LogHandle implements AutoCloseable {
         public synchronized DurableDataLog.ReadItem getNext() throws DurableDataLogException {
             final long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "getNext");
             try {
-                Timer timer = new Timer();
                 LogRecordWithDLSN baseRecord = this.baseReader.readNext(false); // NonBlocking == false -> Blocking read
-                Metrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
                 if (baseRecord == null) {
                     log.debug("{}: LogReader.readNext (EndOfStream).", this.traceObjectId);
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "getNext", traceId);
                     return null;
                 }
-                Metrics.READ_BYTES.add(baseRecord.getPayload().length);
                 this.lastTransactionId = baseRecord.getTransactionId();
                 log.debug("{}: LogReader.readNext (TransactionId {}, Length = {}).", this.traceObjectId, this.lastTransactionId, baseRecord.getPayload().length);
                 LoggerHelpers.traceLeave(log, this.traceObjectId, "getNext", traceId);
@@ -481,11 +477,9 @@ class LogHandle implements AutoCloseable {
     //region Metrics
 
     private static class Metrics {
-        private static final StatsLogger TIER1_LOGGER = MetricsProvider.createStatsLogger("TIER1");
-        static final OpStatsLogger READ_LATENCY = TIER1_LOGGER.createStats(SegmentStoreMetricsNames.TIER1_READ_LATENCY);
-        static final OpStatsLogger WRITE_LATENCY = TIER1_LOGGER.createStats(SegmentStoreMetricsNames.TIER1_WRITE_LATENCY);
-        static final Counter READ_BYTES = TIER1_LOGGER.createCounter(SegmentStoreMetricsNames.TIER1_READ_BYTES);
-        static final Counter WRITE_BYTES = TIER1_LOGGER.createCounter(SegmentStoreMetricsNames.TIER1_WRITE_BYTES);
+        private static final StatsLogger TIER1_LOGGER = MetricsProvider.createStatsLogger("DURABLELOG");
+        static final OpStatsLogger WRITE_LATENCY = TIER1_LOGGER.createStats(SegmentStoreMetricsNames.DURABLELOG_WRITE_LATENCY);
+        static final Counter WRITE_BYTES = TIER1_LOGGER.createCounter(SegmentStoreMetricsNames.DURABLELOG_WRITE_BYTES);
     }
 
     //endregion
