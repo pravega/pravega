@@ -20,9 +20,15 @@ package com.emc.pravega.service.storage.impl.distributedlog;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.SegmentStoreMetricsNames;
+import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.metrics.Counter;
+import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.OpStatsLogger;
+import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.DataLogInitializationException;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
@@ -251,8 +257,14 @@ class LogHandle implements AutoCloseable {
 
         // Send the write to DistributedLog.
         log.debug("{}: LogWriter.write (TransactionId = {}, Length = {}).", this.logName, transactionId, buffer.length);
+        Timer timer = new Timer();
         Future<DLSN> writeFuture = this.logWriter.write(new LogRecord(transactionId, buffer));
         CompletableFuture<LogAddress> result = toCompletableFuture(writeFuture, dlsn -> new DLSNAddress(transactionId, dlsn));
+        result = result.thenApply( r -> {
+            Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
+            Metrics.WRITE_BYTES.add(buffer.length);
+           return r;
+        });
         if (log.isTraceEnabled()) {
             result = result.thenApply(r -> {
                 LoggerHelpers.traceLeave(log, this.logName, "append", traceId, transactionId, buffer.length);
@@ -401,7 +413,10 @@ class LogHandle implements AutoCloseable {
         public synchronized DurableDataLog.ReadItem getNext() throws DurableDataLogException {
             final long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "getNext");
             try {
+                Timer timer = new Timer();
                 LogRecordWithDLSN baseRecord = this.baseReader.readNext(false); // NonBlocking == false -> Blocking read
+                Metrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
+                Metrics.READ_BYTES.add(baseRecord.getPayload().length);
                 if (baseRecord == null) {
                     log.debug("{}: LogReader.readNext (EndOfStream).", this.traceObjectId);
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "getNext", traceId);
@@ -459,6 +474,19 @@ class LogHandle implements AutoCloseable {
         }
 
         //endregion
+    }
+
+    //endregion
+
+
+    //region Metrics
+
+    private static class Metrics {
+        private static final StatsLogger TIER1_LOGGER = MetricsProvider.createStatsLogger("TIER1");
+        static final OpStatsLogger READ_LATENCY = TIER1_LOGGER.createStats(SegmentStoreMetricsNames.TIER1_READ_LATENCY);
+        static final OpStatsLogger WRITE_LATENCY = TIER1_LOGGER.createStats(SegmentStoreMetricsNames.TIER1_WRITE_LATENCY);
+        static final Counter READ_BYTES = TIER1_LOGGER.createCounter(SegmentStoreMetricsNames.TIER1_READ_BYTES);
+        static final Counter WRITE_BYTES = TIER1_LOGGER.createCounter(SegmentStoreMetricsNames.TIER1_WRITE_BYTES);
     }
 
     //endregion

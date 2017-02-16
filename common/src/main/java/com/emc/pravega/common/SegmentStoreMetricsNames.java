@@ -38,6 +38,12 @@ public final class SegmentStoreMetricsNames {
     public static final String HDFS_READ_BYTES = "HDFSReadBytes";
     public static final String HDFS_WRITE_BYTES = "HDFSWriteBytes";
 
+    //TIER1 stats
+    public static final String TIER1_READ_LATENCY = "TIER1ReadLatency";
+    public static final String TIER1_WRITE_LATENCY = "TIER1WriteLatency";
+    public static final String TIER1_WRITE_BYTES = "TIER1WriteBytes";
+    public static final String TIER1_READ_BYTES = "TIER1ReadBytes";
+
     public static String nameFromSegment(String metric, String segmentName) {
         return metric + "." + segmentName.replace('/', '_');
     }
