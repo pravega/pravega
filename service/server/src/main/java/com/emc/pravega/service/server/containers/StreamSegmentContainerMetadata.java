@@ -376,16 +376,9 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
     @Override
     public void removeTruncationMarkers(long upToOperationSequenceNumber) {
-        ArrayList<Long> toRemove = new ArrayList<>();
         synchronized (this.truncationMarkers) {
-            // Remove Truncation Markers.
-            toRemove.addAll(this.truncationMarkers.headMap(upToOperationSequenceNumber, true).keySet());
-            toRemove.forEach(this.truncationMarkers::remove);
-
-            // Remove Truncation points
-            toRemove.clear();
-            toRemove.addAll(this.truncationPoints.headSet(upToOperationSequenceNumber, true));
-            this.truncationPoints.removeAll(toRemove);
+            this.truncationMarkers.headMap(upToOperationSequenceNumber, true).clear();
+            this.truncationPoints.headSet(upToOperationSequenceNumber, true).clear();
         }
 
         this.lastTruncatedSequenceNumber.set(upToOperationSequenceNumber);
