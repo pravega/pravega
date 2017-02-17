@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.demo;
 
@@ -84,7 +72,7 @@ class PerfStats {
         long elapsed = System.nanoTime() - windowStart;
         double recsPerSec = 1000000.0 * windowCount / (double) elapsed;
         double mbPerSec = 1000000.0 * this.windowBytes / (double) elapsed / (1024.0 * 1024.0);
-        System.out.printf("%d records sent, %.1f records/sec (%.5f MB/sec), %.1f ms avg latency, %.1f max latency.\n",
+        System.out.printf("%d records sent, %.1f records/sec (%.5f MB/sec), %.1f ms avg latency, %.1f max latency.%n",
                 windowCount,
                 recsPerSec,
                 mbPerSec,
@@ -103,7 +91,7 @@ class PerfStats {
 
     public synchronized void printAll() {
         for (int i = 0; i < latencies.length; i++) {
-            System.out.printf("%d %d\n", i, latencies[i]);
+            System.out.printf("%d %d %n", i, latencies[i]);
 
         }
     }
@@ -114,7 +102,7 @@ class PerfStats {
         double mbPerSec = 1000000.0 * this.bytes / (double) elapsed / (1024.0 * 1024.0);
         int[] percs = percentiles(this.latencies, index, 0.5, 0.95, 0.99, 0.999);
         System.out.printf("%d records sent, %f records/sec (%.5f MB/sec), %.2f ms avg latency, %.2f ms max " +
-                        "latency, %d ms 50th, %d ms 95th, %d ms 99th, %d ms 99.9th.\n",
+                        "latency, %d ms 50th, %d ms 95th, %d ms 99th, %d ms 99.9th.%n",
                 count,
                 recsPerSec,
                 mbPerSec,

@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.demo;
 
@@ -24,13 +12,12 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.StreamManagerImpl;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import com.emc.pravega.stream.impl.StreamManagerImpl;
 import lombok.Cleanup;
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
@@ -54,7 +41,6 @@ import java.util.function.BiFunction;
  */
 public class TurbineHeatSensor {
 
-    private static Stream stream;
     private static PerfStats produceStats, consumeStats;
     private static String controllerUri = "http://10.249.250.154:9090";
     private static int messageSize = 100;
@@ -90,7 +76,7 @@ public class TurbineHeatSensor {
         parseCmdLine(args);
 
         System.out.println(
-                "\nTurbineHeatSensor is running " + producerCount + " simulators each ingesting " + eventsPerSec + " " +
+                "%nTurbineHeatSensor is running " + producerCount + " simulators each ingesting " + eventsPerSec + " " +
                         "temperature data per second for " + runtimeSec + " seconds " + (isTransaction ? "via " +
                         "transactional mode" : " via non-transactional mode. The controller end point " + "is " +
                         controllerUri));
@@ -101,10 +87,14 @@ public class TurbineHeatSensor {
 
         try {
             @Cleanup
-            StreamManager streamManager = new StreamManagerImpl(StartLocalService.SCOPE, new URI(controllerUri));
+            StreamManager streamManager = null;
+            ClientFactoryImpl factory = new ClientFactoryImpl("Scope", new URI(controllerUri));
+            streamManager = new StreamManagerImpl(StartLocalService.SCOPE, new URI(controllerUri), factory);
 
-            stream = streamManager.createStream(streamName, new StreamConfigurationImpl("hi", streamName,
-                    new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 5, producerCount)));
+            streamManager.createStream(streamName,
+                    new StreamConfigurationImpl("Scope", streamName,
+                            new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 5,
+                                    producerCount)));
         } catch (URISyntaxException e) {
             e.printStackTrace();
             System.exit(1);
@@ -139,7 +129,7 @@ public class TurbineHeatSensor {
         // Wait until all threads are finished.
         executor.awaitTermination(1, TimeUnit.HOURS);
 
-        System.out.println("\nFinished all producers");
+        System.out.println("%n Finished all producers");
         produceStats.printAll();
         produceStats.printTotal();
         if (!onlyWrite) {
@@ -265,8 +255,7 @@ public class TurbineHeatSensor {
                     currentEventsPerSec++;
 
                     // Construct event payload
-                    String val = System.nanoTime() + ", " + producerId + ", " + city + ", " + (int) (Math.random() *
-                            200);
+                    String val = System.nanoTime() + ", " + producerId + ", " + city + ", " + Math.random() * 200;
                     String payload = String.format("%-" + messageSize + "s", val);
                     // event ingestion
                     long now = System.nanoTime();
