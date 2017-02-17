@@ -68,8 +68,7 @@ public class ControllerWrapper {
 
         //region Setup Event Processors
         LocalController localController = new LocalController(controllerService);
-        ControllerEventProcessors.initialize(hostId, localController,
-                ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient(), streamStore, hostStore);
+        ControllerEventProcessors.initialize(hostId, localController, client, streamStore, hostStore);
         //endregion
 
         //2) start RPC server with v1 implementation. Enable other versions if required.

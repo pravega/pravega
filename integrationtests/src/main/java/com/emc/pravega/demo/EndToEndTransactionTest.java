@@ -23,19 +23,20 @@ import com.emc.pravega.stream.mock.MockClientFactory;
 
 import java.util.concurrent.CompletableFuture;
 
+import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 
 import static org.junit.Assert.assertTrue;
 
 public class EndToEndTransactionTest {
     public static void main(String[] args) throws Exception {
-        //@Cleanup
+        @Cleanup
         TestingServer zkTestServer = new TestingServer();
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        //@Cleanup
+        @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
@@ -57,7 +58,7 @@ public class EndToEndTransactionTest {
 
         MockClientFactory clientFactory = new MockClientFactory(testScope, controller);
 
-        //@Cleanup
+        @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(
                 testStream,
                 new JavaSerializer<>(),
@@ -119,9 +120,5 @@ public class EndToEndTransactionTest {
         txn2Status = transaction2.checkStatus();
         assertTrue(txn2Status == Transaction.Status.ABORTED);
         System.err.println("SUCCESS: successfully aborted transaction. Transaction status=" + txn2Status);
-
-        producer.close();
-        server.close();
-        zkTestServer.close();
     }
 }
