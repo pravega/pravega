@@ -250,7 +250,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId, Collection<AttributeUpdate> attribute, Duration timeout) {
+        public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId, Collection<AttributeUpdate> attributes, Duration timeout) {
             return null;
         }
 

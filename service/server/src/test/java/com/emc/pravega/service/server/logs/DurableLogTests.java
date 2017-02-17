@@ -165,7 +165,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Wait for barrier to complete.
         afterBarrier.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertTrue("barrier for non-empty log did not complete successfully.", FutureHelpers.isSuccessful(afterBarrier));
-        Assert.assertTrue("barrie was completed before its previous operations were completed.", FutureHelpers.isSuccessful(allOtherOperations));
+        Assert.assertTrue("barrier was completed before its previous operations were completed.", FutureHelpers.isSuccessful(allOtherOperations));
 
         // Stop the processor.
         durableLog.stopAsync().awaitTerminated();

@@ -40,7 +40,9 @@ public enum AttributeUpdateType {
 
     /**
      * Any updates will replace the current attribute value, but only if the new value is greater than the current
-     * value (or no value defined currently).
+     * value (or no value defined currently). This does not require the updates to be consecutive. For example,
+     * if A and B (A &lt; B) are updated concurrently, odds are that B will make it but A won't - this will be observed
+     * by either A failing or both succeeding, but in the end, the final result will contain B.
      */
     ReplaceIfGreater((byte) 2),
 
