@@ -29,9 +29,6 @@ public final class SegmentStoreMetricsNames {
     public static final String SEGMENT_WRITE_BYTES = "SegmentWriteBytes";
     public static final String SEGMENT_WRITE_LATENCY = "SegmentWriteLatencyMillis";
 
-    // Gauge for pending append bytes
-    public static final String PENDING_APPEND_BYTES = "PendingAppendBytes";
-
     //HDFS stats
     public static final String HDFS_READ_LATENCY = "HDFSReadLatencyMillis";
     public static final String HDFS_WRITE_LATENCY = "HDFSWriteLatencyMillis";

@@ -15,11 +15,9 @@
 
 package com.emc.pravega.service.server.host.handler;
 
-import com.emc.pravega.common.SegmentStoreMetricsNames;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
-import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.DelegatingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
@@ -48,7 +46,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
@@ -67,12 +64,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private static final int HIGH_WATER_MARK = 128 * 1024;
     private static final int LOW_WATER_MARK = 64 * 1024;
 
-    private static final AtomicLong PENDING_BYTES = new AtomicLong();
-    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("SEGMENTSTORE");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
-    static {
-        STATS_LOGGER.registerGauge(SegmentStoreMetricsNames.PENDING_APPEND_BYTES, AppendProcessor.PENDING_BYTES::get);
-    }
 
     private final StreamSegmentStore store;
     private final ServerConnection connection;
@@ -262,8 +254,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 .mapToInt(a -> a.getData().readableBytes())
                 .sum();
         }
-        // Registered gauge value
-        PENDING_BYTES.set(bytesWaiting);
 
         if (bytesWaiting > HIGH_WATER_MARK) {
             connection.pauseReading();
