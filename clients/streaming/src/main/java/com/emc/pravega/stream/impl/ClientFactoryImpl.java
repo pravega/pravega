@@ -92,7 +92,7 @@ public class ClientFactoryImpl implements ClientFactory {
 
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, SegmentInputStreamFactory inFactory,
-                             SegmentOutputStreamFactory outFactory) {
+        SegmentOutputStreamFactory outFactory) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(inFactory);
@@ -113,19 +113,19 @@ public class ClientFactoryImpl implements ClientFactory {
 
     @Override
     public <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
-                                                                          EventWriterConfig config) {
+        EventWriterConfig config) {
         throw new NotImplementedException();
     }
 
     @Override
     public <T> EventStreamReader<T> createReader(String stream, Serializer<T> s, ReaderConfig config,
-                                                 Position startingPosition) {
+        Position startingPosition) {
         throw new NotImplementedException();
     }
 
     @Override
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
-                                                 ReaderConfig config) {
+        ReaderConfig config) {
         SynchronizerConfig synchronizerConfig = new SynchronizerConfig(null, null);
         StateSynchronizer<ReaderGroupState> sync = createStateSynchronizer(readerGroup,
                 new JavaSerializer<>(),
@@ -156,7 +156,7 @@ public class ClientFactoryImpl implements ClientFactory {
 
     @Override
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
-                                                                      SynchronizerConfig config) {
+        SynchronizerConfig config) {
         Segment segment = new Segment(scope, streamName, 0);
         SegmentInputStream in = inFactory.createInputStreamForSegment(segment, config.getInputConfig());
         SegmentOutputStream out;

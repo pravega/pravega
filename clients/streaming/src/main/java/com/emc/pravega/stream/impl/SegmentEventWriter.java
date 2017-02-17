@@ -58,6 +58,7 @@ public interface SegmentEventWriter<Type> extends AutoCloseable {
 
     /**
      * Gets all events that have been sent to {@link #write(PendingEvent)} but are not yet acknowledged.
+     *
      * @return List of events that are sent, but haven't been acked.
      */
     List<PendingEvent<Type>> getUnackedEvents();

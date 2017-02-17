@@ -38,7 +38,9 @@ allprojects {
         failOnError = false
         exclude "**/impl/**";
         source  =  project(':clients:streaming').sourceSets.main.java
-        options.setDestinationDirectory(setBuildDir(dockerDirPravegaHost));
+        def javadocs = new File(rootDir, "javadocs")
+        javadocs.mkdirs();
+        options.setDestinationDirectory(setBuildDir(javadocs));
     }
 
     docker {
