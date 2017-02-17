@@ -21,6 +21,7 @@ import com.emc.pravega.ClientFactory;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Future;
 
 /**
  * A reader group is a collection of readers that collectively read all the events in the
@@ -53,6 +54,20 @@ public interface ReaderGroup {
      */
     ReaderGroupConfig getConfig();
 
+    
+    /**
+     * Initiate a checkpoint. This causes all readers in the group to receive a special {@link EventRead} that
+     * contains the provided checkpointID. This can be used to provide an indication to them that they should
+     * persist their state. Once all of the readers have received the notification, a {@link Checkpoint} object will be returned.
+     * This can be used to reset all the reader to this point in the stream by
+     * 
+     * @param checkpointName
+     * @return
+     */
+    Future<Checkpoint> initiateCheckpoint(String checkpointName);
+    
+    void resetReadersToCheckpoint(Checkpoint checkpointName);
+    
     /**
      * Invoked when a reader that was added to the group is no longer consuming events. This will
      * cause the events that were going to that reader to be redistributed among the other

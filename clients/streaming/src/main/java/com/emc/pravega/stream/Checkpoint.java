@@ -15,15 +15,8 @@
  */
 package com.emc.pravega.stream;
 
-import com.emc.pravega.stream.impl.EventPointerInternal;
+import java.io.Externalizable;
 
-import java.io.Serializable;
-
-public interface EventPointer extends Serializable {
-
-    /**
-     * Used internally. Do not call.
-     */
-    EventPointerInternal asImpl();
+public interface Checkpoint extends Externalizable {
 
 }

@@ -20,6 +20,7 @@ package com.emc.pravega;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
+import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamManagerImpl;
@@ -54,20 +55,20 @@ public interface StreamManager extends AutoCloseable {
     ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames);
     
     /**
-     * Updates a reader group. The reader group will have a new {@link ReaderGroup#getRevision()}
+     * Updates a reader group.
      * 
      * All existing readers will have to call
-     * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)}
-     * . If they continue to read events they will eventually encounter an error.
+     * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)} . If they continue to read
+     * events they will eventually encounter an {@link ReinitializationRequiredException}.
      * 
-     * Readers connecting to the group will start from the point defined in the config, exactly as
-     * though it were a new reader group.
+     * Readers connecting to the group will start from the point defined in the config, exactly as though it
+     * were a new reader group.
      * 
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ReaderGroup.
      * @param streamNames The name of the streams the reader will read from.
      */
-    ReaderGroup updateReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames);
+    ReaderGroup alterReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames);
     
     /**
      * Returns the requested reader group.

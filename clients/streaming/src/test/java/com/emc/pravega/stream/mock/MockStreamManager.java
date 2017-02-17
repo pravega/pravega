@@ -119,7 +119,7 @@ public class MockStreamManager implements StreamManager {
     }
     
     @Override
-    public ReaderGroup updateReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames) {
+    public ReaderGroup alterReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames) {
         throw new NotImplementedException();
     }
 

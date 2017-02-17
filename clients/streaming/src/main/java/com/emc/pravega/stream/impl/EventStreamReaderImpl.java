@@ -92,7 +92,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                                         deserializer.deserialize(buffer),
                                         position,
                                         new EventPointerImpl(segment, offset, length),
-                                        rebalance);
+                                        rebalance, null);
         }
     }
 
