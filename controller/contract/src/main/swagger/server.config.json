@@ -3,7 +3,6 @@
 "implFolder" : "src/main/java",
 "modelPackage" : "com.emc.pravega.controller.server.rest.generated.model",
 "apiPackage" : "com.emc.pravega.controller.server.rest.generated.api",
-"invokerPackage" : "com.emc.pravega.controller.server.rest.generated.invoker",
 "library" : "jersey2",
 "hideGenerationTimestamp" : true
 }
