@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.containers;
 
@@ -45,7 +43,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -340,10 +340,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // Evict segments from the metadata.
         Duration expiration = this.config.getSegmentMetadataExpiration();
         Collection<SegmentMetadata> cleanupCandidates = this.metadata.getEvictionCandidates(expiration);
-        CompletableFuture[] cleanupTasks = mapToFutureArray(cleanupCandidates,
-                sm -> this.stateStore.put(sm.getName(), new SegmentState(sm), this.config.getSegmentMetadataExpiration()));
 
-        return CompletableFuture
+        // Serialize only those segments that are still alive (not deleted or merged - those will get removed anyway).
+        val cleanupTasks = cleanupCandidates
+                .stream()
+                .filter(sm -> !sm.isDeleted() || !sm.isMerged())
+                .map(sm -> this.stateStore.put(sm.getName(), new SegmentState(sm), this.config.getSegmentMetadataExpiration()))
+                .collect(Collectors.toList());
+
+        return FutureHelpers
                 .allOf(cleanupTasks)
                 .thenApply(v -> {
                     Collection<SegmentMetadata> evictedSegments = this.metadata.cleanup(cleanupCandidates, expiration);

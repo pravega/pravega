@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.containers;
 
@@ -60,7 +58,9 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Getter;
@@ -624,7 +624,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         final DurableLogConfig durableLogConfig = ConfigHelpers.createDurableLogConfig(
                 PropertyBag.create()
                            .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 1)
-                           .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 2)
+                           .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 5)
                            .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024));
 
         final TestContainerConfig containerConfig = new TestContainerConfig(PropertyBag.create());
@@ -639,10 +639,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         localContainer.startAsync().awaitRunning();
 
         // Create segment with initial attributes and verify they were set correctly.
-        CompletableFuture<Void> metadataCleanup = waitForMetadataCleanup(localContainer);
         val initialAttributes = createAttributeUpdates(attributes);
         applyAttributes(initialAttributes, expectedAttributes);
-        localContainer.createStreamSegment(segmentName, initialAttributes, TIMEOUT);
+        localContainer.createStreamSegment(segmentName, initialAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentProperties sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after segment creation.", expectedAttributes, sp);
 
@@ -654,7 +653,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after append.", expectedAttributes, sp);
 
         // Wait until the segment is forgotten.
-        metadataCleanup.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        triggerMetadataCleanup(localContainer, 1).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Now get attributes again and verify them.
         sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -682,13 +681,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Delete segment and wait until it is forgotten again (we need to create another dummy segment so that we can
         // force a Metadata Truncation in order to facilitate that; this is the purpose of segment2).
         localContainer.deleteStreamSegment(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        metadataCleanup = waitForMetadataCleanup(localContainer);
-        final String segment2 = segmentName + "2";
-        FutureHelpers.delayedFuture(containerConfig.getSegmentMetadataExpiration(), executorService())
-                     .thenCompose(v -> localContainer.createStreamSegment(segment2, initialAttributes, TIMEOUT))
-                     .thenCompose(v -> localContainer.append(segment2, appendData, appendAttributes, TIMEOUT));
 
-        metadataCleanup.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        // We want to wait for two cleanups here; to be absolutely sure that the deleted segment was properly cleaned up
+        // from the metadata (if we do just one, it may be that the segment just didn't make the cut).
+        triggerMetadataCleanup(localContainer, 2).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Now Create the Segment again and verify the old attributes were not "remembered".
         val newAttributes = createAttributeUpdates(attributes);
@@ -910,6 +906,40 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         };
         return metadataCleanupCompleted;
+    }
+
+    /**
+     * Triggers a number of metadata cleanups by repeatedly appending to a random new segment until a cleanup task is detected.
+     *
+     * @param container    Container to trigger on.
+     * @param cleanupCount Number of cleanups to trigger.
+     */
+    private CompletableFuture<Void> triggerMetadataCleanup(MetadataCleanupContainer container, int cleanupCount) {
+        AtomicInteger remaining = new AtomicInteger(cleanupCount);
+
+        return FutureHelpers.loop(
+                () -> remaining.decrementAndGet() >= 0,
+                () -> {
+                    CompletableFuture<Void> cleanupTask = waitForMetadataCleanup(container);
+                    appendRandomly(container, () -> !cleanupTask.isDone());
+                    return cleanupTask;
+                },
+                executorService());
+    }
+
+    /**
+     * Appends continuously to a random new segment in the given container, as long as the given condition holds.
+     */
+    private CompletableFuture<Void> appendRandomly(StreamSegmentContainer container, Supplier<Boolean> canContinue) {
+        String segmentName = getSegmentName(Long.hashCode(System.nanoTime()));
+        byte[] appendData = new byte[1];
+        return container
+                .createStreamSegment(segmentName, null, TIMEOUT)
+                .thenCompose(v -> FutureHelpers.loop(
+                        canContinue,
+                        () -> container.append(segmentName, appendData, null, TIMEOUT),
+                        executorService()))
+                .thenCompose(v -> container.deleteStreamSegment(segmentName, TIMEOUT));
     }
 
     //region TestContext
