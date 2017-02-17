@@ -1,21 +1,8 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
@@ -25,9 +12,9 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.service.server.ServiceShutdownListener;
+import com.emc.pravega.common.ExceptionHelpers;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestStorage;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
@@ -625,7 +612,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
     private byte[] getAppendData(String segmentName, long segmentId, int segmentAppendSeq, int writeId) {
         // NOTE: the data returned by this should be deterministic (not random) since the recovery test relies on it being that way.
-        return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d\n", segmentName, segmentId, segmentAppendSeq, writeId).getBytes();
+        return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d%n", segmentName, segmentId, segmentAppendSeq, writeId).getBytes();
     }
 
     private String getSegmentName(int i) {

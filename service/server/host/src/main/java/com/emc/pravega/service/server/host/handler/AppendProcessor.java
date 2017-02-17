@@ -1,22 +1,13 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
- * agreements. See the NOTICE file distributed with this work for additional information regarding
- * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License. You may obtain a
- * copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.host.handler;
 
+import com.emc.pravega.common.Timer;
+import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
-import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.DelegatingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
@@ -38,9 +29,6 @@ import com.emc.pravega.service.contracts.WrongHostException;
 import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -48,26 +36,25 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.extern.slf4j.Slf4j;
 
-import static com.emc.pravega.service.server.host.PravegaRequestStats.PENDING_APPEND_BYTES;
+import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_WRITE_BYTES;
+import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_WRITE_LATENCY;
+import static com.emc.pravega.common.SegmentStoreMetricsNames.nameFromSegment;
 
 /**
- * Process incomming Append requests and write them to the appropriate store.
+ * Process incoming Append requests and write them to the appropriate store.
  */
 @Slf4j
 public class AppendProcessor extends DelegatingRequestProcessor {
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
-    static final int HIGH_WATER_MARK = 128 * 1024;
-    static final int LOW_WATER_MARK = 64 * 1024;
+    private static final int HIGH_WATER_MARK = 128 * 1024;
+    private static final int LOW_WATER_MARK = 64 * 1024;
 
-    static AtomicLong pendBytes = new AtomicLong();
-    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
-    static {
-        STATS_LOGGER.registerGauge(PENDING_APPEND_BYTES, pendBytes::get);
-    }
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
     private final StreamSegmentStore store;
     private final ServerConnection connection;
@@ -168,6 +155,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * Write the provided append to the store, and upon completion ack it back to the producer.
      */
     private void write(Append toWrite) {
+        Timer timer = new Timer();
         ByteBuf buf = Unpooled.unmodifiableBuffer(toWrite.getData());
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
@@ -204,6 +192,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             handleException(segment, u);
                         }
                     } else {
+                        DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, toWrite.getSegment()), bytes.length);
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromSegment(SEGMENT_WRITE_LATENCY, toWrite.getSegment()), timer.getElapsedMillis());
                         connection.send(new DataAppended(context.getClientId(),  context.getEventNumber()));
                     }
                     pauseOrResumeReading();
@@ -254,8 +244,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 .mapToInt(a -> a.getData().readableBytes())
                 .sum();
         }
-        // Registered gauge value
-        pendBytes.set(bytesWaiting);
 
         if (bytesWaiting > HIGH_WATER_MARK) {
             connection.pauseReading();
