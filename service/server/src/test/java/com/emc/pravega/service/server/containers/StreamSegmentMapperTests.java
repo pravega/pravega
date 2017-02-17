@@ -293,10 +293,12 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         // 1. Unable to access storage.
         context.storage.getInfoHandler = sn -> FutureHelpers.failedFuture(new IntentionalException());
+        System.out.println(1);
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception when the Storage access failed.",
                 () -> context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
+        System.out.println(2);
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception when the Storage access failed.",
                 () -> context.mapper.getOrAssignStreamSegmentId(transactionName, TIMEOUT),
@@ -312,6 +314,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         // 2b. Transaction does not exist.
         final String inexistentTransactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+        System.out.println(4);
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a non-existent Transaction.",
                 () -> context.mapper.getOrAssignStreamSegmentId(inexistentTransactionName, TIMEOUT),
@@ -320,6 +323,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         // 2c. Transaction exists, but not its parent.
         final String noValidParentTransactionName = StreamSegmentNameUtils.getTransactionNameFromId("foo", UUID.randomUUID());
         storageSegments.add(noValidParentTransactionName);
+        System.out.println(5);
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a Transaction with an inexistent parent.",
                 () -> context.mapper.getOrAssignStreamSegmentId(noValidParentTransactionName, TIMEOUT),
