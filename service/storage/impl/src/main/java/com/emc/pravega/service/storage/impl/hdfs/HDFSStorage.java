@@ -23,18 +23,17 @@ import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.SegmentStoreMetricsNames;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.function.RunnableWithException;
-import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.common.metrics.Counter;
 import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.OpStatsLogger;
 import com.emc.pravega.common.metrics.StatsLogger;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
-
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,7 +43,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-
+import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -54,8 +53,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.IOUtils;
-
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Storage adapter for a backing HDFS Store which does lock implementation based on file permissions.
@@ -73,8 +70,6 @@ class HDFSStorage implements Storage {
     //region Members
 
     private static final String LOG_ID = "HDFSStorage";
-
-    private static final StatsLogger HDFS_LOGGER = MetricsProvider.createStatsLogger("HDFS");
     private final Executor executor;
     private final HDFSStorageConfig config;
     private final AtomicBoolean closed;
@@ -110,16 +105,6 @@ class HDFSStorage implements Storage {
         conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
         this.fileSystem = FileSystem.get(conf);
         log.info("{}: Initialized.", LOG_ID);
-    }
-
-    //endregion
-
-    //region metrics
-    public static class Metrics {
-        static final OpStatsLogger READ_LATENCY = HDFS_LOGGER.createStats(SegmentStoreMetricsNames.HDFS_READ_LATENCY);
-        static final OpStatsLogger WRITE_LATENCY = HDFS_LOGGER.createStats(SegmentStoreMetricsNames.HDFS_WRITE_LATENCY);
-        static final Counter READ_BYTES = HDFS_LOGGER.createCounter(SegmentStoreMetricsNames.HDFS_READ_BYTES);
-        static final Counter WRITTEN_BYTES = HDFS_LOGGER.createCounter(SegmentStoreMetricsNames.HDFS_WRITTEN_BYTES);
     }
 
     //endregion
@@ -263,7 +248,7 @@ class HDFSStorage implements Storage {
             stream.flush();
         }
         Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
-        Metrics.WRITTEN_BYTES.add(length);
+        Metrics.WRITE_BYTES.add(length);
     }
 
     private SegmentProperties sealSync(String streamSegmentName) throws IOException {
@@ -367,6 +352,18 @@ class HDFSStorage implements Storage {
     private void ensureInitializedAndNotClosed() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.fileSystem != null, "HDFSStorage is not initialized.");
+    }
+
+    //endregion
+
+    //region Metrics
+
+    private static class Metrics {
+        private static final StatsLogger HDFS_LOGGER = MetricsProvider.createStatsLogger("HDFS");
+        static final OpStatsLogger READ_LATENCY = HDFS_LOGGER.createStats(SegmentStoreMetricsNames.HDFS_READ_LATENCY);
+        static final OpStatsLogger WRITE_LATENCY = HDFS_LOGGER.createStats(SegmentStoreMetricsNames.HDFS_WRITE_LATENCY);
+        static final Counter READ_BYTES = HDFS_LOGGER.createCounter(SegmentStoreMetricsNames.HDFS_READ_BYTES);
+        static final Counter WRITE_BYTES = HDFS_LOGGER.createCounter(SegmentStoreMetricsNames.HDFS_WRITE_BYTES);
     }
 
     //endregion
