@@ -1,25 +1,11 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server;
 
 import com.emc.pravega.service.server.logs.operations.Operation;
-
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
@@ -58,5 +44,14 @@ public interface OperationLog extends Container {
      * failed, this Future will complete with the appropriate exception.
      */
     CompletableFuture<Iterator<Operation>> read(long afterSequence, int maxCount, Duration timeout);
+
+    /**
+     * Waits until all currently pending Operations up to this point are processed (whether successfully or not).
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that all currently pending operations up to this
+     * point will have completed (normally or exceptionally).
+     */
+    CompletableFuture<Void> operationProcessingBarrier(Duration timeout);
 }
 
