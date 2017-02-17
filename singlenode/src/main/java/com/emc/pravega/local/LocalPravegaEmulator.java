@@ -107,6 +107,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                         System.out.println("ByeBye!");
                     } catch (Exception e) {
                         // do nothing
+                        e.printStackTrace();
                     }
                 }
             });
