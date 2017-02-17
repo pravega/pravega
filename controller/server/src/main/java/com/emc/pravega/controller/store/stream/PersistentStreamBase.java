@@ -1,23 +1,11 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
@@ -48,7 +36,6 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 
 public abstract class PersistentStreamBase<T> implements Stream {
     private final String name;
-
 
     protected PersistentStreamBase(final String name) {
         this.name = name;
@@ -110,7 +97,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return getConfigurationData();
     }
 
-
     @Override
     public CompletableFuture<Boolean> updateState(final State state) {
         return setStateData(state).thenApply(x -> true);
@@ -160,10 +146,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     private CompletableFuture<List<Segment>> findOverlapping(Segment segment, List<Integer> candidates) {
-        return FutureCollectionHelper.sequence(candidates.stream().map(this::getSegment).collect(Collectors.toList()))
-                                     .thenApply(successorCandidates -> successorCandidates.stream()
-                                                                                          .filter(x -> x.overlaps(segment))
-                                                                                          .collect(Collectors.toList()));
+        return FutureHelpers.allOfWithResults(candidates.stream().map(this::getSegment).collect(Collectors.toList()))
+                            .thenApply(successorCandidates -> successorCandidates.stream()
+                                                                                 .filter(x -> x.overlaps(segment))
+                                                                                 .collect(Collectors.toList()));
     }
 
     @Override
@@ -181,8 +167,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
             final Data<T> historyTable = (Data<T>) futures[2].getNow(null);
             Map<Integer, List<Integer>> result = new HashMap<>();
             List<Integer> candidates = TableHelper.findSegmentSuccessorCandidates(segment,
-                                                                                  indexTable.getData(),
-                                                                                  historyTable.getData());
+                    indexTable.getData(),
+                    historyTable.getData());
             return findOverlapping(segment, candidates);
         }).thenCompose(successors -> {
             final Data<T> indexTable = (Data<T>) futures[1].getNow(null);
@@ -190,17 +176,17 @@ public abstract class PersistentStreamBase<T> implements Stream {
             List<CompletableFuture<Map.Entry<Segment, List<Integer>>>> result = new ArrayList<>();
             for (Segment successor : successors) {
                 List<Integer> candidates = TableHelper.findSegmentPredecessorCandidates(successor,
-                                                                                        indexTable.getData(),
-                                                                                        historyTable.getData());
+                        indexTable.getData(),
+                        historyTable.getData());
                 result.add(findOverlapping(successor, candidates).thenApply(list -> new SimpleImmutableEntry<>(
                         successor, candidates)));
             }
-            return FutureCollectionHelper.sequence(result);
+            return FutureHelpers.allOfWithResults(result);
         }).thenApply(list -> {
             return list.stream().collect(Collectors.toMap(e -> e.getKey().getNumber(), e -> e.getValue()));
         });
     }
-    
+
     /**
      * Find predecessor candidates and find overlaps with given segment's key range.
      *
@@ -220,8 +206,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
             final Data<T> indexTable = (Data<T>) futures[1].getNow(null);
             final Data<T> historyTable = (Data<T>) futures[2].getNow(null);
             List<Integer> candidates = TableHelper.findSegmentPredecessorCandidates(segment,
-                                                                                    indexTable.getData(),
-                                                                                    historyTable.getData());
+                    indexTable.getData(),
+                    historyTable.getData());
             return findOverlapping(segment, candidates);
         }).thenApply(list -> list.stream().map(e -> e.getNumber()).collect(Collectors.toList()));
     }
@@ -401,10 +387,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                        final int startingSegmentNumber) {
         final List<CompletableFuture<Segment>> segments = IntStream.range(startingSegmentNumber,
                 startingSegmentNumber + count)
-                .boxed()
-                .map(this::getSegment)
-                .collect(Collectors.<CompletableFuture<Segment>>toList());
-        return FutureCollectionHelper.sequence(segments);
+                                                                   .boxed()
+                                                                   .map(this::getSegment)
+                                                                   .collect(Collectors.<CompletableFuture<Segment>>toList());
+        return FutureHelpers.allOfWithResults(segments);
     }
 
     /**
@@ -516,8 +502,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
         segments.addAll(
                 IntStream.range(startingSegmentNumber,
                         startingSegmentNumber + scale.getNewRanges().size())
-                        .boxed()
-                        .collect(Collectors.toList()));
+                         .boxed()
+                         .collect(Collectors.toList()));
         return segments;
     }
 

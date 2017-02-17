@@ -1,23 +1,11 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.store.stream.tables.Cache;
@@ -31,13 +19,6 @@ import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.SerializationUtils;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.utils.ZKPaths;
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.data.Stat;
-
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
@@ -47,6 +28,12 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.SerializationUtils;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.utils.ZKPaths;
+import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.data.Stat;
 
 /**
  * ZK Stream. It understands the following.
@@ -102,8 +89,10 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Boolean> isTransactionOngoing() {
-        return getChildren(activeTxPath).thenApply(list -> list != null && !list.isEmpty());
+    public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
+        return getChildren(activeTxPath).thenApply(list -> { 
+            return list == null ? 0 : list.size();
+        });
     }
 
     @Override
@@ -118,7 +107,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 .thenCompose(x -> {
                     if (x) {
                         return cache.getCachedData(creationPath)
-                                .thenApply(creationTime -> Utilities.toLong(creationTime.getData()) != create.getEventTime());
+                                    .thenApply(creationTime -> Utilities.toLong(creationTime.getData()) != create.getEventTime());
                     } else {
                         return CompletableFuture.completedFuture(false);
                     }
@@ -191,9 +180,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
         final int startingSegmentNumber = 0;
         final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = IntStream.range(0, numSegments)
-                .boxed()
-                .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
-                .collect(Collectors.toList());
+                                                                                 .boxed()
+                                                                                 .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
+                                                                                 .collect(Collectors.toList());
         final int toCreate = newRanges.size();
 
         final byte[] segmentTable = TableHelper.updateSegmentTable(startingSegmentNumber,
@@ -271,7 +260,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     public CompletableFuture<StreamConfiguration> getConfigurationData() {
         return cache.getCachedData(configurationPath)
-                .thenApply(x -> (StreamConfiguration) SerializationUtils.deserialize(x.getData()));
+                    .thenApply(x -> (StreamConfiguration) SerializationUtils.deserialize(x.getData()));
     }
 
     @Override
@@ -283,7 +272,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<State> getStateData() {
         return cache.getCachedData(statePath)
-                .thenApply(x -> (State) SerializationUtils.deserialize(x.getData()));
+                    .thenApply(x -> (State) SerializationUtils.deserialize(x.getData()));
     }
 
     @Override
@@ -338,20 +327,20 @@ class ZKStream extends PersistentStreamBase<Integer> {
     static CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
         return getAllTransactionData(ACTIVE_TX_ROOT_PATH)
                 .thenApply(x -> x.entrySet().stream()
-                        .map(z -> {
-                            ZKPaths.PathAndNode pathAndNode = ZKPaths.getPathAndNode(z.getKey());
-                            String node = pathAndNode.getNode();
-                            final String stream = ZKPaths.getNodeFromPath(pathAndNode.getPath());
-                            final UUID txId = UUID.fromString(node);
-                            return new ActiveTxRecordWithStream(stream, stream, txId, ActiveTxRecord.parse(z.getValue().getData()));
-                        })
-                        .collect(Collectors.toList()));
+                                 .map(z -> {
+                                     ZKPaths.PathAndNode pathAndNode = ZKPaths.getPathAndNode(z.getKey());
+                                     String node = pathAndNode.getNode();
+                                     final String stream = ZKPaths.getNodeFromPath(pathAndNode.getPath());
+                                     final UUID txId = UUID.fromString(node);
+                                     return new ActiveTxRecordWithStream(stream, stream, txId, ActiveTxRecord.parse(z.getValue().getData()));
+                                 })
+                                 .collect(Collectors.toList()));
     }
 
     static CompletableFuture<Map<String, Data<Integer>>> getAllCompletedTx() {
         return getAllTransactionData(COMPLETED_TX_ROOT_PATH)
                 .thenApply(x -> x.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
 
     public static void initialize(final CuratorFramework cf) {
@@ -418,14 +407,14 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     private static CompletableFuture<Map<String, Data<Integer>>> getAllTransactionData(final String rootPath) {
         return getChildrenPath(rootPath) // list of all streams for either active or completed tx based on root path
-                .thenApply(x -> x.stream()
-                        .map(ZKStream::getChildrenPath) // get all transactions on the stream
-                        .collect(Collectors.toList()))
-                .thenCompose(FutureCollectionHelper::sequence)
-                .thenApply(z -> z.stream().flatMap(Collection::stream).collect(Collectors.toList())) // flatten list<list> to list
-                .thenApply(x -> x.stream()
-                        .collect(Collectors.toMap(z -> z, ZKStream::getData)))
-                .thenCompose(FutureCollectionHelper::sequenceMap); // convert Map<string, future<Data>> to future<map<String, Data>>
+                                         .thenApply(x -> x.stream()
+                                                          .map(ZKStream::getChildrenPath) // get all transactions on the stream
+                                                          .collect(Collectors.toList()))
+                                         .thenCompose(FutureHelpers::allOfWithResults)
+                                         .thenApply(z -> z.stream().flatMap(Collection::stream).collect(Collectors.toList())) // flatten list<list> to list
+                                         .thenApply(x -> x.stream()
+                                                          .collect(Collectors.toMap(z -> z, ZKStream::getData)))
+                                         .thenCompose(FutureHelpers::allOfWithResults); // convert Map<string, future<Data>> to future<map<String, Data>>
     }
 
     private static CompletableFuture<Void> setData(final String path, final Data<Integer> data) {
@@ -455,11 +444,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static String extractStreamName(final String path) {
         Preconditions.checkNotNull(path, "path");
         String[] result = path.split("/");
-            if (result.length > 2) {
-                return result[2];
-            } else {
-                return path;
-            }
+        if (result.length > 2) {
+            return result[2];
+        } else {
+            return path;
+        }
     }
 
     private static CompletableFuture<Void> createZNodeIfNotExist(final String path, final byte[] data) {
@@ -497,6 +486,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         throw new RuntimeException(e);
                     }
                 })
-                .thenApply(x -> x != null);
+                                .thenApply(x -> x != null);
     }
 }

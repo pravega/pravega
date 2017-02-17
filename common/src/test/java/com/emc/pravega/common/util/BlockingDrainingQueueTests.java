@@ -1,117 +1,196 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.common.util;
 
-import java.util.List;
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.testcommon.AssertExtensions;
+import java.util.Collection;
+import java.util.Queue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-
+import lombok.Cleanup;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
-
-import com.emc.pravega.testcommon.Async;
-
-import lombok.val;
 
 /**
  * Unit tests for BlockingDrainingQueue class.
  */
 public class BlockingDrainingQueueTests {
+    private static final int ITEM_COUNT = 100;
+    private static final int MAX_READ_COUNT = ITEM_COUNT / 10;
     private static final int TIMEOUT_MILLIS = 10 * 1000;
 
     /**
-     * Tests the basic ability to queue and dequeue items.
+     * Tests the basic ability dequeue items using poll() as they are added.
      */
     @Test
-    public void testQueueDequeue() throws Exception {
-        final int itemCount = 10;
+    public void testAddSinglePoll() throws Exception {
+        @Cleanup
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
-        for (int i = 0; i < itemCount; i++) {
+
+        for (int i = 0; i < ITEM_COUNT; i++) {
             queue.add(i);
-            List<Integer> entries = queue.takeAllEntries();
+            Queue<Integer> entries = queue.poll(MAX_READ_COUNT);
             Assert.assertEquals("Unexpected number of items polled.", 1, entries.size());
-            int value = entries.get(0);
-            Assert.assertEquals("Unexpected value polled from queue.", i, value);
+            Assert.assertEquals("Unexpected value polled from queue.", i, (int) entries.peek());
+        }
+
+        val remainingItems = queue.poll(1);
+        Assert.assertEquals("poll() did not return an empty collection when queue was empty.", 0, remainingItems.size());
+    }
+
+    /**
+     * Tests the basic ability to dequeue items using take() as they are added.
+     */
+    @Test
+    public void testAddSingleTake() throws Exception {
+        @Cleanup
+        BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
+
+        for (int i = 0; i < ITEM_COUNT; i++) {
+            queue.add(i);
+            val takeResult = queue.take(MAX_READ_COUNT);
+            Assert.assertTrue("take() returned an incomplete Future when data is available.", FutureHelpers.isSuccessful(takeResult));
+            val entries = takeResult.join();
+            Assert.assertEquals("Unexpected number of items polled.", 1, entries.size());
+            Assert.assertEquals("Unexpected value polled from queue.", i, (int) entries.peek());
+        }
+
+        val remainingItems = queue.take(1);
+        Assert.assertFalse("take() did not return an incomplete future when queue was empty.", remainingItems.isDone());
+    }
+
+    /**
+     * Tests the basic ability to dequeue items as a batch using poll().
+     */
+    @Test
+    public void testAddMultiPoll() throws Exception {
+        @Cleanup
+        BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
+        populate(queue);
+
+        for (int i = 0; i < ITEM_COUNT; i += MAX_READ_COUNT) {
+            Queue<Integer> entries = queue.poll(MAX_READ_COUNT);
+            int expectedCount = Math.min(MAX_READ_COUNT, ITEM_COUNT - i);
+            Assert.assertEquals("Unexpected number of items polled.", expectedCount, entries.size());
+            int expectedValue = i;
+            for (int value : entries) {
+                Assert.assertEquals("Unexpected value polled from queue.", expectedValue, value);
+                expectedValue++;
+            }
         }
     }
 
     /**
-     * Tests the ability of the queue to block a poll request if it is empty.
+     * Tests the basic ability to dequeue items as a batch using take().
      */
     @Test
-    public void testBlockingDequeue() throws Exception {
+    public void testAddMultiTake() throws Exception {
+        @Cleanup
+        BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
+        populate(queue);
+
+        for (int i = 0; i < ITEM_COUNT; i += MAX_READ_COUNT) {
+            val takeResult = queue.take(MAX_READ_COUNT);
+            Assert.assertTrue("take() returned an incomplete Future when data is available.", FutureHelpers.isSuccessful(takeResult));
+            val entries = takeResult.join();
+
+            int expectedCount = Math.min(MAX_READ_COUNT, ITEM_COUNT - i);
+            Assert.assertEquals("Unexpected number of items polled.", expectedCount, entries.size());
+            int expectedValue = i;
+            for (int value : entries) {
+                Assert.assertEquals("Unexpected value polled from queue.", expectedValue, value);
+                expectedValue++;
+            }
+        }
+    }
+
+    /**
+     * Tests the ability of the queue to fulfill a take() request if it is empty when it was received.
+     */
+    @Test
+    public void testBlockingTake() throws Exception {
         final int valueToQueue = 1234;
 
-        AtomicReference<List<Integer>> result = new AtomicReference<>();
+        @Cleanup
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
-        CompletableFuture<Void> resultSet = new CompletableFuture<>();
-        val completionFuture = CompletableFuture.runAsync(() -> {
-            try {
-                result.set(queue.takeAllEntries());
-                resultSet.complete(null);
-            } catch (InterruptedException ex) {
-                resultSet.completeExceptionally(ex);
-            }
-        });
+        val takeResult = queue.take(MAX_READ_COUNT);
+
+        // Verify we cannot have multiple concurrent take() or poll() requests.
+        AssertExtensions.assertThrows(
+                "take() succeeded even though there was another incomplete take() request.",
+                () -> queue.take(MAX_READ_COUNT),
+                ex -> ex instanceof IllegalStateException);
+
+        AssertExtensions.assertThrows(
+                "poll() succeeded even though there was another incomplete take() request.",
+                () -> queue.poll(MAX_READ_COUNT),
+                ex -> ex instanceof IllegalStateException);
 
         // Verify the queue hasn't returned before we actually set the result.
-        Assert.assertNull("Queue unblocked before result was set.", result.get());
+        Assert.assertFalse("Queue unblocked before result was set.", takeResult.isDone());
 
         // Queue the value
         queue.add(valueToQueue);
 
         // Wait for the completion future to finish. This will also pop any other exceptions that we did not anticipate.
-        completionFuture.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-        resultSet.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        takeResult.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
 
         // Verify result.
-        Assert.assertNotNull("Queue did not unblock after adding a value.", result.get());
-        Assert.assertEquals("Unexpected number of items polled.", 1, result.get().size());
-        int value = result.get().get(0);
-        Assert.assertEquals("Unexpected value polled from queue.", valueToQueue, value);
+        Assert.assertTrue("Queue did not unblock after adding a value.", FutureHelpers.isSuccessful(takeResult));
+        Queue<Integer> result = takeResult.join();
+        Assert.assertEquals("Unexpected number of items polled.", 1, result.size());
+        Assert.assertEquals("Unexpected value polled from queue.", valueToQueue, (int) result.peek());
+
+        val remainingItems = queue.poll(MAX_READ_COUNT);
+        Assert.assertEquals("Queue was not emptied out after take() completed successfully.", 0, remainingItems.size());
     }
 
     /**
-     * Tests the ability of the queue to cancel a polling request if it is closed..
+     * Tests the ability of the queue to cancel a take() request if it is closed.
      */
     @Test
-    public void testClose() throws Exception {
+    public void testCloseCancel() throws Exception {
+        @Cleanup
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
-        AtomicReference<List<Integer>> queueContents = new AtomicReference<>();
-        AtomicBoolean wasInterupted = new AtomicBoolean(false);
-
-        List<Integer> result = Async.testBlocking(() -> {
-            try {
-                return queue.takeAllEntries();
-            } catch (InterruptedException e) {
-                wasInterupted.set(true);
-                return null;
-            }
-        }, () -> {
-            queueContents.set(queue.close());
-        });
+        CompletableFuture<Queue<Integer>> result = queue.take(MAX_READ_COUNT);
+        Collection<Integer> queueContents = queue.close();
 
         // Verify result.
-        Assert.assertTrue("Future was not cancelled with the correct exception.", wasInterupted.get());
-        Assert.assertNull("Queue returned an item even if it got closed.", result);
-        Assert.assertEquals("Queue.close() returned an item even though it was empty.", 0, queueContents.get().size());
+        AssertExtensions.assertThrows(
+                "Future was not cancelled with the correct exception.",
+                () -> result.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
+                ex -> ex instanceof CancellationException);
+        Assert.assertEquals("Queue.close() returned an item even though it was empty.", 0, queueContents.size());
+    }
+
+    /**
+     * Tests the ability of the queue to return its contents when it is closed.
+     */
+    @Test
+    public void testCloseResult() throws Exception {
+        @Cleanup
+        BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
+        populate(queue);
+
+        Collection<Integer> queueContents = queue.close();
+        // Verify result.
+        Assert.assertEquals("Unexpected result size from Queue.close().", ITEM_COUNT, queueContents.size());
+        int expectedValue = 0;
+        for (int value : queueContents) {
+            Assert.assertEquals("Unexpected value in Queue result.", expectedValue, value);
+            expectedValue++;
+        }
+    }
+
+    private void populate(BlockingDrainingQueue<Integer> queue) {
+        for (int i = 0; i < ITEM_COUNT; i++) {
+            queue.add(i);
+        }
     }
 }

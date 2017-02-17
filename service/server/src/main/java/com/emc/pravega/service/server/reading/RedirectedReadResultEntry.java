@@ -1,37 +1,23 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiFunction;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * A ReadResultEntry that wraps an inner Entry, but allows for offset adjustment. Useful for returning read results
@@ -171,7 +157,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
                 // After all checks are done, update the internal state to use the new entry.
                 newEntry.setCompletionCallback(this.firstEntry.getCompletionCallback());
                 this.secondEntry = newEntry;
-                this.secondEntry.getContent().whenComplete((r, ex2) -> FutureHelpers.complete(this.result, r, ex2));
+                setOutcomeAfterSecondEntry();
                 return true;
             }
         }
@@ -196,7 +182,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
 
         if (success) {
             // We were able to switch; tie the outcome of our result to the outcome of the new entry's getContent().
-            this.secondEntry.getContent().whenComplete((r, ex3) -> FutureHelpers.complete(this.result, r, ex3));
+            setOutcomeAfterSecondEntry();
         } else {
             // Unable to switch.
             this.result.completeExceptionally(ex);
@@ -216,6 +202,12 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
 
     private CompletableReadResultEntry getActiveEntry() {
         return this.secondEntry != null ? this.secondEntry : this.firstEntry;
+    }
+
+    private void setOutcomeAfterSecondEntry() {
+        CompletableFuture<ReadResultEntryContents> sourceFuture = this.secondEntry.getContent();
+        sourceFuture.thenAccept(this.result::complete);
+        FutureHelpers.exceptionListener(sourceFuture, this.result::completeExceptionally);
     }
 
     @Override

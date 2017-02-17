@@ -1,41 +1,29 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
-import java.util.AbstractMap;
-import java.util.Collection;
-import java.util.Date;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Metadata for a particular Stream Segment.
  */
 @Slf4j
+@ThreadSafe
 public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     //region Members
 
@@ -44,14 +32,22 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private final long streamSegmentId;
     private final long parentStreamSegmentId;
     private final int containerId;
-    private final AbstractMap<UUID, AppendContext> lastCommittedAppends;
+    @GuardedBy("this")
+    private final Map<UUID, Long> attributes;
+    @GuardedBy("this")
     private long storageLength;
+    @GuardedBy("this")
     private long durableLogLength;
+    @GuardedBy("this")
     private boolean sealed;
+    @GuardedBy("this")
     private boolean sealedInStorage;
+    @GuardedBy("this")
     private boolean deleted;
+    @GuardedBy("this")
     private boolean merged;
-    private Date lastModified;
+    @GuardedBy("this")
+    private ImmutableDate lastModified;
 
     //endregion
 
@@ -94,8 +90,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.merged = false;
         this.storageLength = -1;
         this.durableLogLength = -1;
-        this.lastCommittedAppends = new HashMap<>();
-        this.lastModified = new Date(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
+        this.attributes = new HashMap<>();
+        this.lastModified = new ImmutableDate(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
     }
 
     //endregion
@@ -108,22 +104,22 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public boolean isSealed() {
+    public synchronized boolean isSealed() {
         return this.sealed;
     }
 
     @Override
-    public boolean isDeleted() {
+    public synchronized boolean isDeleted() {
         return this.deleted;
     }
 
     @Override
-    public long getLength() {
+    public synchronized long getLength() {
         return this.durableLogLength; // ReadableLength is essentially DurableLogLength.
     }
 
     @Override
-    public Date getLastModified() {
+    public synchronized ImmutableDate getLastModified() {
         return this.lastModified;
     }
 
@@ -147,33 +143,28 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public boolean isMerged() {
+    public synchronized boolean isMerged() {
         return this.merged;
     }
 
     @Override
-    public boolean isSealedInStorage() {
+    public synchronized boolean isSealedInStorage() {
         return this.sealedInStorage;
     }
 
     @Override
-    public long getStorageLength() {
+    public synchronized long getStorageLength() {
         return this.storageLength;
     }
 
     @Override
-    public long getDurableLogLength() {
+    public synchronized long getDurableLogLength() {
         return this.durableLogLength;
     }
 
     @Override
-    public AppendContext getLastAppendContext(UUID clientId) {
-        return this.lastCommittedAppends.getOrDefault(clientId, null);
-    }
-
-    @Override
-    public Collection<UUID> getKnownClientIds() {
-        return this.lastCommittedAppends.keySet();
+    public synchronized Map<UUID, Long> getAttributes() {
+        return Collections.unmodifiableMap(this.attributes);
     }
 
     @Override
@@ -194,7 +185,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     //region UpdateableSegmentMetadata Implementation
 
     @Override
-    public void setStorageLength(long value) {
+    public synchronized void setStorageLength(long value) {
         Exceptions.checkArgument(value >= 0, "value", "Storage Length must be a non-negative number.");
         Exceptions.checkArgument(value >= this.storageLength, "value", "New Storage Length cannot be smaller than the previous one.");
 
@@ -203,7 +194,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void setDurableLogLength(long value) {
+    public synchronized void setDurableLogLength(long value) {
         Exceptions.checkArgument(value >= 0, "value", "Durable Log Length must be a non-negative number.");
         Exceptions.checkArgument(value >= this.durableLogLength, "value", "New Durable Log Length cannot be smaller than the previous one.");
 
@@ -212,26 +203,26 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void markSealed() {
+    public synchronized void markSealed() {
         log.trace("{}: Sealed = true.", this.traceObjectId);
         this.sealed = true;
     }
 
     @Override
-    public void markSealedInStorage() {
+    public synchronized void markSealedInStorage() {
         Preconditions.checkState(this.sealed, "Cannot mark SealedInStorage if not Sealed in DurableLog.");
         log.trace("{}: SealedInStorage = true.", this.traceObjectId);
         this.sealedInStorage = true;
     }
 
     @Override
-    public void markDeleted() {
+    public synchronized void markDeleted() {
         log.trace("{}: Deleted = true.", this.traceObjectId);
         this.deleted = true;
     }
 
     @Override
-    public void markMerged() {
+    public synchronized void markMerged() {
         Preconditions.checkState(this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a non-Transaction StreamSegment.");
 
         log.trace("{}: Merged = true.", this.traceObjectId);
@@ -239,14 +230,21 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void setLastModified(Date date) {
+    public synchronized void setLastModified(ImmutableDate date) {
         this.lastModified = date;
         log.trace("{}: LastModified = {}.", this.lastModified);
     }
 
     @Override
-    public void recordAppendContext(AppendContext appendContext) {
-        this.lastCommittedAppends.put(appendContext.getClientId(), appendContext);
+    public synchronized void updateAttributes(Map<UUID, Long> attributes) {
+        for (Map.Entry<UUID, Long> av : attributes.entrySet()) {
+            long value = av.getValue();
+            if (value == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                this.attributes.remove(av.getKey());
+            } else {
+                this.attributes.put(av.getKey(), value);
+            }
+        }
     }
 
     @Override
@@ -259,9 +257,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         setStorageLength(base.getStorageLength());
         setDurableLogLength(base.getDurableLogLength());
         setLastModified(base.getLastModified());
-        for (UUID clientId : base.getKnownClientIds()) {
-            recordAppendContext(base.getLastAppendContext(clientId));
-        }
+        updateAttributes(base.getAttributes());
 
         if (base.isSealed()) {
             markSealed();

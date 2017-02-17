@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.store.stream;
 
@@ -68,7 +56,7 @@ public class ZkStreamTest {
     }
 
     @Test
-    public void TestZkStream() throws Exception {
+    public void testZkStream() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
@@ -130,7 +118,8 @@ public class ZkStreamTest {
 
         // start -1
         SegmentFutures segmentFutures = store.getActiveSegments(streamName, start - 1).get();
-        assertEquals(segmentFutures.getCurrent().size(), 0);
+        assertEquals(segmentFutures.getCurrent().size(), 5);
+        assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 1, 2, 3, 4)));
 
         // start + 1
         segmentFutures = store.getActiveSegments(streamName, start + 1).get();
@@ -180,7 +169,7 @@ public class ZkStreamTest {
 
     @Ignore("run manually")
     //    @Test
-    public void TestZkStreamChukning() throws Exception {
+    public void testZkStreamChunking() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 6);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
@@ -225,7 +214,7 @@ public class ZkStreamTest {
     }
 
     @Test
-    public void TestTransaction() throws Exception {
+    public void testTransaction() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);

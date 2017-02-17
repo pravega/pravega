@@ -1,24 +1,11 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
@@ -30,7 +17,6 @@ import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-
 import java.io.Serializable;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -45,7 +31,7 @@ import java.util.stream.Collectors;
  * Any update to the task method signature should be avoided, since it can cause problems during upgrade.
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
-public class StreamTransactionMetadataTasks extends TaskBase implements Cloneable {
+public class StreamTransactionMetadataTasks extends TaskBase {
     private static final long INITIAL_DELAY = 1;
     private static final long PERIOD = 1;
     private static final long TIMEOUT = 60 * 60 * 1000;
@@ -63,7 +49,15 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                                           final TaskMetadataStore taskMetadataStore,
                                           final ScheduledExecutorService executor,
                                           final String hostId) {
-        super(taskMetadataStore, executor, hostId);
+        this(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, new Context(hostId));
+    }
+    
+    private StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
+            final HostControllerStore hostControllerStore,
+            final TaskMetadataStore taskMetadataStore,
+            final ScheduledExecutorService executor,
+            final Context context) {
+        super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.connectionFactory = new ConnectionFactoryImpl(false);
@@ -89,11 +83,6 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
             // find completed transactions to be gc'd
         }, INITIAL_DELAY, PERIOD, TimeUnit.HOURS);
 
-    }
-
-    @Override
-    public StreamTransactionMetadataTasks clone() throws CloneNotSupportedException {
-        return (StreamTransactionMetadataTasks) super.clone();
     }
 
     /**
@@ -148,7 +137,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 .thenCompose(txId ->
                         streamMetadataStore.getActiveSegments(stream)
                                 .thenCompose(activeSegments ->
-                                        FutureCollectionHelper.sequence(
+                                        FutureHelpers.allOf(
                                                 activeSegments.stream()
                                                         .parallel()
                                                         .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txId))
@@ -160,7 +149,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
         // notify hosts to abort transaction
         return streamMetadataStore.getActiveSegments(stream)
                 .thenCompose(segments ->
-                        FutureCollectionHelper.sequence(
+                        FutureHelpers.allOf(
                                 segments.stream()
                                         .parallel()
                                         .map(segment -> notifyDropToHost(scope, stream, segment.getNumber(), txid))
@@ -173,7 +162,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 .thenCompose(x ->
                         streamMetadataStore.getActiveSegments(stream)
                                 .thenCompose(segments ->
-                                        FutureCollectionHelper.sequence(segments.stream()
+                                        FutureHelpers.allOf(segments.stream()
                                                 .parallel()
                                                 .map(segment ->
                                                         notifyCommitToHost(scope, stream, segment.getNumber(), txid))
@@ -217,5 +206,14 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                                                                     this.hostControllerStore,
                                                                     this.connectionFactory),
                               executor);
+    }
+
+    @Override
+    public TaskBase copyWithContext(Context context) {
+        return new StreamTransactionMetadataTasks(streamMetadataStore,
+                                                  hostControllerStore,
+                                                  taskMetadataStore,
+                                                  executor,
+                                                  context);
     }
 }

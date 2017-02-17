@@ -1,0 +1,62 @@
+<FindBugsFilter>
+    <Match> <!-- generated code -->
+        <Package name="com.emc.pravega.controller.stream.api.v1" />
+    </Match>
+    <Match> <!-- does not work well with futures -->
+        <Bug pattern="NP_NONNULL_PARAM_VIOLATION" />
+    </Match>
+    <Match> <!-- overagressive. Too many false positives -->
+        <Bug pattern="RV_RETURN_VALUE_IGNORED_BAD_PRACTICE" />
+    </Match>
+    <Match> <!-- No practical consequence and generate a lot of warnings -->
+        <Bug pattern="SS_SHOULD_BE_STATIC" />
+    </Match>
+    <Match> <!-- Usually doen in a context where the developer knows the value to be positive -->
+        <Bug pattern="IM_BAD_CHECK_FOR_ODD" />
+    </Match>
+    <Match> <!-- No practical consequence and generate a lot of warnings -->
+        <Bug pattern="RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT" />
+    </Match>
+    <Match> <!-- No practical consequence and generate a lot of warnings -->
+        <Bug pattern="UC_USELESS_OBJECT" />
+    </Match>
+    <Match> <!-- No practical consequence and generate a lot of warnings -->
+        <Bug pattern="DLS_DEAD_LOCAL_STORE" />
+    </Match>
+    <Match> <!-- Lots of harmless calls to System.exit() in our codebase -->
+        <Bug pattern="DM_EXIT" />
+    </Match>
+    <Match> <!-- This is intended in these and only these classes -->
+        <Or>
+            <Class name="com.emc.pravega.common.io.FixedByteArrayOutputStream" />
+            <Class name="com.emc.pravega.common.util.ByteArraySegment" />
+            <Class name="com.emc.pravega.controller.store.stream.tables.Data" />
+            <Class name="com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation" />
+        </Or>
+        <Or>
+            <Bug pattern="EI_EXPOSE_REP" />
+            <Bug pattern="EI_EXPOSE_REP2" />
+        </Or>
+    </Match>
+    <Match> <!-- TODO: Remove this exception. The code doing this is broken -->
+        <Method name="refresh"/>
+        <Bug pattern="ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD" />
+    </Match>
+    <Match> <!-- generated code -->
+        <Or> 
+            <Method name="equals"/>
+            <Method name="hashCode"/>
+        </Or>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE" />
+    </Match>
+    <Match> <!-- These patterns while normally bad practice, are common in tests -->
+        <Class name="~.*\.*Tests?" />
+        <Or>
+            <Bug category="PERFORMANCE" />
+            <Bug pattern="ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD" />
+            <Bug pattern="URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD" />
+            <Bug pattern="DMI_RANDOM_USED_ONLY_ONCE" />
+            <Bug pattern="LI_LAZY_INIT_STATIC" />
+        </Or>
+    </Match>
+</FindBugsFilter>

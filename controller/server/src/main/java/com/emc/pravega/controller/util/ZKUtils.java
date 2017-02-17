@@ -1,28 +1,19 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.util;
 
+import com.emc.pravega.common.metrics.MetricsConfig;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
+
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.KeeperException;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Helper ZK functions.
@@ -33,7 +24,7 @@ public final class ZKUtils {
     /**
      * Helper utility to lazily create and fetch only one instance of the Curator client to be used by the controller.
      */
-    public enum CuratorSingleton {
+    private enum CuratorSingleton {
         CURATOR_INSTANCE;
 
         //Single instance of the curator client which we want to be used in all of the controller code.
@@ -41,14 +32,17 @@ public final class ZKUtils {
 
         CuratorSingleton() {
             //Create and initialize the curator client framework.
-            zkClient = CuratorFrameworkFactory.newClient(Config.zKURL, new ExponentialBackoffRetry(
-                        Config.ZK_RETRY_SLEEP_MS, Config.ZK_MAX_RETRIES));
+            zkClient = CuratorFrameworkFactory.builder()
+                    .connectString(Config.zKURL)
+                    .namespace("pravega/" + Config.CLUSTER_NAME)
+                    .retryPolicy(new ExponentialBackoffRetry(Config.ZK_RETRY_SLEEP_MS, Config.ZK_MAX_RETRIES))
+                    .build();
             zkClient.start();
         }
-
-        public CuratorFramework getCuratorClient() {
-            return zkClient;
-        }
+    }
+    
+    public static CuratorFramework getCuratorClient() {
+        return CuratorSingleton.CURATOR_INSTANCE.zkClient;
     }
 
     /**
@@ -96,5 +90,9 @@ public final class ZKUtils {
         } catch (Exception e) {
             throw new RuntimeException("Exception while creating znode: " + basePath, e);
         }
+    }
+
+    public static MetricsConfig getMetricsConfig() {
+        return Config.getMetricsConfig(); 
     }
 }
