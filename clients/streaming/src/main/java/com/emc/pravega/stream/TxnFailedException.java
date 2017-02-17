@@ -25,18 +25,37 @@ public class TxnFailedException extends Exception {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * Creates a new instance of TxnFailedException class.
+     */
     public TxnFailedException() {
         super();
     }
 
+    /**
+     * Creates a new instance of TxnFailedException class.
+     *
+     * @param e the cause.
+     */
     public TxnFailedException(Throwable e) {
         super(e);
     }
 
+    /**
+     * Creates a new instance of TxnFailedException class.
+     *
+     * @param msg exception description.
+     * @param e   the cause.
+     */
     public TxnFailedException(String msg, Throwable e) {
         super(msg, e);
     }
 
+    /**
+     * Creates a new instance of TxnFailedException class.
+     *
+     * @param msg exception description.
+     */
     public TxnFailedException(String msg) {
         super(msg);
     }

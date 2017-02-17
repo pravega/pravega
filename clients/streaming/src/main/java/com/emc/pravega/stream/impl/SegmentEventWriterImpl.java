@@ -40,6 +40,12 @@ public class SegmentEventWriterImpl<Type> implements SegmentEventWriter<Type> {
     private final AtomicBoolean sealed = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
+    /**
+     * Creates a new instance of the SegmentEventWriter class.
+     *
+     * @param out        The segment output stream for writing.
+     * @param serializer The serializer to be applied to events.
+     */
     public SegmentEventWriterImpl(SegmentOutputStream out, Serializer<Type> serializer) {
         Preconditions.checkNotNull(out);
         Preconditions.checkNotNull(serializer);

@@ -36,7 +36,9 @@ allprojects {
 
     javadoc {
         failOnError = false
-        exclude  "**/impl/**";
+        exclude "**/impl/**";
+        source  =  project(':clients:streaming').sourceSets.main.java
+        options.setDestinationDirectory(setBuildDir(dockerDirPravegaHost));
     }
 
     docker {

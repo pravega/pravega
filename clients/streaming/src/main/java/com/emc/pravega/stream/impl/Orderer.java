@@ -33,6 +33,7 @@ public interface Orderer<Type> {
      * not modified)
      *
      * @param segments The logs to get the next reader for.
+     * @return a segment that this reader should read from next.
      */
     SegmentReader<Type> nextSegment(List<SegmentReader<Type>> segments);
 }

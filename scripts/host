@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+
+##############################################################################
+##
+##  host start up script for UN*X
+##
+##############################################################################
+
+# Attempt to set APP_HOME
+# Resolve links: $0 may be a link
+PRG="$0"
+# Need this for relative symlinks.
+while [ -h "$PRG" ] ; do
+    ls=`ls -ld "$PRG"`
+    link=`expr "$ls" : '.*-> \(.*\)$'`
+    if expr "$link" : '/.*' > /dev/null; then
+        PRG="$link"
+    else
+        PRG=`dirname "$PRG"`"/$link"
+    fi
+done
+SAVED="`pwd`"
+cd "`dirname \"$PRG\"`/.." >/dev/null
+APP_HOME="`pwd -P`"
+cd "$SAVED" >/dev/null
+
+APP_NAME="host"
+APP_BASE_NAME=`basename "$0"`
+
+# Add default JVM options here. You can also use JAVA_OPTS and HOST_OPTS to pass JVM options to this script.
+DEFAULT_JVM_OPTS='"-server" "-Xms512m" "-XX:+HeapDumpOnOutOfMemoryError"'
+
+# Use the maximum available, or set MAX_FD != -1 to use that value.
+MAX_FD="maximum"
+
+warn ( ) {
+    echo "$*"
+}
+
+die ( ) {
+    echo
+    echo "$*"
+    echo
+    exit 1
+}
+
+# OS specific support (must be 'true' or 'false').
+cygwin=false
+msys=false
+darwin=false
+nonstop=false
+case "`uname`" in
+  CYGWIN* )
+    cygwin=true
+    ;;
+  Darwin* )
+    darwin=true
+    ;;
+  MINGW* )
+    msys=true
+    ;;
+  NONSTOP* )
+    nonstop=true
+    ;;
+esac
+
+CLASSPATH=$APP_HOME/lib/host.jar:$APP_HOME/lib/logback-classic-1.1.7.jar:$APP_HOME/lib/commons-lang-2.6.jar:$APP_HOME/lib/lombok-1.16.10.jar:$APP_HOME/lib/commons-io-2.5.jar:$APP_HOME/lib/netty-all-4.0.36.Final.jar:$APP_HOME/lib/common.jar:$APP_HOME/lib/contracts.jar:$APP_HOME/lib/storage.jar:$APP_HOME/lib/impl.jar:$APP_HOME/lib/server.jar:$APP_HOME/lib/logback-core-1.1.7.jar:$APP_HOME/lib/curator-recipes-2.11.0.jar:$APP_HOME/lib/metrics3-statsd-4.1.0.jar:$APP_HOME/lib/metrics-core-3.1.0.jar:$APP_HOME/lib/metrics-jvm-3.1.0.jar:$APP_HOME/lib/distributedlog-core-0.3.51-RC1.jar:$APP_HOME/lib/distributedlog-client-0.3.51-RC1.jar:$APP_HOME/lib/rocksdbjni-4.11.2.jar:$APP_HOME/lib/hadoop-common-2.7.3.jar:$APP_HOME/lib/hadoop-hdfs-2.7.3.jar:$APP_HOME/lib/curator-framework-2.11.0.jar:$APP_HOME/lib/metrics-statsd-common-4.1.0.jar:$APP_HOME/lib/zookeeper-3.5.1-alpha.jar:$APP_HOME/lib/stats-util-0.0.58.jar:$APP_HOME/lib/util-core_2.11-6.34.0.jar:$APP_HOME/lib/commons-lang3-3.3.2.jar:$APP_HOME/lib/jline-0.9.94.jar:$APP_HOME/lib/libthrift-0.5.0-1.jar:$APP_HOME/lib/scrooge-core_2.11-4.6.0.jar:$APP_HOME/lib/bookkeeper-server-4.3.4-TWTTR.jar:$APP_HOME/lib/distributedlog-protocol-0.3.51-RC1.jar:$APP_HOME/lib/lz4-1.2.0.jar:$APP_HOME/lib/finagle-core_2.11-6.34.0.jar:$APP_HOME/lib/finagle-thriftmux_2.11-6.34.0.jar:$APP_HOME/lib/finagle-serversets_2.11-6.34.0.jar:$APP_HOME/lib/hadoop-annotations-2.7.3.jar:$APP_HOME/lib/commons-math3-3.1.1.jar:$APP_HOME/lib/xmlenc-0.52.jar:$APP_HOME/lib/commons-httpclient-3.1.jar:$APP_HOME/lib/commons-net-3.1.jar:$APP_HOME/lib/commons-collections-3.2.2.jar:$APP_HOME/lib/servlet-api-2.5.jar:$APP_HOME/lib/jetty-6.1.26.jar:$APP_HOME/lib/jetty-util-6.1.26.jar:$APP_HOME/lib/jsp-api-2.1.jar:$APP_HOME/lib/jersey-core-1.9.jar:$APP_HOME/lib/jersey-json-1.9.jar:$APP_HOME/lib/jersey-server-1.9.jar:$APP_HOME/lib/commons-logging-1.1.3.jar:$APP_HOME/lib/log4j-1.2.17.jar:$APP_HOME/lib/jets3t-0.9.0.jar:$APP_HOME/lib/commons-configuration-1.6.jar:$APP_HOME/lib/slf4j-log4j12-1.7.10.jar:$APP_HOME/lib/jackson-core-asl-1.9.13.jar:$APP_HOME/lib/jackson-mapper-asl-1.9.13.jar:$APP_HOME/lib/avro-1.7.4.jar:$APP_HOME/lib/protobuf-java-2.5.0.jar:$APP_HOME/lib/gson-2.2.4.jar:$APP_HOME/lib/hadoop-auth-2.7.3.jar:$APP_HOME/lib/jsch-0.1.42.jar:$APP_HOME/lib/htrace-core-3.1.0-incubating.jar:$APP_HOME/lib/commons-compress-1.4.1.jar:$APP_HOME/lib/commons-daemon-1.0.13.jar:$APP_HOME/lib/xercesImpl-2.9.1.jar:$APP_HOME/lib/leveldbjni-all-1.8.jar:$APP_HOME/lib/util-0.0.120.jar:$APP_HOME/lib/guice-3.0.jar:$APP_HOME/lib/scala-library-2.11.7.jar:$APP_HOME/lib/util-function_2.11-6.34.0.jar:$APP_HOME/lib/jsr166e-1.0.0.jar:$APP_HOME/lib/scala-parser-combinators_2.11-1.0.4.jar:$APP_HOME/lib/junit-3.8.1.jar:$APP_HOME/lib/bookkeeper-stats-api-4.3.4-TWTTR.jar:$APP_HOME/lib/jna-3.2.7.jar:$APP_HOME/lib/finagle-thrift_2.11-6.34.0.jar:$APP_HOME/lib/util-app_2.11-6.33.0.jar:$APP_HOME/lib/util-cache_2.11-6.33.0.jar:$APP_HOME/lib/util-codec_2.11-6.33.0.jar:$APP_HOME/lib/util-collection_2.11-6.33.0.jar:$APP_HOME/lib/util-hashing_2.11-6.33.0.jar:$APP_HOME/lib/util-jvm_2.11-6.33.0.jar:$APP_HOME/lib/util-lint_2.11-6.33.0.jar:$APP_HOME/lib/util-logging_2.11-6.33.0.jar:$APP_HOME/lib/util-registry_2.11-6.33.0.jar:$APP_HOME/lib/util-stats_2.11-6.33.0.jar:$APP_HOME/lib/finagle-mux_2.11-6.34.0.jar:$APP_HOME/lib/server-set-1.0.103.jar:$APP_HOME/lib/util-zk-common_2.11-6.33.0.jar:$APP_HOME/lib/jackson-core-2.4.4.jar:$APP_HOME/lib/jackson-databind-2.4.4.jar:$APP_HOME/lib/jackson-module-scala_2.11-2.4.4.jar:$APP_HOME/lib/jettison-1.1.jar:$APP_HOME/lib/jaxb-impl-2.2.3-1.jar:$APP_HOME/lib/jackson-jaxrs-1.8.3.jar:$APP_HOME/lib/jackson-xc-1.8.3.jar:$APP_HOME/lib/asm-3.1.jar:$APP_HOME/lib/java-xmlbuilder-0.4.jar:$APP_HOME/lib/commons-digester-1.8.jar:$APP_HOME/lib/commons-beanutils-core-1.8.0.jar:$APP_HOME/lib/snappy-java-1.0.4.1.jar:$APP_HOME/lib/apacheds-kerberos-codec-2.0.0-M15.jar:$APP_HOME/lib/xz-1.0.jar:$APP_HOME/lib/util-executor-service-shutdown-0.0.66.jar:$APP_HOME/lib/util-system-mocks-0.0.103.jar:$APP_HOME/lib/jdk-logging-0.0.79.jar:$APP_HOME/lib/base-0.0.114.jar:$APP_HOME/lib/collections-0.0.109.jar:$APP_HOME/lib/quantity-0.0.98.jar:$APP_HOME/lib/stats-0.0.114.jar:$APP_HOME/lib/javax.inject-1.jar:$APP_HOME/lib/aopalliance-1.0.jar:$APP_HOME/lib/cglib-2.2.1-v20090111.jar:$APP_HOME/lib/args-0.2.35.jar:$APP_HOME/lib/io-0.0.65.jar:$APP_HOME/lib/io-json-0.0.51.jar:$APP_HOME/lib/io-thrift-0.0.64.jar:$APP_HOME/lib/dynamic-host-set-0.0.53.jar:$APP_HOME/lib/service-thrift-1.0.54.jar:$APP_HOME/lib/util-zk_2.11-6.33.0.jar:$APP_HOME/lib/scala-reflect-2.11.2.jar:$APP_HOME/lib/jaxb-api-2.2.2.jar:$APP_HOME/lib/commons-beanutils-1.7.0.jar:$APP_HOME/lib/apacheds-i18n-2.0.0-M15.jar:$APP_HOME/lib/api-asn1-api-1.0.0-M20.jar:$APP_HOME/lib/api-util-1.0.0-M20.jar:$APP_HOME/lib/args-apt-0.1.33.jar:$APP_HOME/lib/args-core-0.1.33.jar:$APP_HOME/lib/stax-api-1.0-2.jar:$APP_HOME/lib/activation-1.1.jar:$APP_HOME/lib/slf4j-api-1.7.20.jar:$APP_HOME/lib/guava-16.0.1.jar:$APP_HOME/lib/commons-cli-1.2.jar:$APP_HOME/lib/jsr305-3.0.0.jar:$APP_HOME/lib/javacc-5.0.jar:$APP_HOME/lib/netty-3.10.1.Final.jar:$APP_HOME/lib/commons-codec-1.9.jar:$APP_HOME/lib/httpclient-4.2.5.jar:$APP_HOME/lib/stat-registry-0.0.57.jar:$APP_HOME/lib/stats-provider-0.0.92.jar:$APP_HOME/lib/application-action-0.0.89.jar:$APP_HOME/lib/util-sampler-0.0.77.jar:$APP_HOME/lib/stat-0.0.72.jar:$APP_HOME/lib/client-0.0.79.jar:$APP_HOME/lib/group-0.0.90.jar:$APP_HOME/lib/jackson-annotations-2.4.4.jar:$APP_HOME/lib/paranamer-2.6.jar:$APP_HOME/lib/httpcore-4.2.4.jar:$APP_HOME/lib/curator-client-2.11.0.jar:$APP_HOME/lib/net-util-0.0.100.jar
+
+# Determine the Java command to use to start the JVM.
+if [ -n "$JAVA_HOME" ] ; then
+    if [ -x "$JAVA_HOME/jre/sh/java" ] ; then
+        # IBM's JDK on AIX uses strange locations for the executables
+        JAVACMD="$JAVA_HOME/jre/sh/java"
+    else
+        JAVACMD="$JAVA_HOME/bin/java"
+    fi
+    if [ ! -x "$JAVACMD" ] ; then
+        die "ERROR: JAVA_HOME is set to an invalid directory: $JAVA_HOME
+
+Please set the JAVA_HOME variable in your environment to match the
+location of your Java installation."
+    fi
+else
+    JAVACMD="java"
+    which java >/dev/null 2>&1 || die "ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
+
+Please set the JAVA_HOME variable in your environment to match the
+location of your Java installation."
+fi
+
+# Increase the maximum file descriptors if we can.
+if [ "$cygwin" = "false" -a "$darwin" = "false" -a "$nonstop" = "false" ] ; then
+    MAX_FD_LIMIT=`ulimit -H -n`
+    if [ $? -eq 0 ] ; then
+        if [ "$MAX_FD" = "maximum" -o "$MAX_FD" = "max" ] ; then
+            MAX_FD="$MAX_FD_LIMIT"
+        fi
+        ulimit -n $MAX_FD
+        if [ $? -ne 0 ] ; then
+            warn "Could not set maximum file descriptor limit: $MAX_FD"
+        fi
+    else
+        warn "Could not query maximum file descriptor limit: $MAX_FD_LIMIT"
+    fi
+fi
+
+# For Darwin, add options to specify how the application appears in the dock
+if $darwin; then
+    GRADLE_OPTS="$GRADLE_OPTS \"-Xdock:name=$APP_NAME\" \"-Xdock:icon=$APP_HOME/media/gradle.icns\""
+fi
+
+# For Cygwin, switch paths to Windows format before running java
+if $cygwin ; then
+    APP_HOME=`cygpath --path --mixed "$APP_HOME"`
+    CLASSPATH=`cygpath --path --mixed "$CLASSPATH"`
+    JAVACMD=`cygpath --unix "$JAVACMD"`
+
+    # We build the pattern for arguments to be converted via cygpath
+    ROOTDIRSRAW=`find -L / -maxdepth 1 -mindepth 1 -type d 2>/dev/null`
+    SEP=""
+    for dir in $ROOTDIRSRAW ; do
+        ROOTDIRS="$ROOTDIRS$SEP$dir"
+        SEP="|"
+    done
+    OURCYGPATTERN="(^($ROOTDIRS))"
+    # Add a user-defined pattern to the cygpath arguments
+    if [ "$GRADLE_CYGPATTERN" != "" ] ; then
+        OURCYGPATTERN="$OURCYGPATTERN|($GRADLE_CYGPATTERN)"
+    fi
+    # Now convert the arguments - kludge to limit ourselves to /bin/sh
+    i=0
+    for arg in "$@" ; do
+        CHECK=`echo "$arg"|egrep -c "$OURCYGPATTERN" -`
+        CHECK2=`echo "$arg"|egrep -c "^-"`                                 ### Determine if an option
+
+        if [ $CHECK -ne 0 ] && [ $CHECK2 -eq 0 ] ; then                    ### Added a condition
+            eval `echo args$i`=`cygpath --path --ignore --mixed "$arg"`
+        else
+            eval `echo args$i`="\"$arg\""
+        fi
+        i=$((i+1))
+    done
+    case $i in
+        (0) set -- ;;
+        (1) set -- "$args0" ;;
+        (2) set -- "$args0" "$args1" ;;
+        (3) set -- "$args0" "$args1" "$args2" ;;
+        (4) set -- "$args0" "$args1" "$args2" "$args3" ;;
+        (5) set -- "$args0" "$args1" "$args2" "$args3" "$args4" ;;
+        (6) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" ;;
+        (7) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" "$args6" ;;
+        (8) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" "$args6" "$args7" ;;
+        (9) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" "$args6" "$args7" "$args8" ;;
+    esac
+fi
+
+# Split up the JVM_OPTS And HOST_OPTS values into an array, following the shell quoting and substitution rules
+function splitJvmOpts() {
+    JVM_OPTS=("$@")
+}
+eval splitJvmOpts $DEFAULT_JVM_OPTS $JAVA_OPTS $HOST_OPTS
+
+
+# by default we should be in the correct project dir, but when run from Finder on Mac, the cwd is wrong
+if [[ "$(uname)" == "Darwin" ]] && [[ "$HOME" == "$PWD" ]]; then
+  cd "$(dirname "$0")"
+fi
+
+exec "$JAVACMD" "${JVM_OPTS[@]}" -classpath "$CLASSPATH" com.emc.pravega.service.server.host.ServiceStarter "$@"

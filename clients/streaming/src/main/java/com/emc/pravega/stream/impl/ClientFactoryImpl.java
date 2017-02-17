@@ -61,6 +61,12 @@ public class ClientFactoryImpl implements ClientFactory {
     private final SegmentInputStreamFactory inFactory;
     private final SegmentOutputStreamFactory outFactory;
 
+    /**
+     * Creates a new instance of ClientFactory class.
+     *
+     * @param scope         The scope string.
+     * @param controllerUri The Controller URI.
+     */
     public ClientFactoryImpl(String scope, URI controllerUri) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controllerUri);
@@ -71,15 +77,22 @@ public class ClientFactoryImpl implements ClientFactory {
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
     }
 
+    /**
+     * Creates a new instance of the ClientFactory class.
+     *
+     * @param scope             The scope string.
+     * @param controller        The reference to Controller.
+     * @param connectionFactory The reference to Connection Factory impl.
+     */
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
         this(scope, controller, new SegmentInputStreamFactoryImpl(controller, connectionFactory),
                 new SegmentOutputStreamFactoryImpl(controller, connectionFactory));
     }
-    
+
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, SegmentInputStreamFactory inFactory,
-            SegmentOutputStreamFactory outFactory) {
+                             SegmentOutputStreamFactory outFactory) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(inFactory);
@@ -97,38 +110,38 @@ public class ClientFactoryImpl implements ClientFactory {
         EventRouter router = new EventRouter(stream, controller);
         return new EventStreamWriterImpl<T>(stream, controller, outFactory, router, s, config);
     }
-    
+
     @Override
     public <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
-            EventWriterConfig config) {
+                                                                          EventWriterConfig config) {
         throw new NotImplementedException();
     }
 
     @Override
     public <T> EventStreamReader<T> createReader(String stream, Serializer<T> s, ReaderConfig config,
-            Position startingPosition) {
+                                                 Position startingPosition) {
         throw new NotImplementedException();
     }
 
     @Override
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
-            ReaderConfig config) {
+                                                 ReaderConfig config) {
         SynchronizerConfig synchronizerConfig = new SynchronizerConfig(null, null);
         StateSynchronizer<ReaderGroupState> sync = createStateSynchronizer(readerGroup,
-                                                                           new JavaSerializer<>(),
-                                                                           new JavaSerializer<>(),
-                                                                           synchronizerConfig);
+                new JavaSerializer<>(),
+                new JavaSerializer<>(),
+                synchronizerConfig);
         ReaderGroupStateManager stateManager = new ReaderGroupStateManager(readerId,
                 sync,
                 controller,
                 System::nanoTime);
         stateManager.initializeReader();
         return new EventReaderImpl<T>(inFactory,
-                                      s,
-                                      stateManager,
-                                      new RoundRobinOrderer<>(),
-                                      System::currentTimeMillis,
-                                      config);
+                s,
+                stateManager,
+                new RoundRobinOrderer<>(),
+                System::currentTimeMillis,
+                config);
     }
 
     private static class RoundRobinOrderer<T> implements Orderer<T> {
@@ -143,7 +156,7 @@ public class ClientFactoryImpl implements ClientFactory {
 
     @Override
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
-            SynchronizerConfig config) {
+                                                                      SynchronizerConfig config) {
         Segment segment = new Segment(scope, streamName, 0);
         SegmentInputStream in = inFactory.createInputStreamForSegment(segment, config.getInputConfig());
         SegmentOutputStream out;
@@ -156,10 +169,10 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     @Override
-    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
-            StateSynchronizer<StateT> createStateSynchronizer(String streamName,
-                    Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer,
-                    SynchronizerConfig config) {
+    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>>
+    StateSynchronizer<StateT> createStateSynchronizer(String streamName,
+                                                      Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer,
+                                                      SynchronizerConfig config) {
         Segment segment = new Segment(scope, streamName, 0);
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
         return new StateSynchronizerImpl<StateT>(segment,

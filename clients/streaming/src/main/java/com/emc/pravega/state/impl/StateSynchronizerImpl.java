@@ -43,7 +43,13 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     private StateT currentState;
     private Segment segment;
     private RevisionImpl initialRevision;
-    
+
+    /**
+     * Creates a new instance of StateSynchronizer class.
+     *
+     * @param segment The segment.
+     * @param client  The streaming Client.
+     */
     public StateSynchronizerImpl(Segment segment, RevisionedStreamClient<UpdateOrInit<StateT>> client) {
         this.segment = segment;
         this.initialRevision = new RevisionImpl(segment, 0, 0);
@@ -60,7 +66,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
         StateT state = getState();
         return state == null ? initialRevision : state.getRevision();
     }
-    
+
     @Override
     public void fetchUpdates() {
         val iter = client.readFrom(getRevision());
@@ -123,7 +129,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             return init == null ? null : new UpdateOrInit<>(init);
         });
     }
-    
+
     private void conditionallyWrite(Function<StateT, UpdateOrInit<StateT>> generator) {
         while (true) {
             StateT state = getState();
@@ -150,17 +156,17 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             }
         }
     }
-     
+
     @Synchronized
     private boolean isNewer(Revision revision) {
         return currentState == null || currentState.getRevision().compareTo(revision) < 0;
     }
-    
+
     @Synchronized
     private void updateCurrentState(StateT newValue) {
         if (newValue != null && isNewer(newValue.getRevision())) {
             currentState = newValue;
         }
     }
-    
+
 }

@@ -61,6 +61,12 @@ public class ControllerImpl implements Controller {
 
     private final ControllerService.AsyncClient client;
 
+    /**
+     * Creates a new instance of Controller class.
+     *
+     * @param host The controller host name.
+     * @param port The controller port number.
+     */
     public ControllerImpl(final String host, final int port) {
         try {
             // initialize transport, protocol factory, and async client manager
@@ -163,15 +169,15 @@ public class ControllerImpl implements Controller {
             return null;
         });
         return callback.getResult()
-                       .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
-                       .thenApply(successors -> {
-                           log.debug("Received the following data from the controller {}", successors);
-                           Map<Segment, List<Integer>> result = new HashMap<>();
-                           for (Entry<SegmentId, List<Integer>> successor : successors.entrySet()) {
-                               result.put(ModelHelper.encode(successor.getKey()), successor.getValue());
-                           }
-                           return result;
-                       });
+                .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
+                .thenApply(successors -> {
+                    log.debug("Received the following data from the controller {}", successors);
+                    Map<Segment, List<Integer>> result = new HashMap<>();
+                    for (Entry<SegmentId, List<Integer>> successor : successors.entrySet()) {
+                        result.put(ModelHelper.encode(successor.getKey()), successor.getValue());
+                    }
+                    return result;
+                });
     }
 
     @Override
@@ -185,15 +191,15 @@ public class ControllerImpl implements Controller {
             return callback.getResult();
         });
         return callback.getResult()
-            .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
-            .thenApply((List<SegmentRange> ranges) -> {
-                NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
-                for (SegmentRange r : ranges) {
-                    rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
-                }
-                return rangeMap;
-            })
-            .thenApply(StreamSegments::new);
+                .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
+                .thenApply((List<SegmentRange> ranges) -> {
+                    NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+                    for (SegmentRange r : ranges) {
+                        rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
+                    }
+                    return rangeMap;
+                })
+                .thenApply(StreamSegments::new);
     }
 
     @Override
@@ -234,9 +240,9 @@ public class ControllerImpl implements Controller {
             return null;
         });
         return FutureHelpers.toVoidExpecting(callback.getResult()
-                                             .thenApply(result -> ThriftHelper.thriftCall(result::getResult)),
-                                     TxnStatus.SUCCESS,
-                                     TxnFailedException::new);
+                        .thenApply(result -> ThriftHelper.thriftCall(result::getResult)),
+                TxnStatus.SUCCESS,
+                TxnFailedException::new);
     }
 
     @Override
@@ -249,9 +255,9 @@ public class ControllerImpl implements Controller {
             return null;
         });
         return FutureHelpers.toVoidExpecting(callback.getResult()
-                                                     .thenApply(result -> ThriftHelper.thriftCall(result::getResult)),
-                                             TxnStatus.SUCCESS,
-                                             TxnFailedException::new);
+                        .thenApply(result -> ThriftHelper.thriftCall(result::getResult)),
+                TxnStatus.SUCCESS,
+                TxnFailedException::new);
     }
 
     @Override
@@ -261,14 +267,14 @@ public class ControllerImpl implements Controller {
         final ThriftAsyncCallback<ControllerService.AsyncClient.checkTransactionStatus_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
             client.checkTransactionStatus(stream.getScope(),
-                                          stream.getStreamName(),
-                                          ModelHelper.decode(txId),
-                                          callback);
+                    stream.getStreamName(),
+                    ModelHelper.decode(txId),
+                    callback);
             return null;
         });
         return callback.getResult()
-            .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
-            .thenApply(status -> ModelHelper.encode(status, stream + " " + txId));
+                .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
+                .thenApply(status -> ModelHelper.encode(status, stream + " " + txId));
     }
 
 }

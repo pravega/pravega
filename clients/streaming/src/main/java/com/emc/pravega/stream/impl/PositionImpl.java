@@ -35,10 +35,15 @@ public class PositionImpl extends PositionInternal {
     private static final long serialVersionUID = 1L;
     private final Map<Segment, Long> ownedSegments;
 
+    /**
+     * Instantiates Position with current and future owned segments.
+     *
+     * @param ownedSegments Current segments that the position refers to.
+     */
     public PositionImpl(Map<Segment, Long> ownedSegments) {
         this.ownedSegments = new HashMap<>(ownedSegments);
     }
-    
+
     static PositionImpl createEmptyPosition() {
         return new PositionImpl(new HashMap<>());
     }
@@ -56,10 +61,10 @@ public class PositionImpl extends PositionInternal {
     @Override
     public Set<Segment> getCompletedSegments() {
         return ownedSegments.entrySet()
-            .stream()
-            .filter(x -> x.getValue() < 0)
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
+                .stream()
+                .filter(x -> x.getValue() < 0)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
     }
 
     @Override

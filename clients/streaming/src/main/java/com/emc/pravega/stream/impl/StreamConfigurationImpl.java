@@ -33,6 +33,13 @@ public class StreamConfigurationImpl implements StreamConfiguration {
     private final ScalingPolicy scalingPolicy;
     private final RetentionPolicy retentionPolicy;
 
+    /**
+     * Creates a new instance of the StreamConfiguration class.
+     *
+     * @param scope         The scope of the stream.
+     * @param name          The name of the stream.
+     * @param scalingPolicy The scaling policy for the stream.
+     */
     public StreamConfigurationImpl(String scope, String name, ScalingPolicy scalingPolicy) {
         this(scope, name, scalingPolicy, new RetentionPolicy(Long.MAX_VALUE));
     }
