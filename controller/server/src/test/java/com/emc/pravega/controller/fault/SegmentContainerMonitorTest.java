@@ -32,9 +32,9 @@ import static org.junit.Assert.assertTrue;
 
 public class SegmentContainerMonitorTest {
 
-    private static TestingServer zkTestServer;
-    private static CuratorFramework zkClient;
-    private static Cluster cluster;
+    private TestingServer zkTestServer;
+    private CuratorFramework zkClient;
+    private Cluster cluster;
 
     private final static String CLUSTER_NAME = "testcluster";
 

@@ -94,7 +94,7 @@ public final class ServiceStarter {
 
         log.info("Initializing metrics provider ...");
         statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.start(metricsConfig);
+        statsProvider.start();
 
         log.info("Initializing Service Builder ...");
         this.serviceBuilder.initialize().join();

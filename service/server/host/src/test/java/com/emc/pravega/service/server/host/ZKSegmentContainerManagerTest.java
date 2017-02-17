@@ -51,9 +51,9 @@ public class ZKSegmentContainerManagerTest {
     private final static Host PRAVEGA_SERVICE_ENDPOINT = new Host(getHostAddress(), PORT);
     private final static String CLUSTER_NAME = "cluster-1";
     private final static String PATH = ZKPaths.makePath("cluster", CLUSTER_NAME, "segmentContainerHostMapping");
-    private static String zkUrl;
+    private String zkUrl;
 
-    private static TestingServer zkTestServer;
+    private TestingServer zkTestServer;
 
     @Rule
     public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT); // timeout per method tested

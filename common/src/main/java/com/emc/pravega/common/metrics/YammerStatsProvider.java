@@ -17,14 +17,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.concurrent.GuardedBy;
+
+import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@RequiredArgsConstructor
 public class YammerStatsProvider implements StatsProvider {
     @GuardedBy("$lock")
     private MetricRegistry metrics = null;
     private final List<ScheduledReporter> reporters = new ArrayList<ScheduledReporter>();
+    private final MetricsConfig conf;
 
     @Synchronized
     void init() {
@@ -42,9 +46,9 @@ public class YammerStatsProvider implements StatsProvider {
 
     @Synchronized
     @Override
-    public void start(MetricsConfig conf) {
+    public void start() {
         init();
-
+        
         int metricsOutputFrequency = conf.getStatsOutputFrequency();
         String prefix = conf.getMetricsPrefix();
         String csvDir = conf.getCSVEndpoint();
@@ -99,6 +103,6 @@ public class YammerStatsProvider implements StatsProvider {
     @Override
     public DynamicLogger createDynamicLogger() {
         init();
-        return new YammerDynamicLogger(metrics, new YammerStatsLogger(getMetrics(), "DYNAMIC"));
+        return new YammerDynamicLogger(conf, metrics, new YammerStatsLogger(getMetrics(), "DYNAMIC"));
     }
 }

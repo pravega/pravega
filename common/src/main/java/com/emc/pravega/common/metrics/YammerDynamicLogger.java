@@ -19,8 +19,8 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class YammerDynamicLogger implements DynamicLogger {
-    private static final long CACHESIZE = MetricsConfig.getDynamicCacheSize();
-    private static final long TTLSECONDS = MetricsConfig.getDynamicTTLSeconds();
+    private final long cacheSize;
+    private final long ttlSeconds;
 
     protected final MetricRegistry metrics;
     protected final StatsLogger underlying;
@@ -28,15 +28,18 @@ public class YammerDynamicLogger implements DynamicLogger {
     private final Cache<String, Gauge> gaugesCache;
     private final Cache<String, Meter> metersCache;
 
-    public YammerDynamicLogger(MetricRegistry metrics, StatsLogger statsLogger) {
+    public YammerDynamicLogger(MetricsConfig metricsConfig, MetricRegistry metrics, StatsLogger statsLogger) {
+        Preconditions.checkNotNull(metricsConfig, "metricsConfig");
         Preconditions.checkNotNull(metrics, "metrics");
         Preconditions.checkNotNull(statsLogger, "statsLogger");
         this.metrics = metrics;
         this.underlying = statsLogger;
+        this.cacheSize = metricsConfig.getDynamicCacheSize();
+        this.ttlSeconds = metricsConfig.getDynamicTTLSeconds();
 
         countersCache = CacheBuilder.newBuilder().
-                maximumSize(CACHESIZE).
-                expireAfterAccess(TTLSECONDS, TimeUnit.SECONDS).
+                maximumSize(cacheSize).
+                expireAfterAccess(ttlSeconds, TimeUnit.SECONDS).
                 removalListener(new RemovalListener<String, Counter>() {
                     public void onRemoval(RemovalNotification<String, Counter> removal) {
                         Counter counter = removal.getValue();
@@ -48,8 +51,8 @@ public class YammerDynamicLogger implements DynamicLogger {
                 build();
 
         gaugesCache = CacheBuilder.newBuilder().
-                maximumSize(CACHESIZE).
-                expireAfterAccess(TTLSECONDS, TimeUnit.SECONDS).
+                maximumSize(cacheSize).
+                expireAfterAccess(ttlSeconds, TimeUnit.SECONDS).
                 removalListener(new RemovalListener<String, Gauge>() {
                     public void onRemoval(RemovalNotification<String, Gauge> removal) {
                         Gauge gauge = removal.getValue();
@@ -60,8 +63,8 @@ public class YammerDynamicLogger implements DynamicLogger {
                 build();
 
         metersCache = CacheBuilder.newBuilder().
-            maximumSize(CACHESIZE).
-            expireAfterAccess(TTLSECONDS, TimeUnit.SECONDS).
+            maximumSize(cacheSize).
+            expireAfterAccess(ttlSeconds, TimeUnit.SECONDS).
             removalListener(new RemovalListener<String, Meter>() {
                 public void onRemoval(RemovalNotification<String, Meter> removal) {
                     Meter meter = removal.getValue();
