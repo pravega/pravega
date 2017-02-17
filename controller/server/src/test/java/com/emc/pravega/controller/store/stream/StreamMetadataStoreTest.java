@@ -137,4 +137,37 @@ public class StreamMetadataStoreTest {
         // endregion
     }
 
+
+    @Test
+    public void listStreamsInScope() throws Exception {
+        // list stream in scope
+        store.createScope("Scope").get();
+        store.createStream("Scope", stream1, configuration1, System.currentTimeMillis());
+        store.createStream("Scope", stream2, configuration2, System.currentTimeMillis());
+        List<Stream> streamInScope = store.listStreamsInScope("Scope").get();
+        assertEquals("List streams in scope", 2, streamInScope.size());
+        assertEquals("List streams in scope", stream1, streamInScope.get(0).getName());
+        assertEquals("List streams in scope", stream2, streamInScope.get(1).getName());
+    }
+
+    @Test
+    public void listScopes() throws Exception {
+        // list scopes test
+        List<String> list = store.listScopes().get();
+        assertEquals("List Scopes size", 0, list.size());
+
+        store.createScope("Scope1").get();
+        store.createScope("Scope2").get();
+        store.createScope("Scope3").get();
+        store.createScope("Scope4").get();
+
+        list = store.listScopes().get();
+        assertEquals("List Scopes size", 4, list.size());
+
+        store.deleteScope("Scope1").get();
+        store.deleteScope("Scope2").get();
+        list = store.listScopes().get();
+        assertEquals("List Scopes size", 2, list.size());
+    }
+
 }

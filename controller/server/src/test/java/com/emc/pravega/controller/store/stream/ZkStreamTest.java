@@ -142,6 +142,22 @@ public class ZkStreamTest {
     }
 
     @Test
+    public void testZkListScope() throws Exception {
+        // list scope test
+        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
+        store.createScope("Scope1").get();
+        store.createScope("Scope2").get();
+        store.createScope("Scope3").get();
+
+        List<String> listScopes = store.listScopes().get();
+        assertEquals("List Scopes ", 3, listScopes.size());
+
+        store.deleteScope("Scope3").get();
+        listScopes = store.listScopes().get();
+        assertEquals("List Scopes ", 2, listScopes.size());
+    }
+
+    @Test
     public void testZkStream() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
 

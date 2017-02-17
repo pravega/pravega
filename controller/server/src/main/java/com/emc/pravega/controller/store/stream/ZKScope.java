@@ -69,6 +69,10 @@ public class ZKScope implements Scope {
         client = cf;
     }
 
+    public static CompletableFuture<List<String>> listScopes() {
+        return getChildren("/store");
+    }
+
     private static CompletableFuture<Data<Integer>> getData(final String path) {
         return checkExists(path)
                 .thenApply(x -> {

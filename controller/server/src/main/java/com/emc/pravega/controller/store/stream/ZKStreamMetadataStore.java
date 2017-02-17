@@ -97,6 +97,11 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    public CompletableFuture<List<String>> listScopes() {
+        return ZKScope.listScopes();
+    }
+
+    @Override
     public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
         return ZKStream.getAllActiveTx();
     }

@@ -58,9 +58,11 @@ public class ControllerServiceAsyncImplTest {
 
     private static final String SCOPE1 = "scope1";
     private static final String SCOPE2 = "scope2";
+    private static final String SCOPE3 = "scope3";
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
     private final ControllerServiceAsyncImpl controllerService;
+    private StreamMetadataStore streamStore;
 
     private final TestingServer zkServer;
 
@@ -77,7 +79,7 @@ public class ControllerServiceAsyncImplTest {
 
         StoreClient storeClient = new ZKStoreClient(zkClient);
 
-        final StreamMetadataStore streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory,
+        streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory,
                 executor);
 
         final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
@@ -124,23 +126,28 @@ public class ControllerServiceAsyncImplTest {
         // endregion
     }
 
-
     @Test
     public void deleteScopeTests() throws TException, ExecutionException, InterruptedException {
         CreateScopeStatus createScopeStatus;
         DeleteScopeStatus deleteScopeStatus;
         CreateStreamStatus createStreamStatus;
 
-        // Delete empty scope (containing no streams) SCOPE1
+        // Delete empty scope (containing no streams) SCOPE3
         ThriftAsyncCallback<CreateScopeStatus> result1 = new ThriftAsyncCallback<>();
-        this.controllerService.createScope(SCOPE1, result1);
+        this.controllerService.createScope(SCOPE3, result1);
         createScopeStatus = result1.getResult().get();
         assertEquals("Create Scope", CreateScopeStatus.SUCCESS, createScopeStatus);
 
         ThriftAsyncCallback<DeleteScopeStatus> result2 = new ThriftAsyncCallback<>();
-        this.controllerService.deleteScope(SCOPE1, result2);
+        this.controllerService.deleteScope(SCOPE3, result2);
         deleteScopeStatus = result2.getResult().get();
         assertEquals("Delete Empty scope", DeleteScopeStatus.SUCCESS, deleteScopeStatus);
+
+        // To verify that SCOPE3 is infact deleted in above delete call
+        ThriftAsyncCallback<DeleteScopeStatus> result7 = new ThriftAsyncCallback<>();
+        this.controllerService.deleteScope(SCOPE3, result7);
+        deleteScopeStatus = result7.getResult().get();
+        assertEquals("Verify that Scope3 is infact deleted", DeleteScopeStatus.SCOPE_NOT_FOUND, deleteScopeStatus);
 
         // Delete Non-empty Scope SCOPE2
         ThriftAsyncCallback<CreateScopeStatus> result3 = new ThriftAsyncCallback<>();
@@ -149,14 +156,14 @@ public class ControllerServiceAsyncImplTest {
         assertEquals("Create Scope", CreateScopeStatus.SUCCESS, createScopeStatus);
 
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
-        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE1, stream1, policy1);
+        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE2, stream1, policy1);
         ThriftAsyncCallback<CreateStreamStatus> result4 = new ThriftAsyncCallback<>();
         this.controllerService.createStream(ModelHelper.decode(configuration1), result4);
         createStreamStatus = result4.getResult().get();
         assertEquals(createStreamStatus, CreateStreamStatus.SUCCESS);
 
         ThriftAsyncCallback<DeleteScopeStatus> result5 = new ThriftAsyncCallback<>();
-        this.controllerService.deleteScope(SCOPE1, result5);
+        this.controllerService.deleteScope(SCOPE2, result5);
         deleteScopeStatus = result5.getResult().get();
         assertEquals("Delete non empty scope", DeleteScopeStatus.SCOPE_NOT_EMPTY, deleteScopeStatus);
 
@@ -164,7 +171,7 @@ public class ControllerServiceAsyncImplTest {
         ThriftAsyncCallback<DeleteScopeStatus> result6 = new ThriftAsyncCallback<>();
         this.controllerService.deleteScope("SCOPE3", result6);
         deleteScopeStatus = result6.getResult().get();
-        assertEquals("Delete non empty scope", DeleteScopeStatus.SCOPE_NOT_FOUND, deleteScopeStatus);
+        assertEquals("Delete non existent scope", DeleteScopeStatus.SCOPE_NOT_FOUND, deleteScopeStatus);
     }
 
     @Test

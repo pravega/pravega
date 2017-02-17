@@ -21,6 +21,7 @@ import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.stream.StreamConfiguration;
 import org.apache.commons.lang.NotImplementedException;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -97,11 +98,14 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         if (scopes.containsKey(scopeName)) {
             return scopes.get(scopeName).listStreamsInScope().thenCompose(streams -> {
                 if (streams.size() == 0) {
-                    return scopes.get(scopeName).deleteScope();
-                } else {
                     CompletableFuture<Boolean> result1 = new CompletableFuture<>();
-                    result1.completeExceptionally(new StoreException(StoreException.Type.NODE_NOT_EMPTY, "Scope not empty."));
+                    result1 = scopes.get(scopeName).deleteScope();
+                    scopes.remove(scopeName);
                     return result1;
+                } else {
+                    CompletableFuture<Boolean> result2 = new CompletableFuture<>();
+                    result2.completeExceptionally(new StoreException(StoreException.Type.NODE_NOT_EMPTY, "Scope not empty."));
+                    return result2;
                 }
             });
 
@@ -110,6 +114,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             result.completeExceptionally(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
             return result;
         }
+    }
+
+    @Override
+    public CompletableFuture<List<String>> listScopes() {
+        return CompletableFuture.completedFuture(new ArrayList<>(scopes.keySet()));
     }
 
     @Override
