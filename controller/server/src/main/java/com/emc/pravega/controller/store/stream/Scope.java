@@ -36,16 +36,16 @@ public interface Scope {
     /**
      * Create the scope.
      *
-     * @return boolean indicating success of createScope
+     * @return null on success and exception on failure.
      */
-    CompletableFuture<Boolean> createScope();
+    CompletableFuture<Void> createScope();
 
     /**
      * Delete the scope.
      *
-     * @return boolean indicating success of deleteScope
+     * @return null on success and exception on failure.
      */
-    CompletableFuture<Boolean> deleteScope();
+    CompletableFuture<Void> deleteScope();
 
     /**
      * List existing streams in scopes.

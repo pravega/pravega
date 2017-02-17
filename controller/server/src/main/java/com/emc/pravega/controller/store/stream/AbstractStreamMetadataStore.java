@@ -131,10 +131,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      * Create a scope with given name.
      *
      * @param scopeName Name of scope to created.
-     * @return Boolean indication success of createScope call.
+     * @return null on success and exception on failure.
      */
     @Override
-    public CompletableFuture<Boolean> createScope(final String scopeName) {
+    public CompletableFuture<Void> createScope(final String scopeName) {
         return getScope(scopeName).createScope();
     }
 
@@ -142,10 +142,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      * Delete a scope with given name.
      *
      * @param scopeName Name of scope to be deleted
-     * @return Boolean indicating success of deleteScope call.
+     * @return null on success and exception on failure.
      */
     @Override
-    public CompletableFuture<Boolean> deleteScope(final String scopeName) {
+    public CompletableFuture<Void> deleteScope(final String scopeName) {
         return getScope(scopeName).deleteScope();
     }
 

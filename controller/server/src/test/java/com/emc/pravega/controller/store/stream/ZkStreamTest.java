@@ -78,8 +78,10 @@ public class ZkStreamTest {
         // create new scope test
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String scopeName = "Scope1";
-        CompletableFuture<Boolean> createScopeStatus = store.createScope(scopeName);
-        assertEquals("Create new scope :", true, createScopeStatus.get());
+        CompletableFuture<Void> createScopeStatus = store.createScope(scopeName);
+
+        // createScope returns null on success, and exception on failure
+        assertEquals("Create new scope :", null, createScopeStatus.get());
 
         // create duplicate scope test
         createScopeStatus = store.createScope(scopeName);
@@ -113,11 +115,13 @@ public class ZkStreamTest {
         store.createScope(scopeName).get();
 
         // Delete empty scope Scope1
-        CompletableFuture<Boolean> deleteScopeStatus = store.deleteScope(scopeName);
-        assertEquals("Delete Empty Scope", true, deleteScopeStatus.get());
+        CompletableFuture<Void> deleteScopeStatus = store.deleteScope(scopeName);
+
+        // deleteScope returns null on success, and exception on failure
+        assertEquals("Delete Empty Scope", null, deleteScopeStatus.get());
 
         // Delete non-existent scope Scope2
-        CompletableFuture<Boolean> deleteScopeStatus2 = store.deleteScope("Scope2");
+        CompletableFuture<Void> deleteScopeStatus2 = store.deleteScope("Scope2");
 
         try {
             deleteScopeStatus2.get();
@@ -132,7 +136,7 @@ public class ZkStreamTest {
         final StreamConfigurationImpl streamConfig = new StreamConfigurationImpl("Scope3", "Stream3", policy);
         store.createStream("Scope3", "Stream3", streamConfig, System.currentTimeMillis()).get();
 
-        CompletableFuture<Boolean> deleteScopeStatus3 = store.deleteScope("Scope3");
+        CompletableFuture<Void> deleteScopeStatus3 = store.deleteScope("Scope3");
         try {
             deleteScopeStatus3.get();
         } catch (ExecutionException | CompletionException e) {

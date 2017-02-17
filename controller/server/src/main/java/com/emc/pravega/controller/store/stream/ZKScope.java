@@ -46,12 +46,12 @@ public class ZKScope implements Scope {
     }
 
     @Override
-    public CompletableFuture<Boolean> createScope() {
+    public CompletableFuture<Void> createScope() {
         return addNode(scopePath);
     }
 
     @Override
-    public CompletableFuture<Boolean> deleteScope() {
+    public CompletableFuture<Void> deleteScope() {
         return deleteNode(scopePath);
     }
 
@@ -85,8 +85,8 @@ public class ZKScope implements Scope {
 
     private static CompletableFuture<Data<Integer>> getData(final String path) {
         return checkExists(path)
-                .thenApply(x -> {
-                    if (x) {
+                .handle( (result, ex) -> {
+                    if (ex == null) {
                         try {
                             Stat stat = new Stat();
                             return new Data<>(client.getData().storingStatIn(stat).forPath(path), stat.getVersion());
@@ -99,8 +99,8 @@ public class ZKScope implements Scope {
                 });
     }
 
-    private static CompletableFuture<Boolean> addNode(final String path) {
-        return CompletableFuture.supplyAsync(() -> {
+    private static CompletableFuture<Void> addNode(final String path) {
+        return CompletableFuture.runAsync(() -> {
             try {
                 client.create().creatingParentsIfNeeded().forPath(path);
             } catch (KeeperException.NodeExistsException e) {
@@ -108,12 +108,11 @@ public class ZKScope implements Scope {
             } catch (Exception e) {
                 throw new StoreException(StoreException.Type.UNKNOWN, e);
             }
-            return true;
         });
     }
 
-    private static CompletableFuture<Boolean> deleteNode(final String path) {
-        return CompletableFuture.supplyAsync(() -> {
+    private static CompletableFuture<Void> deleteNode(final String path) {
+        return CompletableFuture.runAsync(() -> {
             try {
                 client.delete().forPath(path);
             } catch (KeeperException.NoNodeException e) {
@@ -123,7 +122,6 @@ public class ZKScope implements Scope {
             } catch (Exception e) {
                 throw new StoreException(StoreException.Type.UNKNOWN, e);
             }
-            return true;
         });
     }
 
@@ -139,15 +137,15 @@ public class ZKScope implements Scope {
         });
     }
 
-    private static CompletableFuture<Boolean> checkExists(final String path) {
-        return CompletableFuture.supplyAsync(
+    private static CompletableFuture<Void> checkExists(final String path) {
+        return CompletableFuture.runAsync(
                 () -> {
                     try {
-                        return client.checkExists().forPath(path);
+                        client.checkExists().forPath(path);
                     } catch (Exception e) {
                         throw new StoreException(StoreException.Type.UNKNOWN, e);
                     }
-                })
-                .thenApply(x -> x != null);
+                });
+
     }
 }

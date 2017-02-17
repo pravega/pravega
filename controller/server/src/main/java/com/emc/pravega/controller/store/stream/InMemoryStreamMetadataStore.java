@@ -74,23 +74,23 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public synchronized CompletableFuture<Boolean> createScope(String scopeName) {
+    public synchronized CompletableFuture<Void> createScope(String scopeName) {
         if (!scopes.containsKey(scopeName)) {
             InMemoryScope scope = new InMemoryScope(scopeName);
             scope.createScope();
             scopes.put(scopeName, scope);
-            return CompletableFuture.completedFuture(true);
+            return CompletableFuture.completedFuture(null);
         } else {
             return FutureHelpers.failedFuture(new StoreException(StoreException.Type.NODE_EXISTS, "Scope Exists"));
         }
     }
 
     @Override
-    public synchronized CompletableFuture<Boolean> deleteScope(String scopeName) {
+    public synchronized CompletableFuture<Void> deleteScope(String scopeName) {
         if (scopes.containsKey(scopeName)) {
             return scopes.get(scopeName).listStreamsInScope().thenCompose(streams -> {
                 if (streams.size() == 0) {
-                    CompletableFuture<Boolean> result;
+                    CompletableFuture<Void> result;
                     result = scopes.get(scopeName).deleteScope();
                     scopes.remove(scopeName);
                     return result;
