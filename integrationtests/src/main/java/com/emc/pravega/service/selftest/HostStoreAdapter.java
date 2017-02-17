@@ -1,24 +1,11 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.selftest;
 
-import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
@@ -29,8 +16,8 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.impl.ByteArraySerializer;
 import com.emc.pravega.stream.mock.MockStreamManager;
-
 import java.time.Duration;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -108,7 +95,7 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
         ensureInitializedAndNotClosed();
         return CompletableFuture.runAsync(() -> {
             if (this.producers.containsKey(streamSegmentName)) {
@@ -118,8 +105,8 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
             streamManager.createStream(streamSegmentName, null);
             EventStreamWriter<byte[]> producer = streamManager.getClientFactory()
                                                               .createEventWriter(streamSegmentName,
-                                                                                 new ByteArraySerializer(),
-                                                                                 new EventWriterConfig(null));
+                                                                      new ByteArraySerializer(),
+                                                                      new EventWriterConfig(null));
             this.producers.putIfAbsent(streamSegmentName, producer);
         }, this.testExecutor);
     }
@@ -131,7 +118,7 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext context, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         ensureInitializedAndNotClosed();
         return CompletableFuture.runAsync(() -> {
             EventStreamWriter<byte[]> producer = this.producers.getOrDefault(streamSegmentName, null);
@@ -171,7 +158,7 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, Duration timeout) {
+    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
         ensureInitializedAndNotClosed();
         throw new UnsupportedOperationException("transactions are not supported.");
     }

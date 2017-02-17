@@ -1,40 +1,22 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.util.ImmutableDate;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.google.common.base.Preconditions;
-
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
-
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -51,7 +33,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private final long parentStreamSegmentId;
     private final int containerId;
     @GuardedBy("this")
-    private final AbstractMap<UUID, AppendContext> lastCommittedAppends;
+    private final Map<UUID, Long> attributes;
     @GuardedBy("this")
     private long storageLength;
     @GuardedBy("this")
@@ -66,7 +48,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private boolean merged;
     @GuardedBy("this")
     private ImmutableDate lastModified;
-
 
     //endregion
 
@@ -109,7 +90,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.merged = false;
         this.storageLength = -1;
         this.durableLogLength = -1;
-        this.lastCommittedAppends = new HashMap<>();
+        this.attributes = new HashMap<>();
         this.lastModified = new ImmutableDate(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
     }
 
@@ -182,13 +163,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized AppendContext getLastAppendContext(UUID clientId) {
-        return this.lastCommittedAppends.getOrDefault(clientId, null);
-    }
-
-    @Override
-    public synchronized Collection<UUID> getKnownClientIds() {
-        return new ArrayList<>(this.lastCommittedAppends.keySet());
+    public synchronized Map<UUID, Long> getAttributes() {
+        return Collections.unmodifiableMap(this.attributes);
     }
 
     @Override
@@ -260,8 +236,15 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized void recordAppendContext(AppendContext appendContext) {
-        this.lastCommittedAppends.put(appendContext.getClientId(), appendContext);
+    public synchronized void updateAttributes(Map<UUID, Long> attributes) {
+        for (Map.Entry<UUID, Long> av : attributes.entrySet()) {
+            long value = av.getValue();
+            if (value == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                this.attributes.remove(av.getKey());
+            } else {
+                this.attributes.put(av.getKey(), value);
+            }
+        }
     }
 
     @Override
@@ -274,9 +257,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         setStorageLength(base.getStorageLength());
         setDurableLogLength(base.getDurableLogLength());
         setLastModified(base.getLastModified());
-        for (UUID clientId : base.getKnownClientIds()) {
-            recordAppendContext(base.getLastAppendContext(clientId));
-        }
+        updateAttributes(base.getAttributes());
 
         if (base.isSealed()) {
             markSealed();
