@@ -1,25 +1,13 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
- * agreements. See the NOTICE file distributed with this work for additional information regarding
- * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License. You may obtain a
- * copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.host.handler;
 
-import com.emc.pravega.common.SegmentStoreMetricsNames;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
-import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.DelegatingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
@@ -51,7 +39,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -70,12 +57,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private static final int HIGH_WATER_MARK = 128 * 1024;
     private static final int LOW_WATER_MARK = 64 * 1024;
 
-    private static final AtomicLong PENDING_BYTES = new AtomicLong();
-    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("SEGMENTSTORE");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
-    static {
-        STATS_LOGGER.registerGauge(SegmentStoreMetricsNames.PENDING_APPEND_BYTES, AppendProcessor.PENDING_BYTES::get);
-    }
 
     private final StreamSegmentStore store;
     private final ServerConnection connection;
@@ -260,8 +242,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     .mapToInt(a -> a.getData().readableBytes())
                     .sum();
         }
-        // Registered gauge value
-        PENDING_BYTES.set(bytesWaiting);
 
         if (bytesWaiting > HIGH_WATER_MARK) {
             connection.pauseReading();
