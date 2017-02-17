@@ -80,7 +80,7 @@ public class SelfTestRunner {
     }
 
     private static TestConfig getTestConfig() {
-        final int producers = 10;
+        final int producers = 100;
         final boolean useClient = false;
 
         final int testThreadPoolAddition = useClient ? producers : 0;
@@ -91,8 +91,6 @@ public class SelfTestRunner {
                            .with(TestConfig.PROPERTY_SEGMENT_COUNT, 1)
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 100)
-                           //.with(TestConfig.PROPERTY_MIN_APPEND_SIZE, WireCommands.APPEND_BLOCK_SIZE)
-                           //.with(TestConfig.PROPERTY_MAX_APPEND_SIZE, WireCommands.APPEND_BLOCK_SIZE)
 
                            // Transaction setup.
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
@@ -100,7 +98,7 @@ public class SelfTestRunner {
 
                            // Test setup.
                            .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 50 + testThreadPoolAddition)
-                           .with(TestConfig.PROPERTY_DATA_LOG_APPEND_DELAY, 10)
+                           .with(TestConfig.PROPERTY_DATA_LOG_APPEND_DELAY, 0)
                            .with(TestConfig.PROPERTY_TIMEOUT_MILLIS, 3000)
                            .with(TestConfig.PROPERTY_VERBOSE_LOGGING, false)
 
