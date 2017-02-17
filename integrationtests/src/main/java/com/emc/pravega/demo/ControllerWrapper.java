@@ -18,7 +18,6 @@ import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.emc.pravega.controller.util.ZKUtils;
 import com.emc.pravega.stream.impl.Controller;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
