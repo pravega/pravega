@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.selftest;
 
@@ -18,6 +16,7 @@ import com.emc.pravega.stream.impl.ByteArraySerializer;
 import com.emc.pravega.stream.mock.MockStreamManager;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
