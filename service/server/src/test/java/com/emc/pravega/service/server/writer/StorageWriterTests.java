@@ -7,7 +7,6 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.common.util.PropertyBag;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
@@ -534,13 +533,12 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     }
 
     private void appendData(UpdateableSegmentMetadata segmentMetadata, int appendId, int writeId, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
-        AppendContext appendContext = new AppendContext(UUID.randomUUID(), appendId);
         byte[] data = getAppendData(segmentMetadata.getName(), segmentMetadata.getId(), appendId, writeId);
 
         // Make sure we increase the DurableLogLength prior to appending; the Writer checks for this.
         long offset = segmentMetadata.getDurableLogLength();
         segmentMetadata.setDurableLogLength(offset + data.length);
-        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentMetadata.getId(), data, appendContext);
+        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentMetadata.getId(), data, null);
         op.setStreamSegmentOffset(offset);
         context.dataSource.recordAppend(op);
         context.dataSource.add(new CachedStreamSegmentAppendOperation(op));

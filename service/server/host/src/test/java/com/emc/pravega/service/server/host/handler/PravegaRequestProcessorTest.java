@@ -17,7 +17,6 @@ import com.emc.pravega.common.netty.WireCommands.SegmentDeleted;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -35,7 +34,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import lombok.Cleanup;
@@ -194,7 +192,7 @@ public class PravegaRequestProcessorTest {
     private boolean append(String streamSegmentName, int number, StreamSegmentStore store) {
         return FutureHelpers.await(store.append(streamSegmentName,
                 new byte[]{(byte) number},
-                new AppendContext(UUID.randomUUID(), number),
+                null,
                 PravegaRequestProcessor.TIMEOUT));
     }
 

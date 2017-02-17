@@ -8,9 +8,11 @@ package com.emc.pravega.service.server.logs.operations;
 import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.server.ContainerMetadata;
-
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
-
+import java.util.UUID;
+import lombok.val;
 import org.junit.Assert;
 
 /**
@@ -19,7 +21,13 @@ import org.junit.Assert;
 public class StreamSegmentMapOperationTests extends OperationTestsBase<StreamSegmentMapOperation> {
     @Override
     protected StreamSegmentMapOperation createOperation(Random random) {
-        return new StreamSegmentMapOperation(new StreamSegmentInformation(super.getStreamSegmentName(random.nextLong()), random.nextLong(), random.nextBoolean(), random.nextBoolean(), new ImmutableDate()));
+        return new StreamSegmentMapOperation(new StreamSegmentInformation(
+                super.getStreamSegmentName(random.nextLong()),
+                random.nextLong(),
+                random.nextBoolean(),
+                random.nextBoolean(),
+                createAttributes(10),
+                new ImmutableDate()));
     }
 
     @Override
@@ -34,5 +42,14 @@ public class StreamSegmentMapOperationTests extends OperationTestsBase<StreamSeg
         } else if (isPreSerializationConfigRequired(operation)) {
             Assert.fail("isPreSerializationConfigRequired returned true but there is nothing to be done.");
         }
+    }
+
+    static Map<UUID, Long> createAttributes(int count) {
+        val result = new HashMap<UUID, Long>();
+        for (int i = 0; i < count; i++) {
+            result.put(UUID.randomUUID(), (long) i);
+        }
+
+        return result;
     }
 }

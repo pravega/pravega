@@ -8,7 +8,6 @@ package com.emc.pravega.integrationtests;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -42,7 +41,11 @@ import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.TestUtils;
-
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.util.ResourceLeakDetector;
+import io.netty.util.ResourceLeakDetector.Level;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -50,7 +53,7 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-
+import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -59,13 +62,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.util.ResourceLeakDetector;
-import io.netty.util.ResourceLeakDetector.Level;
-import io.netty.util.internal.logging.InternalLoggerFactory;
-import io.netty.util.internal.logging.Slf4JLoggerFactory;
-import lombok.Cleanup;
 
 public class ReadTest {
 
@@ -258,10 +254,9 @@ public class ReadTest {
     private void fillStoreForSegment(String segmentName, UUID clientId, byte[] data, int numEntries,
                                      StreamSegmentStore segmentStore) {
         try {
-            segmentStore.createStreamSegment(segmentName, Duration.ZERO).get();
+            segmentStore.createStreamSegment(segmentName, null, Duration.ZERO).get();
             for (int eventNumber = 1; eventNumber <= numEntries; eventNumber++) {
-                AppendContext appendContext = new AppendContext(clientId, eventNumber);
-                segmentStore.append(segmentName, data, appendContext, Duration.ZERO).get();
+                segmentStore.append(segmentName, data, null, Duration.ZERO).get();
             }
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
