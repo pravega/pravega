@@ -86,12 +86,12 @@ public class StreamMetadataTasks extends TaskBase {
                                final String hostId) {
         this(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, new Context(hostId));
     }
-    
+
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
-            final HostControllerStore hostControllerStore,
-            final TaskMetadataStore taskMetadataStore,
-            final ScheduledExecutorService executor,
-            final Context context) {
+                                final HostControllerStore hostControllerStore,
+                                final TaskMetadataStore taskMetadataStore,
+                                final ScheduledExecutorService executor,
+                                final Context context) {
         super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
@@ -115,6 +115,12 @@ public class StreamMetadataTasks extends TaskBase {
                 () -> createStreamBody(scope, stream, config, createTimestamp));
     }
 
+    /**
+     * Create Scope.
+     *
+     * @param scope Name of scope to created.
+     * @return Status of create scope.
+     */
     @Task(name = "createScope", version = "1.0", resource = "{scope}")
     public CompletableFuture<CreateScopeStatus> createScope(String scope) {
         return execute(
@@ -124,6 +130,12 @@ public class StreamMetadataTasks extends TaskBase {
         );
     }
 
+    /**
+     * Delete a scope.
+     *
+     * @param scope Name of scope to be deleted.
+     * @return Status of delete scope.
+     */
     @Task(name = "deleteScope", version = "1.0", resource = "{scope}")
     public CompletableFuture<DeleteScopeStatus> deleteScope(String scope) {
         return streamMetadataStore.deleteScope(scope)

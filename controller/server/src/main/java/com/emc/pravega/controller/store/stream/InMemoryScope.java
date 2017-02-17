@@ -22,6 +22,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * InMemory implementation of Scope.
+ */
 public class InMemoryScope implements Scope {
 
     private final String scopeName;
@@ -59,6 +62,11 @@ public class InMemoryScope implements Scope {
 
     }
 
+    /**
+     * Adds stream name to the scope.
+     *
+     * @param stream Name of stream to be added.
+     */
     public synchronized void addStreamToScope(String stream) {
         streamsInScope.add(stream);
     }

@@ -33,8 +33,18 @@ import java.util.concurrent.CompletableFuture;
  */
 interface Stream {
 
+    /**
+     * Get name of stream.
+     *
+     * @return Name of stream.
+     */
     String getName();
 
+    /**
+     * Get Scope Name.
+     *
+     * @return Name of scope.
+     */
     String getScopeName();
 
     /**
@@ -87,7 +97,7 @@ interface Stream {
      * @return successors of specified segment.
      */
     CompletableFuture<List<Integer>> getSuccessors(final int number);
-    
+
     /**
      * @param number segment number.
      * @return successors of specified segment mapped to the list of their predecessors

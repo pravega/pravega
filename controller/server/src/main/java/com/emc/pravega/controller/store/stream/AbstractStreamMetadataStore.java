@@ -98,8 +98,20 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         });
     }
 
-    abstract Stream newStream(final String streamName);
+    /**
+     * Returns a Stream object from stream identifier.
+     *
+     * @param scopedStreamName scopedStreamName is stream identifier  (scopeName/streamName)
+     * @return Stream Object.
+     */
+    abstract Stream newStream(final String scopedStreamName);
 
+    /**
+     * Returns a Scope object from scope identifier.
+     *
+     * @param scopeName scope identifier is scopeName.
+     * @return Scope object.
+     */
     abstract Scope newScope(final String scopeName);
 
     @Override
@@ -115,11 +127,23 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         });
     }
 
+    /**
+     * Create a scope with given name.
+     *
+     * @param scopeName Name of scope to created.
+     * @return Boolean indication success of createScope call.
+     */
     @Override
     public CompletableFuture<Boolean> createScope(final String scopeName) {
         return getScope(scopeName).createScope();
     }
 
+    /**
+     * Delete a scope with given name.
+     *
+     * @param scopeName Name of scope to be deleted
+     * @return Boolean indicating success of deleteScope call.
+     */
     @Override
     public CompletableFuture<Boolean> deleteScope(final String scopeName) {
         return getScope(scopeName).deleteScope();
@@ -214,11 +238,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<UUID> createTransaction(final String scopeName, final String streamName) {
         Stream stream = getStream(scopeName, streamName);
         return stream.createTransaction().thenApply(result -> {
-           stream.getNumberOfOngoingTransactions().thenAccept(count -> {
-               DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(CREATE_TRANSACTION, scopeName, streamName), 1);
-               DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), count);
-           });
-           return result;
+            stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(CREATE_TRANSACTION, scopeName, streamName), 1);
+                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), count);
+            });
+            return result;
         });
     }
 
@@ -236,7 +260,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), count);
             });
             return result;
-         });
+        });
     }
 
     @Override
@@ -253,7 +277,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), count);
             });
             return result;
-         });
+        });
     }
 
     @Override
@@ -275,6 +299,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return scope;
     }
 
+    /**
+     * ScopedStreamName is scopeName/streamName
+     *
+     * @param scopeName  Scope name.
+     * @param streamName Stream name.
+     * @return String scopeName/streamName.
+     */
     private String getScopedStreamName(final String scopeName, final String streamName) {
         return new StringBuilder(scopeName).append("/").append(streamName).toString();
     }

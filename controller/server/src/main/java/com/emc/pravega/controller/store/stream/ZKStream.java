@@ -138,6 +138,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 });
     }
 
+    /**
+     * Method to check whether a scope exists before creating a stream under that scope.
+     *
+     * @return A future either returning a result or an exception.
+     */
     public CompletableFuture<Void> checkScopeExists() {
         return checkExists(scopePath)
                 .thenApply(x -> {

@@ -65,10 +65,20 @@ public class ZKScope implements Scope {
         cache.invalidateAll();
     }
 
+    /**
+     * Initialize the curator client.
+     *
+     * @param cf Curator framework client.
+     */
     public static void initialize(final CuratorFramework cf) {
         client = cf;
     }
 
+    /**
+     * List Scopes in the cluster.
+     *
+     * @return A list of scopes.
+     */
     public static CompletableFuture<List<String>> listScopes() {
         return getChildren("/store");
     }

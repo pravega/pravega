@@ -100,8 +100,8 @@ public class ControllerService {
     public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatlyFollowing(SegmentId segment) {
         return streamStore.getSuccessors(segment.getScope(), segment.getStreamName(), segment.getNumber()).thenApply(successors -> {
             return successors.entrySet().stream().collect(
-                   Collectors.toMap(entry -> new SegmentId(segment.getScope(), segment.getStreamName(), entry.getKey()),
-                                    entry -> entry.getValue()));
+                    Collectors.toMap(entry -> new SegmentId(segment.getScope(), segment.getStreamName(), entry.getKey()),
+                            entry -> entry.getValue()));
         });
     }
 
@@ -216,10 +216,22 @@ public class ControllerService {
                 .thenApply(ModelHelper::decode);
     }
 
+    /**
+     * Controller Service API to create scope.
+     *
+     * @param scope Name of scope to be created.
+     * @return Status of create scope.
+     */
     public CompletableFuture<CreateScopeStatus> createScope(final String scope) {
         return streamMetadataTasks.createScope(scope);
     }
 
+    /**
+     * Controller Service API to delete scope.
+     *
+     * @param scope Name of scope to be deleted.
+     * @return Status of delete scope.
+     */
     public CompletableFuture<DeleteScopeStatus> deleteScope(final String scope) {
         return streamMetadataTasks.deleteScope(scope);
     }
