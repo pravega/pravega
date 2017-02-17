@@ -18,23 +18,29 @@
 
 package com.emc.pravega.common;
 
-public interface SegmentStoreMetricsNames {
+public final class SegmentStoreMetricsNames {
     // Stream Segment request Operations
-    public final static String CREATE_SEGMENT = "CREATE_SEGMENT";
-    public final static String UPDATE_SEGMENT = "UPDATE_SEGMENT";
-    public final static String DELETE_SEGMENT = "DELETE_SEGMENT";
-    public final static String READ_SEGMENT = "READ_SEGMENT";
+    public static final String CREATE_SEGMENT = "CreateSegment";
+
     // Bytes read by READ_SEGMENT operation, for read throughput
-    public final static String SEGMENT_READ_BYTES = "SEGMENT_READ_BYTES";
-    // Counter for all read bytes.
-    public final static String ALL_READ_BYTES = "ALL_READ_BYTES";
+    public static final String SEGMENT_READ_BYTES = "SegmentReadBytes";
+    public static final String SEGMENT_READ_LATENCY = "SegmentReadLatencyMillis";
+
+    public static final String SEGMENT_WRITE_BYTES = "SegmentWriteBytes";
+    public static final String SEGMENT_WRITE_LATENCY = "SegmentWriteLatencyMillis";
+
     // Gauge for pending append bytes
-    public final static String PENDING_APPEND_BYTES = "PENDING_APPEND_BYTES";
+    public static final String PENDING_APPEND_BYTES = "PendingAppendBytes";
+
+    public final static String UPDATE_SEGMENT = "UPDATE_SEGMENT";
 
     //HDFS stats
-    public final static String HDFS_READ_LATENCY = "HDFSReadLatencyMillis";
+    public static final String HDFS_READ_LATENCY = "HDFSReadLatencyMillis";
     public static final String HDFS_WRITE_LATENCY = "HDFSWriteLatencyMillis";
     public static final String HDFS_READ_BYTES = "HDFSReadBytes";
-    public static final String HDFS_WRITTEN_BYTES = "HDFSWriteBytes";
+    public static final String HDFS_WRITE_BYTES = "HDFSWriteBytes";
 
+    public static String nameFromSegment(String metric, String segmentName) {
+        return metric + "." + segmentName.replace('/', '_');
+    }
 }
