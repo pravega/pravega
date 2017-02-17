@@ -70,14 +70,14 @@ class PerfStats {
 
     private void printWindow() {
         long elapsed = System.nanoTime() - windowStart;
-        double recsPerSec = 1000000.0 * windowCount / (double) elapsed;
-        double mbPerSec = 1000000.0 * this.windowBytes / (double) elapsed / (1024.0 * 1024.0);
+        double recsPerSec = 1000000000.0 * windowCount / (double) elapsed;
+        double mbPerSec = 1000000000.0 * this.windowBytes / (double) elapsed / (1024.0 * 1024.0);
         System.out.printf("%d records sent, %.1f records/sec (%.5f MB/sec), %.1f ms avg latency, %.1f max latency.%n",
                 windowCount,
                 recsPerSec,
                 mbPerSec,
-                windowTotalLatency / (double) windowCount,
-                (double) windowMaxLatency);
+                windowTotalLatency / (double) windowCount / 1000000.0,
+                (double) windowMaxLatency / 1000000.0 );
     }
 
     private void newWindow(long currentNumber) {

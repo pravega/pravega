@@ -6,6 +6,7 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.StreamManager;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
@@ -212,7 +213,7 @@ public class TurbineHeatSensor {
 
     private static class TemperatureSensors implements Runnable {
 
-        final EventStreamWriter<String> producer;
+        protected final EventStreamWriter<String> producer;
         private final int producerId;
         private final String city;
         private final int eventsPerSec;
@@ -288,12 +289,7 @@ public class TurbineHeatSensor {
             }
             producer.flush();
             producer.close();
-            try {
-                //Wait for the last packet to get acked
-                retFuture.get();
-            } catch (InterruptedException | ExecutionException e) {
-                e.printStackTrace();
-            }
+            FutureHelpers.getAndHandleExceptions(retFuture, RuntimeException::new);
         }
 
         @Override
