@@ -259,7 +259,7 @@ class EventProcessorCell<T extends StreamEvent> {
 
     private EventProcessor<T> createEventProcessor(final Props<T> props) {
         try {
-            return props.getConstructor().newInstance(props.getArgs());
+            return props.getConstructor().newInstance(props.getArgs().toArray());
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException("Error instantiating event processor");
         }
