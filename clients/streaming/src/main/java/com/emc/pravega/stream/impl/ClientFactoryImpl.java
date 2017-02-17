@@ -126,16 +126,16 @@ public class ClientFactoryImpl implements ClientFactory {
         return new EventStreamReaderImpl<T>(inFactory,
                                       s,
                                       stateManager,
-                                      new RoundRobinOrderer<>(),
+                                      new RoundRobinOrderer(),
                                       System::currentTimeMillis,
                                       config);
     }
 
-    private static class RoundRobinOrderer<T> implements Orderer<T> {
+    private static class RoundRobinOrderer implements Orderer {
         private final AtomicInteger counter = new AtomicInteger(0);
 
         @Override
-        public SegmentEventReader<T> nextSegment(List<SegmentEventReader<T>> segments) {
+        public SegmentEventReader nextSegment(List<SegmentEventReader> segments) {
             int count = counter.incrementAndGet();
             return segments.get(count % segments.size());
         }

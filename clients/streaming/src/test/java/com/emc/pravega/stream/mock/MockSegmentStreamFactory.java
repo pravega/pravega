@@ -48,10 +48,14 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
+    public SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config, int bufferSize) {
+        return createInputStreamForSegment(segment, config);
+    }
+
+    @Override
     public SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config) {
         MockSegmentIoStreams streams = new MockSegmentIoStreams();
         segments.putIfAbsent(segment, streams);
         return segments.get(segment);
     }
-
 }
