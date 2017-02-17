@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.stream.StreamConfiguration;
 import org.apache.commons.lang.NotImplementedException;
@@ -56,9 +57,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public synchronized CompletableFuture<Boolean> createStream(String scopeName, String streamName,
                                                                 StreamConfiguration configuration, long timeStamp) {
-
         if (scopes.containsKey(scopeName)) {
-
             if (!streams.containsKey(scopedStreamName(scopeName, streamName))) {
                 InMemoryStream stream = new InMemoryStream(scopeName, streamName);
                 stream.create(configuration, timeStamp);
@@ -66,15 +65,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                 scopes.get(scopeName).addStreamToScope(streamName);
                 return CompletableFuture.completedFuture(true);
             } else {
-                CompletableFuture<Boolean> result = new CompletableFuture<>();
-                result.completeExceptionally(new StreamAlreadyExistsException(streamName));
-                return result;
+                return FutureHelpers.failedFuture(new StreamAlreadyExistsException(streamName));
             }
-
         } else {
-            CompletableFuture<Boolean> result = new CompletableFuture<>();
-            result.completeExceptionally(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
-            return result;
+            return FutureHelpers.
+                    failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
         }
     }
 
@@ -86,33 +81,27 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             scopes.put(scopeName, scope);
             return CompletableFuture.completedFuture(true);
         } else {
-            CompletableFuture<Boolean> result = new CompletableFuture<>();
-            result.completeExceptionally(new StoreException(StoreException.Type.NODE_EXISTS, "Scope Exists"));
-            return result;
+            return FutureHelpers.failedFuture(new StoreException(StoreException.Type.NODE_EXISTS, "Scope Exists"));
         }
     }
 
     @Override
     public synchronized CompletableFuture<Boolean> deleteScope(String scopeName) {
-        CompletableFuture<Boolean> result;
         if (scopes.containsKey(scopeName)) {
             return scopes.get(scopeName).listStreamsInScope().thenCompose(streams -> {
                 if (streams.size() == 0) {
-                    CompletableFuture<Boolean> result1 = new CompletableFuture<>();
-                    result1 = scopes.get(scopeName).deleteScope();
+                    CompletableFuture<Boolean> result;
+                    result = scopes.get(scopeName).deleteScope();
                     scopes.remove(scopeName);
-                    return result1;
+                    return result;
                 } else {
-                    CompletableFuture<Boolean> result2 = new CompletableFuture<>();
-                    result2.completeExceptionally(new StoreException(StoreException.Type.NODE_NOT_EMPTY, "Scope not empty."));
-                    return result2;
+                    return FutureHelpers.
+                            failedFuture(new StoreException(StoreException.Type.NODE_NOT_EMPTY, "Scope not empty."));
                 }
             });
 
         } else {
-            result = new CompletableFuture<>();
-            result.completeExceptionally(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
-            return result;
+            return FutureHelpers.failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
         }
     }
 

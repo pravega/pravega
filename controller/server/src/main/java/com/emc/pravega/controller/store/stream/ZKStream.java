@@ -145,9 +145,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
      */
     public CompletableFuture<Void> checkScopeExists() {
         return checkExists(scopePath)
-                .thenApply(x -> {
+                .thenAccept(x -> {
                     if (x) {
-                        return null;
+                        return;
                     } else {
                         log.debug("Scope with name {} not found.", getScopeName());
                         throw new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found.");
