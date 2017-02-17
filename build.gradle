@@ -39,8 +39,8 @@ allprojects {
         exclude "**/impl/**";
         source  =  project(':clients:streaming').sourceSets.main.java
         def javadocs = new File(rootDir, "javadocs")
-        javadocs.mkdirs();
-        options.setDestinationDirectory(setBuildDir(javadocs));
+        javadocs.mkdirs()
+        destinationDir = javadocs
     }
 
     docker {
