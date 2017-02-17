@@ -88,7 +88,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public OperationContext createContext(String scope, String name) {
-        return getStream(scope, name, null);
+        return new OperationContextImpl(getStream(scope, name, null));
     }
 
     @Override
@@ -276,7 +276,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private Stream getStream(String scope, final String name, OperationContext context) {
         Stream stream;
         if (context != null) {
-            stream = (Stream) context;
+            stream = context.getStream();
             assert stream.getScope().equals(scope);
             assert stream.getName().equals(name);
         } else {

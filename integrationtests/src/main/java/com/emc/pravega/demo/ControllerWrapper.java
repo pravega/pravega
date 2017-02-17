@@ -21,7 +21,6 @@ package com.emc.pravega.demo;
 import com.emc.pravega.controller.embedded.EmbeddedControllerImpl;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
-import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
@@ -42,13 +41,13 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-public class ControllerWrapper extends EmbeddedControllerImpl {
+class ControllerWrapper extends EmbeddedControllerImpl {
 
     private ControllerWrapper(ControllerService controller) {
         super(controller);
     }
 
-    public static ControllerWrapper getControllerWrapper(String connectionString) {
+    static ControllerWrapper getControllerWrapper(String connectionString) {
         String hostId;
         try {
             // On each controller process restart, it gets a fresh hostId,
@@ -65,7 +64,7 @@ public class ControllerWrapper extends EmbeddedControllerImpl {
         CuratorFramework client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
         client.start();
 
-        StoreClient storeClient = new ZKStoreClient(client);
+        ZKStoreClient storeClient = new ZKStoreClient(client);
 
         StreamMetadataStore streamStore = new ZKStreamMetadataStore(client, executor);
 

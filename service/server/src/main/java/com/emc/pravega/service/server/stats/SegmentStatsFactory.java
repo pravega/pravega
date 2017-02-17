@@ -18,7 +18,7 @@
 package com.emc.pravega.service.server.stats;
 
 import com.emc.pravega.service.monitor.SegmentTrafficMonitor;
-import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import lombok.Data;
 
@@ -28,7 +28,7 @@ import java.util.List;
 public class SegmentStatsFactory {
     private final List<SegmentTrafficMonitor> monitors;
 
-    public SegmentStatsRecorder createSegmentStatsRecorder(Cache diskCache) {
-        return new SegmentStatsRecorderImpl(monitors, diskCache, new JavaSerializer<>());
+    public SegmentStatsRecorder createSegmentStatsRecorder(CacheFactory cacheFactory) {
+        return new SegmentStatsRecorderImpl(monitors, cacheFactory, new JavaSerializer<>());
     }
 }

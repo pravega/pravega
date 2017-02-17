@@ -420,6 +420,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     @Override
     public CompletableFuture<Void> setMarker(int segmentNumber, long timestamp) {
+
         return verifyLegalState(getMarkerData(segmentNumber)
                 .thenCompose(x -> {
                     if (x.isPresent()) {

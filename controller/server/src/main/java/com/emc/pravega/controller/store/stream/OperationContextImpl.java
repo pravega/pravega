@@ -17,12 +17,14 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-/**
- * Interface for defining an operation context.
- * A context caches metadata fetches so within a context if for the same entity, multiple
- * read operations against the store are requested, the values are served from the context's cache.
- */
-public interface OperationContext {
+import lombok.Getter;
 
-    Stream getStream();
+class OperationContextImpl implements OperationContext {
+
+    @Getter
+    private final transient Stream stream;
+
+    OperationContextImpl(Stream stream) {
+        this.stream = stream;
+    }
 }

@@ -24,6 +24,9 @@ import com.google.common.annotations.VisibleForTesting;
 import java.net.URI;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Factory for creating segment monitors.
+ */
 public class MonitorFactory {
 
     // TODO: read from config!!

@@ -131,8 +131,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex);
         this.writer.addListener(new ServiceShutdownListener(createComponentStoppedHandler("Writer"), createComponentFailedHandler("Writer")), this.executor);
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage, this.executor);
-        // TODO: initialize with rocksDb cache
-        this.statsRecorder = statsFactory.createSegmentStatsRecorder(null);
+        this.statsRecorder = statsFactory.createSegmentStatsRecorder(cacheFactory);
     }
 
     //endregion

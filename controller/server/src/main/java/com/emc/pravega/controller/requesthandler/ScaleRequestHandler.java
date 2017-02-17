@@ -58,6 +58,9 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
     private static final int RETRY_MULTIPLIER = 2;
     private static final int RETRY_MAX_ATTEMPTS = 100;
     private static final long RETRY_MAX_DELAY = Duration.ofSeconds(10).toMillis();
+    private static final Retry.RetryAndThrowExceptionally<RetryableException, RuntimeException> RETRY = Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
+            .retryingOn(RetryableException.class)
+            .throwingOn(RuntimeException.class);
     private static final long REQUEST_VALIDITY_PERIOD = Duration.ofMinutes(10).toMillis();
 
     private final StreamMetadataTasks streamMetadataTasks;
@@ -93,8 +96,6 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
 
         final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
-        final CompletableFuture<Void> result = new CompletableFuture<>();
-
         // Wrapping the processing in Retry.
         // Upon trying a scale operation, if it fails with a retryable exception we will retry the operation.
         // If the operation continues to fail after all retries have been exhausted, while we still are dealing with
@@ -117,40 +118,17 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
         // The following retry block is for retrying other steps involved in computing scale tasks's input (metadata store calls) and
         // locking or conflict failures of scale-task.
         // ProcessScaleUp and processScaleDown functions are responsible for creating input for scale tasks.
-        Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-                .retryingOn(RetryableException.class)
-                .throwingOn(RuntimeException.class)
-                .runAsync(() -> {
-                    final CompletableFuture<ScalingPolicy> policyFuture = streamMetadataStore
-                            .getConfiguration(request.getScope(), request.getStream(), context, executor)
-                            .thenApply(StreamConfiguration::getScalingPolicy);
+        return RETRY.runAsync(() -> {
+            final CompletableFuture<ScalingPolicy> policyFuture = streamMetadataStore
+                    .getConfiguration(request.getScope(), request.getStream(), context, executor)
+                    .thenApply(StreamConfiguration::getScalingPolicy);
 
-                    if (request.getDirection() == ScaleRequest.UP) {
-                        return policyFuture.thenComposeAsync(policy -> processScaleUp(request, policy, context), executor)
-                                .whenComplete((res, ex) -> {
-                                    if (ex != null) {
-                                        log.error("ScaleRequestHandler process scaleUp for segment {}/{}/{} threw exception", request.getScope(), request.getStream(), request.getSegmentNumber(), ex.getMessage());
-
-                                        result.completeExceptionally(ex);
-                                    } else {
-                                        result.complete(res);
-                                    }
-                                });
-                    } else {
-                        return policyFuture.thenComposeAsync(policy -> processScaleDown(request, policy, context), executor)
-                                .whenComplete((res, ex) -> {
-                                    if (ex != null) {
-                                        log.error("ScaleRequestHandler process scaleDown for segment {}/{}/{} threw exception", request.getScope(), request.getStream(), request.getSegmentNumber(), ex.getMessage());
-
-                                        result.completeExceptionally(ex);
-                                    } else {
-                                        result.complete(res);
-                                    }
-                                });
-                    }
-                }, executor);
-
-        return result;
+            if (request.getDirection() == ScaleRequest.UP) {
+                return policyFuture.thenComposeAsync(policy -> processScaleUp(request, policy, context), executor);
+            } else {
+                return policyFuture.thenComposeAsync(policy -> processScaleDown(request, policy, context), executor);
+            }
+        }, executor);
     }
 
     /**

@@ -154,7 +154,6 @@ public class RequestHandlersInit {
                         Config.SCALE_READER_GROUP,
                         SCALE_WRITER_REF.get(),
                         SCALE_READER_REF.get(),
-                        streamStore,
                         SCALE_HANDLER_REF.get(),
                         executor));
             }

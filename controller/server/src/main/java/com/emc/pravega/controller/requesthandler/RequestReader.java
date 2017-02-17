@@ -20,7 +20,6 @@ package com.emc.pravega.controller.requesthandler;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.requests.ControllerRequest;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
@@ -33,7 +32,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
@@ -42,7 +40,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 /**
@@ -77,27 +74,22 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
     private final EventStreamReader<R> reader;
     private final JavaSerializer<Position> serializer;
     private final ScheduledExecutorService executor;
-    private final StreamMetadataStore streamMetadataStore;
     private final AtomicBoolean stop = new AtomicBoolean(false);
     private final H requestHandler;
     private final AtomicLong counter = new AtomicLong(0);
     private final Comparator<PositionCounter> positionCounterComparator = Comparator.comparingLong(o -> o.counter);
-    private final ReentrantReadWriteLock counterLock;
     private final Semaphore semaphore;
 
     RequestReader(final String readerId,
                   final String readerGroup,
                   final EventStreamWriter<R> writer,
                   final EventStreamReader<R> reader,
-                  final StreamMetadataStore streamMetadataStore,
                   final H requestHandler,
                   final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(writer);
         Preconditions.checkNotNull(reader);
-        Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(requestHandler);
 
-        this.streamMetadataStore = streamMetadataStore;
         this.requestHandler = requestHandler;
 
         this.readerId = readerId;
@@ -116,7 +108,6 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
 
         // periodic checkpointing - every one minute
         this.executor.scheduleAtFixedRate(this::checkpoint, 1, 1, TimeUnit.MINUTES);
-        counterLock = new ReentrantReadWriteLock();
         semaphore = new Semaphore(MAX_CONCURRENT);
     }
 
@@ -132,8 +123,6 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
      * our executor queue.
      * <p>
      * It also gets the next counter value. A counter is an ever increasing number.
-     * The getNextCounter method ensures that if we reach Long.MAX, it resets counters for all running and completed tasks
-     * and then resets the overall counter to highest value in them.
      */
     @Override
     public void run() {
@@ -149,7 +138,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                 PositionCounter pc;
 
                 try {
-                    next = getNextCounter();
+                    next = counter.incrementAndGet();
 
                     event = reader.readNextEvent(60000);
                     request = event.getEvent();
@@ -234,18 +223,13 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
         running.remove(pc);
         completed.add(pc);
 
-        counterLock.readLock().lock();
-        try {
-            final PositionCounter smallest = running.first();
+        final PositionCounter smallest = running.first();
 
-            final List<PositionCounter> checkpointCandidates = completed.stream()
-                    .filter(x -> positionCounterComparator.compare(x, smallest) < 0).collect(Collectors.toList());
-            final PositionCounter checkpointPosition = checkpointCandidates.get(checkpointCandidates.size() - 1);
-            completed.removeAll(checkpointCandidates);
-            checkpoint.set(checkpointPosition);
-        } finally {
-            counterLock.readLock().unlock();
-        }
+        final List<PositionCounter> checkpointCandidates = completed.stream()
+                .filter(x -> positionCounterComparator.compare(x, smallest) < 0).collect(Collectors.toList());
+        final PositionCounter checkpointPosition = checkpointCandidates.get(checkpointCandidates.size() - 1);
+        completed.removeAll(checkpointCandidates);
+        checkpoint.set(checkpointPosition);
     }
 
     @Synchronized
@@ -256,38 +240,9 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
         // checkpoint(readerId, readerGroup, serialize);
     }
 
-    /**
-     * Only called from run method so no synchronization required.
-     *
-     * @return next counter
-     */
-    private long getNextCounter() {
-        if (counter.get() == Long.MAX_VALUE) {
-            // update all existing positioncounters
-            counterLock.writeLock().lock();
-            try {
-                completed.forEach(pos -> {
-                    pos.counter = Long.MAX_VALUE - pos.counter;
-                });
-
-                running.forEach(pos -> {
-                    pos.counter = Long.MAX_VALUE - pos.counter;
-                });
-
-                long p1 = Optional.ofNullable(running.pollLast()).map(p -> p.counter).orElse(0L);
-                long p2 = Optional.ofNullable(completed.pollLast()).map(p -> p.counter).orElse(0L);
-
-                counter.set(Math.max(p1, p2));
-            } finally {
-                counterLock.writeLock().unlock();
-            }
-        }
-        return counter.incrementAndGet();
-    }
-
     @AllArgsConstructor
     private class PositionCounter {
-        Position position;
-        long counter;
+        private final Position position;
+        private final long counter;
     }
 }

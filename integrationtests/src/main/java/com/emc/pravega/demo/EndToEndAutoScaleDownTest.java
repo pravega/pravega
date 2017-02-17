@@ -39,7 +39,6 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -54,7 +53,7 @@ public class EndToEndAutoScaleDownTest {
 
             ControllerWrapper controller = ControllerWrapper.getControllerWrapper(zkTestServer.getConnectString());
             ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
-            ThresholdMonitor.setDefaults(Duration.ofMinutes(0), Duration.ofMinutes(0), 10, 30, TimeUnit.SECONDS);
+            ThresholdMonitor.setDefaults(Duration.ofMinutes(0), Duration.ofMinutes(0), 5, 30, TimeUnit.SECONDS);
 
             MonitorFactory.setClientFactory(internalCF);
 
@@ -78,8 +77,7 @@ public class EndToEndAutoScaleDownTest {
             // test scale down
             Thread.sleep(Duration.ofMinutes(1).toMillis());
 
-            CompletableFuture<StreamSegments> currentSegments = controller.getCurrentSegments("test", "test");
-            StreamSegments streamSegments = currentSegments.get();
+            StreamSegments streamSegments = controller.getCurrentSegments("test", "test").get();
             if (streamSegments.getSegments().size() < 3) {
                 System.err.println("Success");
                 System.exit(0);
