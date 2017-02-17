@@ -46,18 +46,18 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class SegmentHelper {
 
-    private static AtomicReference<SegmentHelper> singleton = new AtomicReference<>();
+    private final static AtomicReference<SegmentHelper> SINGLETON = new AtomicReference<>();
 
-    public static SegmentHelper getSingleton() {
-        if (singleton.get() == null) {
-            singleton.compareAndSet(null, new SegmentHelper());
+    public static SegmentHelper getSegmentHelper() {
+        if (SINGLETON.get() == null) {
+            SINGLETON.compareAndSet(null, new SegmentHelper());
         }
-        return singleton.get();
+        return SINGLETON.get();
     }
 
     @VisibleForTesting
     static void setSingleton(SegmentHelper segmentHelper) {
-        singleton.set(segmentHelper);
+        SINGLETON.set(segmentHelper);
     }
 
     public NodeUri getSegmentUri(final String scope,

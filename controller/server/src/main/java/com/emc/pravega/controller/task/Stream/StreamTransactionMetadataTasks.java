@@ -165,7 +165,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<UUID> notifyTxCreation(final String scope, final String stream, final int segmentNumber, final UUID txid) {
-        return withRetries(() -> withWireCommandHandling(SegmentHelper.getSingleton().createTransaction(scope,
+        return withRetries(() -> withWireCommandHandling(SegmentHelper.getSegmentHelper().createTransaction(scope,
                 stream,
                 segmentNumber,
                 txid,
@@ -174,7 +174,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return withRetries(() -> withWireCommandHandling(SegmentHelper.getSingleton().abortTransaction(scope,
+        return withRetries(() -> withWireCommandHandling(SegmentHelper.getSegmentHelper().abortTransaction(scope,
                 stream,
                 segmentNumber,
                 txId,
@@ -183,7 +183,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return withRetries(() -> withWireCommandHandling(SegmentHelper.getSingleton().commitTransaction(scope,
+        return withRetries(() -> withWireCommandHandling(SegmentHelper.getSegmentHelper().commitTransaction(scope,
                 stream,
                 segmentNumber,
                 txId,

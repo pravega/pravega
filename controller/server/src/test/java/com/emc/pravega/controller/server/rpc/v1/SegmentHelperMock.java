@@ -30,7 +30,7 @@ import static org.mockito.Mockito.spy;
 public class SegmentHelperMock {
 
     public static void init() {
-        SegmentHelper singleton = spy(SegmentHelper.getSingleton());
+        SegmentHelper singleton = spy(SegmentHelper.getSegmentHelper());
 
         SegmentHelper.setSingleton(singleton);
         doReturn(new NodeUri("localhost", 12345)).when(singleton).getSegmentUri(

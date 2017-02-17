@@ -346,7 +346,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     @VisibleForTesting
     private CompletableFuture<Void> notifyNewSegment(String scope, String stream, int segmentNumber, ScalingPolicy policy) {
-        return FutureHelpers.toVoid(withRetries(() -> withWireCommandHandling(SegmentHelper.getSingleton().createSegment(scope,
+        return FutureHelpers.toVoid(withRetries(() -> withWireCommandHandling(SegmentHelper.getSegmentHelper().createSegment(scope,
                 stream, segmentNumber, policy,
                 hostControllerStore, this.connectionFactory)), executor));
     }
@@ -363,7 +363,7 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     private CompletableFuture<Void> notifySealedSegment(final String scope, final String stream, final int sealedSegment) {
 
-        return FutureHelpers.toVoid(withRetries(() -> withWireCommandHandling(SegmentHelper.getSingleton().sealSegment(
+        return FutureHelpers.toVoid(withRetries(() -> withWireCommandHandling(SegmentHelper.getSegmentHelper().sealSegment(
                 scope,
                 stream,
                 sealedSegment,
@@ -383,7 +383,7 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     CompletableFuture<Void> notifyPolicyUpdate(String scope, String stream, ScalingPolicy policy, int segmentNumber) {
 
-        return withRetries(() -> withWireCommandHandling(SegmentHelper.getSingleton().updatePolicy(
+        return withRetries(() -> withWireCommandHandling(SegmentHelper.getSegmentHelper().updatePolicy(
                 scope,
                 stream,
                 policy,

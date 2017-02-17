@@ -18,6 +18,8 @@
 package com.emc.pravega.service.server.stats;
 
 import com.emc.pravega.common.netty.WireCommands;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.io.Serializable;
 import java.time.Duration;
@@ -40,31 +42,42 @@ class SegmentAggregates implements Serializable {
     /**
      * Policy = 10 bytes.
      */
+    @Setter
+    @Getter
     private byte scaleType;
 
+    @Setter
+    @Getter
     private int targetRate;
 
     /**
      * Rates for Scale up = 24 bytes.
      */
+    @Getter
     private volatile double twoMinuteRate;
+    @Getter
     private volatile double fiveMinuteRate;
+    @Getter
     private volatile double tenMinuteRate;
 
     /**
      * Rate for Scale down = 8 bytes.
      */
+    @Getter
     private volatile double twentyMinuteRate;
 
     /**
      * 16 bytes.
      */
+    @Getter
+    @Setter
     private volatile long lastReportedTime;
 
     /**
      * Start time and last ticked time.
      * 16 bytes.
      */
+    @Getter
     private long startTime;
 
     private volatile long lastTick;
@@ -81,50 +94,6 @@ class SegmentAggregates implements Serializable {
         startTime = System.currentTimeMillis();
         lastReportedTime = System.currentTimeMillis();
         lastTick = System.nanoTime();
-    }
-
-    void setScaleType(byte scaleType) {
-        this.scaleType = scaleType;
-    }
-
-    void setTargetRate(int targetRate) {
-        this.targetRate = targetRate;
-    }
-
-    byte getScaleType() {
-        return scaleType;
-    }
-
-    long getTargetRate() {
-        return targetRate;
-    }
-
-    double getTwoMinuteRate() {
-        return twoMinuteRate;
-    }
-
-    double getFiveMinuteRate() {
-        return fiveMinuteRate;
-    }
-
-    double getTenMinuteRate() {
-        return tenMinuteRate;
-    }
-
-    double getTwentyMinuteRate() {
-        return twentyMinuteRate;
-    }
-
-    long getLastReportedTime() {
-        return lastReportedTime;
-    }
-
-    long getStartTime() {
-        return startTime;
-    }
-
-    void setLastReportedTime(long lastReportedTime) {
-        this.lastReportedTime = lastReportedTime;
     }
 
     void update(long dataLength, int numOfEvents) {
@@ -155,7 +124,6 @@ class SegmentAggregates implements Serializable {
             computeDecay(numOfEvents, (System.currentTimeMillis() - txnCreationTime) * 1000000);
         }
     }
-
 
     private void computeDecay(long count, long duration) {
         // We have two options here --
