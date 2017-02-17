@@ -80,12 +80,15 @@ public class SelfTestRunner {
     }
 
     private static TestConfig getTestConfig() {
+        final int producers = 10;
+        final boolean useClient = false;
+
+        final int testThreadPoolAddition = useClient ? producers : 0;
         return new TestConfig(TestConfig.convert(TestConfig.COMPONENT_CODE,
                 PropertyBag.create()
                            // Test params.
                            .with(TestConfig.PROPERTY_OPERATION_COUNT, 2000000)
                            .with(TestConfig.PROPERTY_SEGMENT_COUNT, 1)
-                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 100)
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 100)
                            //.with(TestConfig.PROPERTY_MIN_APPEND_SIZE, WireCommands.APPEND_BLOCK_SIZE)
@@ -96,15 +99,19 @@ public class SelfTestRunner {
                            .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
 
                            // Test setup.
-                           .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 50)
-                           .with(TestConfig.PROPERTY_DATA_LOG_APPEND_DELAY, 0)
+                           .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 50 + testThreadPoolAddition)
+                           .with(TestConfig.PROPERTY_DATA_LOG_APPEND_DELAY, 10)
                            .with(TestConfig.PROPERTY_TIMEOUT_MILLIS, 3000)
                            .with(TestConfig.PROPERTY_VERBOSE_LOGGING, false)
 
                            // Client-specific settings.
-                           .with(TestConfig.PROPERTY_USE_CLIENT, false)
                            .with(TestConfig.PROPERTY_CLIENT_AUTO_FLUSH, false)
-                           .with(TestConfig.PROPERTY_CLIENT_PORT, 9876)));
+                           .with(TestConfig.PROPERTY_CLIENT_PORT, 9876)
+
+                           // Settings set via variables (see above).
+                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, producers)
+                           .with(TestConfig.PROPERTY_USE_CLIENT, useClient)
+                           .with(TestConfig.PROPERTY_CLIENT_WRITER_COUNT, producers)));
     }
 
     private static void setupLogging() {
