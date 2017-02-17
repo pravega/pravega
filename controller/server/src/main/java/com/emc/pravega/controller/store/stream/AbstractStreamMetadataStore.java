@@ -1,23 +1,17 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.metrics.DynamicLogger;
+import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.OpStatsLogger;
+import com.emc.pravega.common.metrics.StatsLogger;
+import com.emc.pravega.common.metrics.StatsProvider;
+import com.emc.pravega.controller.server.MetricNames;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -34,7 +28,14 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
 import javax.annotation.ParametersAreNonnullByDefault;
+
+import static com.emc.pravega.controller.server.MetricNames.ABORT_TRANSACTION;
+import static com.emc.pravega.controller.server.MetricNames.COMMIT_TRANSACTION;
+import static com.emc.pravega.controller.server.MetricNames.CREATE_TRANSACTION;
+import static com.emc.pravega.controller.server.MetricNames.OPEN_TRANSACTIONS;
+import static com.emc.pravega.controller.server.MetricNames.nameFromStream;
 
 /**
  * Abstract Stream metadata store. It implements various read queries using the Stream interface.
@@ -42,6 +43,11 @@ import javax.annotation.ParametersAreNonnullByDefault;
  */
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
+    protected static final StatsProvider METRICS_PROVIDER = MetricsProvider.getMetricsProvider();
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+    private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("Controller");
+    private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricNames.CREATE_STREAM);
+    private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricNames.SEAL_STREAM);
     private final LoadingCache<String, Stream> cache;
 
     protected AbstractStreamMetadataStore() {
@@ -68,7 +74,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<Boolean> createStream(final String name,
                                                    final StreamConfiguration configuration,
                                                    final long createTimestamp) {
-        return getStream(name).create(configuration, createTimestamp);
+        Stream stream = getStream(name);
+        return stream.create(configuration, createTimestamp).thenApply(result -> {
+            CREATE_STREAM.reportSuccessValue(1);
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, "", name), 0);
+            return result;
+        });
     }
 
     @Override
@@ -89,7 +100,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<Boolean> setSealed(final String name) {
-        return getStream(name).updateState(State.SEALED);
+        Stream stream = getStream(name);
+        return stream.updateState(State.SEALED).thenApply(result -> {
+            SEAL_STREAM.reportSuccessValue(1);
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, "", name), 0);
+            return result;
+        });
     }
 
     @Override
@@ -132,8 +148,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final String scope, final String stream) {
-        return getStream(stream).createTransaction();
+    public CompletableFuture<UUID> createTransaction(final String scope, final String streamName) {
+        Stream stream = getStream(streamName);
+        return stream.createTransaction().thenApply(result -> {
+           stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+               DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(CREATE_TRANSACTION, scope, streamName), 1);
+               DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
+           });
+           return result; 
+        });
     }
 
     @Override
@@ -142,8 +165,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId) {
-        return getStream(stream).commitTransaction(txId);
+    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String streamName, final UUID txId) {
+        Stream stream = getStream(streamName);
+        return stream.commitTransaction(txId).thenApply(result -> {
+            stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(COMMIT_TRANSACTION, scope, streamName), 1);
+                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
+            });
+            return result; 
+         });
     }
 
     @Override
@@ -153,13 +183,21 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final UUID txId) {
-        return getStream(stream).abortTransaction(txId);
+    public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String streamName, final UUID txId) {
+        Stream stream = getStream(streamName);
+        return stream.abortTransaction(txId).thenApply(result -> {
+            stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(ABORT_TRANSACTION, scope, streamName), 1);
+                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
+            });
+            return result; 
+         });
     }
 
     @Override
-    public CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream) {
-        return getStream(stream).isTransactionOngoing();
+    public CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String streamName) {
+        Stream stream = getStream(streamName);
+        return stream.getNumberOfOngoingTransactions().thenApply(num -> num > 0);
     }
 
     private Stream getStream(final String name) {

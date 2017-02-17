@@ -82,7 +82,7 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
         actorGroup.initialize();
 
         // If successful in initializing it, add it to the list and start it.
-        synchronized ("actorGroup") {
+        synchronized (actorGroup) {
             actorGroups.add(actorGroup);
         }
 

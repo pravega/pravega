@@ -1,26 +1,14 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.controller.server.rest.v1;
 
 import com.emc.pravega.controller.server.rest.contract.request.CreateStreamRequest;
 import com.emc.pravega.controller.server.rest.contract.request.UpdateStreamRequest;
 
+import javax.validation.Valid;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -62,7 +50,7 @@ public final class ApiV1 {
         @Path("/scopes/{scope}/streams")
         @Produces(MediaType.APPLICATION_JSON)
         @Consumes(MediaType.APPLICATION_JSON)
-        public void createStream(@PathParam("scope") final String scope, final CreateStreamRequest createStreamRequest,
+        public void createStream(@PathParam("scope") final String scope, @Valid final CreateStreamRequest createStreamRequest,
                                  @Suspended final AsyncResponse asyncResponse);
 
         /**
@@ -78,7 +66,7 @@ public final class ApiV1 {
         @Produces(MediaType.APPLICATION_JSON)
         @Consumes(MediaType.APPLICATION_JSON)
         public void updateStreamConfig(@PathParam("scope") final String scope, @PathParam("stream") final String stream,
-                                       final UpdateStreamRequest updateStreamRequest,
+                                       @Valid final UpdateStreamRequest updateStreamRequest,
                                        @Suspended final AsyncResponse asyncResponse);
 
         /**

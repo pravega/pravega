@@ -1,26 +1,13 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.host.handler;
 
+import com.emc.pravega.common.SegmentStoreMetricsNames;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.io.StreamHelpers;
-import com.emc.pravega.common.metrics.Counter;
 import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.OpStatsLogger;
@@ -70,15 +57,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import lombok.extern.slf4j.Slf4j;
 
-
+import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_READ_BYTES;
+import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_READ_LATENCY;
+import static com.emc.pravega.common.SegmentStoreMetricsNames.nameFromSegment;
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Cache;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Future;
-import static com.emc.pravega.service.server.host.PravegaRequestStats.ALL_READ_BYTES;
-import static com.emc.pravega.service.server.host.PravegaRequestStats.CREATE_SEGMENT;
-import static com.emc.pravega.service.server.host.PravegaRequestStats.READ_SEGMENT;
-import static com.emc.pravega.service.server.host.PravegaRequestStats.SEGMENT_READ_BYTES;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
@@ -89,15 +74,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     static final int MAX_READ_SIZE = 2 * 1024 * 1024;
 
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
-    // A dynamic logger
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
-
-    public static class Metrics {
-        static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
-        static final OpStatsLogger READ_STREAM_SEGMENT = STATS_LOGGER.createStats(READ_SEGMENT);
-        static final OpStatsLogger READ_BYTES_STATS = STATS_LOGGER.createStats(SEGMENT_READ_BYTES);
-        static final Counter READ_BYTES = STATS_LOGGER.createCounter(ALL_READ_BYTES);
-    }
+    static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(SegmentStoreMetricsNames.CREATE_SEGMENT);
 
     private final StreamSegmentStore segmentStore;
 
@@ -118,12 +96,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {
-            Metrics.READ_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
-            DYNAMIC_LOGGER.incCounterValue("readSegment." + segment, 1);
             handleReadResult(readSegment, t);
+            DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), t.getConsumedLength());
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromSegment(SEGMENT_READ_LATENCY, segment), timer.getElapsedMillis());
             return null;
         }).exceptionally((Throwable t) -> {
-            Metrics.READ_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
             handleException(segment, "Read segment", t);
             return null;
         });
@@ -188,9 +165,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     private ByteBuffer copyData(List<ReadResultEntryContents> contents) {
         int totalSize = contents.stream().mapToInt(ReadResultEntryContents::getLength).sum();
-
-        Metrics.READ_BYTES_STATS.reportSuccessValue(totalSize);
-        Metrics.READ_BYTES.add(totalSize);
 
         ByteBuffer data = ByteBuffer.allocate(totalSize);
         int bytesCopied = 0;
@@ -259,11 +233,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Timer timer = new Timer();
         CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), TIMEOUT);
         future.thenApply((Void v) -> {
-            Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
+            CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
             connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
             return null;
         }).exceptionally((Throwable e) -> {
-            Metrics.CREATE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
+            CREATE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
             handleException(createStreamsSegment.getSegment(), "Create segment", e);
             return null;
         });

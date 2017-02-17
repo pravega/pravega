@@ -1,23 +1,11 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
@@ -26,11 +14,10 @@ import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamingException;
 import com.emc.pravega.service.server.DataCorruptionException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.LogItemFactory;
 import com.emc.pravega.service.server.OperationLog;
-import com.emc.pravega.service.server.ServiceShutdownListener;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
@@ -107,7 +94,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.inMemoryOperationLog = new SequencedItemList<>();
         this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, cacheUpdater, this::triggerTailReads);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
-        this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy);
+        this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy, executor);
         this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
         this.tailReads = new HashSet<>();
         this.closed = new AtomicBoolean();
@@ -466,16 +453,9 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             // Trigger all of them (no need to unregister them; the unregister handle is already wired up).
             for (TailRead tr : toTrigger) {
-                try {
-                    Iterator<Operation> logReadResult = this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount);
-                    tr.future.complete(logReadResult);
-                } catch (Throwable ex) {
-                    if (ExceptionHelpers.mustRethrow(ex)) {
-                        throw ex;
-                    }
-
-                    tr.future.completeExceptionally(ex);
-                }
+                tr.future.complete(FutureHelpers.runOrFail(() -> {
+                    return this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount);                    
+                }, tr.future));
             }
         });
     }

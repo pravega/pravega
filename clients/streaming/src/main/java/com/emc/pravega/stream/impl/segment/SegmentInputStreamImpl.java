@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.stream.impl.segment;
 
@@ -41,13 +29,13 @@ import lombok.Synchronized;
  * @see SegmentInputStream
  */
 class SegmentInputStreamImpl implements SegmentInputStream {
-
-    private static final int READ_LENGTH = MAX_WRITE_SIZE;
-    static final int BUFFER_SIZE = 2 * READ_LENGTH;
+    private static final int DEFAULT_READ_LENGTH = MAX_WRITE_SIZE;
+    static final int DEFAULT_BUFFER_SIZE = 2 * SegmentInputStreamImpl.DEFAULT_READ_LENGTH;
 
     private final AsyncSegmentInputStream asyncInput;
+    private final int readLength;
     @GuardedBy("$lock")
-    private final CircularBuffer buffer = new CircularBuffer(BUFFER_SIZE);
+    private final CircularBuffer buffer;
     @GuardedBy("$lock")
     private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(TYPE_PLUS_LENGTH_SIZE);
     @GuardedBy("$lock")
@@ -58,10 +46,27 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     private ReadFuture outstandingRequest = null;
 
     SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long offset) {
+        this(asyncInput, offset, DEFAULT_BUFFER_SIZE);
+    }
+
+    SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long offset, int bufferSize) {
         Preconditions.checkArgument(offset >= 0);
         Preconditions.checkNotNull(asyncInput);
         this.asyncInput = asyncInput;
         this.offset = offset;
+        /*
+         * The logic for determining the read length and buffer size are as follows.
+         * If we are reading a single event, then we set the read length to be the size
+         * of the event plus the header.
+         *
+         * If this input stream is going to read many events of different sizes, then
+         * we set the read length to be equal to the max write size and the buffer
+         * size to be twice that. We do it so that we can have at least two events
+         * buffered for next event reads.
+         */
+        this.readLength = Math.min(DEFAULT_READ_LENGTH, bufferSize);
+        this.buffer = new CircularBuffer(Math.max(bufferSize, readLength + 1));
+
         issueRequestIfNeeded();
     }
 
@@ -96,7 +101,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         if (buffer.dataAvailable() <= 0 && receivedEndOfSegment) {
             throw new EndOfSegmentException();
         }
-        long origionalOffset = offset;
+        long originalOffset = offset;
         boolean success = false;
         try {
             headerReadingBuffer.clear();
@@ -121,11 +126,12 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             return result;
         } finally {
             if (!success) {
-                offset = origionalOffset;
+                offset = originalOffset;
                 buffer.clear();
             }
         }
     }
+
 
     private boolean dataWaitingToGoInBuffer() {
         return outstandingRequest != null && outstandingRequest.isSuccess() && buffer.capacityAvailable() > 0;
@@ -149,8 +155,8 @@ class SegmentInputStreamImpl implements SegmentInputStream {
      * @return If there is enough room for another request, and we aren't already waiting on one
      */
     private void issueRequestIfNeeded() {
-        if (!receivedEndOfSegment && outstandingRequest == null && buffer.capacityAvailable() > READ_LENGTH) {
-            outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), READ_LENGTH);
+        if (!receivedEndOfSegment && outstandingRequest == null && buffer.capacityAvailable() > readLength) {
+            outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
         }
     }
 

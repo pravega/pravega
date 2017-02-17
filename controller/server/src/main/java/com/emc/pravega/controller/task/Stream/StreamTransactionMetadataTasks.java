@@ -1,21 +1,8 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -47,7 +34,7 @@ import java.util.stream.Collectors;
  * Any update to the task method signature should be avoided, since it can cause problems during upgrade.
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
-public class StreamTransactionMetadataTasks extends TaskBase implements Cloneable {
+public class StreamTransactionMetadataTasks extends TaskBase {
     private static final long INITIAL_DELAY = 1;
     private static final long PERIOD = 1;
     private static final long TIMEOUT = 60 * 60 * 1000;
@@ -65,7 +52,15 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                                           final TaskMetadataStore taskMetadataStore,
                                           final ScheduledExecutorService executor,
                                           final String hostId) {
-        super(taskMetadataStore, executor, hostId);
+        this(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, new Context(hostId));
+    }
+    
+    private StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
+            final HostControllerStore hostControllerStore,
+            final TaskMetadataStore taskMetadataStore,
+            final ScheduledExecutorService executor,
+            final Context context) {
+        super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.connectionFactory = new ConnectionFactoryImpl(false);
@@ -91,11 +86,6 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
             // find completed transactions to be gc'd
         }, INITIAL_DELAY, PERIOD, TimeUnit.HOURS);
 
-    }
-
-    @Override
-    public StreamTransactionMetadataTasks clone() throws CloneNotSupportedException {
-        return (StreamTransactionMetadataTasks) super.clone();
     }
 
     /**
@@ -214,5 +204,14 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                                                                     this.hostControllerStore,
                                                                     this.connectionFactory),
                               executor);
+    }
+
+    @Override
+    public TaskBase copyWithContext(Context context) {
+        return new StreamTransactionMetadataTasks(streamMetadataStore,
+                                                  hostControllerStore,
+                                                  taskMetadataStore,
+                                                  executor,
+                                                  context);
     }
 }

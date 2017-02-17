@@ -1,26 +1,16 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.StreamSegmentException;
@@ -29,11 +19,9 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
-import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.ReadIndex;
-import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.service.server.TestDurableDataLogFactory;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
@@ -58,12 +46,12 @@ import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.util.concurrent.Service;
+
 import java.io.IOException;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -78,8 +66,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
 import lombok.Cleanup;
 import lombok.val;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -881,7 +871,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // Verify that we can still queue operations to the DurableLog and they can be read.
             // In this case we'll just queue some StreamSegmentMapOperations.
-            StreamSegmentMapOperation newOp = new StreamSegmentMapOperation(new StreamSegmentInformation("foo", 0, false, false, new Date()));
+            StreamSegmentMapOperation newOp = new StreamSegmentMapOperation(new StreamSegmentInformation("foo", 0, false, false, new ImmutableDate()));
             if (!fullTruncationPossible) {
                 // We were not able to do a full truncation before. Do one now, since we are guaranteed to have a new DataFrame available.
                 MetadataCheckpointOperation lastCheckpoint = new MetadataCheckpointOperation();

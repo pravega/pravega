@@ -24,6 +24,7 @@ import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.Props;
 import com.emc.pravega.controller.eventProcessor.StreamEvent;
+import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.Position;
@@ -62,7 +63,7 @@ public class EventProcessorTest {
 
     @Data
     @AllArgsConstructor
-    public class TestEvent implements StreamEvent, Serializable {
+    public static class TestEvent implements StreamEvent, Serializable {
         int number;
     }
 
@@ -110,7 +111,7 @@ public class EventProcessorTest {
         }
     }
 
-    private class MockEventRead<T> implements EventRead<T> {
+    private static class MockEventRead<T> implements EventRead<T> {
 
         final T value;
         final Position position;
@@ -137,12 +138,7 @@ public class EventProcessorTest {
         }
 
         @Override
-        public Segment getSegment() {
-            return null;
-        }
-
-        @Override
-        public Long getOffsetInSegment() {
+        public EventPointer getEventPointer() {
             return null;
         }
 

@@ -24,6 +24,8 @@ import lombok.Data;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -36,7 +38,7 @@ public class Props<T extends StreamEvent> {
     private final Decider decider;
     private final Serializer<T> serializer;
     private final Class<? extends EventProcessor<T>> clazz;
-    private final Object[] args;
+    private final List<Object> args;
     private final Constructor<? extends EventProcessor<T>> constructor;
 
     private Props(final EventProcessorGroupConfig config,
@@ -55,7 +57,7 @@ public class Props<T extends StreamEvent> {
         }
         this.serializer = serializer;
         this.clazz = clazz;
-        this.args = args;
+        this.args = Collections.unmodifiableList(Arrays.asList(args));
 
         Optional<Constructor<? extends EventProcessor<T>>> optional = getValidConstructor(clazz, args);
         if (optional.isPresent()) {
