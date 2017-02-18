@@ -40,8 +40,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-// todo: use config values for constants defined in this file
-
 @Slf4j
 public class ControllerEventProcessors {
 
@@ -119,8 +117,7 @@ public class ControllerEventProcessors {
                         .config(commitReadersConfig)
                         .decider(Decider.DEFAULT_DECIDER)
                         .serializer(new JavaSerializer<>())
-                        .clazz(CommitEventProcessor.class)
-                        .args(streamMetadataStore, hostControllerStore, executor)
+                        .supplier(() -> new CommitEventProcessor(streamMetadataStore, hostControllerStore, executor))
                         .build();
 
         commitEventProcessors = system.createEventProcessorGroup(commitProps).getWriter();
@@ -154,8 +151,7 @@ public class ControllerEventProcessors {
                         .config(abortReadersConfig)
                         .decider(Decider.DEFAULT_DECIDER)
                         .serializer(new JavaSerializer<>())
-                        .clazz(AbortEventProcessor.class)
-                        .args(streamMetadataStore, hostControllerStore, executor)
+                        .supplier(() -> new AbortEventProcessor(streamMetadataStore, hostControllerStore, executor))
                         .build();
 
         abortEventProcessors = system.createEventProcessorGroup(abortProps).getWriter();
