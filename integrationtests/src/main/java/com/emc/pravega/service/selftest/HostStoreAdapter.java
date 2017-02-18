@@ -17,6 +17,8 @@ import com.emc.pravega.stream.mock.MockStreamManager;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -175,11 +177,11 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     private static class WriterCollection implements AutoCloseable {
         private static final ByteArraySerializer SERIALIZER = new ByteArraySerializer();
         private static final EventWriterConfig WRITER_CONFIG = new EventWriterConfig(null);
-        private final ArrayList<EventStreamWriter<byte[]>> writers;
+        private final List<EventStreamWriter<byte[]>> writers;
         private final AtomicInteger nextWriterId;
 
         WriterCollection(String segmentName, int count, MockStreamManager streamManager) {
-            this.writers = new ArrayList<>(count);
+            this.writers = Collections.synchronizedList(new ArrayList<>(count));
             this.nextWriterId = new AtomicInteger();
             for (int i = 0; i < count; i++) {
                 val writer = streamManager.getClientFactory()
