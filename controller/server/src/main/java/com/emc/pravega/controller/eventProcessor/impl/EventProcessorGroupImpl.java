@@ -33,7 +33,6 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
 import com.google.common.util.concurrent.AbstractService;
 import org.apache.commons.lang.NotImplementedException;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -81,11 +80,7 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
                 ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build(),
                 Collections.singletonList(props.getConfig().getStreamName()));
 
-        try {
-            createEventProcessors(props.getConfig().getEventProcessorCount());
-        } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
-            throw new RuntimeException("Error instantiating Event Processors");
-        }
+        createEventProcessors(props.getConfig().getEventProcessorCount());
     }
 
     private ReaderGroup createIfNotExists(final StreamManager streamManager,
@@ -101,9 +96,7 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
         //return  readerGroup;
     }
 
-    private List<String> createEventProcessors(final int count) throws IllegalAccessException,
-            InvocationTargetException,
-            InstantiationException {
+    private List<String> createEventProcessors(final int count) {
 
         List<String> readerIds = new ArrayList<>();
         for (int i = 0; i < count; i++) {
@@ -189,17 +182,12 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
         if (count <= 0) {
             throw new NotImplementedException();
         } else {
-            try {
 
-                // create new event processors
-                List<String> readerIds = createEventProcessors(count);
+            // create new event processors
+            List<String> readerIds = createEventProcessors(count);
 
-                // start the new event processors
-                readerIds.stream().forEach(readerId -> eventProcessorMap.get(readerId).startAsync());
-
-            } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
-                throw new RuntimeException("Error instantiating Actors");
-            }
+            // start the new event processors
+            readerIds.stream().forEach(readerId -> eventProcessorMap.get(readerId).startAsync());
         }
     }
 

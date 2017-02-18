@@ -163,8 +163,7 @@ public class EventProcessorTest {
 
         // Test case 1. Actor does not throw any exception during normal operation.
         Props<TestEvent> props = Props.<TestEvent>builder()
-                .clazz(TestEventProcessor.class)
-                .args(false, result)
+                .supplier(() -> new TestEventProcessor(false, result))
                 .serializer(new JavaSerializer<>())
                 .decider((Throwable e) -> Decider.Directive.Stop)
                 .config(eventProcessorGroupConfig)

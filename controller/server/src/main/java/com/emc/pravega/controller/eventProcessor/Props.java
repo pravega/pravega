@@ -21,12 +21,7 @@ import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.stream.Serializer;
 import lombok.Data;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * Configuration object for creating Actors via actorOf method of ActorSystem or ActorContext.
@@ -37,18 +32,13 @@ public class Props<T extends StreamEvent> {
     private final EventProcessorGroupConfig config;
     private final Decider decider;
     private final Serializer<T> serializer;
-    private final Class<? extends EventProcessor<T>> clazz;
-    private final List<Object> args;
-    private final Constructor<? extends EventProcessor<T>> constructor;
+    private final Supplier<EventProcessor<T>> supplier;
 
     private Props(final EventProcessorGroupConfig config,
                  final Decider decider,
                  final Serializer<T> serializer,
-                 final Class<? extends EventProcessor<T>> clazz,
-                 final Object... args) {
-        if (!validate(clazz)) {
-            throw new IllegalArgumentException("Non-actor type or non-instantiable type");
-        }
+                 final Supplier<EventProcessor<T>> supplier) {
+
         this.config = config;
         if (decider == null) {
             this.decider = Decider.DEFAULT_DECIDER;
@@ -56,61 +46,7 @@ public class Props<T extends StreamEvent> {
             this.decider = decider;
         }
         this.serializer = serializer;
-        this.clazz = clazz;
-        this.args = Collections.unmodifiableList(Arrays.asList(args));
-
-        Optional<Constructor<? extends EventProcessor<T>>> optional = getValidConstructor(clazz, args);
-        if (optional.isPresent()) {
-            this.constructor = optional.get();
-        } else {
-            throw new IllegalArgumentException("Invalid constructor arguments");
-        }
-    }
-
-    private boolean validate(Class<? extends EventProcessor<T>> clazz) {
-        return !Modifier.isAbstract(clazz.getModifiers());
-    }
-
-    private Optional<Constructor<? extends EventProcessor<T>>> getValidConstructor(Class<? extends EventProcessor<T>> clazz, Object... args) {
-
-        if (args == null || args.length == 0) {
-
-            for (Constructor constructor : clazz.getConstructors()) {
-                if (constructor.getParameterCount() == 0) {
-                    return Optional.of(constructor);
-                }
-            }
-            return Optional.empty();
-
-        } else {
-
-            int n = args.length;
-            Class[] argumentTypes = new Class[n];
-            for (int i = 0; i < n; i++) {
-                argumentTypes[i] = args[i].getClass();
-            }
-            Constructor[] constructors = clazz.getConstructors();
-            for (Constructor constructor : constructors) {
-                if (arrayMatches(argumentTypes,
-                        constructor.getParameterTypes())) {
-                    return Optional.of(constructor);
-                }
-            }
-            return Optional.empty();
-        }
-    }
-
-    private boolean arrayMatches(Class<?>[] parameterTypes, Class<?>[] constructorTypes) {
-        if (parameterTypes.length != constructorTypes.length) {
-            return false;
-        } else {
-            for (int i = 0; i < parameterTypes.length; i++) {
-                if (!constructorTypes[i].isAssignableFrom(parameterTypes[i])) {
-                    return false;
-                }
-            }
-            return true;
-        }
+        this.supplier = supplier;
     }
 
     public static <T extends StreamEvent> Props.PropsBuilder<T> builder() {
@@ -125,8 +61,7 @@ public class Props<T extends StreamEvent> {
         private EventProcessorGroupConfig config;
         private Decider decider;
         private Serializer<T> serializer;
-        private Class<? extends EventProcessor<T>> clazz;
-        private Object[] args;
+        private Supplier<EventProcessor<T>> supplier;
 
         PropsBuilder() {
         }
@@ -146,23 +81,18 @@ public class Props<T extends StreamEvent> {
             return this;
         }
 
-        public Props.PropsBuilder<T> clazz(Class<? extends EventProcessor<T>> clazz) {
-            this.clazz = clazz;
-            return this;
-        }
-
-        public Props.PropsBuilder<T> args(Object... args) {
-            this.args = args;
+        public Props.PropsBuilder<T> supplier(Supplier<EventProcessor<T>> supplier) {
+            this.supplier = supplier;
             return this;
         }
 
         public Props<T> build() {
-            return new Props<>(this.config, this.decider, this.serializer, this.clazz, this.args);
+            return new Props<>(this.config, this.decider, this.serializer, this.supplier);
         }
 
         public String toString() {
             return "Props.PropsBuilder(config=" + this.config + ", decider=" + this.decider + ", serializer=" +
-                    this.serializer + ", clazz=" + this.clazz + ", args=" + Arrays.deepToString(this.args) + ")";
+                    this.serializer + ", supplier=" + this.supplier + ")";
         }
     }
 }
