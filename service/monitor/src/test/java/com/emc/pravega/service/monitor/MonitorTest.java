@@ -7,6 +7,7 @@ package com.emc.pravega.service.monitor;
 
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.controller.requests.ScaleRequest;
+import com.emc.pravega.stream.AckFuture;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Segment;
@@ -16,7 +17,6 @@ import org.junit.Test;
 
 import java.time.Duration;
 import java.util.UUID;
-import java.util.concurrent.Future;
 
 public class MonitorTest {
 
@@ -27,7 +27,7 @@ public class MonitorTest {
     public void monitorTest() {
         EventStreamWriter<ScaleRequest> writer = new EventStreamWriter<ScaleRequest>() {
             @Override
-            public Future<Void> writeEvent(String routingKey, ScaleRequest event) {
+            public AckFuture writeEvent(String routingKey, ScaleRequest event) {
                 assert event != null;
 
                 assert routingKey.equals(String.format("%s/%s", SCOPE, STREAM)) &&
