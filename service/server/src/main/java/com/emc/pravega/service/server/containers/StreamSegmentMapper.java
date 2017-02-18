@@ -1,21 +1,8 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.Exceptions;
@@ -23,8 +10,10 @@ import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.OperationLog;
@@ -34,15 +23,16 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentMapping;
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
 import java.time.Duration;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Helps assign unique Ids to StreamSegments and persists them in Metadata.
@@ -95,11 +85,12 @@ public class StreamSegmentMapper {
      * Creates a new StreamSegment with given name (in Storage) and assigns a unique internal Id to it.
      *
      * @param streamSegmentName The case-sensitive StreamSegment Name.
+     * @param attributes        The initial attributes for the StreamSegment, if any.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed normally.
      * If the operation failed, this will contain the exception that caused the failure.
      */
-    public CompletableFuture<Void> createNewStreamSegment(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> createNewStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewStreamSegment", streamSegmentName);
         long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
         if (isValidStreamSegmentId(streamId)) {
@@ -112,7 +103,10 @@ public class StreamSegmentMapper {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.storage
                 .create(streamSegmentName, timer.getRemaining())
-                .thenCompose(si -> getOrAssignStreamSegmentId(si.getName(), timer.getRemaining()))
+                .thenComposeAsync(si -> {
+                    si = attachAttributes(si, attributes);
+                    return persistInDurableLog(si, timeout);
+                }, this.executor)
                 .thenAccept(id -> LoggerHelpers.traceLeave(log, traceObjectId, "createNewStreamSegment", traceId, streamSegmentName, id));
     }
 
@@ -121,15 +115,17 @@ public class StreamSegmentMapper {
      *
      * @param parentStreamSegmentName The case-sensitive StreamSegment Name of the Parent StreamSegment.
      * @param transactionId           A unique identifier for the transaction to be created.
+     * @param attributes              The initial attributes for the Transaction, if any.
      * @param timeout                 Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the name of the newly created Transaction StreamSegment.
      * If the operation failed, this will contain the exception that caused the failure.
      * @throws IllegalArgumentException If the given parent StreamSegment cannot have a Transaction (because it is deleted, sealed, inexistent).
      */
-    public CompletableFuture<String> createNewTransactionStreamSegment(String parentStreamSegmentName, UUID transactionId, Duration timeout) {
+    public CompletableFuture<String> createNewTransactionStreamSegment(String parentStreamSegmentName, UUID transactionId,
+                                                                       Collection<AttributeUpdate> attributes, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewTransactionStreamSegment", parentStreamSegmentName);
 
-        //We cannot create a Transaction StreamSegment for a what looks like a parent StreamSegment.
+        // We cannot create a Transaction StreamSegment for a what looks like a parent StreamSegment.
         Exceptions.checkArgument(
                 StreamSegmentNameUtils.getParentStreamSegmentName(parentStreamSegmentName) == null,
                 "parentStreamSegmentName",
@@ -163,7 +159,10 @@ public class StreamSegmentMapper {
 
         return parentCheckFuture
                 .thenCompose(parentInfo -> this.storage.create(transactionName, timer.getRemaining()))
-                .thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentStreamSegmentId, timer.getRemaining()))
+                .thenComposeAsync(transInfo -> {
+                    transInfo = attachAttributes(transInfo, attributes);
+                    return assignTransactionStreamSegmentId(transInfo, parentStreamSegmentId, timer.getRemaining());
+                }, this.executor)
                 .thenApply(id -> {
                     LoggerHelpers.traceLeave(log, traceObjectId, "createNewTransactionStreamSegment", traceId, parentStreamSegmentName, transactionName, id);
                     return transactionName;
@@ -208,6 +207,7 @@ public class StreamSegmentMapper {
                 this.pendingRequests.put(streamSegmentName, result);
             }
         }
+
         // We are the first/only ones requesting this id; go ahead and assign an id.
         if (needsAssignment) {
             // Determine if given StreamSegmentName is actually a Transaction StreamSegmentName.
@@ -237,18 +237,16 @@ public class StreamSegmentMapper {
         AtomicReference<Long> parentSegmentId = new AtomicReference<>();
 
         // Get info about parent. This also verifies the parent exists.
-        return this
-                .getOrAssignStreamSegmentId(parentSegmentName, timer.getRemaining())
-                .thenCompose(id -> {
-                    // Get info about Transaction itself.
-                    parentSegmentId.set(id);
-                    return this.storage.getStreamSegmentInfo(transactionSegmentName, timer.getRemaining());
-                })
-                .thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentSegmentId.get(), timer.getRemaining()))
-                .exceptionally(ex -> {
-                    failAssignment(transactionSegmentName, ex);
-                    throw new CompletionException(ex);
-                });
+        return withFailureHandler(
+                this.getOrAssignStreamSegmentId(parentSegmentName, timer.getRemaining())
+                    .thenCompose(id -> {
+                        // Get info about Transaction itself.
+                        parentSegmentId.set(id);
+                        return this.storage.getStreamSegmentInfo(transactionSegmentName, timer.getRemaining());
+                    })
+                    .thenCompose(transInfo -> retrieveAttributes(transInfo, timer.getRemaining()))
+                    .thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentSegmentId.get(), timer.getRemaining())),
+                transactionSegmentName);
     }
 
     /**
@@ -267,18 +265,52 @@ public class StreamSegmentMapper {
     }
 
     /**
-     * Assigns a new Id to the given StreamSegmentName.
+     * Attempts to map a StreamSegment to an Id.
+     *
+     * @param streamSegmentName The name of the StreamSegment to map.
+     * @param timeout           Timeout for the operation.
      */
     private void assignStreamSegmentId(String streamSegmentName, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        this.storage
-                .open(streamSegmentName)
-                .thenCompose(bool -> this.storage.getStreamSegmentInfo(streamSegmentName, timer.getRemaining()))
-                .thenCompose(streamInfo -> persistInDurableLog(streamInfo, timer.getRemaining()))
-                .exceptionally(ex -> {
-                    failAssignment(streamSegmentName, ex);
-                    throw new CompletionException(ex);
-                });
+        withFailureHandler(
+                this.storage
+                        .open(streamSegmentName)
+                        .thenCompose(bool -> this.storage.getStreamSegmentInfo(streamSegmentName, timer.getRemaining()))
+                        .thenCompose(si -> retrieveAttributes(si, timer.getRemaining()))
+                        .thenCompose(si -> persistInDurableLog(si, timer.getRemaining())),
+                streamSegmentName);
+    }
+
+    /**
+     * Returns a new SegmentProperties with the same information as the given source, but with the given attribute updates.
+     *
+     * @param source           The base SegmentProperties to copy from.
+     * @param attributeUpdates A collection of attribute updates to apply.
+     * @return A SegmentProperties which contains the same information as source, but with applied attribute updates.
+     */
+    private SegmentProperties attachAttributes(SegmentProperties source, Collection<AttributeUpdate> attributeUpdates) {
+        if (attributeUpdates == null) {
+            // Nothing to do.
+            return source;
+        }
+
+        // Merge updates into the existing attributes.
+        Map<UUID, Long> attributes = new HashMap<>(source.getAttributes());
+        attributeUpdates.forEach(au -> attributes.put(au.getAttributeId(), au.getValue()));
+        return new StreamSegmentInformation(source, attributes);
+    }
+
+    /**
+     * Fetches the attributes for the given source segment and returns a new SegmentProperties with the merged result.
+     *
+     * @param source  A SegmentProperties describing the Segment to fetch attributes for.
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain a new instance of the SegmentProperties with the
+     * same information as source, but with attributes attached.
+     */
+    private CompletableFuture<SegmentProperties> retrieveAttributes(SegmentProperties source, Duration timeout) {
+        // TODO: this will need to be implemented once we have attributes in Storage.
+        return CompletableFuture.completedFuture(source);
     }
 
     /**
@@ -370,6 +402,13 @@ public class StreamSegmentMapper {
         if (pendingRequest != null) {
             pendingRequest.completeExceptionally(reason);
         }
+    }
+
+    private CompletableFuture<Long> withFailureHandler(CompletableFuture<Long> source, String segmentName) {
+        return source.exceptionally(ex -> {
+            failAssignment(segmentName, ex);
+            throw new CompletionException(ex);
+        });
     }
 
     private boolean isValidStreamSegmentId(long id) {

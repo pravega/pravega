@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.fault;
 
@@ -159,12 +147,8 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
                 hostsChange.acquire();
                 log.debug("Received rebalance event");
 
-                //Wait here until the rebalance timer is zero so that we honour the minimum rebalance interval.
-                if (timeoutTimer != null && timeoutTimer.getRemaining().getSeconds() > 0) {
-                    log.info("Waiting for {} seconds before attempting to rebalance",
-                            timeoutTimer.getRemaining().getSeconds());
-                    Thread.sleep(timeoutTimer.getRemaining().getSeconds() * 1000);
-                }
+                //Wait here until the rebalance timer is zero so that we honor the minimum rebalance interval.
+                waitForRebalance();
 
                 //Clear all events that has been received until this point.
                 hostsChange.drainPermits();
@@ -185,6 +169,17 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
                     throw e;
                 }
             }
+        }
+    }
+
+    /**
+     * Blocks until the rebalance timer is zero so that we honor the minimum rebalance interval.
+     */
+    private void waitForRebalance() throws InterruptedException {
+        if (timeoutTimer != null && timeoutTimer.getRemaining().getSeconds() > 0) {
+            log.info("Waiting for {} seconds before attempting to rebalance",
+                    timeoutTimer.getRemaining().getSeconds());
+            Thread.sleep(timeoutTimer.getRemaining().getSeconds() * 1000);
         }
     }
 
