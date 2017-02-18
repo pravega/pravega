@@ -61,10 +61,10 @@ public class PositionImpl extends PositionInternal {
     @Override
     public Set<Segment> getCompletedSegments() {
         return ownedSegments.entrySet()
-                .stream()
-                .filter(x -> x.getValue() < 0)
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet());
+            .stream()
+            .filter(x -> x.getValue() < 0)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
     }
 
     @Override

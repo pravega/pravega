@@ -169,7 +169,7 @@ public class SetSynchronizer<T extends Serializable> {
 
     /**
      * Add a new item to the set if it does not currently have it.
-     * @param value the value to be added.
+     * @param value The value to be added.
      */
     public void add(T value) {
         stateSynchronizer.updateState(set -> {
@@ -183,7 +183,7 @@ public class SetSynchronizer<T extends Serializable> {
     
     /**
      * Remove an item from the set if it is present.
-     * @param value the value to be removed.
+     * @param value The value to be removed.
      */
     public void remove(T value) {
         stateSynchronizer.updateState(set -> {

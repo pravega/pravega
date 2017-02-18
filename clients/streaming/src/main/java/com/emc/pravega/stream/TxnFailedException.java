@@ -35,7 +35,7 @@ public class TxnFailedException extends Exception {
     /**
      * Creates a new instance of TxnFailedException class.
      *
-     * @param e the cause.
+     * @param e The cause.
      */
     public TxnFailedException(Throwable e) {
         super(e);
@@ -44,8 +44,8 @@ public class TxnFailedException extends Exception {
     /**
      * Creates a new instance of TxnFailedException class.
      *
-     * @param msg exception description.
-     * @param e   the cause.
+     * @param msg Exception description.
+     * @param e   The cause.
      */
     public TxnFailedException(String msg, Throwable e) {
         super(msg, e);
@@ -54,7 +54,7 @@ public class TxnFailedException extends Exception {
     /**
      * Creates a new instance of TxnFailedException class.
      *
-     * @param msg exception description.
+     * @param msg Exception description.
      */
     public TxnFailedException(String msg) {
         super(msg);

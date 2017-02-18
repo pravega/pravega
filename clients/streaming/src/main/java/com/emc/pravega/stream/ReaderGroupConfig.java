@@ -24,22 +24,22 @@ import lombok.Getter;
 @Builder
 @EqualsAndHashCode
 public class ReaderGroupConfig {
-    @Getter
-    private final Sequence startingPosition;
-    private final long groupRefreshTimeMillis;
+   @Getter
+   private final Sequence startingPosition;
+   private final long groupRefreshTimeMillis;
 
-    public static class ReaderGroupConfigBuilder {
+   public static class ReaderGroupConfigBuilder {
 
-        /**
-         * Returns a config builder that started at given time.
+       /**
+         * Returns a config builder that started at  a given time.
          *
          * @param time A time to create sequence at.
          * @return Sequence instance.
          */
-        public ReaderGroupConfigBuilder startingTime(long time) {
-            startingPosition = Sequence.create(time, 0);
-            return this;
-        }
-    }
+       public ReaderGroupConfigBuilder startingTime(long time) {
+           startingPosition = Sequence.create(time, 0);
+           return this;
+       }
+   }
 
 }

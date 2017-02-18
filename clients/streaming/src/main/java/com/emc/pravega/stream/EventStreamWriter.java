@@ -23,7 +23,7 @@ import java.util.concurrent.Future;
 /**
  * A writer can write events to a stream.
  * 
- * This class is safe to use across t'hreads, but doing so will not increase performance.
+ * This class is safe to use across threads, but doing so will not increase performance.
  * 
  * @param <Type> The type of events that go in this stream
  */

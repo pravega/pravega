@@ -48,7 +48,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
      * Creates a new instance of StateSynchronizer class.
      *
      * @param segment The segment.
-     * @param client  The streaming Client.
+     * @param client  The revisioned stream client this state synchronizer builds upon."
      */
     public StateSynchronizerImpl(Segment segment, RevisionedStreamClient<UpdateOrInit<StateT>> client) {
         this.segment = segment;

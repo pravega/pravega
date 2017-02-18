@@ -43,7 +43,7 @@ public interface Controller {
     /**
      * Api to create stream.
      *
-     * @param streamConfig stream configuration
+     * @param streamConfig Stream configuration
      * @return status of create stream operation.
      */
     CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig);
@@ -51,7 +51,7 @@ public interface Controller {
     /**
      * Api to alter stream.
      *
-     * @param streamConfig stream configuration to updated
+     * @param streamConfig Stream configuration to updated
      * @return status of update stream operation.
      */
     CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig);
@@ -59,8 +59,8 @@ public interface Controller {
     /**
      * Api to seal stream.
      * 
-     * @param scope scope
-     * @param streamName stream name
+     * @param scope Scope
+     * @param streamName Stream name
      * @return status of update stream operation.
      */
     CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String streamName);
@@ -68,9 +68,9 @@ public interface Controller {
     /**
      * API to merge or split stream segments.
      * 
-     * @param stream stream object.
-     * @param sealedSegments list of segments to be sealed.
-     * @param newKeyRanges key ranges after scaling the stream.
+     * @param stream Stream object.
+     * @param sealedSegments List of segments to be sealed.
+     * @param newKeyRanges Key ranges after scaling the stream.
      * @return status of scale operation.
      */
     CompletableFuture<ScaleResponse> scaleStream(final Stream stream, final List<Integer> sealedSegments,
@@ -81,8 +81,8 @@ public interface Controller {
     /**
      * Api to get list of current segments for the stream to write to.
      * 
-     * @param scope scope
-     * @param streamName stream name
+     * @param scope Scope
+     * @param streamName Stream name
      * @return current stream segments.
      */
     CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName);
@@ -90,8 +90,8 @@ public interface Controller {
     /**
      * Api to create a new transaction. The transaction timeout is relative to the creation time.
      * 
-     * @param stream stream name
-     * @param timeout tx timeout
+     * @param stream Stream name
+     * @param timeout Tx timeout
      * @return transaction identifier.
      */
     CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout);
@@ -101,8 +101,8 @@ public interface Controller {
      * ordering guarantees specified in {@link EventStreamWriter}. Will fail with
      * {@link TxnFailedException} if the transaction has already been committed or aborted.
      * 
-     * @param stream stream name
-     * @param txId transaction id
+     * @param stream Stream name
+     * @param txId Transaction id
      * @return void or TxnFailedException
      */
     CompletableFuture<Void> commitTransaction(final Stream stream, final UUID txId);
@@ -112,8 +112,8 @@ public interface Controller {
      * written. Will fail with {@link TxnFailedException} if the transaction has already been
      * committed or aborted.
      * 
-     * @param stream stream name
-     * @param txId transaction id
+     * @param stream Stream name
+     * @param txId Transaction id
      * @return void or TxnFailedException
      */
     CompletableFuture<Void> abortTransaction(final Stream stream, final UUID txId);
@@ -121,8 +121,8 @@ public interface Controller {
     /**
      * Returns the status of the specified transaction.
      * 
-     * @param stream stream name
-     * @param txId transaction id
+     * @param stream Stream name
+     * @param txId Transaction id
      * @return transaction status.
      */
     CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
@@ -133,9 +133,9 @@ public interface Controller {
      * Given a timestamp and a number of readers, returns a position object for each reader that collectively
      * include all of the segments that exist at that time in the stream.
      *
-     * @param stream name
-     * @param timestamp timestamp for getting position objects
-     * @param count number of position objects
+     * @param stream Name
+     * @param timestamp Timestamp for getting position objects
+     * @param count Number of position objects
      * @return list of position objects.
      */
     CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count);

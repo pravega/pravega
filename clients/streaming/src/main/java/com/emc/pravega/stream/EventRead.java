@@ -46,7 +46,7 @@ public interface EventRead<T> {
      * to increase even when no events are available. This is useful as it can bound the values
      * associated with future events.
      *
-     * @return sequence object, a wrapper for 2 numbers, which are'high order' and 'low order'
+     * @return a {@link Sequence} object that wraps two numbers, a high order value and a low order value
      */
     Sequence getEventSequence();
 
@@ -93,7 +93,9 @@ public interface EventRead<T> {
      * as the set routing keys it is working with are about to change.
      * 
      * For a reader that is not part of a {@link ReaderGroup} and is rebalanced manually, this means
+     *
      * the application should call {@link RebalancerUtils#rebalance(java.util.Collection, int)} with
+     *
      * the positions of its readers and recreate new readers from the resulting positions.
      * 
      * It is the goal of the implementation to not set this to true unless it is required.
