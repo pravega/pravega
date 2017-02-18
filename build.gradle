@@ -189,8 +189,6 @@ project('service') {
         compile project(':service:server:host')
         compile project(':service:storage')
         compile project(':service:storage:impl')
-        compile project(':controller:contract')
-        compile project(':controller:server')
     }
     jar {
         from project(":service:contracts").sourceSets.main.output
@@ -198,8 +196,6 @@ project('service') {
         from project(":service:server:host").sourceSets.main.output
         from project(":service:storage").sourceSets.main.output
         from project(":service:storage:impl").sourceSets.main.output
-        from project(":controller:contract").sourceSets.main.output
-        from project(":controller:server").sourceSets.main.output
     }
     publishing {
         publications {

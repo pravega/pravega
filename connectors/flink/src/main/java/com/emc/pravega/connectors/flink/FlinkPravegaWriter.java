@@ -18,6 +18,7 @@
 package com.emc.pravega.connectors.flink;
 
 import com.emc.pravega.ClientFactory;
+import com.emc.pravega.stream.AckFuture;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Serializer;
@@ -33,6 +34,8 @@ import org.apache.flink.streaming.util.serialization.SerializationSchema;
 import java.io.Serializable;
 import java.net.URI;
 import java.nio.ByteBuffer;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -70,10 +73,13 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
     private transient Serializer eventSerializer = null;
 
     // Error which will be detected asynchronously and reported to flink.
-    private transient AtomicReference<Throwable> writeError = null;
+    private transient AtomicReference<Exception> writeError = null;
 
     // Used to track confirmation from all writes to ensure guaranteed writes.
     private transient AtomicInteger pendingWritesCount = null;
+
+    // Thread pool for handling callbacks from write events.
+    ExecutorService executorService = Executors.newFixedThreadPool(5);
 
     /**
      * The flink pravega writer instance which can be added as a sink to a flink job.
@@ -144,29 +150,35 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
     @Override
     public void invoke(T event) throws Exception {
         if (this.writerMode == PravegaWriterMode.ATLEAST_ONCE) {
-            Throwable error = this.writeError.getAndSet(null);
+            Exception error = this.writeError.getAndSet(null);
             if (error != null) {
-                throw new Exception(error);
+                log.error("Failure detected, not writing any more events");
+                throw error;
             }
         }
 
         this.pendingWritesCount.incrementAndGet();
-        this.pravegaWriter.writeEvent(this.eventRouter.getRoutingKey(event), event)
-                .whenComplete((aVoid, throwable) -> {
-                    if (throwable != null) {
-                        log.warn("Detected a write failure: {}", throwable);
+        final AckFuture ackFuture = this.pravegaWriter.writeEvent(this.eventRouter.getRoutingKey(event), event);
+        if (writerMode == PravegaWriterMode.ATLEAST_ONCE) {
+            ackFuture.addListener(
+                    () -> {
+                        try {
+                            ackFuture.get();
+                            synchronized (pendingWritesCount) {
+                                pendingWritesCount.decrementAndGet();
+                                pendingWritesCount.notify();
+                            }
+                        } catch (Exception e) {
+                            log.warn("Detected a write failure: {}", e);
 
-                        // We will record only the first error detected, since this will mostly likely help with
-                        // finding the root cause. Storing all errors will not be feasible.
-                        this.writeError.compareAndSet(null, throwable);
-                    }
-                    if (this.writerMode == PravegaWriterMode.ATLEAST_ONCE) {
-                        synchronized (this.pendingWritesCount) {
-                            this.pendingWritesCount.decrementAndGet();
-                            this.pendingWritesCount.notify();
+                            // We will record only the first error detected, since this will mostly likely help with
+                            // finding the root cause. Storing all errors will not be feasible.
+                            writeError.compareAndSet(null, e);
                         }
-                    }
-                });
+                    },
+                    executorService
+            );
+        }
     }
 
     @Override
@@ -194,10 +206,10 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
         }
 
         // Verify that no events have been lost so far.
-        Throwable error = this.writeError.getAndSet(null);
+        Exception error = this.writeError.getAndSet(null);
         if (error != null) {
-            log.error("Failure detected: " + error);
-            throw new Exception(error);
+            log.error("Write failure detected: " + error);
+            throw error;
         }
     }
 }

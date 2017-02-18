@@ -1,21 +1,8 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.ExceptionHelpers;
@@ -25,7 +12,6 @@ import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.common.util.PropertyBag;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -59,18 +45,17 @@ import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.util.concurrent.Service;
-
 import java.io.IOException;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -79,10 +64,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import lombok.val;
-
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -140,6 +124,48 @@ public class DurableLogTests extends OperationLogTestBase {
         performLogOperationChecks(completionFutures, durableLog);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), transactions, completionFutures, setup.metadata, mergeTransactions, sealStreamSegments);
         performReadIndexChecks(completionFutures, setup.readIndex);
+
+        // Stop the processor.
+        durableLog.stopAsync().awaitTerminated();
+    }
+
+    /**
+     * Tests the operationProcessingBarrier() method.
+     */
+    @Test
+    public void testOperationProcessingBarrier() throws Exception {
+        int streamSegmentCount = 1;
+        int appendsPerStreamSegment = 20;
+
+        // Setup a DurableLog and start it.
+        @Cleanup
+        ContainerSetup setup = new ContainerSetup(executorService());
+        @Cleanup
+        DurableLog durableLog = setup.createDurableLog();
+        durableLog.startAsync().awaitRunning();
+
+        // Empty log.
+        CompletableFuture<Void> emptyLogBarrier = durableLog.operationProcessingBarrier(TIMEOUT);
+        emptyLogBarrier.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertTrue("Barrier for empty log did not complete successfully.", FutureHelpers.isSuccessful(emptyLogBarrier));
+
+        // Add a few operations, and verify the "barrier" is always completed after them.
+        HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, setup.metadata);
+        List<Operation> operations = generateOperations(streamSegmentIds, Collections.emptyMap(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
+
+        // Process all generated operations.
+        List<OperationWithCompletion> completionFutures = processOperations(operations, durableLog);
+
+        CompletableFuture<Void> afterBarrier = durableLog
+                .operationProcessingBarrier(TIMEOUT);
+
+        // Wait for all such operations to complete. If any of them failed, this will fail too and report the exception.
+        CompletableFuture<Void> allOtherOperations = OperationWithCompletion.allOf(completionFutures);
+
+        // Wait for barrier to complete.
+        afterBarrier.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertTrue("barrier for non-empty log did not complete successfully.", FutureHelpers.isSuccessful(afterBarrier));
+        Assert.assertTrue("barrier was completed before its previous operations were completed.", FutureHelpers.isSuccessful(allOtherOperations));
 
         // Stop the processor.
         durableLog.stopAsync().awaitTerminated();
@@ -448,7 +474,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Add one operation at at time, and each time, verify that the correct Read got activated.
         OperationComparer operationComparer = new OperationComparer(true);
         for (int appendId = 0; appendId < operationCount; appendId++) {
-            Operation operation = new StreamSegmentAppendOperation(segmentId, ("foo" + Integer.toString(appendId)).getBytes(), new AppendContext(UUID.randomUUID(), appendId));
+            Operation operation = new StreamSegmentAppendOperation(segmentId, ("foo" + Integer.toString(appendId)).getBytes(), null);
             durableLog.add(operation, TIMEOUT).join();
             for (int readId = 0; readId < readFutures.size(); readId++) {
                 val readFuture = readFutures.get(readId);
@@ -532,7 +558,7 @@ public class DurableLogTests extends OperationLogTestBase {
      */
     @Test
     public void testMetadataCheckpointByCount() throws Exception {
-        int checkpointEvery = 10;
+        int checkpointEvery = 30;
         testMetadataCheckpoint(
                 () -> ContainerSetup.createDurableLogConfig(checkpointEvery, null),
                 checkpointEvery);
@@ -543,7 +569,7 @@ public class DurableLogTests extends OperationLogTestBase {
      */
     @Test
     public void testMetadataCheckpointByLength() throws Exception {
-        int checkpointLengthThreshold = 69 * 1024;
+        int checkpointLengthThreshold = 257 * 1024;
         testMetadataCheckpoint(
                 () -> ContainerSetup.createDurableLogConfig(null, (long) checkpointLengthThreshold),
                 10);
@@ -576,8 +602,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Generate some test data (we need to do this after we started the DurableLog because in the process of
         // recovery, it wipes away all existing metadata).
         HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, setup.metadata);
-        AbstractMap<Long, Long> transactions = createTransactionsInMetadata(streamSegmentIds, 0, setup.metadata);
-        List<Operation> operations = generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment, NO_METADATA_CHECKPOINT, false, false);
+        List<Operation> operations = generateOperations(streamSegmentIds, Collections.emptyMap(), appendsPerStreamSegment, NO_METADATA_CHECKPOINT, false, false);
 
         // Process all generated operations.
         List<OperationWithCompletion> completionFutures = processOperations(operations, durableLog, waitForProcessingFrequency);
@@ -586,6 +611,7 @@ public class DurableLogTests extends OperationLogTestBase {
         OperationWithCompletion.allOf(completionFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         List<Operation> readOperations = readAllDurableLog(durableLog);
 
+        // Count the number of injected MetadataCheckpointOperations.
         int injectedOperationCount = 0;
         for (Operation o : readOperations) {
             if (o instanceof MetadataCheckpointOperation) {
@@ -593,7 +619,10 @@ public class DurableLogTests extends OperationLogTestBase {
             }
         }
 
-        Assert.assertEquals("Unexpected operations were injected. Expected only MetadataCheckpointOperations.", readOperations.size() - operations.size(), injectedOperationCount);
+        // Calculate how many we were expecting.
+        int expectedCheckpoints = readOperations.size() - (int) operations.stream().filter(Operation::canSerialize).count();
+
+        Assert.assertEquals("Unexpected operations were injected. Expected only MetadataCheckpointOperations.", expectedCheckpoints, injectedOperationCount);
 
         // We expect at least 2 injected operations (one is the very first one (checked above), and then at least
         // one more based on written data.
@@ -884,7 +913,8 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // Verify that we can still queue operations to the DurableLog and they can be read.
             // In this case we'll just queue some StreamSegmentMapOperations.
-            StreamSegmentMapOperation newOp = new StreamSegmentMapOperation(new StreamSegmentInformation("foo", 0, false, false, new ImmutableDate()));
+            StreamSegmentMapOperation newOp = new StreamSegmentMapOperation(
+                    new StreamSegmentInformation("foo", 0, false, false, new ImmutableDate()));
             if (!fullTruncationPossible) {
                 // We were not able to do a full truncation before. Do one now, since we are guaranteed to have a new DataFrame available.
                 MetadataCheckpointOperation lastCheckpoint = new MetadataCheckpointOperation();
@@ -1005,6 +1035,11 @@ public class DurableLogTests extends OperationLogTestBase {
                 continue;
             }
 
+            if (!oc.operation.canSerialize()) {
+                // We do not expect this operation in the log; skip it.
+                continue;
+            }
+
             // Verify that the operations have been completed and assigned sequential Sequence Numbers.
             Operation expectedOp = oc.operation;
             long currentSeqNo = oc.completion.join();
@@ -1038,6 +1073,7 @@ public class DurableLogTests extends OperationLogTestBase {
         return processOperations(operations, durableLog, operations.size() + 1);
     }
 
+    @SneakyThrows
     private List<OperationWithCompletion> processOperations(Collection<Operation> operations, DurableLog durableLog, int waitEvery) {
         List<OperationWithCompletion> completionFutures = new ArrayList<>();
         int index = 0;
@@ -1052,7 +1088,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
             completionFutures.add(new OperationWithCompletion(o, completionFuture));
             if (index % waitEvery == 0) {
-                completionFuture.join();
+                completionFuture.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             }
         }
 
