@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.store.stream.tables.Cache;
 import com.emc.pravega.controller.store.stream.tables.Data;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.KeeperException;
@@ -32,12 +31,10 @@ public class ZKScope implements Scope {
     private static CuratorFramework client;
     private final String scopePath;
     private final String scopeName;
-    private final Cache<Integer> cache;
 
     protected ZKScope(final String scopeName) {
         this.scopeName = scopeName;
         scopePath = String.format(SCOPE_PATH, scopeName);
-        cache = new Cache<>(ZKScope::getData);
     }
 
     @Override
@@ -62,7 +59,6 @@ public class ZKScope implements Scope {
 
     @Override
     public void refresh() {
-        cache.invalidateAll();
     }
 
     /**
