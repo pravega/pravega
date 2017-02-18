@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.requesthandler;
 
@@ -35,6 +23,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -79,6 +68,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
     private final AtomicLong counter = new AtomicLong(0);
     private final Comparator<PositionCounter> positionCounterComparator = Comparator.comparingLong(o -> o.counter);
     private final Semaphore semaphore;
+    private final ScheduledFuture<?> scheduledFuture;
 
     RequestReader(final String readerId,
                   final String readerGroup,
@@ -107,7 +97,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
         this.executor = executor;
 
         // periodic checkpointing - every one minute
-        this.executor.scheduleAtFixedRate(this::checkpoint, 1, 1, TimeUnit.MINUTES);
+        scheduledFuture = this.executor.scheduleAtFixedRate(this::checkpoint, 1, 1, TimeUnit.MINUTES);
         semaphore = new Semaphore(MAX_CONCURRENT);
     }
 
@@ -178,7 +168,8 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                 // an exception is thrown while doing reads for next events.
                 // And we should never stop processing of other requests in the queue even if processing a request throws
                 // an exception.
-                log.error("Exception thrown while processing event. {}. Logging and continuing. Stack trace {}", e.getMessage(), e.getStackTrace());
+                log.error("Exception thrown while processing event. {}. Logging and continuing. Stack trace {}",
+                        e.getMessage(), e.getStackTrace());
             }
         }
     }

@@ -1,21 +1,8 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.host.handler;
 
 import com.emc.pravega.common.Timer;
@@ -77,7 +64,6 @@ import lombok.extern.slf4j.Slf4j;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.CREATE_SEGMENT;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_READ_BYTES;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_READ_LATENCY;
-import static com.emc.pravega.common.SegmentStoreMetricsNames.UPDATE_SEGMENT;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.nameFromSegment;
 import static com.emc.pravega.common.netty.WireCommands.*;
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
@@ -87,7 +73,6 @@ import static com.emc.pravega.service.contracts.Attributes.SCALE_POLICY_TYPE;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Cache;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Future;
-import static com.emc.pravega.service.server.host.handler.PravegaRequestProcessor.Metrics.CREATE_STREAM_SEGMENT;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
@@ -100,10 +85,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
-    public static class Metrics {
-        static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
-        static final OpStatsLogger UPDATE_STREAM_SEGMENT = STATS_LOGGER.createStats(UPDATE_SEGMENT);
-    }
+    static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
 
     private final StreamSegmentStore segmentStore;
 
@@ -375,7 +357,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void updateSegmentPolicy(UpdateSegmentPolicy updateSegmentPolicy) {
-        Timer timer = new Timer();
         Collection<AttributeUpdate> attributes = Lists.newArrayList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) updateSegmentPolicy.getScaleType()).longValue()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) updateSegmentPolicy.getTargetRate()).longValue())
@@ -383,11 +364,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         CompletableFuture<Void> future = segmentStore.updateStreamSegmentPolicy(updateSegmentPolicy.getSegment(), attributes, TIMEOUT);
         future.thenApply((Void v) -> {
-            Metrics.UPDATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
             connection.send(new SegmentPolicyUpdated(updateSegmentPolicy.getSegment()));
             return null;
         }).exceptionally((Throwable e) -> {
-            Metrics.UPDATE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
             handleException(updateSegmentPolicy.getSegment(), "Update segment", e);
             return null;
         });
