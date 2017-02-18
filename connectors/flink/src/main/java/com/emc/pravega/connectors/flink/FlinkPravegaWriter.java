@@ -79,7 +79,7 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
     private transient AtomicInteger pendingWritesCount = null;
 
     // Thread pool for handling callbacks from write events.
-    ExecutorService executorService = Executors.newFixedThreadPool(5);
+    private transient ExecutorService executorService = null;
 
     /**
      * The flink pravega writer instance which can be added as a sink to a flink job.
@@ -135,6 +135,7 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
                 this.streamName,
                 this.eventSerializer,
                 new EventWriterConfig(null));
+        this.executorService = Executors.newFixedThreadPool(5);
         log.info("Initialized pravega writer for stream: {}/{} with controller URI: {}", this.scopeName,
                  this.streamName, this.controllerURI);
     }
