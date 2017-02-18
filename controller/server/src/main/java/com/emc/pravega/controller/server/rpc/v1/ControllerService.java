@@ -41,6 +41,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -67,7 +69,7 @@ public class ControllerService {
         this.hostStore = hostStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
-        this.pingManager = new PingManager(this);
+        this.pingManager = new PingManager(streamTransactionMetadataTasks);
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig, final long createTimestamp) {
@@ -100,11 +102,10 @@ public class ControllerService {
     }    
 
     public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatlyFollowing(SegmentId segment) {
-        return streamStore.getSuccessors(segment.getStreamName(), segment.getNumber()).thenApply(successors -> {
-            return successors.entrySet().stream().collect(
+        return streamStore.getSuccessors(segment.getStreamName(), segment.getNumber()).thenApply(successors ->
+                successors.entrySet().stream().collect(
                     Collectors.toMap(entry -> new SegmentId(segment.getScope(), segment.getStreamName(), entry.getKey()),
-                            entry -> entry.getValue()));
-        });
+                            entry -> entry.getValue())));
     }
 
     public CompletableFuture<ScaleResponse> scale(final String scope,
@@ -183,8 +184,15 @@ public class ControllerService {
         return positions;
     }
 
-    public CompletableFuture<TxnId> createTransaction(final String scope, final String stream) {
-        return streamTransactionMetadataTasks.createTx(scope, stream).thenApply(ModelHelper::decode);
+    public CompletableFuture<TxnId> createTransaction(final String scope, final String stream, final long lease,
+                                                      final long maxExecutionTime, final long scaleGracePeriod) {
+        return streamTransactionMetadataTasks.createTx(scope, stream, lease, maxExecutionTime, scaleGracePeriod)
+                .thenApply(data -> {
+                    pingManager.addTx(scope, stream, data.getId(), data.getVersion(), lease, maxExecutionTime,
+                            scaleGracePeriod);
+                    return data.getId();
+                })
+                .thenApply(ModelHelper::decode);
     }
 
     public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId
@@ -201,7 +209,7 @@ public class ControllerService {
     }
 
     public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final TxnId txnId) {
-        return streamTransactionMetadataTasks.abortTx(scope, stream, ModelHelper.encode(txnId))
+        return streamTransactionMetadataTasks.abortTx(scope, stream, ModelHelper.encode(txnId), Optional.<Integer>empty())
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
@@ -214,8 +222,23 @@ public class ControllerService {
 
     public CompletableFuture<PingStatus> pingTransaction(final String scope, final String stream, final TxnId txnId,
                                                          final long lease) {
-        pingManager.ping(scope, stream, txnId, lease);
-        return CompletableFuture.completedFuture(PingStatus.OK);
+        UUID txId = ModelHelper.encode(txnId);
+
+        if (pingManager.contains(scope, stream, txId)) {
+
+            PingStatus status = pingManager.pingTx(scope, stream, txId, lease);
+            return CompletableFuture.completedFuture(status);
+
+        } else {
+
+            return streamTransactionMetadataTasks.pingTx(scope, stream, ModelHelper.encode(txnId), lease)
+                    .thenApply(x -> {
+                        pingManager.addTx(scope, stream, txId, x.getVersion(), lease,
+                                x.getMaxExecutionExpiryTime(), x.getScaleGracePeriod());
+                        return PingStatus.OK;
+                    });
+
+        }
     }
 
     public CompletableFuture<TxnState> checkTransactionStatus(final String scope, final String stream, final TxnId

@@ -28,6 +28,8 @@ enum TxnStatus {
 
 enum PingStatus {
     OK,
+    MAX_EXECUTION_TIME_EXCEEDED,
+    SCALE_GRACE_TIME_EXCEEDED,
     DISCONNECTED
 }
 
@@ -103,7 +105,7 @@ service ControllerService {
     ScaleResponse scale(1:string scope, 2:string stream, 3:list<i32> sealedSegments, 4:map<double, double> newKeyRanges, 5:i64 scaleTimestamp)
     NodeUri getURI(1: SegmentId segment)
     bool isSegmentValid(1: string scope, 2: string stream, 3: i32 segmentNumber)
-    TxnId createTransaction(1:string scope, 2:string stream)
+    TxnId createTransaction(1:string scope, 2:string stream, 3:i64 lease, 4:i64 maxExecutionTime, 5:i64 scaleGracePeriod);
     TxnStatus commitTransaction(1:string scope, 2:string stream, 3:TxnId txnid)
     TxnStatus abortTransaction(1:string scope, 2:string stream, 3:TxnId txnid)
     PingStatus pingTransaction(1:string scope, 2:string stream, 3:TxnId txnid, 4:i64 lease)

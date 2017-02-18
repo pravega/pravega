@@ -247,7 +247,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         synchronized (lock) {
             segmentIds = new ArrayList<>(writers.keySet());
         }
-        UUID txId = FutureHelpers.getAndHandleExceptions(controller.createTransaction(stream, timeout), RuntimeException::new);
+        UUID txId = FutureHelpers.getAndHandleExceptions(controller.createTransaction(stream, timeout, -1, -1),
+                RuntimeException::new);
         for (Segment s : segmentIds) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);

@@ -160,8 +160,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
     private CompletableFuture<List<Segment>> findOverlapping(Segment segment, List<Integer> candidates) {
         return FutureHelpers.allOfWithResults(candidates.stream().map(this::getSegment).collect(Collectors.toList()))
                             .thenApply(successorCandidates -> successorCandidates.stream()
-                                                                                 .filter(x -> x.overlaps(segment))
-                                                                                 .collect(Collectors.toList()));
+                                    .filter(x -> x.overlaps(segment))
+                                    .collect(Collectors.toList()));
     }
 
     @Override
@@ -194,9 +194,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         successor, candidates)));
             }
             return FutureHelpers.allOfWithResults(result);
-        }).thenApply(list -> {
-            return list.stream().collect(Collectors.toMap(e -> e.getKey().getNumber(), e -> e.getValue()));
-        });
+        }).thenApply(list -> list.stream().collect(Collectors.toMap(e -> e.getKey().getNumber(), e -> e.getValue())));
     }
 
     /**
@@ -287,9 +285,39 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction() {
+    public CompletableFuture<VersionedTransactionData> createTransaction(final long lease, final long maxExecutionTime,
+                                                                         final long scaleGracePeriod) {
         final UUID txId = UUID.randomUUID();
-        return createNewTransaction(txId, System.currentTimeMillis()).thenApply(x -> txId);
+        final long current = System.currentTimeMillis();
+        return createNewTransaction(txId, current, current + lease, current + maxExecutionTime, scaleGracePeriod)
+                .thenApply(x ->
+                        new VersionedTransactionData(txId, 0, TxnStatus.OPEN, current,
+                                current + maxExecutionTime, scaleGracePeriod));
+    }
+
+    @Override
+    public CompletableFuture<VersionedTransactionData> pingTransaction(final UUID txId, final long lease) {
+        return getActiveTx(txId)
+                .thenCompose(data -> {
+                    ActiveTxRecord activeTxRecord = ActiveTxRecord.parse(data.getData());
+                    if (activeTxRecord.getTxnStatus() == TxnStatus.OPEN) {
+
+                        // Update txn record with new lease value and return versioned tx data.
+
+                        ActiveTxRecord newData = new ActiveTxRecord(activeTxRecord.getTxCreationTimestamp(),
+                                System.currentTimeMillis() + lease, activeTxRecord.getMaxExecutionExpiryTime(),
+                                activeTxRecord.getScaleGracePeriod(), activeTxRecord.getTxnStatus());
+
+                        return updateActiveTx(txId, newData.toByteArray())
+                                .thenApply(x ->
+                                        new VersionedTransactionData(txId, data.getVersion() + 1,
+                                                TxnStatus.OPEN, activeTxRecord.getTxCreationTimestamp(),
+                                                activeTxRecord.getMaxExecutionExpiryTime(),
+                                                activeTxRecord.getScaleGracePeriod()));
+                    } else {
+                        return FutureHelpers.failedFuture(new IllegalStateException(txId.toString()));
+                    }
+                });
     }
 
     @Override
@@ -328,7 +356,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit) {
+    public CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit,
+                                                        final Optional<Integer> version) {
         return checkTransactionStatus(txId)
                 .thenCompose(x -> {
                     if (commit) {
@@ -336,7 +365,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             case COMMITTING:
                                 return CompletableFuture.completedFuture(TxnStatus.COMMITTING);
                             case OPEN:
-                                return sealActiveTx(txId, true).thenApply(y -> TxnStatus.COMMITTING);
+                                return sealActiveTx(txId, true, version).thenApply(y -> TxnStatus.COMMITTING);
                             case ABORTING:
                             case ABORTED:
                             case COMMITTED:
@@ -349,7 +378,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             case ABORTING:
                                 return CompletableFuture.completedFuture(TxnStatus.ABORTING);
                             case OPEN:
-                                return sealActiveTx(txId, false).thenApply(y -> TxnStatus.ABORTING);
+                                return sealActiveTx(txId, false, version).thenApply(y -> TxnStatus.ABORTING);
                             case ABORTED:
                             case COMMITTING:
                             case COMMITTED:
@@ -612,13 +641,19 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> createSegmentFile(final Create create);
 
-    abstract CompletableFuture<Void> createNewTransaction(final UUID txId, final long timestamp);
+    abstract CompletableFuture<Void> createNewTransaction(final UUID txId, final long timestamp,
+                                                          final long leaseExpiryTime,
+                                                          final long maxExecutionExpiryTime,
+                                                          final long scaleGracePeriod);
 
-    abstract CompletableFuture<Data<T>> getActiveTx(final UUID txId) throws DataNotFoundException;
+    abstract CompletableFuture<Data<Integer>> getActiveTx(final UUID txId) throws DataNotFoundException;
 
-    abstract CompletableFuture<Void> sealActiveTx(final UUID txId, final boolean commit) throws DataNotFoundException;
+    abstract CompletableFuture<Void> updateActiveTx(final UUID txId, final byte[] data) throws DataNotFoundException;
 
-    abstract CompletableFuture<Data<T>> getCompletedTx(final UUID txId) throws DataNotFoundException;
+    abstract CompletableFuture<Void> sealActiveTx(final UUID txId, final boolean commit,
+                                                  final Optional<Integer> version) throws DataNotFoundException;
+
+    abstract CompletableFuture<Data<Integer>> getCompletedTx(final UUID txId) throws DataNotFoundException;
 
     abstract CompletableFuture<Void> removeActiveTxEntry(final UUID txId);
 

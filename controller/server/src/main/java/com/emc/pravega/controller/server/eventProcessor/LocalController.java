@@ -91,8 +91,9 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(Stream stream, long timeout) {
-        return controller.createTransaction(stream.getScope(), stream.getStreamName())
+    public CompletableFuture<UUID> createTransaction(Stream stream, long lease, final long maxExecutionTime,
+                                                     final long scaleGracePeriod) {
+        return controller.createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime, scaleGracePeriod)
                 .thenApply(ModelHelper::encode);
     }
 

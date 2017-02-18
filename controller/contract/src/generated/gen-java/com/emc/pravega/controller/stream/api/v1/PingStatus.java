@@ -13,7 +13,9 @@ import org.apache.thrift.TEnum;
 
 public enum PingStatus implements org.apache.thrift.TEnum {
   OK(0),
-  DISCONNECTED(1);
+  MAX_EXECUTION_TIME_EXCEEDED(1),
+  SCALE_GRACE_TIME_EXCEEDED(2),
+  DISCONNECTED(3);
 
   private final int value;
 
@@ -37,6 +39,10 @@ public enum PingStatus implements org.apache.thrift.TEnum {
       case 0:
         return OK;
       case 1:
+        return MAX_EXECUTION_TIME_EXCEEDED;
+      case 2:
+        return SCALE_GRACE_TIME_EXCEEDED;
+      case 3:
         return DISCONNECTED;
       default:
         return null;

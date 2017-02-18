@@ -195,7 +195,8 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(Stream stream, long timeout) {
+    public CompletableFuture<UUID> createTransaction(final Stream stream, final long lease,
+                                                     final long maxExecutionTime, final long scaleGracePeriod) {
         UUID txId = UUID.randomUUID();
         CompletableFuture<UUID> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {

@@ -24,6 +24,7 @@ import com.emc.pravega.stream.impl.TxnStatus;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -123,14 +124,24 @@ interface Stream {
      * Method to start new transaction creation
      * @return
      */
-    CompletableFuture<UUID> createTransaction();
+    CompletableFuture<VersionedTransactionData> createTransaction(final long lease, final long maxExecutionTime,
+                                                                  final long scaleGracePeriod);
+
+
+    /**
+     * Heartbeat method to keep transaction open for at least lease amount of time.
+     * @param txId Transaction identifier.
+     * @param lease Lease period in ms.
+     * @return Transaction metadata along with its version.
+     */
+    CompletableFuture<VersionedTransactionData> pingTransaction(final UUID txId, final long lease);
 
     /**
      * Seal given transaction
      * @param txId
      * @return
      */
-    CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit);
+    CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit, final Optional<Integer> version);
 
     /**
      * Returns transaction's status

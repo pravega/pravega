@@ -24,6 +24,7 @@ import com.emc.pravega.stream.impl.TxnStatus;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -132,9 +133,27 @@ public interface StreamMetadataStore {
      *
      * @param scope  scope
      * @param stream stream
-     * @return new Transaction Id
+     * @param lease Time for which transaction shall remain open with sending any heartbeat.
+     * @param maxExecutionTime Maximum time for which client may extend txn lease.
+     * @param scaleGracePeriod Maximum time for which client may extend txn lease once
+     *                         the scaling operation is initiated on the txn stream.
+     * @return Transaction data along with version information.
      */
-    CompletableFuture<UUID> createTransaction(final String scope, final String stream);
+    CompletableFuture<VersionedTransactionData> createTransaction(final String scope, final String stream,
+                                                                  final long lease, final long maxExecutionTime,
+                                                                  final long scaleGracePeriod);
+
+    /**
+     * Heartbeat to keep the transaction open for at least lease amount of time.
+     *
+     * @param scope Scope.
+     * @param stream Stream name.
+     * @param txId Transaction identifier.
+     * @param lease Lease duration in ms.
+     * @return Transaction data along with version information.
+     */
+    CompletableFuture<VersionedTransactionData> pingTransaction(final String scope, final String stream,
+                                                                final UUID txId, final long lease);
 
     /**
      * Get transaction status from the stream store.
@@ -162,10 +181,12 @@ public interface StreamMetadataStore {
      * @param scope  scope
      * @param stream stream
      * @param txId   transaction id
-     * @param commit Whether to change txn state to committing or aborting.
+     * @param commit Boolean indicating whether to change txn state to committing or aborting.
+     * @param version Expected version of the transaction record in the store.
      * @return
      */
-    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId, final boolean commit);
+    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId,
+                                                 final boolean commit, final Optional<Integer> version);
 
     /**
      * Update stream store to mark the transaction as aborted.

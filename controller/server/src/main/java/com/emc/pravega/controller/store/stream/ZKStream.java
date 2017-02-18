@@ -36,6 +36,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -208,10 +209,13 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createNewTransaction(final UUID txId, final long timestamp) {
+    CompletableFuture<Void> createNewTransaction(final UUID txId, final long timestamp, final long leaseExpiryTime,
+                                                 final long maxExecutionExpiryTime,
+                                                 final long scaleGracePeriod) {
         final String activePath = getActiveTxPath(txId.toString());
         return createZNodeIfNotExist(activePath,
-                new ActiveTxRecord(timestamp, TxnStatus.OPEN).toByteArray())
+                new ActiveTxRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, TxnStatus.OPEN)
+                        .toByteArray())
                 .thenApply(x -> cache.invalidateCache(activePath));
     }
 
@@ -223,15 +227,28 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> sealActiveTx(final UUID txId, final boolean commit) {
+    CompletableFuture<Void> updateActiveTx(final UUID txId, final byte[] data) {
+        final String activeTxPath = getActiveTxPath(txId.toString());
+        return updateTxData(activeTxPath, data);
+    }
+
+    @Override
+    CompletableFuture<Void> sealActiveTx(final UUID txId, final boolean commit, final Optional<Integer> version) {
         final String activePath = getActiveTxPath(txId.toString());
 
         return getActiveTx(txId)
                 .thenCompose(x -> {
-                    ActiveTxRecord previous = ActiveTxRecord.parse(x.getData());
-                    ActiveTxRecord updated = new ActiveTxRecord(previous.getTxCreationTimestamp(),
-                            commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
-                    return setData(activePath, new Data<>(updated.toByteArray(), x.getVersion()));
+                    if (!version.isPresent() || version.get().intValue() == x.getVersion()) {
+                        ActiveTxRecord previous = ActiveTxRecord.parse(x.getData());
+                        ActiveTxRecord updated = new ActiveTxRecord(previous.getTxCreationTimestamp(),
+                                previous.getLeaseExpiryTime(),
+                                previous.getMaxExecutionExpiryTime(),
+                                previous.getScaleGracePeriod(),
+                                commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
+                        return setData(activePath, new Data<>(updated.toByteArray(), x.getVersion()));
+                    } else {
+                        throw new WriteConflictException(txId.toString());
+                    }
                 })
                 .thenApply(x -> cache.invalidateCache(activePath));
     }
@@ -338,20 +355,20 @@ class ZKStream extends PersistentStreamBase<Integer> {
     static CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
         return getAllTransactionData(ACTIVE_TX_ROOT_PATH)
                 .thenApply(x -> x.entrySet().stream()
-                                 .map(z -> {
-                                     ZKPaths.PathAndNode pathAndNode = ZKPaths.getPathAndNode(z.getKey());
-                                     String node = pathAndNode.getNode();
-                                     final String stream = ZKPaths.getNodeFromPath(pathAndNode.getPath());
-                                     final UUID txId = UUID.fromString(node);
-                                     return new ActiveTxRecordWithStream(stream, stream, txId, ActiveTxRecord.parse(z.getValue().getData()));
-                                 })
-                                 .collect(Collectors.toList()));
+                        .map(z -> {
+                            ZKPaths.PathAndNode pathAndNode = ZKPaths.getPathAndNode(z.getKey());
+                            String node = pathAndNode.getNode();
+                            final String stream = ZKPaths.getNodeFromPath(pathAndNode.getPath());
+                            final UUID txId = UUID.fromString(node);
+                            return new ActiveTxRecordWithStream(stream, stream, txId, ActiveTxRecord.parse(z.getValue().getData()));
+                        })
+                        .collect(Collectors.toList()));
     }
 
     static CompletableFuture<Map<String, Data<Integer>>> getAllCompletedTx() {
         return getAllTransactionData(COMPLETED_TX_ROOT_PATH)
                 .thenApply(x -> x.entrySet().stream()
-                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
 
     public static void initialize(final CuratorFramework cf) {
@@ -399,6 +416,19 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 });
     }
 
+    private static CompletableFuture<Void> updateTxData(final String path, final byte[] data) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                client.setData().forPath(path, data);
+                return null;
+            } catch (KeeperException.NoNodeException nne) {
+                throw new DataNotFoundException(path);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
     private static CompletableFuture<List<String>> getChildrenPath(final String rootPath) {
         return getChildren(rootPath)
                 .thenApply(children -> children.stream().map(x -> ZKPaths.makePath(rootPath, x)).collect(Collectors.toList()));
@@ -424,7 +454,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                                          .thenCompose(FutureHelpers::allOfWithResults)
                                          .thenApply(z -> z.stream().flatMap(Collection::stream).collect(Collectors.toList())) // flatten list<list> to list
                                          .thenApply(x -> x.stream()
-                                                          .collect(Collectors.toMap(z -> z, ZKStream::getData)))
+                                                 .collect(Collectors.toMap(z -> z, ZKStream::getData)))
                                          .thenCompose(FutureHelpers::allOfWithResults); // convert Map<string, future<Data>> to future<map<String, Data>>
     }
 

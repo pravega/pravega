@@ -114,9 +114,13 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
     @Override
     public void createTransaction(final String scope,
                                   final String stream,
+                                  final long lease,
+                                  final long maxExecutionTime,
+                                  final long scaleGracePeriod,
                                   final AsyncMethodCallback resultHandler) throws TException {
         log.debug("createTransaction called for stream " + scope + "/" + stream);
-        processResult(controllerService.createTransaction(scope, stream), resultHandler);
+        processResult(controllerService.createTransaction(scope, stream, lease, maxExecutionTime, scaleGracePeriod),
+                resultHandler);
     }
 
     @Override

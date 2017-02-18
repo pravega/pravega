@@ -91,10 +91,14 @@ public interface Controller {
      * Api to create a new transaction. The transaction timeout is relative to the creation time.
      * 
      * @param stream stream name
-     * @param timeout tx timeout
+     * @param lease Time for which transaction shall remain open with sending any heartbeat.
+     * @param maxExecutionTime Maximum time for which client may extend txn lease.
+     * @param scaleGracePeriod Maximum time for which client may extend txn lease once
+     *                         the scaling operation is initiated on the txn stream.
      * @return transaction identifier.
      */
-    CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout);
+    CompletableFuture<UUID> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
+                                              final long scaleGracePeriod);
 
     /**
      * Commits a transaction, atomically committing all events to the stream, subject to the

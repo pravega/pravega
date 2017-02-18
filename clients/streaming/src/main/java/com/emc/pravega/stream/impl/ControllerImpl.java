@@ -212,12 +212,14 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout) {
+    public CompletableFuture<UUID> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
+                                                     final long scaleGracePeriod) {
         log.trace("Invoke AdminService.Client.createTransaction() with stream: {}", stream);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.createTransaction_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.createTransaction(stream.getScope(), stream.getStreamName(), callback);
+            client.createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime,
+                    scaleGracePeriod, callback);
             return null;
         });
         return callback.getResult()

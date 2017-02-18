@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -27,17 +26,19 @@ import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.store.stream.VersionedTransactionData;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+
 import java.io.Serializable;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -48,9 +49,6 @@ import java.util.stream.Collectors;
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
 public class StreamTransactionMetadataTasks extends TaskBase implements Cloneable {
-    private static final long INITIAL_DELAY = 1;
-    private static final long PERIOD = 1;
-    private static final long TIMEOUT = 60 * 60 * 1000;
     private static final long RETRY_INITIAL_DELAY = 100;
     private static final int RETRY_MULTIPLIER = 10;
     private static final int RETRY_MAX_ATTEMPTS = 100;
@@ -69,28 +67,6 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.connectionFactory = new ConnectionFactoryImpl(false);
-
-        // abort timedout transactions periodically
-        executor.scheduleAtFixedRate(() -> {
-            // find transactions to be aborted
-            try {
-                final long currentTime = System.currentTimeMillis();
-                streamMetadataStore.getAllActiveTx().get().stream()
-                        .forEach(x -> {
-                            if (currentTime - x.getTxRecord().getTxCreationTimestamp() > TIMEOUT) {
-                                try {
-                                    abortTx(x.getScope(), x.getStream(), x.getTxid());
-                                } catch (Exception e) {
-                                    // TODO: log and ignore
-                                }
-                            }
-                        });
-            } catch (Exception e) {
-                // TODO: log! and ignore
-            }
-            // find completed transactions to be gc'd
-        }, INITIAL_DELAY, PERIOD, TimeUnit.HOURS);
-
     }
 
     @Override
@@ -103,14 +79,39 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
      *
      * @param scope  stream scope.
      * @param stream stream name.
+     * @param lease Time for which transaction shall remain open with sending any heartbeat.
+     * @param maxExecutionTime Maximum time for which client may extend txn lease.
+     * @param scaleGracePeriod Maximum time for which client may extend txn lease once
+     *                         the scaling operation is initiated on the txn stream.
      * @return transaction id.
      */
     @Task(name = "createTransaction", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<UUID> createTx(final String scope, final String stream) {
+    public CompletableFuture<VersionedTransactionData> createTx(final String scope, final String stream, final long lease,
+                                            final long maxExecutionTime, final long scaleGracePeriod) {
         return execute(
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream},
-                () -> createTxBody(scope, stream));
+                () -> createTxBody(scope, stream, lease, maxExecutionTime, scaleGracePeriod));
+    }
+
+    /**
+     *
+     */
+    /**
+     * Transaction heartbeat, that increases transaction timeout by lease number of milliseconds.
+     *
+     * @param scope Stream scope.
+     * @param stream Stream name.
+     * @param txId Transaction identifier.
+     * @param lease Amount of time in milliseconds by which to extend the transaction lease.
+     * @return Transaction metadata along with the version of it record in the store.
+     */
+    public CompletableFuture<VersionedTransactionData> pingTx(final String scope, final String stream,
+                                                              final UUID txId, final long lease) {
+        return execute(
+                new Resource(scope, stream, txId.toString()),
+                new Serializable[]{scope, stream, txId},
+                () -> pingTxBody(scope, stream, txId, lease));
     }
 
     /**
@@ -119,14 +120,16 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
      * @param scope  stream scope.
      * @param stream stream name.
      * @param txId   transaction id.
+     * @param version Expected version of the transaction record in the store.
      * @return true/false.
      */
     @Task(name = "abortTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
-    public CompletableFuture<TxnStatus> abortTx(final String scope, final String stream, final UUID txId) {
+    public CompletableFuture<TxnStatus> abortTx(final String scope, final String stream, final UUID txId,
+                                                final Optional<Integer> version) {
         return execute(
                 new Resource(scope, stream, txId.toString()),
                 new Serializable[]{scope, stream, txId},
-                () -> abortTxBody(scope, stream, txId));
+                () -> abortTxBody(scope, stream, txId, version));
     }
 
     /**
@@ -145,21 +148,32 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 () -> commitTxBody(scope, stream, txId));
     }
 
-    private CompletableFuture<UUID> createTxBody(final String scope, final String stream) {
-        return streamMetadataStore.createTransaction(scope, stream)
-                .thenCompose(txId ->
+    private CompletableFuture<VersionedTransactionData> createTxBody(final String scope, final String stream,
+                                                                     final long lease, final long maxExecutionPeriod,
+                                                                     final long scaleGracePeriod) {
+        return streamMetadataStore.createTransaction(scope, stream, lease, maxExecutionPeriod, scaleGracePeriod)
+                .thenCompose(txData ->
                         streamMetadataStore.getActiveSegments(stream)
                                 .thenCompose(activeSegments ->
                                         FutureHelpers.allOf(
                                                 activeSegments.stream()
                                                         .parallel()
-                                                        .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txId))
+                                                        .map(segment ->
+                                                                notifyTxCreation(scope,
+                                                                        stream,
+                                                                        segment.getNumber(),
+                                                                        txData.getId()))
                                                         .collect(Collectors.toList())))
-                                .thenApply(x -> txId));
+                                .thenApply(x -> txData));
     }
 
-    private CompletableFuture<TxnStatus> abortTxBody(final String scope, final String stream, final UUID txid) {
-        return streamMetadataStore.sealTransaction(scope, stream, txid, false)
+    private CompletableFuture<VersionedTransactionData> pingTxBody(String scope, String stream, UUID txId, long lease) {
+        return streamMetadataStore.pingTransaction(scope, stream, txId, lease);
+    }
+
+    private CompletableFuture<TxnStatus> abortTxBody(final String scope, final String stream, final UUID txid,
+                                                     final Optional<Integer> version) {
+        return streamMetadataStore.sealTransaction(scope, stream, txid, false, version)
                 .thenApply(status -> {
                     ControllerEventProcessors
                             .getAbortEventProcessorsRef()
@@ -169,7 +183,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     }
 
     private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid) {
-        return streamMetadataStore.sealTransaction(scope, stream, txid, true)
+        return streamMetadataStore.sealTransaction(scope, stream, txid, true, Optional.empty())
                 .thenApply(status -> {
                     ControllerEventProcessors
                             .getCommitEventProcessorsRef()

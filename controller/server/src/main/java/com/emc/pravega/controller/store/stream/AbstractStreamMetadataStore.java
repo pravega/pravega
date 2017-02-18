@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -132,8 +133,16 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final String scope, final String stream) {
-        return getStream(stream).createTransaction();
+    public CompletableFuture<VersionedTransactionData> createTransaction(final String scope, final String stream,
+                                                     final long lease, final long maxExecutionTime,
+                                                     final long scaleGracePeriod) {
+        return getStream(stream).createTransaction(lease, maxExecutionTime, scaleGracePeriod);
+    }
+
+    @Override
+    public CompletableFuture<VersionedTransactionData> pingTransaction(final String scope, final String stream,
+                                                                       final UUID txId, final long lease) {
+        return getStream(stream).pingTransaction(txId, lease);
     }
 
     @Override
@@ -148,8 +157,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId,
-                                                        final boolean commit) {
-        return getStream(stream).sealTransaction(txId, commit);
+                                                        final boolean commit, final Optional<Integer> version) {
+        return getStream(stream).sealTransaction(txId, commit, version);
     }
 
     @Override

@@ -36,6 +36,7 @@ import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -235,31 +236,31 @@ public class ZkStreamTest {
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
         store.createStream(streamName, streamConfig, System.currentTimeMillis()).get();
 
-        UUID tx = store.createTransaction(streamName, streamName).get();
+        VersionedTransactionData tx = store.createTransaction(streamName, streamName, 10000, 600000, 30000).get();
 
         List<ActiveTxRecordWithStream> y = store.getAllActiveTx().get();
         ActiveTxRecordWithStream z = y.get(0);
-        assert z.getTxid().equals(tx) && z.getTxRecord().getTxnStatus() == TxnStatus.OPEN;
+        assert z.getTxid().equals(tx.getId()) && z.getTxRecord().getTxnStatus() == TxnStatus.OPEN;
 
-        UUID tx2 = store.createTransaction(streamName, streamName).get();
+        VersionedTransactionData tx2 = store.createTransaction(streamName, streamName, 10000, 600000, 30000).get();
         y = store.getAllActiveTx().get();
 
         assert y.size() == 2;
 
-        store.sealTransaction(streamName, streamName, tx, true).get();
-        assert store.transactionStatus(streamName, streamName, tx).get().equals(TxnStatus.COMMITTING);
+        store.sealTransaction(streamName, streamName, tx.getId(), true, Optional.<Integer>empty()).get();
+        assert store.transactionStatus(streamName, streamName, tx.getId()).get().equals(TxnStatus.COMMITTING);
 
-        CompletableFuture<TxnStatus> f1 = store.commitTransaction(streamName, streamName, tx);
+        CompletableFuture<TxnStatus> f1 = store.commitTransaction(streamName, streamName, tx.getId());
 
-        store.sealTransaction(streamName, streamName, tx2, false).get();
-        assert store.transactionStatus(streamName, streamName, tx2).get().equals(TxnStatus.ABORTING);
+        store.sealTransaction(streamName, streamName, tx2.getId(), false, Optional.<Integer>empty()).get();
+        assert store.transactionStatus(streamName, streamName, tx2.getId()).get().equals(TxnStatus.ABORTING);
 
-        CompletableFuture<TxnStatus> f2 = store.abortTransaction(streamName, streamName, tx2);
+        CompletableFuture<TxnStatus> f2 = store.abortTransaction(streamName, streamName, tx2.getId());
 
         CompletableFuture.allOf(f1, f2).get();
 
-        assert store.transactionStatus(streamName, streamName, tx).get().equals(TxnStatus.COMMITTED);
-        assert store.transactionStatus(streamName, streamName, tx2).get().equals(TxnStatus.ABORTED);
+        assert store.transactionStatus(streamName, streamName, tx.getId()).get().equals(TxnStatus.COMMITTED);
+        assert store.transactionStatus(streamName, streamName, tx2.getId()).get().equals(TxnStatus.ABORTED);
 
         assert store.commitTransaction(streamName, streamName, UUID.randomUUID())
                 .handle((ok, ex) -> {

@@ -108,8 +108,10 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
     }
 
     @Override
-    public TxnId createTransaction(final String scope, final String stream) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.createTransaction(scope, stream), RuntimeException::new);
+    public TxnId createTransaction(final String scope, final String stream, final long lease,
+                                   final long maxExecutionTime, final long scaleGracePeriod) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.createTransaction(scope, stream, lease,
+                maxExecutionTime, scaleGracePeriod), RuntimeException::new);
     }
 
     @Override
