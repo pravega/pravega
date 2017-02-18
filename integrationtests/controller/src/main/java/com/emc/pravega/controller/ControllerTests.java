@@ -36,7 +36,6 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
 
-
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -95,7 +94,7 @@ public class ControllerTests {
     private static void createStream() {
 
         ExecutorService createExecutor = Executors.newFixedThreadPool(createStreamCallCount);
-        log.debug("\n Calling Create Stream  {} times.The controller endpoint is {}", createStreamCallCount, controllerUri);
+        log.debug("\nCalling Create Stream  {} times.The controller endpoint is {}", createStreamCallCount, controllerUri);
         startTime = System.currentTimeMillis();
         for (int i = 0; i < createStreamCallCount; i++) {
             try {
@@ -104,26 +103,27 @@ public class ControllerTests {
                 createExecutor.execute(runnable);
             } catch (URISyntaxException uri) {
                 log.error("invalid controller uri {}", uri);
+                System.exit(0);
             }
         }
         createExecutor.shutdown();
         try {
             createExecutor.awaitTermination(1, TimeUnit.HOURS);
         } catch (InterruptedException e) {
-            log.error("error in await termination of create executor {} ", e);
+            log.error("Error in await termination of create executor {} ", e);
         }
         CompletableFuture<Void> createAll = FutureHelpers.allOf(createStatusList);
         createAll.join();
         endTime = System.currentTimeMillis();
         timeTaken = endTime - startTime;
 
-        log.debug("time taken for {} create stream calls = {} ", createStreamCallCount, timeTaken);
+        log.debug("Time taken for {} create stream calls = {} milliseconds ", createStreamCallCount, timeTaken);
 
         createStatusList.forEach(createStreamStatusCompletableFuture -> {
             try {
                 log.debug("Status of each create stream call {}", createStreamStatusCompletableFuture.get());
             } catch (InterruptedException | ExecutionException e) {
-                log.error("error in doing a get on create stream status {}", e);
+                log.error("Error in doing a get on create stream status {}", e);
             }
         });
     }
@@ -131,7 +131,7 @@ public class ControllerTests {
     private static void alterStream() {
 
         ExecutorService alterExecutor = Executors.newFixedThreadPool(alterStreamCallCount);
-        log.debug("\n Calling Alter Stream {} times.The controller endpoint is {}", alterStreamCallCount, controllerUri);
+        log.debug("\nCalling Alter Stream {} times.The controller endpoint is {}", alterStreamCallCount, controllerUri);
         startTime = System.currentTimeMillis();
         for (int i = 0; i < alterStreamCallCount; i++) {
             try {
@@ -139,7 +139,8 @@ public class ControllerTests {
                 Runnable runnable = new AlterStream(controller, i);
                 alterExecutor.execute(runnable);
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
         }
 
@@ -147,7 +148,7 @@ public class ControllerTests {
         try {
             alterExecutor.awaitTermination(1, TimeUnit.HOURS);
         } catch (InterruptedException e) {
-            log.error("error in await termination of alter executor {}", e);
+            log.error("Error in await termination of alter executor {}", e);
         }
 
         CompletableFuture<Void> alterAll = FutureHelpers.allOf(alterStatusList);
@@ -155,24 +156,23 @@ public class ControllerTests {
         endTime = System.currentTimeMillis();
         timeTaken = endTime - startTime;
 
-        log.debug("time taken for {} alter stream calls = {}", alterStreamCallCount, timeTaken);
+        log.debug("Time taken for {} alter stream calls = {} milliseconds", alterStreamCallCount, timeTaken);
 
         alterStatusList.forEach(alterStreamStatusCompletableFuture -> {
             try {
                 log.debug("Status of each alter stream call {}", alterStreamStatusCompletableFuture.get());
             } catch (InterruptedException | ExecutionException e) {
-                log.error("error in doing a get on alter stream status {}", e);
+                log.error("Error in doing a get on alter stream status {}", e);
             }
         });
 
         alterExecutor.shutdown();
     }
 
-
     private static void sealStream() {
 
         ExecutorService sealExecutor = Executors.newFixedThreadPool(sealStreamCallCount);
-        log.debug("\n Calling Seal Stream {} times.The controller endpoint is {}", sealStreamCallCount, controllerUri);
+        log.debug("\nCalling Seal Stream {} times.The controller endpoint is {}", sealStreamCallCount, controllerUri);
         startTime = System.currentTimeMillis();
         for (int i = 0; i < sealStreamCallCount; i++) {
             try {
@@ -180,7 +180,8 @@ public class ControllerTests {
                 Runnable runnable = new SealStream(controller4, i);
                 sealExecutor.execute(runnable);
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
         }
 
@@ -188,20 +189,20 @@ public class ControllerTests {
         try {
             sealExecutor.awaitTermination(1, TimeUnit.HOURS);
         } catch (InterruptedException e) {
-            log.error("error in await termination of seal executor {}", e);
+            log.error("Error in await termination of seal executor {}", e);
         }
 
         CompletableFuture<Void> sealAll = FutureHelpers.allOf(sealStatusList);
         sealAll.join();
         endTime = System.currentTimeMillis();
         timeTaken = endTime - startTime;
-        log.debug("time taken for {} seal stream calls = {}", sealStreamCallCount, timeTaken);
+        log.debug("Time taken for {} seal stream calls = {} milliseconds", sealStreamCallCount, timeTaken);
 
         sealStatusList.forEach(sealStreamStatusCompletableFuture -> {
             try {
                 log.debug("Status of each seal stream call {}", sealStreamStatusCompletableFuture.get());
             } catch (InterruptedException | ExecutionException e) {
-                log.error("error in doing a get on seal stream status {}", e);
+                log.error("Error in doing a get on seal stream status {}", e);
             }
         });
     }
@@ -209,7 +210,7 @@ public class ControllerTests {
     private static void scaleStream() {
 
         ExecutorService scaleExecutor = Executors.newFixedThreadPool(scaleStreamCallCount);
-        log.debug("\n Calling Scale Stream {} times.The controller endpoint is {}", scaleStreamCallCount, controllerUri);
+        log.debug("\nCalling Scale Stream {} times.The controller endpoint is {}", scaleStreamCallCount, controllerUri);
         startTime = System.currentTimeMillis();
         for (int i = 0; i < scaleStreamCallCount; i++) {
             try {
@@ -217,14 +218,15 @@ public class ControllerTests {
                 Runnable runnable = new ScaleStream(controller4, i);
                 scaleExecutor.execute(runnable);
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
         }
         scaleExecutor.shutdown();
         try {
             scaleExecutor.awaitTermination(1, TimeUnit.HOURS);
         } catch (InterruptedException e) {
-            log.error("error in await termination of scale executor {}", e);
+            log.error("Error in await termination of scale executor {}", e);
         }
 
         CompletableFuture<Void> scaleAll = FutureHelpers.allOf(scaleStatusList);
@@ -232,12 +234,12 @@ public class ControllerTests {
         endTime = System.currentTimeMillis();
         timeTaken = endTime - startTime;
 
-        log.debug("time taken for {} scale stream calls = {}", scaleStreamCallCount, timeTaken);
+        log.debug("Time taken for {} scale stream calls = {} milliseconds", scaleStreamCallCount, timeTaken);
         scaleStatusList.forEach(scaleResponseCompletableFuture -> {
             try {
                 log.debug("Status of each scale stream call {}", scaleResponseCompletableFuture.get().getStatus());
             } catch (InterruptedException | ExecutionException e) {
-                log.error("error in doing a get on scale stream status {}", e);
+                log.error("Error in doing a get on scale stream status {}", e);
             }
         });
 
@@ -246,7 +248,7 @@ public class ControllerTests {
     private static void getPositions() {
 
         ExecutorService getPositionsExecutor = Executors.newFixedThreadPool(getPositionsCallCount);
-        log.debug("\n Calling Get Positions {} times.The controller endpoint is {}", getPositionsCallCount, controllerUri);
+        log.debug("\nCalling Get Positions {} times.The controller endpoint is {}", getPositionsCallCount, controllerUri);
         startTime = System.currentTimeMillis();
         for (int i = 0; i < getPositionsCallCount; i++) {
             try {
@@ -254,26 +256,27 @@ public class ControllerTests {
                 Runnable runnable = new GetPositions(controller4, i);
                 getPositionsExecutor.execute(runnable);
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
         }
         getPositionsExecutor.shutdown();
         try {
             getPositionsExecutor.awaitTermination(1, TimeUnit.HOURS);
         } catch (InterruptedException e) {
-            log.error("error in await termination of getpositions executor {}", e);
+            log.error("Error in await termination of getpositions executor {}", e);
         }
         CompletableFuture<Void> getPositionsAll = FutureHelpers.allOf(getPositionsList);
         getPositionsAll.join();
         endTime = System.currentTimeMillis();
         timeTaken = endTime - startTime;
-        log.debug("time taken for {} getpositions calls = {}", getPositionsCallCount, timeTaken);
+        log.debug("Time taken for {} getpositions calls = {} milliseconds", getPositionsCallCount, timeTaken);
 
         getPositionsList.forEach(getPositionsCompletableFuture -> {
             try {
                 log.debug("Status of each getposition call {}", getPositionsCompletableFuture.get());
             } catch (InterruptedException | ExecutionException e) {
-                log.error("error in doing a get on getposition status {}", e);
+                log.error("Error in doing a get on getposition status {}", e);
             }
         });
     }
@@ -281,7 +284,7 @@ public class ControllerTests {
     private static void getCurrentSegments() {
 
         ExecutorService getCurrentSegmentsExecutor = Executors.newFixedThreadPool(getCurrentSegmentsCallCount);
-        log.debug("\n Calling Get Current Segments {} times.The controller endpoint is {}", getCurrentSegmentsCallCount, controllerUri);
+        log.debug("\nCalling Get Current Segments {} times.The controller endpoint is {}", getCurrentSegmentsCallCount, controllerUri);
 
         startTime = System.currentTimeMillis();
         for (int i = 0; i < getCurrentSegmentsCallCount; i++) {
@@ -290,27 +293,28 @@ public class ControllerTests {
                 Runnable runnable = new GetCurrentSegments(controller4, i);
                 getCurrentSegmentsExecutor.execute(runnable);
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
         }
         getCurrentSegmentsExecutor.shutdown();
         try {
             getCurrentSegmentsExecutor.awaitTermination(1, TimeUnit.HOURS);
         } catch (InterruptedException e) {
-            log.error("error in await termination of getcurrentsegments executor {}", e);
+            log.error("Error in await termination of getcurrentsegments executor {}", e);
         }
 
         CompletableFuture<Void> getCurrentSegmentsAll = FutureHelpers.allOf(getCurrentSegmentsList);
         getCurrentSegmentsAll.join();
         endTime = System.currentTimeMillis();
         timeTaken = endTime - startTime;
-        log.debug("time taken for {} getcurrentsegments calls = {}", getCurrentSegmentsCallCount, timeTaken);
+        log.debug("Time taken for {} getcurrentsegments calls = {} milliseconds", getCurrentSegmentsCallCount, timeTaken);
 
         getCurrentSegmentsList.forEach(getCurrentSegmentsCompletableFuture -> {
             try {
                 log.debug("Status of each get current segments call {}", getCurrentSegmentsCompletableFuture.get());
             } catch (InterruptedException | ExecutionException e) {
-                log.error("error in doing a get on get current segments status {}", e);
+                log.error("Error in doing a get on get current segments status {}", e);
             }
         });
 
@@ -319,7 +323,7 @@ public class ControllerTests {
     private static void createTransaction() {
 
         ExecutorService createTransactionExecutor = Executors.newFixedThreadPool(createTransactionCallCount);
-        log.debug("\n Calling create transaction {} times.The controller endpoint is {}", createTransactionCallCount, controllerUri);
+        log.debug("\nCalling create transaction {} times.The controller endpoint is {}", createTransactionCallCount, controllerUri);
 
         startTime = System.currentTimeMillis();
         for (int i = 0; i < createTransactionCallCount; i++) {
@@ -328,27 +332,28 @@ public class ControllerTests {
                 Runnable runnable = new CreateTransaction(controller4, i);
                 createTransactionExecutor.execute(runnable);
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
         }
         createTransactionExecutor.shutdown();
         try {
             createTransactionExecutor.awaitTermination(1, TimeUnit.HOURS);
         } catch (InterruptedException e) {
-            log.error("error in await termination of create transaction executor {}", e);
+            log.error("Error in await termination of create transaction executor {}", e);
         }
 
         CompletableFuture<Void> createTransAll = FutureHelpers.allOf(createTransactionList);
         createTransAll.join();
         endTime = System.currentTimeMillis();
         timeTaken = endTime - startTime;
-        log.debug("time taken for {} create transaction calls = {}", createTransactionCallCount, timeTaken);
+        log.debug("Time taken for {} create transaction calls = {} milliseconds", createTransactionCallCount, timeTaken);
 
         createTransactionList.forEach(createTransCompletableFuture -> {
             try {
                 log.debug("Status of each create transaction call {}", createTransCompletableFuture.get());
             } catch (InterruptedException | ExecutionException e) {
-                log.error("error in doing a get on create transaction status  {}", e);
+                log.error("Error in doing a get on create transaction status  {}", e);
             }
         });
 
@@ -358,7 +363,7 @@ public class ControllerTests {
 
         ExecutorService commitTransactionExecutor = Executors.newFixedThreadPool(commitTransactionCallCount);
 
-        log.debug("\n Calling commit transaction {} times.The controller endpoint is {}", commitTransactionCallCount, controllerUri);
+        log.debug("\nCalling commit transaction {} times.The controller endpoint is {}", commitTransactionCallCount, controllerUri);
         startTime = System.currentTimeMillis();
         for (int i = 0; i < commitTransactionCallCount; i++) {
             try {
@@ -366,26 +371,27 @@ public class ControllerTests {
                 Runnable runnable = new CommitTransaction(controller4, i);
                 commitTransactionExecutor.execute(runnable);
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
         }
         commitTransactionExecutor.shutdown();
         try {
             commitTransactionExecutor.awaitTermination(1, TimeUnit.HOURS);
         } catch (InterruptedException e) {
-            log.error("error in await termination of commit transaction executor {}", e);
+            log.error("Error in await termination of commit transaction executor {}", e);
         }
 
         CompletableFuture<Void> commitTransAll = FutureHelpers.allOf(commitTransactionList);
         commitTransAll.join();
         endTime = System.currentTimeMillis();
         timeTaken = endTime - startTime;
-        log.debug("time taken for {} commit transaction calls = {}", commitTransactionCallCount, timeTaken);
+        log.debug("Time taken for {} commit transaction calls = {} milliseconds", commitTransactionCallCount, timeTaken);
         commitTransactionList.forEach(commitTransCompletableFuture -> {
             try {
                 log.debug("Status of each commit transaction call {}", commitTransCompletableFuture.get());
             } catch (InterruptedException | ExecutionException e) {
-                log.error("error in doing a get on commit transaction status {}", e);
+                log.error("Error in doing a get on commit transaction status {}", e);
             }
         });
 
@@ -395,7 +401,7 @@ public class ControllerTests {
 
         ExecutorService dropTransactionExecutor = Executors.newFixedThreadPool(dropTransactionCallCount);
 
-        log.debug("\n Calling Drop transaction {} times.The controller endpoint is {}", dropTransactionCallCount, controllerUri);
+        log.debug("\nCalling Drop transaction {} times.The controller endpoint is {}", dropTransactionCallCount, controllerUri);
         startTime = System.currentTimeMillis();
         for (int i = 0; i < dropTransactionCallCount; i++) {
             try {
@@ -403,26 +409,27 @@ public class ControllerTests {
                 Runnable runnable = new DropTransaction(controller4, i);
                 dropTransactionExecutor.execute(runnable);
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
         }
         dropTransactionExecutor.shutdown();
         try {
             dropTransactionExecutor.awaitTermination(1, TimeUnit.HOURS);
         } catch (InterruptedException e) {
-            log.error("error in await termination of drop transaction executor {}", e);
+            log.error("Error in await termination of drop transaction executor {}", e);
         }
 
         CompletableFuture<Void> dropTransAll = FutureHelpers.allOf(dropTransactionList);
         dropTransAll.join();
         endTime = System.currentTimeMillis();
         timeTaken = endTime - startTime;
-        log.debug("time taken for {} drop transaction calls = {}", dropTransactionCallCount, timeTaken);
+        log.debug("Time taken for {} drop transaction calls = {} milliseconds", dropTransactionCallCount, timeTaken);
         dropTransactionList.forEach(dropTransCompletableFuture -> {
             try {
                 log.debug("Status of each drop  transaction call {}", dropTransCompletableFuture.get());
             } catch (InterruptedException | ExecutionException e) {
-                log.error("error in doing a get on drop transaction status {}", e);
+                log.error("Error in doing a get on drop transaction status {}", e);
             }
         });
 
@@ -514,9 +521,7 @@ public class ControllerTests {
 
             scope = scope + i;
             streamName = streamName + i;
-            StreamConfiguration config =
-                    new StreamConfigurationImpl(scope,
-                            streamName,
+            StreamConfiguration config = new StreamConfigurationImpl(scope, streamName,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
 
             CompletableFuture<CreateStreamStatus> createStreamStatus = controller.createStream(config);
@@ -540,23 +545,21 @@ public class ControllerTests {
 
             scope = scope + i;
             streamName = streamName + i;
-            StreamConfiguration config =
-                    new StreamConfigurationImpl(scope,
-                            streamName,
+            StreamConfiguration config = new StreamConfigurationImpl(scope, streamName,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
 
             CompletableFuture<CreateStreamStatus> createStreamStatus = controller.createStream(config);
             ControllerImpl controllerAlter = null;
             try {
                 controllerAlter = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
-                config = new StreamConfigurationImpl(scope,
-                        streamName,
+                config = new StreamConfigurationImpl(scope, streamName,
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2 + i + 1, 2));
 
                 CompletableFuture<UpdateStreamStatus> updateStatus = controllerAlter.alterStream(config);
                 alterStatusList.add(updateStatus);
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
 
         }
@@ -578,9 +581,7 @@ public class ControllerTests {
 
             scope = scope + i;
             streamName = streamName + i;
-            StreamConfiguration config =
-                    new StreamConfigurationImpl(scope,
-                            streamName,
+            StreamConfiguration config = new StreamConfigurationImpl(scope, streamName,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
 
             CompletableFuture<CreateStreamStatus> createStreamStatus = controller.createStream(config);
@@ -588,7 +589,8 @@ public class ControllerTests {
             try {
                 controllerSeal = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
             CompletableFuture<UpdateStreamStatus> sealStreamStatus = controllerSeal.sealStream(scope, streamName);
             sealStatusList.add(sealStreamStatus);
@@ -614,10 +616,8 @@ public class ControllerTests {
             scope = scope + i;
             streamName = streamName + i;
 
-            StreamConfiguration config =
-                    new StreamConfigurationImpl(scope,
-                            streamName,
-                            new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 1));
+            StreamConfiguration config = new StreamConfigurationImpl(scope, streamName,
+                           new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 1));
 
             Stream stream = new StreamImpl(scope, streamName, config);
             CompletableFuture<CreateStreamStatus> createStreamStatus = controller.createStream(config);
@@ -628,7 +628,8 @@ public class ControllerTests {
             try {
                 controllerScale = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
             CompletableFuture<ScaleResponse> scaleResponse = controllerScale.scaleStream(stream, Collections.singletonList(0), map);
             scaleStatusList.add(scaleResponse);
@@ -654,9 +655,7 @@ public class ControllerTests {
             scope = scope + i;
             streamName = streamName + i;
 
-            StreamConfiguration config =
-                    new StreamConfigurationImpl(scope,
-                            streamName,
+            StreamConfiguration config = new StreamConfigurationImpl(scope, streamName,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 2L, 2, 2));
 
             Stream stream = new StreamImpl(scope, streamName, config);
@@ -665,7 +664,8 @@ public class ControllerTests {
             try {
                 controllerGetPos = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
             CompletableFuture<List<PositionInternal>> getPositions = controllerGetPos.getPositions(stream, System.currentTimeMillis(), count);
             getPositionsList.add(getPositions);
@@ -690,9 +690,7 @@ public class ControllerTests {
             scope = scope + i;
             streamName = streamName + i;
 
-            StreamConfiguration config =
-                    new StreamConfigurationImpl(scope,
-                            streamName,
+            StreamConfiguration config = new StreamConfigurationImpl(scope, streamName,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 2L, 2, 2));
 
             CompletableFuture<CreateStreamStatus> createStreamStatus = controller.createStream(config);
@@ -700,7 +698,8 @@ public class ControllerTests {
             try {
                 controllerGetCurSeg = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
             CompletableFuture<StreamSegments> getActiveSegments = controllerGetCurSeg.getCurrentSegments(scope, streamName);
             getCurrentSegmentsList.add(getActiveSegments);
@@ -714,7 +713,6 @@ public class ControllerTests {
         private String streamName = "streamCreateTxn";
         private String scope = "scopeCreateTxn";
 
-
         CreateTransaction(ControllerImpl controller, int i) {
             this.controller = controller;
             this.i = i;
@@ -726,9 +724,7 @@ public class ControllerTests {
             scope = scope + i;
             streamName = streamName + i;
 
-            StreamConfiguration config =
-                    new StreamConfigurationImpl(scope,
-                            streamName,
+            StreamConfiguration config = new StreamConfigurationImpl(scope, streamName,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 2L, 2, 1));
 
             CompletableFuture<CreateStreamStatus> createStreamStatus = controller.createStream(config);
@@ -739,7 +735,8 @@ public class ControllerTests {
             try {
                 controllerCreateTxn = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
             CompletableFuture<UUID> txIdFuture = controllerCreateTxn.createTransaction(stream, 60000);
             createTransactionList.add(txIdFuture);
@@ -763,9 +760,7 @@ public class ControllerTests {
             scope = scope + i;
             streamName = streamName + i;
 
-            StreamConfiguration config =
-                    new StreamConfigurationImpl(scope,
-                            streamName,
+            StreamConfiguration config =  new StreamConfigurationImpl(scope, streamName,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 1));
 
             Stream stream = new StreamImpl(scope, streamName, config);
@@ -779,7 +774,8 @@ public class ControllerTests {
             try {
                 controllercommitTxn1 = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
             UUID txId = FutureHelpers.getAndHandleExceptions(controllercommitTxn1.createTransaction(stream, 60000), RuntimeException::new);
             //commit transaction
@@ -787,7 +783,8 @@ public class ControllerTests {
             try {
                 controllercommitTxn2 = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
             CompletableFuture<TxnStatus> commitTransaction = controllercommitTxn2.commitTransaction(stream, txId);
             commitTransactionList.add(commitTransaction);
@@ -811,9 +808,7 @@ public class ControllerTests {
             scope = scope + i;
             streamName = streamName + i;
 
-            StreamConfiguration config =
-                    new StreamConfigurationImpl(scope,
-                            streamName,
+            StreamConfiguration config = new StreamConfigurationImpl(scope, streamName,
                             new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 1));
 
             Stream stream = new StreamImpl(scope, streamName, config);
@@ -827,7 +822,8 @@ public class ControllerTests {
             try {
                 controllerDropTxn1 = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
             UUID txId = FutureHelpers.getAndHandleExceptions(controllerDropTxn1.createTransaction(stream, 60000), RuntimeException::new);
             //drop transaction
@@ -835,7 +831,8 @@ public class ControllerTests {
             try {
                 controllerDropTxn2 = new ControllerImpl(new URI(controllerUri).getHost(), new URI(controllerUri).getPort());
             } catch (URISyntaxException uri) {
-                log.error("invalid controller uri {}", uri);
+                log.error("Invalid controller uri {}", uri);
+                System.exit(0);
             }
             CompletableFuture<TxnStatus> dropTransaction = controllerDropTxn2.dropTransaction(stream, txId);
             dropTransactionList.add(dropTransaction);
