@@ -41,19 +41,19 @@ public class InMemoryScope implements Scope {
     }
 
     @Override
-    public CompletableFuture<Void> createScope() {
+    public synchronized CompletableFuture<Void> createScope() {
         this.streamsInScope = new ArrayList<>();
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public CompletableFuture<Void> deleteScope() {
+    public synchronized CompletableFuture<Void> deleteScope() {
         this.streamsInScope.clear();
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public CompletableFuture<List<String>> listStreamsInScope() {
+    public synchronized CompletableFuture<List<String>> listStreamsInScope() {
         return CompletableFuture.completedFuture(Collections.unmodifiableList(streamsInScope));
     }
 
