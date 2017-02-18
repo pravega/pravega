@@ -44,16 +44,23 @@ public interface ReaderGroup {
     
     /**
      * Initiate a checkpoint. This causes all readers in the group to receive a special {@link EventRead} that
-     * contains the provided checkpointID. This can be used to provide an indication to them that they should
+     * contains the provided checkpoint name. This can be used to provide an indication to them that they should
      * persist their state. Once all of the readers have received the notification, a {@link Checkpoint} object will be returned.
      * This can be used to reset all the reader to this point in the stream by
      * 
-     * @param checkpointName
-     * @return
+     * @param checkpointName The name of the checkpoint (For identification purposes)
+     * @return A future Checkpoint object that can be used to restore the reader group to this position.
      */
     Future<Checkpoint> initiateCheckpoint(String checkpointName);
     
-    void resetReadersToCheckpoint(Checkpoint checkpointName);
+    /**
+     * Given a Checkpoint restore the reader group to the positions contained within it. All readers in the
+     * group will encounter a {@link ReinitializationRequiredException} and when they rejoin the group they
+     * will resume from the position the provided checkpoint was taken.
+     * 
+     * @param checkpoint The checkpoint to restore to.
+     */
+    void resetReadersToCheckpoint(Checkpoint checkpoint);
     
     /**
      * Invoked when a reader that was added to the group is no longer consuming events. This will
