@@ -193,8 +193,7 @@ public class EventProcessorTest {
         Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
 
         Props<TestEvent> props = Props.<TestEvent>builder()
-                .clazz(TestEventProcessor.class)
-                .args(false)
+                .supplier(() -> new TestEventProcessor(false))
                 .serializer(new JavaSerializer<>())
                 .decider((Throwable e) -> Decider.Directive.Stop)
                 .config(config)
@@ -205,8 +204,7 @@ public class EventProcessorTest {
         Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
 
         props = Props.<TestEvent>builder()
-                .clazz(TestEventProcessor.class)
-                .args(true)
+                .supplier(() -> new TestEventProcessor(true))
                 .serializer(new JavaSerializer<>())
                 .decider((Throwable e) ->
                         (e instanceof IllegalArgumentException) ? Decider.Directive.Resume : Decider.Directive.Stop)
@@ -218,8 +216,7 @@ public class EventProcessorTest {
         Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
 
         props = Props.<TestEvent>builder()
-                .clazz(TestEventProcessor.class)
-                .args(true)
+                .supplier(() -> new TestEventProcessor(true))
                 .serializer(new JavaSerializer<>())
                 .decider((Throwable e) ->
                         (e instanceof IllegalArgumentException) ? Decider.Directive.Restart : Decider.Directive.Stop)

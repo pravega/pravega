@@ -35,8 +35,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
-import java.lang.reflect.InvocationTargetException;
-
 /**
  * This is an internal class that embeds the following.
  * 1. Event processor instance.
@@ -258,11 +256,7 @@ class EventProcessorCell<T extends StreamEvent> {
     }
 
     private EventProcessor<T> createEventProcessor(final Props<T> props) {
-        try {
-            return props.getConstructor().newInstance(props.getArgs().toArray());
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-            throw new RuntimeException("Error instantiating event processor");
-        }
+        return props.getSupplier().get();
     }
 
 }
