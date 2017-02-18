@@ -1,27 +1,13 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -30,6 +16,7 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -43,6 +30,7 @@ import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
+import com.emc.pravega.stream.impl.segment.NoSuchEventException;
 import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactoryImpl;
@@ -53,7 +41,11 @@ import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.TestUtils;
-
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.util.ResourceLeakDetector;
+import io.netty.util.ResourceLeakDetector.Level;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -61,7 +53,7 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-
+import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -69,13 +61,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-
-import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.util.ResourceLeakDetector;
-import io.netty.util.ResourceLeakDetector.Level;
-import io.netty.util.internal.logging.InternalLoggerFactory;
-import io.netty.util.internal.logging.Slf4JLoggerFactory;
-import lombok.Cleanup;
+import static org.junit.Assert.fail;
 
 public class ReadTest {
 
@@ -214,19 +200,63 @@ public class ReadTest {
         producer.flush();
 
         @Cleanup
-        EventStreamReader<String> consumer = clientFactory
+        EventStreamReader<String> reader = clientFactory
                 .createReader(readerName, readerGroup, serializer, new ReaderConfig());
-        String read = consumer.readNextEvent(5000).getEvent();
+        String read = reader.readNextEvent(5000).getEvent();
         assertEquals(testString, read);
+    }
+
+    @Test(timeout = 10000)
+    public void testEventPointer() {
+        String endpoint = "localhost";
+        String streamName = "abc";
+        String readerName = "reader";
+        String readerGroup = "group";
+        int port = TestUtils.randomPort();
+        String testString = "Hello world ";
+        String scope = "Scope1";
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        MockClientFactory clientFactory = streamManager.getClientFactory();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        streamManager.createStream(streamName, null);
+        streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singletonList(streamName));
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, new EventWriterConfig(null));
+
+        for (int i = 0; i < 100; i++) {
+            producer.writeEvent("RoutingKey", testString + i);
+        }
+        producer.flush();
+
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory
+                .createReader(readerName, readerGroup, serializer, new ReaderConfig());
+        try {
+            EventPointer pointer;
+            String read;
+
+            for (int i = 0; i < 100; i++) {
+                pointer = reader.readNextEvent(5000).getEventPointer();
+                read = reader.read(pointer);
+                assertEquals(testString + i, read);
+            }
+        } catch (NoSuchEventException e) {
+            fail("Failed to read event using event pointer");
+        }
+
     }
 
     private void fillStoreForSegment(String segmentName, UUID clientId, byte[] data, int numEntries,
                                      StreamSegmentStore segmentStore) {
         try {
-            segmentStore.createStreamSegment(segmentName, Duration.ZERO).get();
+            segmentStore.createStreamSegment(segmentName, null, Duration.ZERO).get();
             for (int eventNumber = 1; eventNumber <= numEntries; eventNumber++) {
-                AppendContext appendContext = new AppendContext(clientId, eventNumber);
-                segmentStore.append(segmentName, data, appendContext, Duration.ZERO).get();
+                segmentStore.append(segmentName, data, null, Duration.ZERO).get();
             }
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);

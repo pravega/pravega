@@ -1,29 +1,18 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.server.ContainerMetadata;
-
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
-
+import java.util.UUID;
+import lombok.val;
 import org.junit.Assert;
 
 /**
@@ -32,7 +21,13 @@ import org.junit.Assert;
 public class StreamSegmentMapOperationTests extends OperationTestsBase<StreamSegmentMapOperation> {
     @Override
     protected StreamSegmentMapOperation createOperation(Random random) {
-        return new StreamSegmentMapOperation(new StreamSegmentInformation(super.getStreamSegmentName(random.nextLong()), random.nextLong(), random.nextBoolean(), random.nextBoolean(), new ImmutableDate()));
+        return new StreamSegmentMapOperation(new StreamSegmentInformation(
+                super.getStreamSegmentName(random.nextLong()),
+                random.nextLong(),
+                random.nextBoolean(),
+                random.nextBoolean(),
+                createAttributes(10),
+                new ImmutableDate()));
     }
 
     @Override
@@ -47,5 +42,14 @@ public class StreamSegmentMapOperationTests extends OperationTestsBase<StreamSeg
         } else if (isPreSerializationConfigRequired(operation)) {
             Assert.fail("isPreSerializationConfigRequired returned true but there is nothing to be done.");
         }
+    }
+
+    static Map<UUID, Long> createAttributes(int count) {
+        val result = new HashMap<UUID, Long>();
+        for (int i = 0; i < count; i++) {
+            result.put(UUID.randomUUID(), (long) i);
+        }
+
+        return result;
     }
 }
