@@ -19,12 +19,13 @@ package com.emc.pravega.controller.eventProcessor;
 
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.stream.Serializer;
+import com.google.common.base.Preconditions;
 import lombok.Data;
 
 import java.util.function.Supplier;
 
 /**
- * Configuration object for creating Actors via actorOf method of ActorSystem or ActorContext.
+ * Configuration object for creating EventProcessors via createEventProcessorGroup method of EventProcessorSystem.
  */
 @Data
 public class Props<T extends StreamEvent> {
@@ -35,10 +36,13 @@ public class Props<T extends StreamEvent> {
     private final Supplier<EventProcessor<T>> supplier;
 
     private Props(final EventProcessorGroupConfig config,
-                 final Decider decider,
-                 final Serializer<T> serializer,
-                 final Supplier<EventProcessor<T>> supplier) {
+                  final Decider decider,
+                  final Serializer<T> serializer,
+                  final Supplier<EventProcessor<T>> supplier) {
 
+        Preconditions.checkNotNull(config);
+        Preconditions.checkNotNull(serializer);
+        Preconditions.checkNotNull(supplier);
         this.config = config;
         if (decider == null) {
             this.decider = Decider.DEFAULT_DECIDER;
