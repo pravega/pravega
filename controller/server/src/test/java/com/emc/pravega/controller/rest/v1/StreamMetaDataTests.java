@@ -20,18 +20,19 @@ import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import org.glassfish.hk2.utilities.binding.AbstractBinder;
-import org.glassfish.jersey.server.ResourceConfig;
-import org.glassfish.jersey.test.JerseyTest;
-import org.junit.Test;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.Application;
 import javax.ws.rs.core.Response;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+
+import org.glassfish.hk2.utilities.binding.AbstractBinder;
+import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.test.JerseyTest;
+import org.junit.Test;
 
 import static com.emc.pravega.stream.ScalingPolicy.Type.FIXED_NUM_SEGMENTS;
 import static org.junit.Assert.assertEquals;
@@ -64,8 +65,8 @@ public class StreamMetaDataTests extends JerseyTest {
     private final RetentionPolicyCommon retentionPolicyCommon2 = new RetentionPolicyCommon(null);
     private final StreamResponse streamResponseExpected = new StreamResponse(
             new StreamProperty(scope1, stream1, scalingPolicyCommon, retentionPolicyCommon));
-    private final StreamConfiguration streamConfiguration = new StreamConfigurationImpl(scope1, stream1,
-            new ScalingPolicy(FIXED_NUM_SEGMENTS, 100L, 2, 2), new RetentionPolicy(123L));
+    private final StreamConfiguration streamConfiguration = StreamConfiguration.builder().scope(scope1).streamName(stream1).scalingPolicy(
+            new ScalingPolicy(FIXED_NUM_SEGMENTS, 100L, 2, 2)).retentionPolicy(RetentionPolicy.ofTimeMillis(123L)).build();
 
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest(
             stream1, scalingPolicyCommon, retentionPolicyCommon);

@@ -15,8 +15,10 @@
  */
 package com.emc.pravega.stream;
 
-import java.io.Externalizable;
+import java.io.Serializable;
 
-public interface Checkpoint extends Externalizable {
+public interface Checkpoint extends Serializable {
 
+    String getName();
+    
 }

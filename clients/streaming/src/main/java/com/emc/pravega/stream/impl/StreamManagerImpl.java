@@ -12,7 +12,6 @@ import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.ScalingPolicy.Type;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -55,8 +54,11 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        FutureHelpers.getAndHandleExceptions(controller.createStream(new StreamConfigurationImpl(scope, streamName,
-                        config.getScalingPolicy())),
+        FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
+                                                                                        .scope(scope)
+                                                                                        .streamName(streamName)
+                                                                                        .scalingPolicy(config.getScalingPolicy())
+                                                                                        .build()),
                 RuntimeException::new);
         return new StreamImpl(scope, streamName);
     }
@@ -74,9 +76,11 @@ public class StreamManagerImpl implements StreamManager {
     @Override
     public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, List<String> streams) {
         createStreamHelper(groupName,
-                           new StreamConfigurationImpl(scope,
-                                   groupName,
-                                   new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0, 1)));
+                           StreamConfiguration.builder()
+                                              .scope(scope)
+                                              .streamName(groupName)
+                                              .scalingPolicy(ScalingPolicy.fixed(1))
+                                              .build());
         SynchronizerConfig synchronizerConfig = new SynchronizerConfig(null, null);
         ReaderGroupImpl result = new ReaderGroupImpl(scope,
                 groupName,

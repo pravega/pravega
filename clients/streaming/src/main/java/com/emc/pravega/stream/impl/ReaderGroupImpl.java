@@ -75,4 +75,9 @@ public class ReaderGroupImpl implements ReaderGroup {
     public Future<Checkpoint> initiateCheckpoint(String checkpointName) {
         throw new NotImplementedException();
     }
+
+    @Override
+    public void resetReadersToCheckpoint(Checkpoint checkpointName) {
+        throw new NotImplementedException();
+    }
 }

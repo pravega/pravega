@@ -20,12 +20,12 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
     /**
      * Send an event to the stream. Events that are written should appear in the stream exactly once
      * in the order they were written. (If there are multiple writers they may be interleaved but
-     * any event written after the future of another writeEvent call has completed, will come after the fir)
+     * any event written after the future of another writeEvent call has completed, will come after the first)
      * 
      * 
      * Note that the implementation provides retry logic to handle connection failures and service
      * host failures. Internal retries will not violate the exactly once semantic so it is better to
-     * rely on them than to wrap this with custom retry logic.
+     * rely on this than to wrap this method with custom retry logic.
      * 
      * @param routingKey A free form string that is used to route messages to readers. Two events
      *        written with the same routingKey are guaranteed to be read in order. Two events with

@@ -41,7 +41,6 @@ public interface ReaderGroup {
      * Returns the configuration of the reader group.
      */
     ReaderGroupConfig getConfig();
-
     
     /**
      * Initiate a checkpoint. This causes all readers in the group to receive a special {@link EventRead} that

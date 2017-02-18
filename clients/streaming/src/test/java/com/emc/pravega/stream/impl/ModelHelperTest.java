@@ -32,27 +32,12 @@ public class ModelHelperTest {
     }
 
     private static StreamConfiguration createStreamConfig(String name) {
-        return new StreamConfiguration() {
-            @Override
-            public String getScope() {
-                return "scope";
-            }
-
-            @Override
-            public String getName() {
-                return name;
-            }
-
-            @Override
-            public ScalingPolicy getScalingPolicy() {
-                return createScalingPolicy();
-            }
-
-            @Override
-            public RetentionPolicy getRetentionPolicy() {
-                return new RetentionPolicy(Long.MAX_VALUE);
-            }
-        };
+        return StreamConfiguration.builder()
+                                  .scope("scope")
+                                  .streamName(name)
+                                  .scalingPolicy(createScalingPolicy())
+                                  .retentionPolicy(RetentionPolicy.ofTimeMillis(Long.MAX_VALUE))
+                                  .build();
     }
 
     private static PositionInternal createPosition() {
@@ -141,7 +126,7 @@ public class ModelHelperTest {
     @Test
     public void encodeStreamConfig() {
         StreamConfiguration config = ModelHelper.encode(ModelHelper.decode(createStreamConfig("test")));
-        assertEquals("test", config.getName());
+        assertEquals("test", config.getStreamName());
         ScalingPolicy policy = config.getScalingPolicy();
         assertEquals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, policy.getType());
         assertEquals(100L, policy.getTargetRate());
