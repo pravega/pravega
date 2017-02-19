@@ -6,7 +6,6 @@
 package com.emc.pravega.stream;
 
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * A writer can write events to a stream.
@@ -38,7 +37,7 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      *         handled internally with multiple retires and exponential backoff. So there is no need
      *         to attempt to retry in the event of an exception.
      */
-    CompletableFuture<Void> writeEvent(String routingKey, Type event);
+    AckFuture writeEvent(String routingKey, Type event);
 
     /**
      * Start a new transaction on this stream.
