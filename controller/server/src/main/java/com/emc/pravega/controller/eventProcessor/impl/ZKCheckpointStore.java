@@ -37,17 +37,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Zookeeper based checkpoint store.
  */
 @Slf4j
 class ZKCheckpointStore implements CheckpointStore {
-
-    private static long initialMillis = 100L;
-    private static int multiplier = 2;
-    private static int attempts = 10;
-    private static long maxDelay = 2000;
 
     private final CuratorFramework client;
     private final JavaSerializer<Position> positionSerializer;
@@ -100,24 +96,16 @@ class ZKCheckpointStore implements CheckpointStore {
     @Override
     public Map<String, Position> sealReaderGroup(String process, String readerGroup) {
         String path = getReaderGroupPath(process, readerGroup);
-        Stat stat = new Stat();
 
         try {
-            return Retry.withExpBackoff(initialMillis, multiplier, attempts, maxDelay)
-                    .retryingOn(KeeperException.BadVersionException.class)
-                    .throwingOn(Exception.class)
-                    .run(() -> {
 
-                        byte[] data = client.getData().storingStatIn(stat).forPath(path);
-                        ReaderGroupData groupData = groupDataSerializer.deserialize(ByteBuffer.wrap(data));
-                        groupData.setState(ReaderGroupData.State.Sealed);
+            updateReaderGroupData(path, groupData -> {
+                groupData.setState(ReaderGroupData.State.Sealed);
+                return groupData;
+            });
 
-                        client.setData()
-                                .withVersion(stat.getVersion())
-                                .forPath(path, groupDataSerializer.serialize(groupData).array());
-                        return getPositions(process, readerGroup);
+            return getPositions(process, readerGroup);
 
-                    });
         } catch (KeeperException.NoNodeException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
         } catch (Exception e) {
@@ -149,36 +137,28 @@ class ZKCheckpointStore implements CheckpointStore {
     @Override
     public void addReader(String process, String readerGroup, String readerId) {
         String path = getReaderGroupPath(process, readerGroup);
-        Stat stat = new Stat();
 
         try {
-            Retry.withExpBackoff(initialMillis, multiplier, attempts, maxDelay)
-                    .retryingOn(KeeperException.BadVersionException.class)
-                    .throwingOn(Exception.class)
-                    .run(() -> {
 
-                        byte[] data = client.getData().storingStatIn(stat).forPath(path);
-                        ReaderGroupData groupData = groupDataSerializer.deserialize(ByteBuffer.wrap(data));
-                        if (groupData.getState() == ReaderGroupData.State.Sealed) {
-                            throw new CheckpointStoreException(CheckpointStoreException.Type.Sealed,
-                                    "ReaderGroup is sealed");
-                        }
-                        List<String> list = groupData.getReaderIds();
-                        if (list.contains(readerId)) {
-                            throw new CheckpointStoreException(CheckpointStoreException.Type.NodeExists,
-                                    "Duplicate readerId");
-                        }
+            updateReaderGroupData(path, groupData -> {
+                if (groupData.getState() == ReaderGroupData.State.Sealed) {
+                    throw new CheckpointStoreException(CheckpointStoreException.Type.Sealed,
+                            "ReaderGroup is sealed");
+                }
+                List<String> list = groupData.getReaderIds();
+                if (list.contains(readerId)) {
+                    throw new CheckpointStoreException(CheckpointStoreException.Type.NodeExists,
+                            "Duplicate readerId");
+                }
 
-                        list.add(readerId);
-                        groupData.setReaderIds(list);
+                list.add(readerId);
+                groupData.setReaderIds(list);
 
-                        client.setData()
-                                .withVersion(stat.getVersion())
-                                .forPath(path, groupDataSerializer.serialize(groupData).array());
+                return groupData;
+            });
 
-                        addNode(getReaderPath(process, readerGroup, readerId));
-                        return null;
-                    });
+            addNode(getReaderPath(process, readerGroup, readerId));
+
         } catch (KeeperException.NoNodeException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
         } catch (CheckpointStoreException e) {
@@ -192,31 +172,21 @@ class ZKCheckpointStore implements CheckpointStore {
     @Override
     public void removeReader(String process, String readerGroup, String readerId) {
         String path = getReaderGroupPath(process, readerGroup);
-        Stat stat = new Stat();
 
         try {
-            Retry.withExpBackoff(initialMillis, multiplier, attempts, maxDelay)
-                    .retryingOn(KeeperException.BadVersionException.class)
-                    .throwingOn(Exception.class)
-                    .run(() -> {
+            removeEmptyNode(getReaderPath(process, readerGroup, readerId));
 
-                        removeEmptyNode(getReaderPath(process, readerGroup, readerId));
+            updateReaderGroupData(path, groupData -> {
+                List<String> list = groupData.getReaderIds();
+                if (list.contains(readerId)) {
+                    list.remove(readerId);
+                    groupData.setReaderIds(list);
+                    return groupData;
+                } else {
+                    return groupData;
+                }
+            });
 
-                        byte[] data = client.getData().storingStatIn(stat).forPath(path);
-                        ReaderGroupData groupData = groupDataSerializer.deserialize(ByteBuffer.wrap(data));
-
-                        List<String> list = groupData.getReaderIds();
-                        if (list.contains(readerId)) {
-                            list.remove(readerId);
-                            groupData.setReaderIds(list);
-
-                            client.setData()
-                                    .withVersion(stat.getVersion())
-                                    .forPath(path, groupDataSerializer.serialize(groupData).array());
-                        }
-
-                        return null;
-                    });
         } catch (KeeperException.NoNodeException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
         } catch (Exception e) {
@@ -234,6 +204,39 @@ class ZKCheckpointStore implements CheckpointStore {
 
     private String getProcessPath(String process) {
         return String.format("/%s", process);
+    }
+
+    /**
+     * Updates the reader group data at specified path by applying the updater method on the existing data.
+     * It repeatedly invokes conditional update on specified path until is succeeds or max attempts (10) are exhausted.
+     *
+     * @param path Reader group node path.
+     * @param updater Function to obtain the new data value from existing data value.
+     * @throws Exception Throws exception thrown from Curator, or from application of updater method.
+     */
+    private void updateReaderGroupData(String path, Function<ReaderGroupData, ReaderGroupData> updater) throws Exception {
+        final long initialMillis = 100L;
+        final int multiplier = 2;
+        final int attempts = 10;
+        final long maxDelay = 2000;
+
+        Stat stat = new Stat();
+
+        Retry.withExpBackoff(initialMillis, multiplier, attempts, maxDelay)
+                .retryingOn(KeeperException.BadVersionException.class)
+                .throwingOn(Exception.class)
+                .run(() -> {
+
+                    byte[] data = client.getData().storingStatIn(stat).forPath(path);
+                    ReaderGroupData groupData = groupDataSerializer.deserialize(ByteBuffer.wrap(data));
+                    groupData = updater.apply(groupData);
+                    byte[] newData = groupDataSerializer.serialize(groupData).array();
+
+                    client.setData()
+                            .withVersion(stat.getVersion())
+                            .forPath(path, newData);
+                    return null;
+                });
     }
 
     private void addNode(String path) {
