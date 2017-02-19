@@ -20,6 +20,7 @@ public interface Orderer {
      * not modified)
      *
      * @param segments The logs to get the next reader for.
+     * @return A segment that this reader should read from next.
      */
     SegmentEventReader nextSegment(List<SegmentEventReader> segments);
 }
