@@ -46,6 +46,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @Slf4j
 public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements CheckpointedFunction, Serializable {
+    private static final long serialVersionUID = 1L;
+
     // The supplied event serializer.
     private final SerializationSchema<T> serializationSchema;
 
@@ -70,7 +72,7 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
     private transient EventStreamWriter<T> pravegaWriter = null;
 
     // The event serializer implementation for the pravega writer.
-    private transient Serializer eventSerializer = null;
+    private transient Serializer<T> eventSerializer = null;
 
     // Error which will be detected asynchronously and reported to flink.
     private transient AtomicReference<Exception> writeError = null;
@@ -165,9 +167,9 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
                     () -> {
                         try {
                             ackFuture.get();
-                            synchronized (pendingWritesCount) {
+                            synchronized (this) {
                                 pendingWritesCount.decrementAndGet();
-                                pendingWritesCount.notify();
+                                this.notify();
                             }
                         } catch (Exception e) {
                             log.warn("Detected a write failure: {}", e);
@@ -200,9 +202,9 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
         this.pravegaWriter.flush();
 
         // Wait until all errors, if any, have been recorded.
-        synchronized (this.pendingWritesCount) {
+        synchronized (this) {
             while (this.pendingWritesCount.get() > 0) {
-                this.pendingWritesCount.wait();
+                this.wait();
             }
         }
 

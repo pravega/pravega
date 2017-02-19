@@ -18,14 +18,17 @@
 package com.emc.pravega.connectors;
 
 import org.apache.flink.hadoop.shaded.com.google.common.base.Preconditions;
-import org.apache.flink.streaming.api.checkpoint.Checkpointed;
+import org.apache.flink.streaming.api.checkpoint.ListCheckpointed;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
+
+import java.util.Collections;
+import java.util.List;
 
 /**
  * A flink parallel source to generate test data and simulate different scenarios.
  */
-public class IntegerGeneratingSource extends RichParallelSourceFunction<Integer> implements Checkpointed<Integer> {
+public class IntegerGeneratingSource extends RichParallelSourceFunction<Integer> implements ListCheckpointed<Integer> {
     // The number of integers to be generated.
     private final int eventCount;
 
@@ -71,15 +74,15 @@ public class IntegerGeneratingSource extends RichParallelSourceFunction<Integer>
     }
 
     @Override
-    public Integer snapshotState(long checkpointId, long checkpointTimestamp) throws Exception {
+    public List<Integer> snapshotState(long checkpointId, long checkpointTimestamp) throws Exception {
         this.snapshotOffset = this.currentOffset;
-        return this.snapshotOffset;
+        return Collections.singletonList(this.snapshotOffset);
     }
 
     @Override
-    public void restoreState(Integer state) throws Exception {
+    public void restoreState(List<Integer> state) throws Exception {
         this.isRecovered = true;
-        this.currentOffset = state;
+        this.currentOffset = state.get(0);
     }
 
     @Override
