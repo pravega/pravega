@@ -179,15 +179,19 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
 
     @Override
     public void changeEventProcessorCount(int count) {
-        if (count <= 0) {
-            throw new NotImplementedException();
+        if (this.isRunning()) {
+            if (count <= 0) {
+                throw new NotImplementedException();
+            } else {
+
+                // create new event processors
+                List<String> readerIds = createEventProcessors(count);
+
+                // start the new event processors
+                readerIds.stream().forEach(readerId -> eventProcessorMap.get(readerId).startAsync());
+            }
         } else {
-
-            // create new event processors
-            List<String> readerIds = createEventProcessors(count);
-
-            // start the new event processors
-            readerIds.stream().forEach(readerId -> eventProcessorMap.get(readerId).startAsync());
+            throw new IllegalStateException(this.state().name());
         }
     }
 
