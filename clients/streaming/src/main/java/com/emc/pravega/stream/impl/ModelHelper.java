@@ -76,7 +76,7 @@ public final class ModelHelper {
      * Helper to convert StreamConfig into Stream Configuration Impl.
      *
      * @param config The StreamConfig
-     * @return new instance of StreamConfiguration Impl.
+     * @return New instance of StreamConfiguration Impl.
      */
     public static final StreamConfiguration encode(final StreamConfig config) {
         Preconditions.checkNotNull(config, "StreamConfig");
@@ -110,7 +110,7 @@ public final class ModelHelper {
      * Return list of key ranges available.
      *
      * @param keyRanges List of Key Value pairs.
-     * @return collection of key ranges available.
+     * @return Collection of key ranges available.
      */
     public static List<AbstractMap.SimpleEntry<Double, Double>> encode(Map<Double, Double> keyRanges) {
         return keyRanges
@@ -170,7 +170,7 @@ public final class ModelHelper {
      * Decodes segment and returns an instance of SegmentId.
      *
      * @param segment The segment.
-     * @return instance of SegmentId.
+     * @return Instance of SegmentId.
      */
     public static final SegmentId decode(final Segment segment) {
         Preconditions.checkNotNull(segment, "Segment");

@@ -21,7 +21,7 @@ public interface ConnectionFactory extends AutoCloseable {
      *
      * @param endpoint The Pravega Node URI.
      * @param rp       Reply Processor instance.
-     * @return an instance of client connection.
+     * @return An instance of client connection.
      */
     CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp);
 

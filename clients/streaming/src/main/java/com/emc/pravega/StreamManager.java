@@ -70,7 +70,7 @@ public interface StreamManager extends AutoCloseable {
      * Returns the requested reader group.
      * 
      * @param groupName The name of the group
-     * @return reader group with the given name
+     * @return Reader group with the given name
      */
     ReaderGroup getReaderGroup(String groupName);
     

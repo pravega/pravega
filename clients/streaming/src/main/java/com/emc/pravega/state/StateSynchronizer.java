@@ -35,7 +35,7 @@ public interface StateSynchronizer<StateT extends Revisioned> {
      * Gets the state object currently held in memory.
      * This is a non-blocking call.
      *
-     * @return revisioned state object
+     * @return Revisioned state object
      */
     StateT getState();
 

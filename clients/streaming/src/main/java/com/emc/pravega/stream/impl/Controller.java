@@ -32,7 +32,7 @@ public interface Controller {
      * Api to create stream.
      *
      * @param streamConfig Stream configuration
-     * @return status of create stream operation.
+     * @return Status of create stream operation.
      */
     CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig);
 
@@ -40,7 +40,7 @@ public interface Controller {
      * Api to alter stream.
      *
      * @param streamConfig Stream configuration to updated
-     * @return status of update stream operation.
+     * @return Status of update stream operation.
      */
     CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig);
 
@@ -49,7 +49,7 @@ public interface Controller {
      * 
      * @param scope Scope
      * @param streamName Stream name
-     * @return status of update stream operation.
+     * @return Status of update stream operation.
      */
     CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String streamName);
 
@@ -59,7 +59,7 @@ public interface Controller {
      * @param stream Stream object.
      * @param sealedSegments List of segments to be sealed.
      * @param newKeyRanges Key ranges after scaling the stream.
-     * @return status of scale operation.
+     * @return Status of scale operation.
      */
     CompletableFuture<ScaleResponse> scaleStream(final Stream stream, final List<Integer> sealedSegments,
             final Map<Double, Double> newKeyRanges);
@@ -71,7 +71,7 @@ public interface Controller {
      * 
      * @param scope Scope
      * @param streamName Stream name
-     * @return current stream segments.
+     * @return Current stream segments.
      */
     CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName);
 
@@ -80,7 +80,7 @@ public interface Controller {
      * 
      * @param stream Stream name
      * @param timeout Tx timeout
-     * @return transaction identifier.
+     * @return Transaction identifier.
      */
     CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout);
 
@@ -91,7 +91,7 @@ public interface Controller {
      * 
      * @param stream Stream name
      * @param txId Transaction id
-     * @return void or TxnFailedException
+     * @return Void or TxnFailedException
      */
     CompletableFuture<Void> commitTransaction(final Stream stream, final UUID txId);
 
@@ -102,7 +102,7 @@ public interface Controller {
      * 
      * @param stream Stream name
      * @param txId Transaction id
-     * @return void or TxnFailedException
+     * @return Void or TxnFailedException
      */
     CompletableFuture<Void> abortTransaction(final Stream stream, final UUID txId);
 
@@ -111,7 +111,7 @@ public interface Controller {
      * 
      * @param stream Stream name
      * @param txId Transaction id
-     * @return transaction status.
+     * @return Transaction status.
      */
     CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
 
@@ -124,7 +124,7 @@ public interface Controller {
      * @param stream Name
      * @param timestamp Timestamp for getting position objects
      * @param count Number of position objects
-     * @return list of position objects.
+     * @return List of position objects.
      */
     CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count);
 

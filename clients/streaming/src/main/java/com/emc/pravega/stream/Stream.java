@@ -18,21 +18,21 @@ public interface Stream {
     /**
      * Gets the scope of this stream.
      *
-     * @return string scope name
+     * @return String scope name
      */
     String getScope();
 
     /**
      * Gets the name of this stream  (Not including the scope).
      *
-     * @return string a stream name
+     * @return String a stream name
      */
     String getStreamName();
 
     /**
      * Gets the scoped name of this stream.
      *
-     * @return string a fully scoped stream name
+     * @return String a fully scoped stream name
      */
     String getScopedName();
 

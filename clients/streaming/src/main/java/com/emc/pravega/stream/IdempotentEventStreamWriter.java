@@ -51,7 +51,7 @@ public interface IdempotentEventStreamWriter<Type> extends AutoCloseable {
     /**
      * Returns the configuration that this writer was create with.
      *
-     * @return writer configuration
+     * @return Writer configuration
      */
     EventWriterConfig getConfig();
 

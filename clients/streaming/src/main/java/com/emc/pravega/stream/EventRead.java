@@ -34,14 +34,14 @@ public interface EventRead<T> {
      * to increase even when no events are available. This is useful as it can bound the values
      * associated with future events.
      *
-     * @return a {@link Sequence} object that wraps two numbers, a high order value and a low order value
+     * @return A {@link Sequence} object that wraps two numbers, a high order value and a low order value
      */
     Sequence getEventSequence();
 
     /**
      * Returns the event that is wrapped in this EventRead.
      *
-     * @return the event itself.
+     * @return The event itself.
      */
     T getEvent();
 
@@ -50,7 +50,7 @@ public interface EventRead<T> {
      * event. It is useful to store this so that
      * {@link ReaderGroup#readerOffline(String, Position)} can be called if the reader dies.
      *
-     * @return position of the event
+     * @return Position of the event
      */
     Position getPosition();
 
@@ -81,7 +81,7 @@ public interface EventRead<T> {
      * 
      * It is the goal of the implementation to not set this to true unless it is required.
      *
-     * @return boolean whether a rebalance is being routed
+     * @return Boolean whether a rebalance is being routed
      */
     boolean isRoutingRebalance();
 }

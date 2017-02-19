@@ -66,7 +66,7 @@ public interface Transaction<Type> {
     /**
      * Gets the status of the transaction.
      *
-     *  @return current status of the transaction
+     *  @return Current status of the transaction
      */
     Status checkStatus();
 }

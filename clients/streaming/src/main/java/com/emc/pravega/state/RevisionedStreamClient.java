@@ -18,7 +18,8 @@ public interface RevisionedStreamClient<T> {
     /**
      * Returns the latest revision.
      *
-     * @return latest revision.
+     * @return Latest revision.
+     *
      */
     Revision fetchRevision();
     

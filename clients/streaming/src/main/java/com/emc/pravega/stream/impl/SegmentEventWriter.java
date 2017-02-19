@@ -40,7 +40,7 @@ public interface SegmentEventWriter<Type> extends AutoCloseable {
     /**
      * Returns if the segment is already sealed or not.
      *
-     * @return a boolean indicating the seal status of the segment.
+     * @return A boolean indicating the seal status of the segment.
      */
     boolean isAlreadySealed();
 
