@@ -70,6 +70,7 @@ public class ControllerService {
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
         this.pingManager = new PingManager(streamTransactionMetadataTasks);
+        this.pingManager.startAsync();
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig, final long createTimestamp) {
@@ -105,7 +106,7 @@ public class ControllerService {
         return streamStore.getSuccessors(segment.getStreamName(), segment.getNumber()).thenApply(successors ->
                 successors.entrySet().stream().collect(
                     Collectors.toMap(entry -> new SegmentId(segment.getScope(), segment.getStreamName(), entry.getKey()),
-                            entry -> entry.getValue())));
+                            Map.Entry::getValue)));
     }
 
     public CompletableFuture<ScaleResponse> scale(final String scope,
@@ -226,11 +227,16 @@ public class ControllerService {
 
         if (pingManager.contains(scope, stream, txId)) {
 
+            // If ping manager knows about this transaction, try to increase its lease.
             PingStatus status = pingManager.pingTx(scope, stream, txId, lease);
             return CompletableFuture.completedFuture(status);
 
         } else {
 
+            // Otherwise start owning the transaction timeout management by updating the txn node data in the store,
+            // thus updating its version.
+            // Pass this transaction metadata along with its version to ping manager, and ask ping manager to start
+            // managing timeout for this transaction.
             return streamTransactionMetadataTasks.pingTx(scope, stream, ModelHelper.encode(txnId), lease)
                     .thenApply(x -> {
                         pingManager.addTx(scope, stream, txId, x.getVersion(), lease,
