@@ -42,7 +42,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
@@ -57,7 +56,6 @@ import org.apache.zookeeper.data.Stat;
  * It may cache files read from the store for its lifetime.
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
-@Slf4j
 class ZKStream extends PersistentStreamBase<Integer> {
     private static final String SCOPE_PATH = "/store/%s";
     private static final String STREAM_PATH = SCOPE_PATH + "/%s";
@@ -149,7 +147,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
                     if (x) {
                         return;
                     } else {
-                        log.debug("Scope with name {} not found.", getScopeName());
                         throw new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found.");
                     }
                 });
@@ -469,7 +466,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         }
                     } else {
                         //path does not exist indicates Stream is not present
-                        log.error("Failed to write data. path {}", path);
                         throw new StreamNotFoundException(extractStreamName(path));
                     }
                 }) // load into cache after writing the data

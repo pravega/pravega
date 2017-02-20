@@ -51,26 +51,26 @@ public interface StreamMetadataStore {
     /**
      * Creates a new scope with the given name.
      *
-     * @param scope Scope name
+     * @param scopeName Scope name
      * @return null on success and exception on failure.
      */
-    CompletableFuture<CreateScopeStatus> createScope(final String scope);
+    CompletableFuture<CreateScopeStatus> createScope(final String scopeName);
 
     /**
      * Deletes a Scope if contains no streams.
      *
-     * @param scope Name of scope to be deleted
+     * @param scopeName Name of scope to be deleted
      * @return null on success and exception on failure.
      */
-    CompletableFuture<DeleteScopeStatus> deleteScope(final String scope);
+    CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName);
 
     /**
      * List existing streams in scopes.
      *
-     * @param scope Name of the scope
+     * @param scopeName Name of the scope
      * @return List of streams in scope
      */
-    CompletableFuture<List<Stream>> listStreamsInScope(final String scope);
+    CompletableFuture<List<Stream>> listStreamsInScope(final String scopeName);
 
     /**
      * List Scopes in cluster.

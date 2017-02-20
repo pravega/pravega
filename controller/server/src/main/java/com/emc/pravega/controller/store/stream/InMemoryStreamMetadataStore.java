@@ -69,7 +69,8 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                 scopes.get(scopeName).addStreamToScope(streamName);
                 return CompletableFuture.completedFuture(true);
             } else {
-                return FutureHelpers.failedFuture(new StreamAlreadyExistsException(streamName));
+                return FutureHelpers.
+                        failedFuture(new StoreException(StoreException.Type.NODE_EXISTS, "Stream already exists."));
             }
         } else {
             return FutureHelpers.

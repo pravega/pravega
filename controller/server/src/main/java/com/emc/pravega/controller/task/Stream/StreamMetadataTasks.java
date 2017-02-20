@@ -23,7 +23,6 @@ import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
-import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamNotFoundException;
 import com.emc.pravega.controller.store.stream.StoreException;
@@ -55,6 +54,7 @@ import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
 
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
 
 /**
@@ -178,7 +178,7 @@ public class StreamMetadataTasks extends TaskBase {
                     })
                     .handle((result, ex) -> {
                         if (ex != null) {
-                            if (ex.getCause() instanceof StreamAlreadyExistsException) {
+                            if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
                                 return CreateStreamStatus.STREAM_EXISTS;
                             } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) {
                                 return CreateStreamStatus.FAILURE;
