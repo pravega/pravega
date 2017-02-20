@@ -50,6 +50,8 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
     // The readergroup name to coordinate the parallel readers. This should be unique for a flink job.
     private final String readerGroupName;
 
+    // Following runtime parameters are populated when the flink sub-tasks are executed at the task managers.
+
     // The pravega reader instance for each flink's sub-task.
     private transient EventStreamReader<T> pravegaReader = null;
 
@@ -126,17 +128,17 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
                 try {
                     return deserializationSchema.deserialize(serializedValue.array());
                 } catch (IOException e) {
-                    throw new RuntimeException();
+                    // Converting exception since the base method doesn't handle checked exceptions.
+                    throw new RuntimeException(e);
                 }
             }
         };
         this.readerId = getRuntimeContext().getTaskNameWithSubtasks();
-        this.pravegaReader = ClientFactory.withScope(this.scopeName, this.controllerURI).createReader(
-                this.readerId,
-                this.readerGroupName,
-                deserializer,
-                new ReaderConfig());
+        this.pravegaReader = ClientFactory.withScope(this.scopeName, this.controllerURI)
+                .createReader(this.readerId, this.readerGroupName, deserializer, new ReaderConfig());
         this.cancelled = new AtomicBoolean(false);
+
+        log.info("Initialized pravega reader with controller URI: {}", this.controllerURI);
     }
 
     @Override
