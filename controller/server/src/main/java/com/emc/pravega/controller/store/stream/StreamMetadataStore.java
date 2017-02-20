@@ -19,6 +19,7 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 
@@ -61,7 +62,7 @@ public interface StreamMetadataStore {
      * @param scope Name of scope to be deleted
      * @return null on success and exception on failure.
      */
-    CompletableFuture<Void> deleteScope(final String scope);
+    CompletableFuture<DeleteScopeStatus> deleteScope(final String scope);
 
     /**
      * List existing streams in scopes.

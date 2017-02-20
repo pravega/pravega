@@ -20,6 +20,7 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -40,15 +41,12 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
-import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_EMPTY;
-import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -116,34 +114,20 @@ public class ZkStreamTest {
         store.createScope(scopeName).get();
 
         // Delete empty scope Scope1
-        CompletableFuture<Void> deleteScopeStatus = store.deleteScope(scopeName);
-
-        // deleteScope returns null on success, and exception on failure
-        assertEquals("Delete Empty Scope", null, deleteScopeStatus.get());
+        CompletableFuture<DeleteScopeStatus> deleteScopeStatus = store.deleteScope(scopeName);
+        assertEquals("Delete Empty Scope", DeleteScopeStatus.SUCCESS, deleteScopeStatus.get());
 
         // Delete non-existent scope Scope2
-        CompletableFuture<Void> deleteScopeStatus2 = store.deleteScope("Scope2");
-
-        try {
-            deleteScopeStatus2.get();
-        } catch (ExecutionException | CompletionException e) {
-            assertEquals("Delete non-existent Scope", true, e.getCause() instanceof StoreException);
-            assertEquals("Delete non-existent Scope", NODE_NOT_FOUND, ((StoreException) e.getCause()).getType());
-        }
+        CompletableFuture<DeleteScopeStatus> deleteScopeStatus2 = store.deleteScope("Scope2");
+        assertEquals("Delete non-existent Scope", DeleteScopeStatus.SCOPE_NOT_FOUND, deleteScopeStatus2.get());
 
         // Delete non-empty scope Scope3
         store.createScope("Scope3").get();
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
         final StreamConfigurationImpl streamConfig = new StreamConfigurationImpl("Scope3", "Stream3", policy);
         store.createStream("Scope3", "Stream3", streamConfig, System.currentTimeMillis()).get();
-
-        CompletableFuture<Void> deleteScopeStatus3 = store.deleteScope("Scope3");
-        try {
-            deleteScopeStatus3.get();
-        } catch (ExecutionException | CompletionException e) {
-            assertEquals("Delete non-empty Scope", true, e.getCause() instanceof StoreException);
-            assertEquals("Delete non-empty Scope", NODE_NOT_EMPTY, ((StoreException) e.getCause()).getType());
-        }
+        CompletableFuture<DeleteScopeStatus> deleteScopeStatus3 = store.deleteScope("Scope3");
+        assertEquals("Delete non-empty Scope", DeleteScopeStatus.SCOPE_NOT_EMPTY, deleteScopeStatus3.get());
     }
 
     @Test

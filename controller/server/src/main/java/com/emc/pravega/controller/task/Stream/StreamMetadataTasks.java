@@ -36,7 +36,6 @@ import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -56,7 +55,6 @@ import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
 
-import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_EMPTY;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
 
 /**
@@ -111,34 +109,6 @@ public class StreamMetadataTasks extends TaskBase {
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream, config},
                 () -> createStreamBody(scope, stream, config, createTimestamp));
-    }
-
-    /**
-     * Delete a scope.
-     *
-     * @param scope Name of scope to be deleted.
-     * @return Status of delete scope.
-     */
-    @Task(name = "deleteScope", version = "1.0", resource = "{scope}")
-    public CompletableFuture<DeleteScopeStatus> deleteScope(String scope) {
-        return streamMetadataStore.deleteScope(scope)
-                .handle((result, ex) -> {
-                    if (ex != null) {
-                        if ((ex.getCause() instanceof StoreException &&
-                                ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) ||
-                                (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_FOUND))) {
-                            return DeleteScopeStatus.SCOPE_NOT_FOUND;
-                        } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_EMPTY ||
-                                (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_EMPTY))) {
-                            return DeleteScopeStatus.SCOPE_NOT_EMPTY;
-                        } else {
-                            log.debug("DeleteScope failed due to {} ", ex);
-                            return DeleteScopeStatus.FAILURE;
-                        }
-                    } else {
-                        return DeleteScopeStatus.SUCCESS;
-                    }
-                });
     }
 
     /**

@@ -233,6 +233,6 @@ public class ControllerService {
      * @return Status of delete scope.
      */
     public CompletableFuture<DeleteScopeStatus> deleteScope(final String scope) {
-        return streamMetadataTasks.deleteScope(scope);
+        return streamStore.deleteScope(scope);
     }
 }

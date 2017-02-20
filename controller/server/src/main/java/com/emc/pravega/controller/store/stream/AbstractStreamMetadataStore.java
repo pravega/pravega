@@ -26,6 +26,7 @@ import com.emc.pravega.common.metrics.StatsProvider;
 import com.emc.pravega.controller.server.MetricNames;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.cache.CacheBuilder;
@@ -52,6 +53,8 @@ import static com.emc.pravega.controller.server.MetricNames.CREATE_TRANSACTION;
 import static com.emc.pravega.controller.server.MetricNames.OPEN_TRANSACTIONS;
 import static com.emc.pravega.controller.server.MetricNames.nameFromStream;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_EMPTY;
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
 
 /**
  * Abstract Stream metadata store. It implements various read queries using the Stream interface.
@@ -135,7 +138,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      * Create a scope with given name.
      *
      * @param scopeName Name of scope to created.
-     * @return null on success and exception on failure.
+     * @return CreateScopeStatus future.
      */
     @Override
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
@@ -167,11 +170,28 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      * Delete a scope with given name.
      *
      * @param scopeName Name of scope to be deleted
-     * @return null on success and exception on failure.
+     * @return DeleteScopeStatus future.
      */
     @Override
-    public CompletableFuture<Void> deleteScope(final String scopeName) {
-        return getScope(scopeName).deleteScope();
+    public CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName) {
+        return getScope(scopeName).deleteScope()
+                .handle((result, ex) -> {
+                    if (ex != null) {
+                        if ((ex.getCause() instanceof StoreException &&
+                                ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) ||
+                                (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_FOUND))) {
+                            return DeleteScopeStatus.SCOPE_NOT_FOUND;
+                        } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_EMPTY ||
+                                (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_EMPTY))) {
+                            return DeleteScopeStatus.SCOPE_NOT_EMPTY;
+                        } else {
+                            log.debug("DeleteScope failed due to {} ", ex);
+                            return DeleteScopeStatus.FAILURE;
+                        }
+                    } else {
+                        return DeleteScopeStatus.SUCCESS;
+                    }
+                });
     }
 
     /**

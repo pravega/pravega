@@ -20,6 +20,7 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
@@ -94,22 +95,19 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public synchronized CompletableFuture<Void> deleteScope(String scopeName) {
+    public synchronized CompletableFuture<DeleteScopeStatus> deleteScope(String scopeName) {
         if (scopes.containsKey(scopeName)) {
-            return scopes.get(scopeName).listStreamsInScope().thenCompose(streams -> {
+            return scopes.get(scopeName).listStreamsInScope().thenApply(streams -> {
                 if (streams.size() == 0) {
-                    CompletableFuture<Void> result;
-                    result = scopes.get(scopeName).deleteScope();
+                    scopes.get(scopeName).deleteScope();
                     scopes.remove(scopeName);
-                    return result;
+                    return DeleteScopeStatus.SUCCESS;
                 } else {
-                    return FutureHelpers.
-                            failedFuture(new StoreException(StoreException.Type.NODE_NOT_EMPTY, "Scope not empty."));
+                    return DeleteScopeStatus.SCOPE_NOT_EMPTY;
                 }
             });
-
         } else {
-            return FutureHelpers.failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
+            return CompletableFuture.completedFuture(DeleteScopeStatus.SCOPE_NOT_FOUND);
         }
     }
 
