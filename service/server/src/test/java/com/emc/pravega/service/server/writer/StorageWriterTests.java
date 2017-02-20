@@ -158,6 +158,13 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                 },
                 ex -> ex instanceof IllegalStateException);
 
+        // The previous error could be thrown either while starting or while shutting down. In case of the former,
+        // we should wait until the writer is properly terminated.
+        AssertExtensions.assertThrows(
+                "StorageWriter did not fail when a fatal data retrieval error occurred.",
+                () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
+                ex -> ex instanceof IllegalStateException);
+
         Assert.assertTrue("Unexpected failure cause for StorageWriter: " + context.writer.failureCause(), ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof DataCorruptionException);
     }
 
