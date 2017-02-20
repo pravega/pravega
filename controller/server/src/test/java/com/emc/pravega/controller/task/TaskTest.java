@@ -142,7 +142,7 @@ public class TaskTest {
             assertTrue(e.getCause() instanceof StreamAlreadyExistsException);
         }
 
-        streamMetadataTasks.createScope(SCOPE);
+        streamStore.createScope(SCOPE);
         CreateStreamStatus result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
                 System.currentTimeMillis()).join();
         assertEquals(result, CreateStreamStatus.SUCCESS);

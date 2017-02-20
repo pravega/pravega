@@ -36,7 +36,6 @@ import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
@@ -57,7 +56,6 @@ import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
 
-import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_EMPTY;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
 
@@ -113,21 +111,6 @@ public class StreamMetadataTasks extends TaskBase {
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream, config},
                 () -> createStreamBody(scope, stream, config, createTimestamp));
-    }
-
-    /**
-     * Create Scope.
-     *
-     * @param scope Name of scope to created.
-     * @return Status of create scope.
-     */
-    @Task(name = "createScope", version = "1.0", resource = "{scope}")
-    public CompletableFuture<CreateScopeStatus> createScope(String scope) {
-        return execute(
-                new Resource(scope),
-                new Serializable[]{scope},
-                () -> createScopeBody(scope)
-        );
     }
 
     /**
@@ -235,31 +218,6 @@ public class StreamMetadataTasks extends TaskBase {
                             }
                         } else {
                             return result;
-                        }
-                    });
-        }
-    }
-
-    private CompletableFuture<CreateScopeStatus> createScopeBody(String scope) {
-        if (!validateZNodeName(scope)) {
-            log.debug("Create scope failed due to invalid scope name {}", scope);
-            return CompletableFuture.completedFuture(CreateScopeStatus.FAILURE);
-        } else {
-            return streamMetadataStore.createScope(scope)
-                    .handle((result, ex) -> {
-                        if (ex != null) {
-                            if (ex.getCause() instanceof StoreException &&
-                                    ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
-                                return CreateScopeStatus.SCOPE_EXISTS;
-                            } else if (ex instanceof StoreException &&
-                                    ((StoreException) ex).getType() == NODE_EXISTS) {
-                                return CreateScopeStatus.SCOPE_EXISTS;
-                            } else {
-                                log.debug("Create scope failed due to ", ex);
-                                return CreateScopeStatus.FAILURE;
-                            }
-                        } else {
-                            return CreateScopeStatus.SUCCESS;
                         }
                     });
         }

@@ -19,7 +19,9 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
 
 import java.util.ArrayList;
@@ -31,6 +33,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * In-memory stream store.
  */
+@Slf4j
 public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     private final Map<String, InMemoryStream> streams = new HashMap<>();
@@ -74,14 +77,19 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public synchronized CompletableFuture<Void> createScope(String scopeName) {
-        if (!scopes.containsKey(scopeName)) {
-            InMemoryScope scope = new InMemoryScope(scopeName);
-            scope.createScope();
-            scopes.put(scopeName, scope);
-            return CompletableFuture.completedFuture(null);
+    public synchronized CompletableFuture<CreateScopeStatus> createScope(String scopeName) {
+        if (!validateZNodeName(scopeName)) {
+            log.debug("Create scope failed due to invalid scope name {}", scopeName);
+            return CompletableFuture.completedFuture(CreateScopeStatus.FAILURE);
         } else {
-            return FutureHelpers.failedFuture(new StoreException(StoreException.Type.NODE_EXISTS, "Scope Exists"));
+            if (!scopes.containsKey(scopeName)) {
+                InMemoryScope scope = new InMemoryScope(scopeName);
+                scope.createScope();
+                scopes.put(scopeName, scope);
+                return CompletableFuture.completedFuture(CreateScopeStatus.SUCCESS);
+            } else {
+                return CompletableFuture.completedFuture(CreateScopeStatus.SCOPE_EXISTS);
+            }
         }
     }
 

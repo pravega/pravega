@@ -223,7 +223,7 @@ public class ControllerService {
      * @return Status of create scope.
      */
     public CompletableFuture<CreateScopeStatus> createScope(final String scope) {
-        return streamMetadataTasks.createScope(scope);
+        return streamStore.createScope(scope);
     }
 
     /**

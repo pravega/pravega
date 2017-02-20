@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 
@@ -52,7 +53,7 @@ public interface StreamMetadataStore {
      * @param scope Scope name
      * @return null on success and exception on failure.
      */
-    CompletableFuture<Void> createScope(final String scope);
+    CompletableFuture<CreateScopeStatus> createScope(final String scope);
 
     /**
      * Deletes a Scope if contains no streams.

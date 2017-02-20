@@ -19,6 +19,7 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -78,10 +79,10 @@ public class ZkStreamTest {
         // create new scope test
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String scopeName = "Scope1";
-        CompletableFuture<Void> createScopeStatus = store.createScope(scopeName);
+        CompletableFuture<CreateScopeStatus> createScopeStatus = store.createScope(scopeName);
 
         // createScope returns null on success, and exception on failure
-        assertEquals("Create new scope :", null, createScopeStatus.get());
+        assertEquals("Create new scope :", CreateScopeStatus.SUCCESS, createScopeStatus.get());
 
         // create duplicate scope test
         createScopeStatus = store.createScope(scopeName);

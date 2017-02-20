@@ -25,11 +25,13 @@ import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.metrics.StatsProvider;
 import com.emc.pravega.controller.server.MetricNames;
 import com.emc.pravega.controller.store.stream.tables.State;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.AbstractMap;
 import java.util.Collections;
@@ -49,11 +51,13 @@ import static com.emc.pravega.controller.server.MetricNames.COMMIT_TRANSACTION;
 import static com.emc.pravega.controller.server.MetricNames.CREATE_TRANSACTION;
 import static com.emc.pravega.controller.server.MetricNames.OPEN_TRANSACTIONS;
 import static com.emc.pravega.controller.server.MetricNames.nameFromStream;
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
 
 /**
  * Abstract Stream metadata store. It implements various read queries using the Stream interface.
  * Implementation of create and update queries are delegated to the specific implementations of this abstract class.
  */
+@Slf4j
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
     protected static final StatsProvider METRICS_PROVIDER = MetricsProvider.getMetricsProvider();
@@ -134,8 +138,29 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      * @return null on success and exception on failure.
      */
     @Override
-    public CompletableFuture<Void> createScope(final String scopeName) {
-        return getScope(scopeName).createScope();
+    public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
+        if (!validateZNodeName(scopeName)) {
+            log.debug("Create scope failed due to invalid scope name {}", scopeName);
+            return CompletableFuture.completedFuture(CreateScopeStatus.FAILURE);
+        } else {
+            return getScope(scopeName).createScope()
+                    .handle((result, ex) -> {
+                        if (ex != null) {
+                            if (ex.getCause() instanceof StoreException &&
+                                    ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
+                                return CreateScopeStatus.SCOPE_EXISTS;
+                            } else if (ex instanceof StoreException &&
+                                    ((StoreException) ex).getType() == NODE_EXISTS) {
+                                return CreateScopeStatus.SCOPE_EXISTS;
+                            } else {
+                                log.debug("Create scope failed due to ", ex);
+                                return CreateScopeStatus.FAILURE;
+                            }
+                        } else {
+                            return CreateScopeStatus.SUCCESS;
+                        }
+                    });
+        }
     }
 
     /**
@@ -344,5 +369,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         CompletableFuture<List<Integer>> futureSuccessors = stream.getSuccessors(number);
         return futureSuccessors.thenCompose(
                 list -> FutureHelpers.filter(list, elem -> stream.getPredecessors(elem).thenApply(x -> x.size() == 1)));
+    }
+
+    static boolean validateZNodeName(final String path) {
+        return (path.indexOf('\\') >= 0 || path.indexOf('/') >= 0) ? false : true;
     }
 }
