@@ -109,7 +109,7 @@ public class FlinkPravegaReaderTest {
         Collections.sort(integers);
 
         Preconditions.checkState(integers.size() == NUM_STREAM_ELEMENTS,
-                                 "{} not equal to {}", integers.size(), NUM_STREAM_ELEMENTS);
+                                 "integers.size() != NUM_STREAM_ELEMENTS", integers.size(), NUM_STREAM_ELEMENTS);
         Preconditions.checkState(integers.get(0) == 0);
         Preconditions.checkState(integers.get(NUM_STREAM_ELEMENTS - 1) == (NUM_STREAM_ELEMENTS - 1));
     }
