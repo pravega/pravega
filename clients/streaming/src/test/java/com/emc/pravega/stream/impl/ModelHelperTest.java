@@ -36,7 +36,7 @@ public class ModelHelperTest {
                                   .scope("scope")
                                   .streamName(name)
                                   .scalingPolicy(createScalingPolicy())
-                                  .retentionPolicy(RetentionPolicy.ofTimeMillis(Long.MAX_VALUE))
+                                  .retentionPolicy(RetentionPolicy.builder().build())
                                   .build();
     }
 

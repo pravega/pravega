@@ -66,7 +66,7 @@ public class StreamMetaDataTests extends JerseyTest {
     private final StreamResponse streamResponseExpected = new StreamResponse(
             new StreamProperty(scope1, stream1, scalingPolicyCommon, retentionPolicyCommon));
     private final StreamConfiguration streamConfiguration = StreamConfiguration.builder().scope(scope1).streamName(stream1).scalingPolicy(
-            new ScalingPolicy(FIXED_NUM_SEGMENTS, 100L, 2, 2)).retentionPolicy(RetentionPolicy.ofTimeMillis(123L)).build();
+            new ScalingPolicy(FIXED_NUM_SEGMENTS, 100L, 2, 2)).retentionPolicy(RetentionPolicy.builder().retentionTimeMillis(123L).build()).build();
 
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest(
             stream1, scalingPolicyCommon, retentionPolicyCommon);

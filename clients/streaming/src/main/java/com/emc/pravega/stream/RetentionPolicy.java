@@ -14,8 +14,4 @@ import lombok.Data;
 @Builder
 public class RetentionPolicy implements Serializable {
     private final long retentionTimeMillis;
-    
-    public static RetentionPolicy ofTimeMillis(long timeMillis) {
-        return new RetentionPolicy(timeMillis);
-    }
 }
