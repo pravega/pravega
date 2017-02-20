@@ -21,6 +21,13 @@ import java.util.List;
  */
 public interface StreamManager extends AutoCloseable {
 
+    /**
+     * Creates a new instance of StreamManager.
+     *
+     * @param scope The Scope string.
+     * @param controllerUri The Controller URI.
+     * @return Instance of Stream Manager implementation.
+     */
     public static StreamManager withScope(String scope, URI controllerUri) {
         return new StreamManagerImpl(scope, controllerUri, ClientFactory.withScope(scope, controllerUri));
     }
@@ -39,13 +46,12 @@ public interface StreamManager extends AutoCloseable {
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ReaderGroup.
      * @param streamNames The name of the streams the reader will read from.
+     * @return Newly created ReaderGroup object
      */
     ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames);
     
     /**
-     * Updates a reader group.
-     * 
-     * All existing readers will have to call
+     * Updates a reader group. All existing readers will have to call
      * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)} . If they continue to read
      * events they will eventually encounter an {@link ReinitializationRequiredException}.
      * 
@@ -55,6 +61,7 @@ public interface StreamManager extends AutoCloseable {
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ReaderGroup.
      * @param streamNames The name of the streams the reader will read from.
+     * @return ReaderGroup with updated configuration
      */
     ReaderGroup alterReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames);
     
@@ -62,6 +69,7 @@ public interface StreamManager extends AutoCloseable {
      * Returns the requested reader group.
      * 
      * @param groupName The name of the group
+     * @return Reader group with the given name
      */
     ReaderGroup getReaderGroup(String groupName);
     

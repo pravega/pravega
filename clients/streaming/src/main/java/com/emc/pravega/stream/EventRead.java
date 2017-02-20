@@ -18,7 +18,9 @@ package com.emc.pravega.stream;
 public interface EventRead<T> {
     
     /**
-     * Returns the event or null if a checkpoint was requested.
+     * Returns the event that is wrapped in this EventRead or null if a checkpoint was requested.
+     *
+     * @return The event itself.
      */
     T getEvent();
 
@@ -26,6 +28,8 @@ public interface EventRead<T> {
      * The position in the stream that represents where the reader is immediately following this
      * event. It is useful to store this so that
      * {@link ReaderGroup#readerOffline(String, Position)} can be called if the reader dies.
+     *
+     * @return Position of the event
      */
     Position getPosition();
 
