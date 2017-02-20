@@ -94,7 +94,8 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
         this.deserializationSchema = deserializationSchema;
         this.readerGroupName = "flink" + RandomStringUtils.randomAlphanumeric(10).toLowerCase();
 
-        // TODO: This will require the client to have access to the pravega controller and handle temporary errors.
+        // TODO: This will require the client to have access to the pravega controller and handle any temporary errors.
+        //       See https://github.com/pravega/pravega/issues/553.
         log.info("Creating reader group: {} for the flink job", this.readerGroupName);
         StreamManager.withScope(scope, controllerURI)
                 .createReaderGroup(this.readerGroupName, ReaderGroupConfig.builder().startingTime(startTime).build(),
@@ -109,7 +110,8 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
             if (eventRead.getEvent() != null) {
                 if (this.deserializationSchema.isEndOfStream(eventRead.getEvent())) {
                     // Found stream end marker.
-                    // TODO: Handle scenario when reading from multiple segments.
+                    // TODO: Handle scenario when reading from multiple segments. This will be cleaned up as part of:
+                    //       https://github.com/pravega/pravega/issues/551.
                     log.info("Reached end of stream for reader: {}", this.readerId);
                     return;
                 }
