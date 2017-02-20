@@ -7,15 +7,13 @@ package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.AttributeUpdate;
-import com.emc.pravega.service.contracts.AttributeUpdateType;
+import com.emc.pravega.service.server.AttributeSerializer;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.UUID;
 
 /**
  * Log Operation that represents a StreamSegment Append. This operation, as opposed from CachedStreamSegmentAppendOperation,
@@ -24,7 +22,6 @@ import java.util.UUID;
 public class StreamSegmentAppendOperation extends StorageOperation {
     //region Members
 
-    public static final byte OPERATION_TYPE = 1;
     private static final long NO_OFFSET = -1;
     private static final byte CURRENT_VERSION = 0;
     private long streamSegmentOffset;
@@ -114,8 +111,8 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     }
 
     @Override
-    protected byte getOperationType() {
-        return OPERATION_TYPE;
+    protected OperationType getOperationType() {
+        return OperationType.Append;
     }
 
     @Override
@@ -127,18 +124,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         target.writeLong(this.streamSegmentOffset);
         target.writeInt(data.length);
         target.write(data, 0, data.length);
-
-        // Attributes.
-        target.writeShort(this.attributeUpdates == null ? 0 : this.attributeUpdates.size());
-        if (this.attributeUpdates != null) {
-            for (AttributeUpdate au : this.attributeUpdates) {
-                UUID attributeId = au.getAttributeId();
-                target.writeLong(attributeId.getMostSignificantBits());
-                target.writeLong(attributeId.getLeastSignificantBits());
-                target.writeByte(au.getUpdateType().getTypeId());
-                target.writeLong(au.getValue());
-            }
-        }
+        AttributeSerializer.serializeUpdates(this.attributeUpdates, target);
     }
 
     @Override
@@ -150,20 +136,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         this.data = new byte[dataLength];
         int bytesRead = StreamHelpers.readAll(source, this.data, 0, this.data.length);
         assert bytesRead == this.data.length : "StreamHelpers.readAll did not read all the bytes requested.";
-
-        // Read attributeUpdates.
-        short attributeCount = source.readShort();
-        if (attributeCount > 0) {
-            this.attributeUpdates = new ArrayList<>(attributeCount);
-            for (int i = 0; i < attributeCount; i++) {
-                long idMostSig = source.readLong();
-                long idLeastSig = source.readLong();
-                UUID attributeId = new UUID(idMostSig, idLeastSig);
-                AttributeUpdateType updateType = AttributeUpdateType.get(source.readByte());
-                long value = source.readLong();
-                this.attributeUpdates.add(new AttributeUpdate(attributeId, updateType, value));
-            }
-        }
+        this.attributeUpdates = AttributeSerializer.deserializeUpdates(source);
     }
 
     @Override

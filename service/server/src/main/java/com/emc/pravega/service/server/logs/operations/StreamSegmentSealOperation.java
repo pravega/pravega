@@ -18,7 +18,6 @@ import java.io.IOException;
 public class StreamSegmentSealOperation extends StorageOperation {
     //region Members
 
-    public static final byte OPERATION_TYPE = 2;
     private static final byte CURRENT_VERSION = 0;
     private long streamSegmentOffset;
 
@@ -69,8 +68,8 @@ public class StreamSegmentSealOperation extends StorageOperation {
     }
 
     @Override
-    protected byte getOperationType() {
-        return OPERATION_TYPE;
+    protected OperationType getOperationType() {
+        return OperationType.Seal;
     }
 
     @Override
