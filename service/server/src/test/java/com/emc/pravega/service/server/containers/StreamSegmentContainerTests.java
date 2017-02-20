@@ -27,6 +27,7 @@ import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.SegmentMetadata;
+import com.emc.pravega.service.server.SegmentMetadataComparer;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
@@ -58,6 +59,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -71,7 +73,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int SEGMENT_COUNT = 100;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
-    private static final int CLIENT_COUNT = 10;
     private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
     private static final Duration TIMEOUT = Duration.ofSeconds(100);
@@ -99,7 +100,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the createSegment, append, read, getSegmentInfo, getLastAppendContext.
+     * Tests the createSegment, append, read, getSegmentInfo, getActiveSegments.
      */
     @Test
     public void testSegmentRegularOperations() throws Exception {
@@ -109,9 +110,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext();
         context.container.startAsync().awaitRunning();
+        checkActiveSegments(context.container, 0);
 
         // 1. Create the StreamSegments.
         ArrayList<String> segmentNames = createSegments(context);
+        checkActiveSegments(context.container, segmentNames.size());
 
         // 2. Add some appends.
         ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
@@ -150,6 +153,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected value for attribute " + attributeReplaceIfGreater + " for segment " + segmentName,
                     APPENDS_PER_SEGMENT, (long) sp.getAttributes().getOrDefault(attributeReplaceIfGreater, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
         }
+
+        checkActiveSegments(context.container, segmentNames.size());
 
         // 4. Reads (regular reads, not tail reads).
         checkReadIndex(segmentContents, lengths, context);
@@ -658,6 +663,19 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
 
             Assert.assertTrue("ReadResult was not closed post-full-consumption for segment" + segmentName, readResult.isClosed());
+        }
+    }
+
+    private void checkActiveSegments(SegmentContainer container, int expectedCount) {
+        val initialActiveSegments = container.getActiveSegments();
+        Assert.assertEquals("Unexpected result from getActiveSegments with freshly created segments.", expectedCount, initialActiveSegments.size());
+        for (SegmentProperties sp : initialActiveSegments) {
+            val expectedSp = container.getStreamSegmentInfo(sp.getName(), false, TIMEOUT).join();
+            Assert.assertEquals("Unexpected length (from getActiveSegments) for segment " + sp.getName(), expectedSp.getLength(), sp.getLength());
+            Assert.assertEquals("Unexpected sealed (from getActiveSegments) for segment " + sp.getName(), expectedSp.isSealed(), sp.isSealed());
+            Assert.assertEquals("Unexpected deleted (from getActiveSegments) for segment " + sp.getName(), expectedSp.isDeleted(), sp.isDeleted());
+            SegmentMetadataComparer.assertSameAttributes("Unexpected attributes (from getActiveSegments) for segment " + sp.getName(),
+                    expectedSp.getAttributes(), sp);
         }
     }
 

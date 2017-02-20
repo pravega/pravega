@@ -10,11 +10,9 @@ import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
-import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.MetadataRepository;
@@ -40,14 +38,15 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -233,16 +232,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             segmentIdRetriever = this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining());
         }
 
-        return segmentIdRetriever
-                .thenApply(streamSegmentId -> {
-                    SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-                    return new StreamSegmentInformation(streamSegmentName,
-                            sm.getDurableLogLength(),
-                            sm.isSealed(),
-                            sm.isDeleted(),
-                            new HashMap<>(sm.getAttributes()),
-                            new ImmutableDate());
-                });
+        return segmentIdRetriever.thenApply(streamSegmentId -> this.metadata.getStreamSegmentMetadata(streamSegmentId).getSnapshot());
     }
 
     @Override
@@ -318,6 +308,25 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     return this.durableLog.add(operation.get(), timer.getRemaining());
                 })
                 .thenApply(seqNo -> operation.get().getStreamSegmentOffset());
+    }
+
+    //endregion
+
+    //region SegmentContainer Implementation
+
+    @Override
+    public Collection<SegmentProperties> getActiveSegments() {
+        ensureRunning();
+        logRequest("getActiveSegments");
+
+        // To reduce locking in the metadata, we first get
+        return this.metadata
+                .getAllStreamSegmentIds()
+                .stream()
+                .map(this.metadata::getStreamSegmentMetadata)
+                .filter(Objects::nonNull)
+                .map(SegmentMetadata::getSnapshot)
+                .collect(Collectors.toList());
     }
 
     //endregion

@@ -269,6 +269,11 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
             return null;
         }
 
+        @Override
+        public Collection<SegmentProperties> getActiveSegments() {
+            return null;
+        }
+
         //endregion
     }
 
