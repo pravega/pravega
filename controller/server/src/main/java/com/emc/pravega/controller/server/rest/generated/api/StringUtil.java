@@ -1,4 +1,4 @@
-package com.emc.pravega.controller.server.rest.generated.invoker;
+package com.emc.pravega.controller.server.rest.generated;
 
 
 public class StringUtil {

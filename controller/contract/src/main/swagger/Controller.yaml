@@ -30,9 +30,9 @@ paths:
               streamName:
                 type: string
               scalingPolicy:
-                  $ref: "#/definitions/ScalingPolicy"
+                  $ref: "#/definitions/ScalingConfig"
               retentionPolicy:
-                  $ref: "#/definitions/RetentionPolicy"
+                  $ref: "#/definitions/RetentionConfig"
       produces:
         - application/json
       responses:
@@ -83,9 +83,9 @@ paths:
             type: object
             properties:
               scalingPolicy:
-                  $ref: "#/definitions/ScalingPolicy"
+                  $ref: "#/definitions/ScalingConfig"
               retentionPolicy:
-                  $ref: "#/definitions/RetentionPolicy"
+                  $ref: "#/definitions/RetentionConfig"
       produces:
         - application/json
       responses:
@@ -107,10 +107,10 @@ definitions:
       name:
         type: string
       scalingPolicy:
-          $ref: "#/definitions/ScalingPolicy"
+          $ref: "#/definitions/ScalingConfig"
       retentionPolicy:
-          $ref: "#/definitions/RetentionPolicy"
-  ScalingPolicy:
+          $ref: "#/definitions/RetentionConfig"
+  ScalingConfig:
     type: object
     properties:
       type:
@@ -128,7 +128,7 @@ definitions:
       minNumSegments:
         type: integer
         format: int32
-  RetentionPolicy:
+  RetentionConfig:
     type: object
     properties:
       retentionTimeMillis:

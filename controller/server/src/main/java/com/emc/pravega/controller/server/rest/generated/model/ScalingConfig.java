@@ -11,10 +11,10 @@ import io.swagger.annotations.ApiModelProperty;
 
 
 /**
- * ScalingPolicy
+ * ScalingConfig
  */
 
-public class ScalingPolicy   {
+public class ScalingConfig   {
   /**
    * Gets or Sets type
    */
@@ -45,7 +45,7 @@ public class ScalingPolicy   {
 
   private Integer minNumSegments = null;
 
-  public ScalingPolicy type(TypeEnum type) {
+  public ScalingConfig type(TypeEnum type) {
     this.type = type;
     return this;
   }
@@ -63,7 +63,7 @@ public class ScalingPolicy   {
     this.type = type;
   }
 
-  public ScalingPolicy targetRate(Long targetRate) {
+  public ScalingConfig targetRate(Long targetRate) {
     this.targetRate = targetRate;
     return this;
   }
@@ -81,7 +81,7 @@ public class ScalingPolicy   {
     this.targetRate = targetRate;
   }
 
-  public ScalingPolicy scaleFactor(Integer scaleFactor) {
+  public ScalingConfig scaleFactor(Integer scaleFactor) {
     this.scaleFactor = scaleFactor;
     return this;
   }
@@ -99,7 +99,7 @@ public class ScalingPolicy   {
     this.scaleFactor = scaleFactor;
   }
 
-  public ScalingPolicy minNumSegments(Integer minNumSegments) {
+  public ScalingConfig minNumSegments(Integer minNumSegments) {
     this.minNumSegments = minNumSegments;
     return this;
   }
@@ -126,11 +126,11 @@ public class ScalingPolicy   {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    ScalingPolicy scalingPolicy = (ScalingPolicy) o;
-    return Objects.equals(this.type, scalingPolicy.type) &&
-        Objects.equals(this.targetRate, scalingPolicy.targetRate) &&
-        Objects.equals(this.scaleFactor, scalingPolicy.scaleFactor) &&
-        Objects.equals(this.minNumSegments, scalingPolicy.minNumSegments);
+    ScalingConfig scalingConfig = (ScalingConfig) o;
+    return Objects.equals(this.type, scalingConfig.type) &&
+        Objects.equals(this.targetRate, scalingConfig.targetRate) &&
+        Objects.equals(this.scaleFactor, scalingConfig.scaleFactor) &&
+        Objects.equals(this.minNumSegments, scalingConfig.minNumSegments);
   }
 
   @Override
@@ -141,7 +141,7 @@ public class ScalingPolicy   {
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class ScalingPolicy {\n");
+    sb.append("class ScalingConfig {\n");
     
     sb.append("    type: ").append(toIndentedString(type)).append("\n");
     sb.append("    targetRate: ").append(toIndentedString(targetRate)).append("\n");

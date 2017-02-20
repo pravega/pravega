@@ -1,8 +1,8 @@
 package com.emc.pravega.controller.server.rest.generated.model;
 
 import java.util.Objects;
-import com.emc.pravega.controller.server.rest.generated.model.RetentionPolicy;
-import com.emc.pravega.controller.server.rest.generated.model.ScalingPolicy;
+import com.emc.pravega.controller.server.rest.generated.model.RetentionConfig;
+import com.emc.pravega.controller.server.rest.generated.model.ScalingConfig;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import io.swagger.annotations.ApiModel;
@@ -16,11 +16,11 @@ import io.swagger.annotations.ApiModelProperty;
  */
 
 public class UpdateStreamRequest   {
-  private ScalingPolicy scalingPolicy = null;
+  private ScalingConfig scalingPolicy = null;
 
-  private RetentionPolicy retentionPolicy = null;
+  private RetentionConfig retentionPolicy = null;
 
-  public UpdateStreamRequest scalingPolicy(ScalingPolicy scalingPolicy) {
+  public UpdateStreamRequest scalingPolicy(ScalingConfig scalingPolicy) {
     this.scalingPolicy = scalingPolicy;
     return this;
   }
@@ -30,15 +30,15 @@ public class UpdateStreamRequest   {
    * @return scalingPolicy
   **/
   @ApiModelProperty(value = "")
-  public ScalingPolicy getScalingPolicy() {
+  public ScalingConfig getScalingPolicy() {
     return scalingPolicy;
   }
 
-  public void setScalingPolicy(ScalingPolicy scalingPolicy) {
+  public void setScalingPolicy(ScalingConfig scalingPolicy) {
     this.scalingPolicy = scalingPolicy;
   }
 
-  public UpdateStreamRequest retentionPolicy(RetentionPolicy retentionPolicy) {
+  public UpdateStreamRequest retentionPolicy(RetentionConfig retentionPolicy) {
     this.retentionPolicy = retentionPolicy;
     return this;
   }
@@ -48,11 +48,11 @@ public class UpdateStreamRequest   {
    * @return retentionPolicy
   **/
   @ApiModelProperty(value = "")
-  public RetentionPolicy getRetentionPolicy() {
+  public RetentionConfig getRetentionPolicy() {
     return retentionPolicy;
   }
 
-  public void setRetentionPolicy(RetentionPolicy retentionPolicy) {
+  public void setRetentionPolicy(RetentionConfig retentionPolicy) {
     this.retentionPolicy = retentionPolicy;
   }
 

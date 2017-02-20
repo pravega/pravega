@@ -6,6 +6,8 @@
 package com.emc.pravega.controller.server.rest;
 
 import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import com.emc.pravega.controller.server.rest.generated.model.RetentionConfig;
+import com.emc.pravega.controller.server.rest.generated.model.ScalingConfig;
 import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.stream.RetentionPolicy;
@@ -69,16 +71,13 @@ public class ModelHelper {
      */
     public static final StreamProperty encodeStreamResponse(final StreamConfiguration streamConfiguration) {
 
-        com.emc.pravega.controller.server.rest.generated.model.ScalingPolicy scalingPolicy =
-                new com.emc.pravega.controller.server.rest.generated.model.ScalingPolicy();
-        scalingPolicy.setType(com.emc.pravega.controller.server.rest.generated.model.ScalingPolicy.TypeEnum.valueOf(
-                streamConfiguration.getScalingPolicy().getType().name()));
+        ScalingConfig scalingPolicy = new ScalingConfig();
+        scalingPolicy.setType(ScalingConfig.TypeEnum.valueOf(streamConfiguration.getScalingPolicy().getType().name()));
         scalingPolicy.setTargetRate(streamConfiguration.getScalingPolicy().getTargetRate());
         scalingPolicy.setScaleFactor(streamConfiguration.getScalingPolicy().getScaleFactor());
         scalingPolicy.setMinNumSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
 
-        com.emc.pravega.controller.server.rest.generated.model.RetentionPolicy retentionPolicy =
-                new com.emc.pravega.controller.server.rest.generated.model.RetentionPolicy();
+        RetentionConfig retentionPolicy = new RetentionConfig();
         retentionPolicy.setRetentionTimeMillis(streamConfiguration.getRetentionPolicy().getRetentionTimeMillis());
 
         StreamProperty streamProperty = new StreamProperty();

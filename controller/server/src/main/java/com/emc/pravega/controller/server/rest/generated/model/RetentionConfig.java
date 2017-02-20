@@ -10,13 +10,13 @@ import io.swagger.annotations.ApiModelProperty;
 
 
 /**
- * RetentionPolicy
+ * RetentionConfig
  */
 
-public class RetentionPolicy   {
+public class RetentionConfig   {
   private Long retentionTimeMillis = null;
 
-  public RetentionPolicy retentionTimeMillis(Long retentionTimeMillis) {
+  public RetentionConfig retentionTimeMillis(Long retentionTimeMillis) {
     this.retentionTimeMillis = retentionTimeMillis;
     return this;
   }
@@ -43,8 +43,8 @@ public class RetentionPolicy   {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    RetentionPolicy retentionPolicy = (RetentionPolicy) o;
-    return Objects.equals(this.retentionTimeMillis, retentionPolicy.retentionTimeMillis);
+    RetentionConfig retentionConfig = (RetentionConfig) o;
+    return Objects.equals(this.retentionTimeMillis, retentionConfig.retentionTimeMillis);
   }
 
   @Override
@@ -55,7 +55,7 @@ public class RetentionPolicy   {
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class RetentionPolicy {\n");
+    sb.append("class RetentionConfig {\n");
     
     sb.append("    retentionTimeMillis: ").append(toIndentedString(retentionTimeMillis)).append("\n");
     sb.append("}");

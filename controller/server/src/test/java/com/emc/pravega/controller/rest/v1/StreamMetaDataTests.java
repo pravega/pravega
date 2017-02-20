@@ -6,6 +6,8 @@
 package com.emc.pravega.controller.rest.v1;
 
 import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import com.emc.pravega.controller.server.rest.generated.model.RetentionConfig;
+import com.emc.pravega.controller.server.rest.generated.model.ScalingConfig;
 import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
@@ -56,12 +58,9 @@ public class StreamMetaDataTests extends JerseyTest {
     private final String resourceURI = "v1/scopes/" + scope1 + "/streams/" + stream1;
     private final String resourceURI2 = "v1/scopes/" + scope1 + "/streams/" + stream2;
     private final String streamResourceURI = "v1/scopes/" + scope1 + "/streams";
-    private final com.emc.pravega.controller.server.rest.generated.model.ScalingPolicy scalingPolicyCommon =
-            new com.emc.pravega.controller.server.rest.generated.model.ScalingPolicy();
-    private final com.emc.pravega.controller.server.rest.generated.model.RetentionPolicy retentionPolicyCommon =
-            new com.emc.pravega.controller.server.rest.generated.model.RetentionPolicy();
-    private final com.emc.pravega.controller.server.rest.generated.model.RetentionPolicy retentionPolicyCommon2 =
-            new com.emc.pravega.controller.server.rest.generated.model.RetentionPolicy();
+    private final ScalingConfig scalingPolicyCommon = new ScalingConfig();
+    private final RetentionConfig retentionPolicyCommon = new RetentionConfig();
+    private final RetentionConfig retentionPolicyCommon2 = new RetentionConfig();
     private final StreamProperty streamResponseExpected = new StreamProperty();
     private final StreamConfiguration streamConfiguration = new StreamConfigurationImpl(
             scope1, stream1, new ScalingPolicy(FIXED_NUM_SEGMENTS, 100L, 2, 2), new RetentionPolicy(123L));
@@ -89,8 +88,7 @@ public class StreamMetaDataTests extends JerseyTest {
 
     @Before
     public void initialize() {
-        scalingPolicyCommon.setType(
-                com.emc.pravega.controller.server.rest.generated.model.ScalingPolicy.TypeEnum.FIXED_NUM_SEGMENTS);
+        scalingPolicyCommon.setType(ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS);
         scalingPolicyCommon.setTargetRate(100L);
         scalingPolicyCommon.setScaleFactor(2);
         scalingPolicyCommon.setMinNumSegments(2);
