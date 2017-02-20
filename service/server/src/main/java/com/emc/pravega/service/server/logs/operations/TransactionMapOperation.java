@@ -1,31 +1,19 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Log Operation that represents a mapping between a Transaction StreamSegment and its Parent StreamSegment.
@@ -40,6 +28,7 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
     private String streamSegmentName;
     private long length;
     private boolean sealed;
+    private Map<UUID, Long> attributes;
 
     //endregion
 
@@ -59,6 +48,7 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
         this.streamSegmentName = transSegmentInfo.getName();
         this.length = transSegmentInfo.getLength();
         this.sealed = transSegmentInfo.isSealed();
+        this.attributes = transSegmentInfo.getAttributes();
     }
 
     protected TransactionMapOperation(OperationHeader header, DataInputStream source) throws SerializationException {
@@ -111,6 +101,11 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
         return this.sealed;
     }
 
+    @Override
+    public Map<UUID, Long> getAttributes() {
+        return this.attributes;
+    }
+
     //endregion
 
     //region Operation Implementation
@@ -129,6 +124,7 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
         target.writeUTF(this.streamSegmentName);
         target.writeLong(this.length);
         target.writeBoolean(this.sealed);
+        AttributeSerializer.serialize(this.attributes, target);
     }
 
     @Override
@@ -139,6 +135,7 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
         this.streamSegmentName = source.readUTF();
         this.length = source.readLong();
         this.sealed = source.readBoolean();
+        this.attributes = AttributeSerializer.deserialize(source);
     }
 
     @Override

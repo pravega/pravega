@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.stream;
 
@@ -35,6 +23,13 @@ public class Segment implements Serializable {
     private final String streamName;
     private final int segmentNumber;
 
+    /**
+     * Creates a new instance of Segment class.
+     *
+     * @param scope      The scope string the segment belongs to.
+     * @param streamName The stream name that the segment belongs to.
+     * @param number     ID number for the segment.
+     */
     public Segment(String scope, String streamName, int number) {
         Preconditions.checkNotNull(streamName);
         Preconditions.checkArgument(streamName.matches("^\\w+\\z"), "Name must be [a-zA-Z0-9]*");
@@ -42,7 +37,7 @@ public class Segment implements Serializable {
         this.streamName = streamName;
         this.segmentNumber = number;
     }
-    
+
     public String getScopedStreamName() {
         StringBuffer sb = new StringBuffer();
         if (scope != null) {
@@ -52,7 +47,7 @@ public class Segment implements Serializable {
         sb.append(streamName);
         return sb.toString();
     }
-    
+
     public String getScopedName() {
         return getScopedName(scope, streamName, segmentNumber);
     }
@@ -69,6 +64,12 @@ public class Segment implements Serializable {
         return sb.toString();
     }
 
+    /**
+     * Parses fully scoped name, and extracts the segment name only.
+     *
+     * @param qualifiedName Fully scoped segment name
+     * @return Segment name.
+     */
     public static Segment fromScopedName(String qualifiedName) {
         String[] tokens = qualifiedName.split("[/#]");
         if (tokens.length == 2) {

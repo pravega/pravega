@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.stream.impl.segment;
 
@@ -39,12 +27,16 @@ public interface SegmentInputStream extends AutoCloseable {
     /**
      * Gets the current offset. (Passing this to setOffset in the future will reset reads to the
      * current position in the segment.)
+     *
+     * @return The current offset.
      */
     public abstract long getOffset();
     
     /**
      * Returns the length of the current segment. i.e. calling setOffset with the result of this
      * method followed by read would result in read blocking until more data is written.
+     *
+     * @return The length of the current segment.
      */
     public abstract long fetchCurrentStreamLength();
 
@@ -66,6 +58,8 @@ public interface SegmentInputStream extends AutoCloseable {
     
     /**
      * Returns true if the data can be read from the local buffer without blocking the caller.
+     *
+     * @return False if data read is blocking.
      */
     public boolean canReadWithoutBlocking();
 }
