@@ -5,7 +5,6 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Cache;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
@@ -230,20 +229,23 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Optional<Data<Integer>>> getMarkerData(int segmentNumber) {
+        final CompletableFuture<Optional<Data<Integer>>> result = new CompletableFuture<>();
         final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
-        return cache.getCachedData(path)
-                .handle((res, ex) -> {
+        cache.getCachedData(path)
+                .whenComplete((res, ex) -> {
                     if (ex != null) {
                         Throwable cause = ExceptionHelpers.getRealException(ex);
                         if (cause instanceof DataNotFoundException) {
-                            return Optional.empty();
+                            result.complete(Optional.empty());
+                        } else {
+                            result.completeExceptionally(cause);
                         }
-                        RetryableException.throwRetryableOrElseRuntime(ex);
-                        return Optional.empty();
                     } else {
-                        return Optional.of(res);
+                        result.complete(Optional.of(res));
                     }
                 });
+
+        return result;
     }
 
     @Override
@@ -458,7 +460,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
             deleteNode.completeExceptionally(new StoreConnectionException(e));
         } catch (Exception e) {
-            deleteNode.completeExceptionally(new RuntimeException(e));
+            deleteNode.completeExceptionally(e);
         }
 
         deleteNode.whenComplete((res, ex) -> {
@@ -481,7 +483,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
                     result.completeExceptionally(new StoreConnectionException(e));
                 } catch (Exception e) {
-                    result.completeExceptionally(new RuntimeException(e));
+                    result.completeExceptionally(e);
                 }
             } else {
                 result.complete(null);
@@ -491,7 +493,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return result;
     }
 
-    private static CompletableFuture<Data<Integer>> getData(final String path) throws DataNotFoundException, RetryableException {
+    private static CompletableFuture<Data<Integer>> getData(final String path) throws DataNotFoundException {
         final CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
 
         checkExists(path)
@@ -506,7 +508,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
                             result.completeExceptionally(new StoreConnectionException(e));
                         } catch (Exception e) {
-                            result.completeExceptionally(new RuntimeException(e));
+                            result.completeExceptionally(e);
                         }
                     } else {
                         result.completeExceptionally(new DataNotFoundException(path));
@@ -532,7 +534,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
             result.completeExceptionally(new StoreConnectionException(e));
         } catch (Exception e) {
-            result.completeExceptionally(new RuntimeException(e));
+            result.completeExceptionally(e);
         }
 
         return result;
@@ -559,7 +561,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
                             result.completeExceptionally(new StoreConnectionException(e));
                         } catch (Exception e) {
-                            result.completeExceptionally(new RuntimeException(e));
+                            result.completeExceptionally(e);
                         }
                     } else {
                         log.error("Failed to write data. path {}", path);
@@ -585,7 +587,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
             result.completeExceptionally(new StoreConnectionException(e));
         } catch (Exception e) {
-            result.completeExceptionally(new RuntimeException(e));
+            result.completeExceptionally(e);
         }
 
         return result;
@@ -607,7 +609,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
             result.completeExceptionally(new StoreConnectionException(e));
         } catch (Exception e) {
-            result.completeExceptionally(new RuntimeException(e));
+            result.completeExceptionally(e);
         }
 
         return result;
@@ -630,7 +632,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
             result.completeExceptionally(new StoreConnectionException(e));
         } catch (Exception e) {
-            result.completeExceptionally(new RuntimeException(e));
+            result.completeExceptionally(e);
         }
 
         return result;

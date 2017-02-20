@@ -1,11 +1,8 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream.tables;
 
-import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -13,6 +10,7 @@ import com.google.common.cache.LoadingCache;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 
 public class Cache<T> {
@@ -35,7 +33,7 @@ public class Cache<T> {
                                 .whenComplete((res, ex) -> {
                                     if (ex != null) {
                                         invalidateCache(key);
-                                        RetryableException.throwRetryableOrElseRuntime(ex);
+                                        throw new CompletionException(ex);
                                     }
                                 });
                     }
@@ -53,11 +51,6 @@ public class Cache<T> {
 
     public Void invalidateAll() {
         cache.invalidateAll();
-        return null;
-    }
-
-    public Void invalidateAll(final Iterable<String> keys) {
-        cache.invalidateAll(keys);
         return null;
     }
 }

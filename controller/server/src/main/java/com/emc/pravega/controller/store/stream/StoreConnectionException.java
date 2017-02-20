@@ -1,16 +1,12 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream;
-
-import com.emc.pravega.controller.RetryableException;
 
 /**
  * StoreConnectionException exception.
  */
-public class StoreConnectionException extends RetryableException {
+public class StoreConnectionException extends RuntimeException {
     private static final long serialVersionUID = 1L;
 
     /**

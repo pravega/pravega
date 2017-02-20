@@ -61,7 +61,7 @@ public class ControllerService {
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig, final long createTimestamp) {
-        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, createTimestamp, null);
+        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, createTimestamp);
     }
 
     public CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig) {

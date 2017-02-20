@@ -1,12 +1,10 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
@@ -32,6 +30,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -303,10 +302,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
         final CompletableFuture<TxnStatus> activeTx = getActiveTx(txId)
                 .handle((ok, ex) -> {
                     if (ok == null ||
-                            (ex != null && ex instanceof DataNotFoundException)) {
+                            (ex != null && ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException)) {
                         return TxnStatus.UNKNOWN;
                     } else if (ex != null) {
-                        RetryableException.throwRetryableOrElseRuntime(ex);
+                        throw new CompletionException(ex);
                     }
                     return ActiveTxRecord.parse(ok.getData()).getTxnStatus();
                 });
@@ -320,7 +319,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                             (ex != null && ex instanceof DataNotFoundException)) {
                                         return TxnStatus.UNKNOWN;
                                     } else if (ex != null) {
-                                        RetryableException.throwRetryableOrElseRuntime(ex);
+                                        throw new CompletionException(ex);
                                     }
                                     return CompletedTxRecord.parse(ok.getData()).getCompletionStatus();
                                 });

@@ -1,17 +1,14 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
 import com.emc.pravega.common.netty.WireCommandType;
-import com.emc.pravega.controller.RetryableException;
 
 /**
  * Wire command failed exception.
  */
-public class WireCommandFailedException extends RetryableException {
+public class WireCommandFailedException extends RuntimeException {
 
     public enum Reason {
         ConnectionDropped,

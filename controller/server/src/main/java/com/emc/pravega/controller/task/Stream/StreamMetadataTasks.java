@@ -5,7 +5,6 @@ package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
@@ -39,12 +38,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static com.emc.pravega.controller.retryable.RetryableHelper.transformWithRetryable;
 import static com.emc.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
-import static com.emc.pravega.controller.task.Stream.TaskStepsRetryHelper.withWireCommandHandling;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -86,15 +86,14 @@ public class StreamMetadataTasks extends TaskBase {
      * @param stream          stream name.
      * @param config          stream configuration.
      * @param createTimestamp creation timestamp.
-     * @param contextOpt      optional context
      * @return creation status.
      */
     @Task(name = "createStream", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp, OperationContext contextOpt) {
+    public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
         return execute(
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream, config, createTimestamp, null},
-                () -> createStreamBody(scope, stream, config, createTimestamp, contextOpt));
+                () -> createStreamBody(scope, stream, config, createTimestamp));
     }
 
     /**
@@ -149,14 +148,13 @@ public class StreamMetadataTasks extends TaskBase {
                 () -> sealStreamBody(scope, stream, contextOpt));
     }
 
-    private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp, OperationContext contextOpt) {
+    private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config,
+                                                                   long timestamp) {
 
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
                 .thenComposeAsync(created -> {
                     log.debug("{}/{} created in metadata store", scope, stream);
                     if (created != null) {
-                        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-
                         List<Integer> newSegments = IntStream.range(0, config.getScalingPolicy().getMinNumSegments()).boxed().collect(Collectors.toList());
                         return notifyNewSegments(config.getScope(), stream, config, newSegments)
                                 .thenApply(y -> CreateStreamStatus.SUCCESS);
@@ -168,7 +166,10 @@ public class StreamMetadataTasks extends TaskBase {
                     if (status.equals(CreateStreamStatus.FAILURE)) {
                         return CompletableFuture.completedFuture(status);
                     } else {
-                        return withRetries(() -> streamMetadataStore.setState(scope, stream, State.ACTIVE, null, executor), executor)
+                        final OperationContext context = streamMetadataStore.createContext(scope, stream);
+
+                        return withRetries(() -> transformWithRetryable(streamMetadataStore.setState(scope,
+                                stream, State.ACTIVE, context, executor)), executor)
                                 .thenApply(v -> status);
                     }
                 })
@@ -187,7 +188,8 @@ public class StreamMetadataTasks extends TaskBase {
                 });
     }
 
-    public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream, StreamConfiguration config, OperationContext contextOpt) {
+    public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream,
+                                                                        StreamConfiguration config, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return streamMetadataStore.updateConfiguration(scope, stream, config, context, executor)
@@ -202,9 +204,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     if (ex == null) {
                                         return true;
                                     } else {
-                                        RetryableException.throwRetryableOrElseRuntime(ex);
-
-                                        return false;
+                                        throw new CompletionException(ex);
                                     }
                                 });
                     } else {
@@ -223,7 +223,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<UpdateStreamStatus> sealStreamBody(String scope, String stream, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return withRetries(() -> streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
+        return withRetries(() -> transformWithRetryable(streamMetadataStore.getActiveSegments(scope, stream, context, executor)), executor)
                 .thenCompose(activeSegments -> {
                     if (activeSegments.isEmpty()) { //if active segments are empty then the stream is sealed.
                         //Do not update the state if the stream is already sealed.
@@ -232,7 +232,8 @@ public class StreamMetadataTasks extends TaskBase {
                         List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
                                 collect(Collectors.toList());
                         return notifySealedSegments(scope, stream, segmentsToBeSealed)
-                                .thenCompose(v -> withRetries(() -> streamMetadataStore.setSealed(scope, stream, context, executor), executor))
+                                .thenCompose(v -> withRetries(() -> transformWithRetryable(
+                                        streamMetadataStore.setSealed(scope, stream, context, executor)), executor))
                                 .handle((result, ex) -> {
                                     if (ex != null) {
                                         log.warn("Exception thrown in trying to notify sealed segments {}", ex.getMessage());
@@ -269,8 +270,10 @@ public class StreamMetadataTasks extends TaskBase {
         // we should stop retrying indefinitely and notify administrator.
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        CompletableFuture<Pair<Boolean, Boolean>> checkValidity = withRetries(() -> streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
-                .thenCompose(activeSegments -> withRetries(() -> streamMetadataStore.isTransactionOngoing(scope, stream, context, executor), executor)
+        CompletableFuture<Pair<Boolean, Boolean>> checkValidity = withRetries(
+                () -> transformWithRetryable(streamMetadataStore.getActiveSegments(scope, stream, context, executor)), executor)
+                .thenCompose(activeSegments -> withRetries(
+                        () -> transformWithRetryable(streamMetadataStore.isTransactionOngoing(scope, stream, context, executor)), executor)
                         .thenApply(active -> {
                             boolean result = false;
                             Set<Integer> activeNum = activeSegments.stream().mapToInt(Segment::getNumber).boxed().collect(Collectors.toSet());
@@ -289,7 +292,9 @@ public class StreamMetadataTasks extends TaskBase {
         return checkValidity.thenCompose(result -> {
                     if (result.getLeft() && result.getRight()) {
                         return notifySealedSegments(scope, stream, segmentsToSeal)
-                                .thenCompose(results -> withRetries(() -> streamMetadataStore.scale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, context, executor), executor))
+                                .thenCompose(results -> withRetries(
+                                        () -> transformWithRetryable(streamMetadataStore.scale(scope, stream,
+                                                segmentsToSeal, newRanges, scaleTimestamp, context, executor)), executor))
                                 .thenCompose((List<Segment> newSegments) -> notifyNewSegments(scope, stream, newSegments, context)
                                         .thenApply((Void v) -> newSegments))
                                 .thenApply((List<Segment> newSegments) -> {
@@ -317,7 +322,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers, OperationContext context) {
-        return withRetries(() -> streamMetadataStore.getConfiguration(scope, stream, context, executor), executor)
+        return withRetries(() -> transformWithRetryable(streamMetadataStore.getConfiguration(scope, stream, context, executor)), executor)
                 .thenCompose(configuration -> notifyNewSegments(scope, stream, configuration,
                         segmentNumbers.stream().map(Segment::getNumber).collect(Collectors.toList())));
     }
@@ -332,9 +337,8 @@ public class StreamMetadataTasks extends TaskBase {
 
     @VisibleForTesting
     private CompletableFuture<Void> notifyNewSegment(String scope, String stream, int segmentNumber, ScalingPolicy policy) {
-        return FutureHelpers.toVoid(withRetries(() -> withWireCommandHandling(SegmentHelper.getSegmentHelper().createSegment(scope,
-                stream, segmentNumber, policy,
-                hostControllerStore, this.connectionFactory)), executor));
+        return FutureHelpers.toVoid(withRetries(() -> transformWithRetryable(SegmentHelper.getSegmentHelper().createSegment(scope,
+                stream, segmentNumber, policy, hostControllerStore, this.connectionFactory)), executor));
     }
 
     private CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Integer> sealedSegments) {
@@ -349,7 +353,7 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     private CompletableFuture<Void> notifySealedSegment(final String scope, final String stream, final int sealedSegment) {
 
-        return FutureHelpers.toVoid(withRetries(() -> withWireCommandHandling(SegmentHelper.getSegmentHelper().sealSegment(
+        return FutureHelpers.toVoid(withRetries(() -> transformWithRetryable(SegmentHelper.getSegmentHelper().sealSegment(
                 scope,
                 stream,
                 sealedSegment,
@@ -369,7 +373,7 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     CompletableFuture<Void> notifyPolicyUpdate(String scope, String stream, ScalingPolicy policy, int segmentNumber) {
 
-        return withRetries(() -> withWireCommandHandling(SegmentHelper.getSegmentHelper().updatePolicy(
+        return withRetries(() -> transformWithRetryable(SegmentHelper.getSegmentHelper().updatePolicy(
                 scope,
                 stream,
                 policy,

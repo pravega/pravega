@@ -1,20 +1,19 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.requesthandler;
 
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.requests.ScaleRequest;
+import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.task.ConflictingTaskException;
 import com.emc.pravega.controller.store.task.LockFailedException;
+import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -35,6 +34,9 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+
+import static com.emc.pravega.controller.retryable.RetryableHelper.transformWithRetryable;
+import static com.emc.pravega.controller.retryable.RetryableHelper.getRetryable;
 
 /**
  * Request handler for scale requests in scale-request-stream.
@@ -112,9 +114,9 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                     .thenApply(StreamConfiguration::getScalingPolicy);
 
             if (request.getDirection() == ScaleRequest.UP) {
-                return policyFuture.thenComposeAsync(policy -> processScaleUp(request, policy, context), executor);
+                return transformWithRetryable(policyFuture.thenComposeAsync(policy -> processScaleUp(request, policy, context), executor));
             } else {
-                return policyFuture.thenComposeAsync(policy -> processScaleDown(request, policy, context), executor);
+                return transformWithRetryable(policyFuture.thenComposeAsync(policy -> processScaleDown(request, policy, context), executor));
             }
         }, executor);
     }
@@ -226,32 +228,26 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
      * @param request   incoming request from request stream.
      * @param segments  segments to seal
      * @param newRanges new ranges for segments to create
-     * @param context
+     * @param context   operation context
      * @return CompletableFuture
      */
     private CompletableFuture<Void> executeScaleTask(final ScaleRequest request, final ArrayList<Integer> segments,
                                                      final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                      final OperationContext context) {
-        return streamMetadataStore.blockTransactions(request.getScope(), request.getStream(), context, executor)
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        CompletableFuture<ScaleResponse> scaleFuture = streamMetadataStore.blockTransactions(request.getScope(), request.getStream(), context, executor)
                 .thenCompose(x -> streamMetadataTasks.scale(request.getScope(),
                         request.getStream(),
                         segments,
                         newRanges,
                         System.currentTimeMillis(),
                         context)
-                        .whenCompleteAsync((result, e) -> {
+                        .whenCompleteAsync((res, e) -> {
                             if (e != null) {
                                 log.warn("Scale failed for request {}/{}/{} with exception", request.getScope(), request.getStream(), request.getSegmentNumber(), e.getMessage());
                                 Throwable cause = ExceptionHelpers.getRealException(e);
                                 if (cause instanceof LockFailedException) {
-                                    // lock failure, throw an exception here,
-                                    // and that will result in several retries exhausting which the request will be put back
-                                    // into request stream.
-                                    // Note: We do not want to put the request back in the request stream very quickly either as it
-                                    // can lead to flooding of request stream with duplicate messages for this request. This is
-                                    // particularly bad during controller instance failover recovery and can also impact other
-                                    // requests.
-                                    blockTxCreationAndSweepTimedout(request, context); // block and sweep returns a future, but we dont need any callbacks linked with it.
                                     throw (LockFailedException) cause;
                                 } else {
                                     // We could be here because of two reasons:
@@ -295,43 +291,50 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                                     // As 'thing-do-on-task-failure-before-releasing-lock'
                                     throw new RuntimeException(e);
                                 }
-                            } else if (result.getStatus().equals(ScaleStreamStatus.TXN_CONFLICT)) {
+                            } else if (res.getStatus().equals(ScaleStreamStatus.TXN_CONFLICT)) {
                                 // transactions were running, throw a retryable exception.
                                 throw new ConflictingTaskException(request.getStream());
                             } else {
                                 // completed - either successfully or with pre-condition-failure. Clear markers on all scaled segments.
                                 clearMarkers(request.getScope(), request.getStream(), segments, context);
                             }
-                        }, executor))
-                .handle((res, ex) -> {
-                    // if it is retryable exception, do not unblock creation of txn and let scale be attempted again.
-                    // However, if its either completed successfully or failed with non-retryable, we need to unblock
-                    // creation of transactions.
+                        }, executor));
 
-                    if (ex != null) {
-                        log.error("scale failed for request {}/{}/{} with exception", request.getScope(), request.getStream(), request.getSegmentNumber(), ex.getMessage());
+        scaleFuture.whenComplete((r, ex) -> {
+            if (ex != null && ExceptionHelpers.getRealException(ex) instanceof LockFailedException) {
+                // lock failure, throw an exception here,
+                // and that will result in several retries exhausting which the request will be put back
+                // into request stream.
+                // Note: We do not want to put the request back in the request stream very quickly either as it
+                // can lead to flooding of request stream with duplicate messages for this request. This is
+                // particularly bad during controller instance failover recovery and can also impact other
+                // requests.
+                blockTxCreationAndSweepTimedout(request, context); // block and sweep returns a future, but we dont need any callbacks linked with it.
+            } else {
+                streamMetadataStore.unblockTransactions(request.getScope(), request.getStream(), context, executor);
+            }
+        });
 
-                        RetryableException.throwRetryableOrElseRuntime(ex);
-                        return ex;
-                    } else {
-                        log.error("scale done for {}/{}/{}", request.getScope(), request.getStream(), request.getSegmentNumber());
+        scaleFuture.whenComplete((res, ex) -> {
+            // if it is retryable exception, do not unblock creation of txn and let scale be attempted again.
+            // However, if its either completed successfully or failed with non-retryable, we need to unblock
+            // creation of transactions.
+            if (ex != null) {
+                log.error("scale failed for request {}/{}/{} with exception", request.getScope(), request.getStream(), request.getSegmentNumber(), ex.getMessage());
 
-                        return null;
-                    }
-                })
-                .thenCompose(ex -> streamMetadataStore.unblockTransactions(request.getScope(), request.getStream(), context, executor)
-                        .exceptionally(e -> {
-                            if (ex != null) {
-                                // if scale operation had failed, we should throw the original exception. This has to be non-retryable as
-                                // scale task has exhausted all its lives
-                                RetryableException.throwRetryableOrElseRuntime(ex);
-                            } else {
-                                // unblock failed with retryable.
-                                log.warn("Failed to unblock txn creation for stream {}/{}", request.getScope(), request.getStream());
-                                throw new RuntimeException(e);
-                            }
-                            return null;
-                        }));
+                Optional<RetryableException> retryable = getRetryable(ex);
+                if (retryable.isPresent()) {
+                    result.completeExceptionally(retryable.get());
+                } else {
+                    result.completeExceptionally(ex);
+                }
+            } else {
+                log.error("scale done for {}/{}/{}", request.getScope(), request.getStream(), request.getSegmentNumber());
+                result.complete(null);
+            }
+        });
+
+        return result;
     }
 
     /**

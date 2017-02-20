@@ -1,16 +1,12 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.task;
-
-import com.emc.pravega.controller.RetryableException;
 
 /**
  * Conflict exception.
  */
-public class ConflictingTaskException extends RetryableException {
+public class ConflictingTaskException extends RuntimeException {
     private static final long serialVersionUID = 1L;
     private static final String FORMAT_STRING = "Conflicting task exception for resource %s.";
 

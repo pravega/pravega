@@ -1,12 +1,9 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.requesthandler;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.RetryableException;
 import com.emc.pravega.controller.requests.ControllerRequest;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
@@ -30,6 +27,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import static com.emc.pravega.controller.retryable.RetryableHelper.getRetryable;
 
 /**
  * Common class for reading requests from a pravega stream. It implements a runnable.
@@ -157,9 +156,7 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
                     if (e != null) {
                         log.error("Processing failed RequestReader {}", e.getMessage());
 
-                        if (RetryableException.isRetryable(e)) {
-                            putBack(request.getKey(), request);
-                        }
+                        getRetryable(e).ifPresent(ex -> putBack(request.getKey(), request));
                     }
                 }, executor);
             } catch (Exception e) {
