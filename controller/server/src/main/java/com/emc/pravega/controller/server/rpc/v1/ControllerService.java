@@ -17,7 +17,8 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
-import com.emc.pravega.controller.server.PingManager;
+import com.emc.pravega.controller.timeout.TimeoutService;
+import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -59,7 +60,7 @@ public class ControllerService {
     private final HostControllerStore hostStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private final PingManager pingManager;
+    private final TimeoutService timeoutService;
 
     public ControllerService(final StreamMetadataStore streamStore,
                              final HostControllerStore hostStore,
@@ -69,8 +70,8 @@ public class ControllerService {
         this.hostStore = hostStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
-        this.pingManager = new PingManager(streamTransactionMetadataTasks);
-        this.pingManager.startAsync();
+        this.timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks);
+        this.timeoutService.startAsync();
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig, final long createTimestamp) {
@@ -189,7 +190,7 @@ public class ControllerService {
                                                       final long maxExecutionTime, final long scaleGracePeriod) {
         return streamTransactionMetadataTasks.createTx(scope, stream, lease, maxExecutionTime, scaleGracePeriod)
                 .thenApply(data -> {
-                    pingManager.addTx(scope, stream, data.getId(), data.getVersion(), lease, maxExecutionTime,
+                    timeoutService.addTx(scope, stream, data.getId(), data.getVersion(), lease, maxExecutionTime,
                             scaleGracePeriod);
                     return data.getId();
                 })
@@ -225,10 +226,10 @@ public class ControllerService {
                                                          final long lease) {
         UUID txId = ModelHelper.encode(txnId);
 
-        if (pingManager.contains(scope, stream, txId)) {
+        if (timeoutService.containsTx(scope, stream, txId)) {
 
             // If ping manager knows about this transaction, try to increase its lease.
-            PingStatus status = pingManager.pingTx(scope, stream, txId, lease);
+            PingStatus status = timeoutService.pingTx(scope, stream, txId, lease);
             return CompletableFuture.completedFuture(status);
 
         } else {
@@ -239,7 +240,7 @@ public class ControllerService {
             // managing timeout for this transaction.
             return streamTransactionMetadataTasks.pingTx(scope, stream, ModelHelper.encode(txnId), lease)
                     .thenApply(x -> {
-                        pingManager.addTx(scope, stream, txId, x.getVersion(), lease,
+                        timeoutService.addTx(scope, stream, txId, x.getVersion(), lease,
                                 x.getMaxExecutionExpiryTime(), x.getScaleGracePeriod());
                         return PingStatus.OK;
                     });

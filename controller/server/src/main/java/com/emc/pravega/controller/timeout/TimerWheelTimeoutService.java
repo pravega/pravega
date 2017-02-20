@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server;
+package com.emc.pravega.controller.timeout;
 
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.WriteConflictException;
@@ -26,7 +26,7 @@ import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
 import lombok.AllArgsConstructor;
-import lombok.Getter;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -44,20 +44,14 @@ import java.util.concurrent.TimeUnit;
  * 2. Increase timeout.
  */
 @Slf4j
-public class PingManager extends AbstractService {
+public class TimerWheelTimeoutService extends AbstractService implements TimeoutService {
 
     private static final long TICK_DURATION = 1000;
     private static final TimeUnit TIME_UNIT = TimeUnit.MILLISECONDS;
 
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final HashedWheelTimer hashedWheelTimer;
-    private final Map<String, TxnTimeoutTask> map;
-
-    public PingManager(StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
-        this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
-        this.hashedWheelTimer = new HashedWheelTimer(TICK_DURATION, TIME_UNIT);
-        map = new HashMap<>();
-    }
+    private final Map<String, TxnData> map;
 
     @AllArgsConstructor
     private class TxnTimeoutTask implements TimerTask {
@@ -65,13 +59,20 @@ public class PingManager extends AbstractService {
         private final String scope;
         private final String stream;
         private final UUID txnId;
-        private final int version;
-        @Getter
-        private final long maxExecutionTimeExpiry;
 
         @Override
         public void run(Timeout timeout) throws Exception {
-            streamTransactionMetadataTasks.abortTx(scope, stream, txnId, Optional.of(version))
+
+            String key = getKey(scope, stream, txnId);
+            TxnData txnData = map.get(key);
+
+            if (System.currentTimeMillis() < txnData.getExpiryTimestamp()) {
+                log.debug("Ignoring timeout task for txn {}", key);
+                return;
+            }
+
+            log.debug("Executing timeout task for txn {}", key);
+            streamTransactionMetadataTasks.abortTx(scope, stream, txnId, Optional.of(txnData.getVersion()))
                     .handle((ok, ex) -> {
                         // If abort attempt fails because of (1) version mismatch, or (2) node not found,
                         // ignore the timeout task.
@@ -82,19 +83,19 @@ public class PingManager extends AbstractService {
                             Throwable error = getRealCause(ex);
                             if (error instanceof WriteConflictException || error instanceof DataNotFoundException) {
                                 message = String.format("Timeout task for tx %s failed because of %s. " +
-                                        "Ignoring timeout task.", txnId, ex.getClass().getName());
+                                        "Ignoring timeout task.", key, error.getClass().getName());
                                 log.debug(message);
-                                map.remove(getKey(scope, stream, txnId));
+                                map.remove(key);
                             } else {
                                 message = String.format("Rescheduling timeout task for tx %s because " +
-                                        "of transient or unknown error", txnId);
+                                        "of transient or unknown error", key);
                                 log.warn(message, ex);
                                 hashedWheelTimer.newTimeout(this, 2 * TICK_DURATION, TIME_UNIT);
                             }
                         } else {
-                            message = String.format("Successfully executed abort on tx %s ", txnId);
-                            log.debug(message);
-                            map.remove(getKey(scope, stream, txnId));
+                            message = String.format("Successfully executed abort on tx %s ", key);
+                            log.debug("Successfully executed abort on tx {} ", key);
+                            map.remove(key);
                         }
                         return null;
                     })
@@ -102,75 +103,20 @@ public class PingManager extends AbstractService {
         }
     }
 
-    /**
-     * Start tracking timeout for the specified transaction.
-     *
-     * @param scope                  Scope name.
-     * @param stream                 Stream name.
-     * @param txnId                  Transaction id.
-     * @param version                Version of transaction data node in the underlying store.
-     * @param lease                  Amount of time for which to keep the transaction in open state.
-     * @param maxExecutionTimeExpiry Timestamp beyond which transaction lease cannot be increased.
-     * @param scaleGracePeriod       Maximum amount of time by which transaction lease can be increased
-     *                               once a scale operation starts on the transaction stream.
-     */
-    public void addTx(final String scope, final String stream, final UUID txnId, final int version,
-                      final long lease, final long maxExecutionTimeExpiry, final long scaleGracePeriod) {
-
-        if (this.state() == State.RUNNING) {
-            final String key = getKey(scope, stream, txnId);
-            final TxnTimeoutTask task = new TxnTimeoutTask(scope, stream, txnId, version, maxExecutionTimeExpiry);
-            hashedWheelTimer.newTimeout(task, lease, TimeUnit.MILLISECONDS);
-            map.put(key, task);
-        }
-
+    @Data
+    @AllArgsConstructor
+    private static class TxnData {
+        private final int version;
+        private long expiryTimestamp;
+        private final long maxExecutionTimeExpiry;
+        private final long scaleGracePeriod;
+        private TxnTimeoutTask task;
     }
 
-    /**
-     * This method increases the txn timeout by lease amount of milliseconds.
-     * <p>
-     * If this object is in stopped state, pingTx returns DISCONNECTED status.
-     * If increasing txn timeout causes the time for which txn is open to exceed
-     * max execution time, pingTx returns MAX_EXECUTION_TIME_EXCEEDED. If metadata
-     * about specified txn is not present in the map, it throws IllegalStateException.
-     * Otherwise pingTx returns OK status.
-     *
-     * @param scope  Scope name.
-     * @param stream Stream name.
-     * @param txnId  Transaction id.
-     * @param lease  Additional amount of time for the transaction to be in open state.
-     * @return Ping status
-     */
-    public PingStatus pingTx(final String scope, final String stream, final UUID txnId, long lease) {
-
-        if (this.state() != State.RUNNING) {
-            return PingStatus.DISCONNECTED;
-        }
-
-        final String key = getKey(scope, stream, txnId);
-
-        if (map.containsKey(key)) {
-
-            final TxnTimeoutTask task = map.get(key);
-
-            if (System.currentTimeMillis() + lease > task.getMaxExecutionTimeExpiry()) {
-
-                return PingStatus.MAX_EXECUTION_TIME_EXCEEDED;
-
-            } else {
-
-                hashedWheelTimer.newTimeout(task, lease, TimeUnit.MILLISECONDS);
-                return PingStatus.OK;
-
-            }
-
-        } else {
-            throw new IllegalStateException(key);
-        }
-    }
-
-    public boolean contains(final String scope, final String stream, final UUID txnId) {
-        return map.containsKey(getKey(scope, stream, txnId));
+    public TimerWheelTimeoutService(StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+        this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
+        this.hashedWheelTimer = new HashedWheelTimer();
+        map = new HashMap<>();
     }
 
     /**
@@ -192,6 +138,56 @@ public class PingManager extends AbstractService {
         hashedWheelTimer.stop();
         map.clear();
         notifyStopped();
+    }
+
+    @Override
+    public void addTx(final String scope, final String stream, final UUID txnId, final int version,
+                      final long lease, final long maxExecutionTimeExpiry, final long scaleGracePeriod) {
+
+        if (this.state() == State.RUNNING) {
+            final String key = getKey(scope, stream, txnId);
+            final long expiry = System.currentTimeMillis() + lease;
+            final TxnTimeoutTask task = new TxnTimeoutTask(scope, stream, txnId);
+            hashedWheelTimer.newTimeout(task, lease, TimeUnit.MILLISECONDS);
+            map.put(key, new TxnData(version, expiry, maxExecutionTimeExpiry, scaleGracePeriod, task));
+        }
+
+    }
+
+    @Override
+    public PingStatus pingTx(final String scope, final String stream, final UUID txnId, long lease) {
+
+        if (this.state() != State.RUNNING) {
+            return PingStatus.DISCONNECTED;
+        }
+
+        final String key = getKey(scope, stream, txnId);
+
+        if (map.containsKey(key)) {
+
+            final TxnData txnData = map.get(key);
+            final long current = System.currentTimeMillis();
+
+            if (current + lease > txnData.getMaxExecutionTimeExpiry()) {
+
+                return PingStatus.MAX_EXECUTION_TIME_EXCEEDED;
+
+            } else {
+
+                txnData.setExpiryTimestamp(current + lease);
+                hashedWheelTimer.newTimeout(txnData.getTask(), lease, TimeUnit.MILLISECONDS);
+                return PingStatus.OK;
+
+            }
+
+        } else {
+            throw new IllegalStateException(key);
+        }
+    }
+
+    @Override
+    public boolean containsTx(final String scope, final String stream, final UUID txnId) {
+        return map.containsKey(getKey(scope, stream, txnId));
     }
 
     private Throwable getRealCause(Throwable e) {
