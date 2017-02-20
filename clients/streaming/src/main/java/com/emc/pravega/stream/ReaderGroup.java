@@ -44,9 +44,15 @@ public interface ReaderGroup {
     
     /**
      * Initiate a checkpoint. This causes all readers in the group to receive a special {@link EventRead} that
-     * contains the provided checkpoint name. This can be used to provide an indication to them that they should
-     * persist their state. Once all of the readers have received the notification, a {@link Checkpoint} object will be returned.
-     * This can be used to reset all the reader to this point in the stream by
+     * contains the provided checkpoint name. This can be used to provide an indication to them that they
+     * should persist their state. Once all of the readers have received the notification, a
+     * {@link Checkpoint} object will be returned. This can be used to reset all the reader to this point in
+     * the stream by
+     * 
+     * This method can be called and a new checkpoint can be initiated while another is still in progress if
+     * they have different names. If this method is is called again before the checkpoint has completed with
+     * the same name the future returned to the second caller will refer to the same checkpoint object as the
+     * first.
      * 
      * @param checkpointName The name of the checkpoint (For identification purposes)
      * @return A future Checkpoint object that can be used to restore the reader group to this position.
