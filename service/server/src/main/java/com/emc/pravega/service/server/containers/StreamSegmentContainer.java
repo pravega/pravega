@@ -37,6 +37,7 @@ import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
@@ -319,9 +320,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         ensureRunning();
         logRequest("getActiveSegments");
 
-        // To reduce locking in the metadata, we first get
-        return this.metadata
-                .getAllStreamSegmentIds()
+        // To reduce locking in the metadata, we first get the list of Segment Ids, then we fetch their metadata
+        // one by one. This only locks the metadata on the first call and, individually, on each call to getStreamSegmentMetadata.
+        return new ArrayList<>(this.metadata.getAllStreamSegmentIds())
                 .stream()
                 .map(this.metadata::getStreamSegmentMetadata)
                 .filter(Objects::nonNull)
