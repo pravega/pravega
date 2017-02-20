@@ -115,7 +115,7 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
 
             @Override
             public T deserialize(ByteBuffer serializedValue) {
-                return null;
+                throw new IllegalStateException("deserialize() called for a serializer");
             }
         };
         this.writeError = new AtomicReference<>(null);

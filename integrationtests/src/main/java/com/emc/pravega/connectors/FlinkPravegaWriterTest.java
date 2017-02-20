@@ -5,7 +5,6 @@
  */
 package com.emc.pravega.connectors;
 
-import com.emc.pravega.ClientFactory;
 import com.emc.pravega.connectors.flink.FlinkPravegaWriter;
 import com.emc.pravega.connectors.flink.PravegaWriterMode;
 import com.emc.pravega.stream.EventStreamReader;
@@ -68,7 +67,6 @@ public class FlinkPravegaWriterTest {
         // TODO: Remove the end marker workaround once the following issue is fixed:
         // https://github.com/emccode/pravega/issues/408
         final int streamEndMarker = 99999;
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, SetupUtils.CONTROLLER_URI);
 
         // Write the end marker.
         @Cleanup
@@ -76,12 +74,9 @@ public class FlinkPravegaWriterTest {
         eventWriter.writeEvent("fixedkey", streamEndMarker);
         eventWriter.flush();
 
-        // Creater a reader group to read from the test stream.
-
+        // Read all data from the stream.
         @Cleanup
         EventStreamReader<Integer> consumer = SetupUtils.getIntegerReader(SCOPE, streamName);
-
-        // Read all data from the stream.
         List<Integer> readElements = new ArrayList<>();
         while (true) {
             Integer event = consumer.readNextEvent(1).getEvent();
