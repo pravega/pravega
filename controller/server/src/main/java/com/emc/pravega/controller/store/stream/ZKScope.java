@@ -17,10 +17,8 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.store.stream.tables.Data;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.data.Stat;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -79,22 +77,6 @@ public class ZKScope implements Scope {
         return getChildren("/store");
     }
 
-    private static CompletableFuture<Data<Integer>> getData(final String path) {
-        return checkExists(path)
-                .handle( (result, ex) -> {
-                    if (ex == null) {
-                        try {
-                            Stat stat = new Stat();
-                            return new Data<>(client.getData().storingStatIn(stat).forPath(path), stat.getVersion());
-                        } catch (Exception e) {
-                            throw new RuntimeException(e);
-                        }
-                    } else {
-                        throw new DataNotFoundException(path);
-                    }
-                });
-    }
-
     private static CompletableFuture<Void> addNode(final String path) {
         return CompletableFuture.runAsync(() -> {
             try {
@@ -131,17 +113,5 @@ public class ZKScope implements Scope {
                 throw new StoreException(StoreException.Type.UNKNOWN, e);
             }
         });
-    }
-
-    private static CompletableFuture<Void> checkExists(final String path) {
-        return CompletableFuture.runAsync(
-                () -> {
-                    try {
-                        client.checkExists().forPath(path);
-                    } catch (Exception e) {
-                        throw new StoreException(StoreException.Type.UNKNOWN, e);
-                    }
-                });
-
     }
 }

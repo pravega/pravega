@@ -208,51 +208,65 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
-        return this.streamMetadataStore.createStream(scope, stream, config, timestamp)
-                .thenCompose(x -> {
-                    if (x) {
-                        return this.streamMetadataStore.getActiveSegments(scope, stream)
-                                .thenApply(activeSegments ->
-                                        notifyNewSegments(config.getScope(), stream, activeSegments))
-                                .thenApply(y -> CreateStreamStatus.SUCCESS);
-                    } else {
-                        return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
-                    }
-                })
-                .handle((result, ex) -> {
-                    if (ex != null) {
-                        if (ex.getCause() instanceof StreamAlreadyExistsException) {
-                            return CreateStreamStatus.STREAM_EXISTS;
-                        } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) {
-                            return CreateStreamStatus.FAILURE;
+        if (!validateZNodeName(scope)) {
+            log.debug("Create scope failed due to invalid scope name {}", scope);
+            return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
+        } else {
+            return this.streamMetadataStore.createStream(scope, stream, config, timestamp)
+                    .thenCompose(x -> {
+                        if (x) {
+                            return this.streamMetadataStore.getActiveSegments(scope, stream)
+                                    .thenApply(activeSegments ->
+                                            notifyNewSegments(config.getScope(), stream, activeSegments))
+                                    .thenApply(y -> CreateStreamStatus.SUCCESS);
                         } else {
-                            log.warn("Create stream failed due to ", ex);
-                            return CreateStreamStatus.FAILURE;
+                            return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
                         }
-                    } else {
-                        return result;
-                    }
-                });
+                    })
+                    .handle((result, ex) -> {
+                        if (ex != null) {
+                            if (ex.getCause() instanceof StreamAlreadyExistsException) {
+                                return CreateStreamStatus.STREAM_EXISTS;
+                            } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) {
+                                return CreateStreamStatus.FAILURE;
+                            } else {
+                                log.warn("Create stream failed due to ", ex);
+                                return CreateStreamStatus.FAILURE;
+                            }
+                        } else {
+                            return result;
+                        }
+                    });
+        }
     }
 
     private CompletableFuture<CreateScopeStatus> createScopeBody(String scope) {
-        return streamMetadataStore.createScope(scope)
-                .handle((result, ex) -> {
-                    if (ex != null) {
-                        if (ex.getCause() instanceof StoreException &&
-                                ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
-                            return CreateScopeStatus.SCOPE_EXISTS;
-                        } else if (ex instanceof StoreException &&
-                                ((StoreException) ex).getType() == NODE_EXISTS) {
-                            return CreateScopeStatus.SCOPE_EXISTS;
+        if (!validateZNodeName(scope)) {
+            log.debug("Create scope failed due to invalid scope name {}", scope);
+            return CompletableFuture.completedFuture(CreateScopeStatus.FAILURE);
+        } else {
+            return streamMetadataStore.createScope(scope)
+                    .handle((result, ex) -> {
+                        if (ex != null) {
+                            if (ex.getCause() instanceof StoreException &&
+                                    ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
+                                return CreateScopeStatus.SCOPE_EXISTS;
+                            } else if (ex instanceof StoreException &&
+                                    ((StoreException) ex).getType() == NODE_EXISTS) {
+                                return CreateScopeStatus.SCOPE_EXISTS;
+                            } else {
+                                log.debug("Create scope failed due to ", ex);
+                                return CreateScopeStatus.FAILURE;
+                            }
                         } else {
-                            log.debug("Create scope failed due to ", ex);
-                            return CreateScopeStatus.FAILURE;
+                            return CreateScopeStatus.SUCCESS;
                         }
-                    } else {
-                        return CreateScopeStatus.SUCCESS;
-                    }
-                });
+                    });
+        }
+    }
+
+    private static boolean validateZNodeName(final String path) {
+        return (path.indexOf('\\') >= 0 || path.indexOf('/') >= 0) ? false : true;
     }
 
     public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream, StreamConfiguration config) {
