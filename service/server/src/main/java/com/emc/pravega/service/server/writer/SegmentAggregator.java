@@ -23,6 +23,7 @@ import com.emc.pravega.service.server.logs.SerializationException;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
+import com.emc.pravega.service.server.logs.operations.OperationType;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
@@ -1247,7 +1248,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         @Override
-        protected byte getOperationType() {
+        protected OperationType getOperationType() {
             throw new UnsupportedOperationException();
         }
 

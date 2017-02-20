@@ -29,6 +29,7 @@ import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
+import com.emc.pravega.service.server.logs.operations.UpdateAttributesOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
@@ -206,6 +207,20 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, attributeUpdates);
+                    return this.durableLog.add(operation, timer.getRemaining());
+                }));
+    }
+
+    @Override
+    public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        ensureRunning();
+
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        logRequest("updateAttributes", streamSegmentName, attributeUpdates);
+        return FutureHelpers.toVoid(segmentMapper
+                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
+                .thenCompose(streamSegmentId -> {
+                    UpdateAttributesOperation operation = new UpdateAttributesOperation(streamSegmentId, attributeUpdates);
                     return this.durableLog.add(operation, timer.getRemaining());
                 }));
     }
