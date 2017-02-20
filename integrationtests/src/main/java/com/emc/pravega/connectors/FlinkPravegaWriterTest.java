@@ -143,7 +143,7 @@ public class FlinkPravegaWriterTest {
         Preconditions.checkNotNull(streamName);
 
         final String testStream = streamName;
-        SetupUtils.createTestStream(SCOPE, testStream);
+        SetupUtils.createTestStream(SCOPE, testStream, 1);
 
         StreamExecutionEnvironment execEnv = StreamExecutionEnvironment.createLocalEnvironment().
                 setParallelism(jobParallelism);
