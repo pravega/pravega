@@ -17,7 +17,7 @@ import lombok.Getter;
 /**
  * Log Operation that represents an Update to a Segment's Attribute collection.
  */
-public class UpdateAttributesOperation extends MetadataOperation implements SegmentOperation{
+public class UpdateAttributesOperation extends MetadataOperation implements SegmentOperation {
     //region Members
 
     private static final byte CURRENT_VERSION = 0;
