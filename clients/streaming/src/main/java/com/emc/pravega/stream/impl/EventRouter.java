@@ -26,13 +26,14 @@ import lombok.RequiredArgsConstructor;
 public class EventRouter {
 
     private static final HashHelper HASHER = HashHelper.seededWith("EventRouter");
+
     private final Stream stream;
     private final Controller controller;
     private final AtomicReference<StreamSegments> currentSegments = new AtomicReference<>();
 
     /**
      * Selects which segment an event should be written to.
-     * 
+     *
      * @param routingKey The key that should be used to select from the segment that the event should go to.
      * @return The Segment that has been selected.
      */
@@ -45,10 +46,12 @@ public class EventRouter {
         }
         return streamSegments.getSegmentForKey(HASHER.hashToRange(routingKey));
     }
-    
+
+    /**
+     * Refresh the latest list of segments in the given stream.
+     */
     public void refreshSegmentList() {
-        currentSegments.set(getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(),
-                                                                                 stream.getStreamName()),
-                                                   RuntimeException::new));
+        currentSegments.set(getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new));
     }
+
 }

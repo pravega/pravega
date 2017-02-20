@@ -20,6 +20,7 @@ public interface SegmentInputStreamFactory {
      *
      * @param segment The segment to create an input for.
      * @param config  The SegmentInputConfiguration to use.
+     * @return New instance of SegmentInputStream for reading.
      */
     SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config);
 
@@ -37,7 +38,7 @@ public interface SegmentInputStreamFactory {
      * @param segment  The segment to create an input for.
      * @param config   The SegmentInputConfiguration to use.
      * @param bufferSize Size of the input stream read buffer.
-     * @return a segment input stream.
+     * @return A segment input stream.
      */
     SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config, int bufferSize);
 }
