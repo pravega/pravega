@@ -51,7 +51,9 @@ public class EventRouter {
      * Refresh the latest list of segments in the given stream.
      */
     public void refreshSegmentList() {
-        currentSegments.set(getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new));
+        currentSegments.set(getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(),
+                                                                                 stream.getStreamName()),
+                                                   RuntimeException::new));
     }
 
 }

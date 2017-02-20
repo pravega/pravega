@@ -85,7 +85,8 @@ public interface ClientFactory {
      * @param <T> The type of events.
      * @return Newly created idempotent writer object
      */
-    <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
+    <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
+            EventWriterConfig config);
 
     /**
      * Creates a new manually managed reader that will read from the specified stream at the
