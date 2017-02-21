@@ -44,7 +44,7 @@ public final class SegmentMetadataComparer {
      * @param expected The expected set of Attributes.
      * @param toCheck The SegmentProperties instance to verify.
      */
-    public static void assertSameAttributes(String message, Map<UUID, Long> expected, SegmentMetadata toCheck) {
+    public static void assertSameAttributes(String message, Map<UUID, Long> expected, SegmentProperties toCheck) {
         val actual = toCheck.getAttributes();
         if (expected == null) {
             Assert.assertEquals(message + " No attributes expected.", 0, actual.size());
