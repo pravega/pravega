@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
 package com.emc.pravega.framework.services;
@@ -25,7 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static com.emc.pravega.framework.TestFrameworkException.Type.RequestFailed;
-import static javax.ws.rs.core.Response.Status.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 /**
  * Marathon based service implementations.
@@ -63,7 +61,7 @@ public abstract class MarathonBasedService implements Service {
                 return false;
             }
         } catch (MarathonException ex) {
-            if (ex.getStatus() == NOT_FOUND.getStatusCode()) {
+            if (ex.getStatus() == NOT_FOUND.code()) {
                 log.info("App is not running : {}", this.id);
                 return false;
             }
@@ -85,7 +83,7 @@ public abstract class MarathonBasedService implements Service {
     }
 
     void handleMarathonException(MarathonException e) {
-        if (e.getStatus() == NOT_FOUND.getStatusCode()) {
+        if (e.getStatus() == NOT_FOUND.code()) {
             log.info("App is not running : {}", this.id);
         }
         throw new TestFrameworkException(RequestFailed, "Marathon Exception while fetching details of service", e);

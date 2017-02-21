@@ -16,7 +16,7 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
 import java.util.Collection;
 
-import static javax.ws.rs.core.Response.Status.OK;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 /**
  * This class is used to handle the Authentication with the authentication-service.
@@ -44,7 +44,7 @@ public class LoginClient {
 
         Response response = client.login();
 
-        if (response.status() == OK.getStatusCode()) {
+        if (response.status() == OK.code()) {
             Collection<String> headers = response.headers().get(TOKEN_HEADER_NAME);
             return headers.toArray(new String[headers.size()])[0];
         } else {

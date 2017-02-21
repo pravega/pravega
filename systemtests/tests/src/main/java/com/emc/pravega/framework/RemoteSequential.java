@@ -28,7 +28,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.emc.pravega.framework.LoginClient.MESOS_MASTER;
-import static javax.ws.rs.core.Response.Status.CREATED;
+import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 
 /**
  * Remote Sequential is TestExecutor which runs the test as Mesos Task.
@@ -51,7 +51,7 @@ public class RemoteSequential implements TestExecutor {
         return CompletableFuture.<Void>runAsync(() -> {
             CLIENT.createJob(newJob(jobId, className, methodName));
             Response response = CLIENT.triggerJobRun(jobId);
-            if (response.status() != CREATED.getStatusCode()) {
+            if (response.status() != CREATED.code()) {
                 throw new TestFrameworkException(TestFrameworkException.Type.ConnectionFailed, "Error while starting " +
                         "test " + testMethod);
             }
