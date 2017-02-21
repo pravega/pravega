@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.timeout;
 
+import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -27,6 +28,9 @@ import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.v1.PingStatus;
+import com.emc.pravega.controller.stream.api.v1.TxnId;
+import com.emc.pravega.controller.stream.api.v1.TxnState;
+import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -59,6 +63,7 @@ public class TimeoutServiceTest {
 
     private final StreamMetadataStore streamStore;
     private final TimeoutService timeoutService;
+    private final ControllerService controllerService;
 
     @Slf4j
     private static class DummyStreamTransactionTasks extends StreamTransactionMetadataTasks {
@@ -133,12 +138,17 @@ public class TimeoutServiceTest {
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+                executor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new DummyStreamTransactionTasks(streamStore,
                 hostStore, taskMetadataStore, executor, hostId);
 
         // Create TimeoutService
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks);
         timeoutService.startAsync();
+
+        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, timeoutService);
     }
 
     @Test
@@ -155,6 +165,17 @@ public class TimeoutServiceTest {
         TxnStatus status = streamStore.transactionStatus(scope, stream, txData.getId()).join();
         Assert.assertEquals(TxnStatus.ABORTING, status);
 
+    }
+
+    @Test
+    public void testControllerTimeout() throws InterruptedException {
+        TxnId txnId = controllerService.createTransaction(scope, stream, lease, maxExecutionTime, scaleGracePeriod)
+                .join();
+
+        Thread.sleep(5200);
+
+        TxnState txnState = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        Assert.assertEquals(TxnState.ABORTING, txnState);
     }
 
     @Test
@@ -182,6 +203,30 @@ public class TimeoutServiceTest {
 
         status = streamStore.transactionStatus(scope, stream, txData.getId()).join();
         Assert.assertEquals(TxnStatus.ABORTING, status);
+    }
+
+    @Test
+    public void testControllerPingSuccess() throws InterruptedException {
+        TxnId txnId = controllerService.createTransaction(scope, stream, lease, maxExecutionTime, scaleGracePeriod)
+                .join();
+
+        Thread.sleep(3000);
+
+        TxnState txnState = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        Assert.assertEquals(TxnState.OPEN, txnState);
+
+        PingStatus pingStatus = controllerService.pingTransaction(scope, stream, txnId, lease).join();
+        Assert.assertEquals(PingStatus.OK, pingStatus);
+
+        Thread.sleep(2000);
+
+        txnState = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        Assert.assertEquals(TxnState.OPEN, txnState);
+
+        Thread.sleep(3200);
+
+        txnState = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        Assert.assertEquals(TxnState.ABORTING, txnState);
     }
 
     @Test
@@ -216,6 +261,33 @@ public class TimeoutServiceTest {
     }
 
     @Test
+    public void testControllerPingFailureMaxExecutionTimeExceeded() throws InterruptedException {
+        TxnId txnId = controllerService.createTransaction(scope, stream, lease, maxExecutionTime, scaleGracePeriod)
+                .join();
+
+        Thread.sleep(3000);
+
+        TxnState txnState = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        Assert.assertEquals(TxnState.OPEN, txnState);
+
+        PingStatus pingStatus = controllerService.pingTransaction(scope, stream, txnId, lease).join();
+        Assert.assertEquals(PingStatus.OK, pingStatus);
+
+        Thread.sleep(3000);
+
+        txnState = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        Assert.assertEquals(TxnState.OPEN, txnState);
+
+        pingStatus = controllerService.pingTransaction(scope, stream, txnId, lease + 1).join();
+        Assert.assertEquals(PingStatus.MAX_EXECUTION_TIME_EXCEEDED, pingStatus);
+
+        Thread.sleep(2000);
+
+        txnState = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        Assert.assertEquals(TxnState.ABORTING, txnState);
+    }
+
+    @Test
     public void testPingFailureDisconnected() throws InterruptedException {
 
         VersionedTransactionData txData = streamStore.createTransaction(scope, stream, lease, maxExecutionTime,
@@ -240,6 +312,30 @@ public class TimeoutServiceTest {
         // Check that the transaction status is still open, since timeoutService has been stopped.
         status = streamStore.transactionStatus(scope, stream, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
+    }
+
+    @Test
+    public void testControllerPingFailureDisconnected() throws InterruptedException {
+
+        TxnId txnId = controllerService.createTransaction(scope, stream, lease, maxExecutionTime, scaleGracePeriod)
+                .join();
+
+        Thread.sleep(3 * lease / 4);
+
+        TxnState status = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        Assert.assertEquals(TxnState.OPEN, status);
+
+        // Stop timeoutService, and then try pinging the transaction.
+        timeoutService.stopAsync();
+
+        PingStatus pingStatus = controllerService.pingTransaction(scope, stream, txnId, lease).join();
+        Assert.assertEquals(PingStatus.DISCONNECTED, pingStatus);
+
+        Thread.sleep(lease / 2);
+
+        // Check that the transaction status is still open, since timeoutService has been stopped.
+        status = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        Assert.assertEquals(TxnState.OPEN, status);
     }
 
     @Test

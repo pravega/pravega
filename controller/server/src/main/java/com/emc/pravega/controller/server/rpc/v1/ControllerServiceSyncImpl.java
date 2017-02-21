@@ -18,8 +18,6 @@
 package com.emc.pravega.controller.server.rpc.v1;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.PingStatus;
@@ -32,8 +30,6 @@ import com.emc.pravega.controller.stream.api.v1.TxnId;
 import com.emc.pravega.controller.stream.api.v1.TxnState;
 import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
-import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
-import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.ModelHelper;
 
 import java.util.List;
@@ -49,11 +45,8 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
 
     private final ControllerService controllerService;
 
-    public ControllerServiceSyncImpl(final StreamMetadataStore streamStore,
-                                     final HostControllerStore hostStore,
-                                     final StreamMetadataTasks streamMetadataTasks,
-                                     final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
-        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+    public ControllerServiceSyncImpl(final ControllerService controllerService) {
+        this.controllerService = controllerService;
     }
 
     /**
