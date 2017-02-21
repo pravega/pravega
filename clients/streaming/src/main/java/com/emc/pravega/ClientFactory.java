@@ -160,7 +160,7 @@ public interface ClientFactory extends AutoCloseable {
                                                       SynchronizerConfig config);
     
     /**
-     * @see java.lang.AutoCloseable#close()
+     * See @see java.lang.AutoCloseable#close() .
      */
     @Override
     void close();
