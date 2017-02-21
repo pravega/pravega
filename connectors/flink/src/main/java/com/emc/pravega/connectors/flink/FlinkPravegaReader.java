@@ -15,6 +15,7 @@ import com.emc.pravega.stream.Serializer;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.flink.api.common.functions.StoppableFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 import org.apache.flink.configuration.Configuration;
@@ -35,7 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> implements ResultTypeQueryable<T>,
-        Serializable {
+        StoppableFunction, Serializable {
     private static final long serialVersionUID = 1L;
 
     // The supplied event deserializer.
@@ -59,7 +60,7 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
     private transient String readerId = null;
 
     // Flag to terminate the source.
-    private transient AtomicBoolean cancelled = null;
+    private transient AtomicBoolean isRunning = null;
 
     /**
      * The flink pravega reader instance which can be added as a source to a flink job.
@@ -95,7 +96,7 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
     @Override
     public void run(SourceContext<T> ctx) throws Exception {
         log.info("Starting pravega reader, ID: " + this.readerId);
-        while (!this.cancelled.get()) {
+        while (this.isRunning.get()) {
             EventRead<T> eventRead = this.pravegaReader.readNextEvent(1000);
             if (eventRead.getEvent() != null) {
                 if (this.deserializationSchema.isEndOfStream(eventRead.getEvent())) {
@@ -112,7 +113,7 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
 
     @Override
     public void cancel() {
-        this.cancelled.set(true);
+        this.isRunning.set(false);
     }
 
     @Override
@@ -136,7 +137,7 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
         this.readerId = getRuntimeContext().getTaskNameWithSubtasks();
         this.pravegaReader = ClientFactory.withScope(this.scopeName, this.controllerURI)
                 .createReader(this.readerId, this.readerGroupName, deserializer, new ReaderConfig());
-        this.cancelled = new AtomicBoolean(false);
+        this.isRunning = new AtomicBoolean(true);
 
         log.info("Initialized pravega reader with controller URI: {}", this.controllerURI);
     }
@@ -151,5 +152,10 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
     @Override
     public TypeInformation<T> getProducedType() {
         return this.deserializationSchema.getProducedType();
+    }
+
+    @Override
+    public void stop() {
+        this.isRunning.set(false);
     }
 }
