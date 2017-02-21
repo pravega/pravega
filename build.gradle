@@ -88,7 +88,7 @@ allprojects {
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: '1.3.9'
         compile group: 'org.projectlombok', name: 'lombok', version: '1.16.10'
         compile group: 'commons-io', name: 'commons-io', version: '2.5'
-        compile 'io.netty:netty-all:4.0.36.Final'
+        compile 'io.netty:netty-all:4.1.5.Final'
 
         testCompile "org.mockito:mockito-core:2.+"
     }
@@ -157,7 +157,6 @@ project('common') {
         }
     }
 }
-
 
 project('clients:streaming') {
     dependencies {
@@ -399,16 +398,17 @@ project('controller:contract') {
         // https://mvnrepository.com/artifact/org.apache.thrift/libthrift
         compile group: 'org.apache.thrift', name: 'libthrift', version: '0.9.3'
         compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
-        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-netty-http', version: '2.25'
-        compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: '2.25'
-        compile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-netty', version: '2.25'
-        compile group: 'org.glassfish.jersey.ext', name: 'jersey-bean-validation', version: '2.25.1'
     }
 }
 
 project('controller:server') {
     sourceSets {
         main.resources.srcDirs += "$projectDir/src/conf"
+    }
+
+    checkstyle {
+        // Exclude generated code from Checkstyle checks
+        checkstyleMain.exclude '**/rest/generated/**'
     }
 
     apply plugin: 'application'
@@ -432,11 +432,17 @@ project('controller:server') {
         compile project(':common')
         compile project(":controller:contract")
         compile project(":clients:streaming")
+        compile group: 'javax.servlet', name: 'servlet-api', version: '2.5'
+        compile group: 'io.swagger', name: 'swagger-jersey2-jaxrs', version: '1.5.9'
         compile group: 'com.typesafe', name: 'config', version: '1.3.0'
         compile group: 'org.apache.curator', name: 'curator-framework', version: '2.11.0'
         compile group: 'org.apache.curator', name: 'curator-recipes', version: '2.11.0'
         compile group: 'org.apache.curator', name: 'curator-client', version: '2.11.0'
         compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.3.2'
+        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-netty-http', version: '2.25'
+        compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: '2.25'
+        compile group: 'org.glassfish.jersey.ext', name: 'jersey-bean-validation', version: '2.25.1'
+        testCompile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-netty', version: '2.25'
         testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
     }
 
