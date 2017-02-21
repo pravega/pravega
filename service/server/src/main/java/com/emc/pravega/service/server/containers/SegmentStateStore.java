@@ -32,10 +32,7 @@ import lombok.SneakyThrows;
  * <ul>
  * <li> Concurrent calls to any method with different Keys (SegmentName) will work without issue.
  * <li> Concurrent calls to get() with the same key will work without issue.
- * <li> Concurrent calls to put() with the same key may have multiple behaviors, based on timing. If N calls are made,
- * it could be that N-1 will fail with "BadOffsetException" or "StreamSegmentExistsException", and the other one
- * succeeds (and that one will have its data set). However, it could be that all operations succeed, in which case the
- * one that completes last will be the one that has its data set.
+ * <li> Concurrent calls to put() with the same key will result in one call succeeding and the others failing.
  * <li> Concurrent calls to remove() with the same key will work without issue.
  * <li> Concurrent calls to put() and remove() with the same key will either both succeed (in which case the outcome is
  * undefined) or the remove() will succeed and put() will fail with StreamSegmentNotExistsException (in which case the
