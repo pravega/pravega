@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.stream;
 
@@ -45,11 +33,15 @@ public interface EventRead<T> {
      * even if {@link #getEvent()} is null because no events are available. The value will continue
      * to increase even when no events are available. This is useful as it can bound the values
      * associated with future events.
+     *
+     * @return A {@link Sequence} object that wraps two numbers, a high order value and a low order value
      */
     Sequence getEventSequence();
 
     /**
-     * Returns the event itself.
+     * Returns the event that is wrapped in this EventRead.
+     *
+     * @return The event itself.
      */
     T getEvent();
 
@@ -57,18 +49,16 @@ public interface EventRead<T> {
      * The position in the stream that represents where the reader is immediately following this
      * event. It is useful to store this so that
      * {@link ReaderGroup#readerOffline(String, Position)} can be called if the reader dies.
+     *
+     * @return Position of the event
      */
     Position getPosition();
 
     /**
-     * Returns the segment the event came from.
+     * Returns the pointer object for the event read. The event pointer enables a random read of the
+     * event at a future time.
      */
-    Segment getSegment();
-    
-    /**
-     * Returns the byte offset within the segment the event was read from.
-     */
-    Long getOffsetInSegment();
+    EventPointer getEventPointer();
 
     /**
      * Returns a boolean indicating if a rebalance of which events are being routed to which readers
@@ -84,10 +74,14 @@ public interface EventRead<T> {
      * as the set routing keys it is working with are about to change.
      * 
      * For a reader that is not part of a {@link ReaderGroup} and is rebalanced manually, this means
+     *
      * the application should call {@link RebalancerUtils#rebalance(java.util.Collection, int)} with
+     *
      * the positions of its readers and recreate new readers from the resulting positions.
      * 
      * It is the goal of the implementation to not set this to true unless it is required.
+     *
+     * @return Boolean whether a rebalance is being routed
      */
     boolean isRoutingRebalance();
 }
