@@ -114,12 +114,17 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final String streamName,
                                                    final StreamConfiguration configuration,
                                                    final long createTimestamp) {
-        Stream stream = getStream(scopeName, streamName);
-        return stream.create(configuration, createTimestamp).thenApply(result -> {
-            CREATE_STREAM.reportSuccessValue(1);
-            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), 0);
-            return result;
-        });
+        if (!validateName(scopeName)) {
+            log.error("Create stream failed due to invalid stream name {}", scopeName);
+            return CompletableFuture.completedFuture(false);
+        } else {
+            Stream stream = getStream(scopeName, streamName);
+            return stream.create(configuration, createTimestamp).thenApply(result -> {
+                CREATE_STREAM.reportSuccessValue(1);
+                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), 0);
+                return result;
+            });
+        }
     }
 
     /**
@@ -130,8 +135,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      */
     @Override
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
-        if (!validateZNodeName(scopeName)) {
-            log.debug("Create scope failed due to invalid scope name {}", scopeName);
+        if (!validateName(scopeName)) {
+            log.error("Create scope failed due to invalid scope name {}", scopeName);
             return CompletableFuture.completedFuture(CreateScopeStatus.FAILURE);
         } else {
             return getScope(scopeName).createScope()
@@ -379,7 +384,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 list -> FutureHelpers.filter(list, elem -> stream.getPredecessors(elem).thenApply(x -> x.size() == 1)));
     }
 
-    static boolean validateZNodeName(final String path) {
+    static boolean validateName(final String path) {
         return (path.indexOf('\\') >= 0 || path.indexOf('/') >= 0) ? false : true;
     }
 }

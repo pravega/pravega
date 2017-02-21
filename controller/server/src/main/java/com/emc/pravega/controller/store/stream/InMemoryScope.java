@@ -42,7 +42,7 @@ public class InMemoryScope implements Scope {
 
     @Override
     public synchronized CompletableFuture<List<String>> listStreamsInScope() {
-        return CompletableFuture.completedFuture(Collections.unmodifiableList(streamsInScope));
+        return CompletableFuture.completedFuture(Collections.unmodifiableList(this.streamsInScope));
     }
 
     @Override
@@ -56,6 +56,6 @@ public class InMemoryScope implements Scope {
      * @param stream Name of stream to be added.
      */
     public synchronized void addStreamToScope(String stream) {
-        streamsInScope.add(stream);
+        this.streamsInScope.add(stream);
     }
 }

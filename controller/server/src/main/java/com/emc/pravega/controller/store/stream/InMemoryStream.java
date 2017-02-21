@@ -44,7 +44,7 @@ class InMemoryStream implements Stream {
      */
     private final List<Integer> currentSegments = new ArrayList<>();
 
-    InMemoryStream(String scopeName, String streamName) {
+    InMemoryStream(final String scopeName, final String streamName) {
         this.scopeName = scopeName;
         this.streamName = streamName;
     }

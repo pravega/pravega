@@ -142,7 +142,7 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
      * @throws TException exception class for Thrift.
      */
     @Override
-    public void createScope(String scope, AsyncMethodCallback resultHandler) throws TException {
+    public void createScope(final String scope, final AsyncMethodCallback resultHandler) throws TException {
         log.debug("createScope called for scope {}", scope);
         processResult(controllerService.createScope(scope), resultHandler);
     }
@@ -155,7 +155,7 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
      * @throws TException exception class for Thrift.
      */
     @Override
-    public void deleteScope(String scope, AsyncMethodCallback resultHandler) throws TException {
+    public void deleteScope(final String scope, final AsyncMethodCallback resultHandler) throws TException {
         log.debug("deleteScope called for scope {}", scope);
         processResult(controllerService.deleteScope(scope), resultHandler);
     }

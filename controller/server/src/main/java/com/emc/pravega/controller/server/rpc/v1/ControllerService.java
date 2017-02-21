@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Preconditions;
 import lombok.Getter;
 import org.apache.thrift.TException;
 
@@ -211,6 +212,7 @@ public class ControllerService {
      * @return Status of create scope.
      */
     public CompletableFuture<CreateScopeStatus> createScope(final String scope) {
+        Preconditions.checkNotNull(scope);
         return streamStore.createScope(scope);
     }
 
@@ -221,6 +223,7 @@ public class ControllerService {
      * @return Status of delete scope.
      */
     public CompletableFuture<DeleteScopeStatus> deleteScope(final String scope) {
+        Preconditions.checkNotNull(scope);
         return streamStore.deleteScope(scope);
     }
 }
