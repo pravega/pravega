@@ -37,7 +37,11 @@ allprojects {
 
     javadoc {
         failOnError = false
-        exclude  "**/impl/**";
+        exclude "**/impl/**";
+        source  =  project(':clients:streaming').sourceSets.main.java
+        def javadocs = new File(rootDir, "javadocs")
+        javadocs.mkdirs()
+        destinationDir = javadocs
     }
     tasks.withType(FindBugs) {
         effort = "default"
@@ -48,9 +52,9 @@ allprojects {
             html.enabled true
         }
     }
-    compileJava {
-        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror"
-    }
+    compileJava { 
+        options.compilerArgs << "-Xlint:deprecation" << "-Xlint:divzero" << "-Xlint:empty" << "-Xlint:fallthrough" << "-Xlint:finally" << "-Xlint:overrides" << "-Xlint:path" << "-Werror" 
+    } 
     docker {
         url = dockerUrl
     }
@@ -66,7 +70,6 @@ allprojects {
         maven {
             url "http://maven.twttr.com"
         }
-
     }
 
     checkstyle {
@@ -190,8 +193,6 @@ project('service') {
         compile project(':service:server:host')
         compile project(':service:storage')
         compile project(':service:storage:impl')
-        compile project(':controller:contract')
-        compile project(':controller:server')
     }
     jar {
         from project(":service:contracts").sourceSets.main.output
@@ -199,8 +200,6 @@ project('service') {
         from project(":service:server:host").sourceSets.main.output
         from project(":service:storage").sourceSets.main.output
         from project(":service:storage:impl").sourceSets.main.output
-        from project(":controller:contract").sourceSets.main.output
-        from project(":controller:server").sourceSets.main.output
     }
     publishing {
         publications {
@@ -311,7 +310,10 @@ project('integrationtests') {
         compile project(':service:server')
         compile project(':service:server:host')
         compile project(':controller:server')
+        compile project(':connectors:flink')
         compile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
+        compile group: 'org.apache.flink', name: 'flink-tests_2.11', version: '1.2.0'
+        compile group: 'org.apache.flink', name: 'flink-test-utils_2.11', version: '1.2.0'
         testCompile project(':testcommon')
         testCompile files(project(':common').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)
@@ -458,7 +460,12 @@ project('controller:server') {
     }
 }
 
-
+project('connectors:flink') {
+    dependencies {
+        compile project(":clients:streaming")
+        compile group: 'org.apache.flink', name: 'flink-streaming-java_2.11', version: '1.2.0'
+    }
+}
 
 project('singlenode') {
     apply plugin: 'application'

@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega;
 
@@ -32,6 +20,13 @@ import java.util.List;
  */
 public interface StreamManager extends AutoCloseable {
 
+    /**
+     * Creates a new instance of StreamManager.
+     *
+     * @param scope The Scope string.
+     * @param controllerUri The Controller URI.
+     * @return Instance of Stream Manager implementation.
+     */
     public static StreamManager withScope(String scope, URI controllerUri) {
         return new StreamManagerImpl(scope, controllerUri, ClientFactory.withScope(scope, controllerUri));
     }
@@ -50,11 +45,12 @@ public interface StreamManager extends AutoCloseable {
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ReaderGroup.
      * @param streamNames The name of the streams the reader will read from.
+     * @return Newly created ReaderGroup object
      */
     ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames);
     
     /**
-     * Updates a reader group. The reader group will have a new {@link ReaderGroup#getRevision()}
+     * Updates a reader group. The reader group will have a new {@link ReaderGroup #getRevision()}
      * 
      * All existing readers will have to call
      * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)}
@@ -66,6 +62,7 @@ public interface StreamManager extends AutoCloseable {
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ReaderGroup.
      * @param streamNames The name of the streams the reader will read from.
+     * @return ReaderGroup with updated configuration
      */
     ReaderGroup updateReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames);
     
@@ -73,6 +70,7 @@ public interface StreamManager extends AutoCloseable {
      * Returns the requested reader group.
      * 
      * @param groupName The name of the group
+     * @return Reader group with the given name
      */
     ReaderGroup getReaderGroup(String groupName);
     
