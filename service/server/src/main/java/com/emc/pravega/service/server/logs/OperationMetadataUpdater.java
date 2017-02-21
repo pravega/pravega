@@ -637,7 +637,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 deserializeSegmentMetadata(stream);
             }
 
-            // 54. New Stream Segments.
+            // 5. New Stream Segments.
             segmentCount = stream.readInt();
             for (int i = 0; i < segmentCount; i++) {
                 deserializeSegmentMetadata(stream);

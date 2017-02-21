@@ -255,7 +255,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout) {
+        public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
             return null;
         }
 
