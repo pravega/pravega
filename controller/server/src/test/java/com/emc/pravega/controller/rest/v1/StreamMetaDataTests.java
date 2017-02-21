@@ -18,6 +18,7 @@ import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.ScalingPolicy.Type;
 import com.emc.pravega.stream.StreamConfiguration;
 
 import java.util.concurrent.CompletableFuture;
@@ -66,7 +67,12 @@ public class StreamMetaDataTests extends JerseyTest {
     private final StreamConfiguration streamConfiguration = StreamConfiguration.builder()
             .scope(scope1)
             .streamName(stream1)
-            .scalingPolicy(ScalingPolicy.fixed(2))
+            .scalingPolicy(ScalingPolicy.builder()
+                           .type(Type.BY_RATE_IN_EVENTS)
+                           .targetRate(100)
+                           .scaleFactor(2)
+                           .minNumSegments(2)
+                           .build())
             .retentionPolicy(RetentionPolicy.builder()
                              .retentionTimeMillis(123L)
                              .build())
@@ -95,7 +101,7 @@ public class StreamMetaDataTests extends JerseyTest {
 
     @Before
     public void initialize() {
-        scalingPolicyCommon.setType(ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS);
+        scalingPolicyCommon.setType(ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS);
         scalingPolicyCommon.setTargetRate(100L);
         scalingPolicyCommon.setScaleFactor(2);
         scalingPolicyCommon.setMinNumSegments(2);
