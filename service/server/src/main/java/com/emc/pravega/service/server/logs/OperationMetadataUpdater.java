@@ -7,7 +7,6 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.io.EnhancedByteArrayOutputStream;
-import com.emc.pravega.common.util.CollectionHelpers;
 import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.AttributeUpdateType;
@@ -47,12 +46,12 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-
-import static com.emc.pravega.common.util.CollectionHelpers.forEach;
 
 /**
  * Transaction-based Metadata Updater for Log Operations.
@@ -663,24 +662,31 @@ class OperationMetadataUpdater implements ContainerMetadata {
             // operation anyway when it gets serialized.
 
             // 3. Unchanged Segment Metadata.
-            Collection<Long> unchangedSegmentIds = CollectionHelpers.filter(this.containerMetadata.getAllStreamSegmentIds(), segmentId -> !this.streamSegmentUpdates.containsKey(segmentId));
+            Collection<Long> unchangedSegmentIds = this.containerMetadata
+                    .getAllStreamSegmentIds().stream()
+                    .filter(segmentId -> !this.streamSegmentUpdates.containsKey(segmentId))
+                    .collect(Collectors.toList());
             stream.writeInt(unchangedSegmentIds.size());
-            CollectionHelpers.forEach(unchangedSegmentIds, segmentId -> serializeSegmentMetadata(this.containerMetadata.getStreamSegmentMetadata(segmentId), stream));
+            unchangedSegmentIds.forEach(segmentId -> serializeSegmentMetadata(this.containerMetadata.getStreamSegmentMetadata(segmentId), stream));
 
             // 4. New StreamSegments.
-            Collection<UpdateableSegmentMetadata> newSegments = CollectionHelpers.filter(this.newStreamSegments.values(), sm -> !this.streamSegmentUpdates.containsKey(sm.getId()));
+            Collection<UpdateableSegmentMetadata> newSegments = this.newStreamSegments
+                    .values().stream()
+                    .filter(sm -> !this.streamSegmentUpdates.containsKey(sm.getId()))
+                    .collect(Collectors.toList());
             stream.writeInt(newSegments.size());
-            forEach(newSegments, sm -> serializeSegmentMetadata(sm, stream));
+            newSegments.forEach(sm -> serializeSegmentMetadata(sm, stream));
 
             // 5. Changed Segment Metadata.
             stream.writeInt(this.streamSegmentUpdates.size());
-            CollectionHelpers.forEach(this.streamSegmentUpdates.values(), sm -> serializeSegmentMetadata(sm, stream));
+            this.streamSegmentUpdates.values().forEach(sm -> serializeSegmentMetadata(sm, stream));
 
             zipStream.finish();
             operation.setContents(byteStream.getData());
         }
 
-        private void serializeSegmentMetadata(SegmentMetadata sm, DataOutputStream stream) throws IOException {
+        @SneakyThrows(IOException.class)
+        private void serializeSegmentMetadata(SegmentMetadata sm, DataOutputStream stream) {
             // S1. StreamSegmentId.
             stream.writeLong(sm.getId());
             // S2. ParentId.
