@@ -52,6 +52,12 @@ public class ClientFactoryImpl implements ClientFactory {
     private final SegmentInputStreamFactory inFactory;
     private final SegmentOutputStreamFactory outFactory;
 
+    /**
+     * Creates a new instance of ClientFactory class.
+     *
+     * @param scope         The scope string.
+     * @param controllerUri The Controller URI.
+     */
     public ClientFactoryImpl(String scope, URI controllerUri) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controllerUri);
@@ -62,12 +68,19 @@ public class ClientFactoryImpl implements ClientFactory {
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
     }
 
+    /**
+     * Creates a new instance of the ClientFactory class.
+     *
+     * @param scope             The scope string.
+     * @param controller        The reference to Controller.
+     * @param connectionFactory The reference to Connection Factory impl.
+     */
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
         this(scope, controller, new SegmentInputStreamFactoryImpl(controller, connectionFactory),
                 new SegmentOutputStreamFactoryImpl(controller, connectionFactory));
     }
-    
+
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, SegmentInputStreamFactory inFactory,
             SegmentOutputStreamFactory outFactory) {
@@ -88,7 +101,7 @@ public class ClientFactoryImpl implements ClientFactory {
         EventRouter router = new EventRouter(stream, controller);
         return new EventStreamWriterImpl<T>(stream, controller, outFactory, router, s, config);
     }
-    
+
     @Override
     public <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
             EventWriterConfig config) {
@@ -147,7 +160,7 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     @Override
-    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
+    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>>
             StateSynchronizer<StateT> createStateSynchronizer(String streamName,
                     Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer,
                     SynchronizerConfig config) {
