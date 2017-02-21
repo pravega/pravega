@@ -36,7 +36,7 @@ public class ModelHelper {
                         ScalingPolicy.Type.valueOf(createStreamRequest.getScalingPolicy().getType().name()),
                         createStreamRequest.getScalingPolicy().getTargetRate(),
                         createStreamRequest.getScalingPolicy().getScaleFactor(),
-                        createStreamRequest.getScalingPolicy().getMinNumSegments()),
+                        createStreamRequest.getScalingPolicy().getMinSegments()),
                 new RetentionPolicy(createStreamRequest.getRetentionPolicy().getRetentionTimeMillis())
         );
     }
@@ -58,7 +58,7 @@ public class ModelHelper {
                         ScalingPolicy.Type.valueOf(updateStreamRequest.getScalingPolicy().getType().name()),
                         updateStreamRequest.getScalingPolicy().getTargetRate(),
                         updateStreamRequest.getScalingPolicy().getScaleFactor(),
-                        updateStreamRequest.getScalingPolicy().getMinNumSegments()),
+                        updateStreamRequest.getScalingPolicy().getMinSegments()),
                 new RetentionPolicy(updateStreamRequest.getRetentionPolicy().getRetentionTimeMillis())
         );
     }
@@ -75,14 +75,14 @@ public class ModelHelper {
         scalingPolicy.setType(ScalingConfig.TypeEnum.valueOf(streamConfiguration.getScalingPolicy().getType().name()));
         scalingPolicy.setTargetRate(streamConfiguration.getScalingPolicy().getTargetRate());
         scalingPolicy.setScaleFactor(streamConfiguration.getScalingPolicy().getScaleFactor());
-        scalingPolicy.setMinNumSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
+        scalingPolicy.setMinSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
 
         RetentionConfig retentionPolicy = new RetentionConfig();
         retentionPolicy.setRetentionTimeMillis(streamConfiguration.getRetentionPolicy().getRetentionTimeMillis());
 
         StreamProperty streamProperty = new StreamProperty();
-        streamProperty.setName(streamConfiguration.getName());
-        streamProperty.setScope(streamConfiguration.getScope());
+        streamProperty.setStreamName(streamConfiguration.getName());
+        streamProperty.setScopeName(streamConfiguration.getScope());
         streamProperty.setScalingPolicy(scalingPolicy);
         streamProperty.setRetentionPolicy(retentionPolicy);
 

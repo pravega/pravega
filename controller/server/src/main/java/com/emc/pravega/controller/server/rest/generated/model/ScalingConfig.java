@@ -43,7 +43,7 @@ public class ScalingConfig   {
 
   private Integer scaleFactor = null;
 
-  private Integer minNumSegments = null;
+  private Integer minSegments = null;
 
   public ScalingConfig type(TypeEnum type) {
     this.type = type;
@@ -99,22 +99,22 @@ public class ScalingConfig   {
     this.scaleFactor = scaleFactor;
   }
 
-  public ScalingConfig minNumSegments(Integer minNumSegments) {
-    this.minNumSegments = minNumSegments;
+  public ScalingConfig minSegments(Integer minSegments) {
+    this.minSegments = minSegments;
     return this;
   }
 
    /**
-   * Get minNumSegments
-   * @return minNumSegments
+   * Get minSegments
+   * @return minSegments
   **/
   @ApiModelProperty(value = "")
-  public Integer getMinNumSegments() {
-    return minNumSegments;
+  public Integer getMinSegments() {
+    return minSegments;
   }
 
-  public void setMinNumSegments(Integer minNumSegments) {
-    this.minNumSegments = minNumSegments;
+  public void setMinSegments(Integer minSegments) {
+    this.minSegments = minSegments;
   }
 
 
@@ -130,12 +130,12 @@ public class ScalingConfig   {
     return Objects.equals(this.type, scalingConfig.type) &&
         Objects.equals(this.targetRate, scalingConfig.targetRate) &&
         Objects.equals(this.scaleFactor, scalingConfig.scaleFactor) &&
-        Objects.equals(this.minNumSegments, scalingConfig.minNumSegments);
+        Objects.equals(this.minSegments, scalingConfig.minSegments);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(type, targetRate, scaleFactor, minNumSegments);
+    return Objects.hash(type, targetRate, scaleFactor, minSegments);
   }
 
   @Override
@@ -146,7 +146,7 @@ public class ScalingConfig   {
     sb.append("    type: ").append(toIndentedString(type)).append("\n");
     sb.append("    targetRate: ").append(toIndentedString(targetRate)).append("\n");
     sb.append("    scaleFactor: ").append(toIndentedString(scaleFactor)).append("\n");
-    sb.append("    minNumSegments: ").append(toIndentedString(minNumSegments)).append("\n");
+    sb.append("    minSegments: ").append(toIndentedString(minSegments)).append("\n");
     sb.append("}");
     return sb.toString();
   }

@@ -91,11 +91,11 @@ public class StreamMetaDataTests extends JerseyTest {
         scalingPolicyCommon.setType(ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS);
         scalingPolicyCommon.setTargetRate(100L);
         scalingPolicyCommon.setScaleFactor(2);
-        scalingPolicyCommon.setMinNumSegments(2);
+        scalingPolicyCommon.setMinSegments(2);
         retentionPolicyCommon.setRetentionTimeMillis(123L);
         retentionPolicyCommon2.setRetentionTimeMillis(null);
-        streamResponseExpected.setScope(scope1);
-        streamResponseExpected.setName(stream1);
+        streamResponseExpected.setScopeName(scope1);
+        streamResponseExpected.setStreamName(stream1);
         streamResponseExpected.setScalingPolicy(scalingPolicyCommon);
         streamResponseExpected.setRetentionPolicy(retentionPolicyCommon);
 
@@ -216,9 +216,9 @@ public class StreamMetaDataTests extends JerseyTest {
     private static void testExpectedVsActualObject(final StreamProperty expected, final StreamProperty actual) {
         assertNotNull(expected);
         assertNotNull(actual);
-        assertEquals("StreamConfig: Scope Name ", expected.getScope(), actual.getScope());
+        assertEquals("StreamConfig: Scope Name ", expected.getScopeName(), actual.getScopeName());
         assertEquals("StreamConfig: Stream Name ",
-                expected.getName(), actual.getName());
+                expected.getStreamName(), actual.getStreamName());
         assertEquals("StreamConfig: Scaling Policy: Type",
                 expected.getScalingPolicy().getType(), actual.getScalingPolicy().getType());
         assertEquals("StreamConfig: Scaling Policy: Target Rate",
@@ -228,8 +228,8 @@ public class StreamMetaDataTests extends JerseyTest {
                 expected.getScalingPolicy().getScaleFactor(),
                 actual.getScalingPolicy().getScaleFactor());
         assertEquals("StreamConfig: Scaling Policy: MinNumSegments",
-                expected.getScalingPolicy().getMinNumSegments(),
-                actual.getScalingPolicy().getMinNumSegments());
+                expected.getScalingPolicy().getMinSegments(),
+                actual.getScalingPolicy().getMinSegments());
         assertEquals("StreamConfig: Retention Policy: MinNumSegments",
                 expected.getRetentionPolicy().getRetentionTimeMillis(),
                 actual.getRetentionPolicy().getRetentionTimeMillis());
