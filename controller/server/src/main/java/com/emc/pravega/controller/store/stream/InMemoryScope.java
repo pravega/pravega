@@ -23,6 +23,10 @@ public class InMemoryScope implements Scope {
         this.scopeName = scopeName;
     }
 
+    public List<String> getStreamsInScope() {
+        return streamsInScope;
+    }
+
     @Override
     public String getName() {
         return this.scopeName;

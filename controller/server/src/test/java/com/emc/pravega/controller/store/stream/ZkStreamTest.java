@@ -28,13 +28,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -72,12 +70,7 @@ public class ZkStreamTest {
 
         // create duplicate scope test
         createScopeStatus = store.createScope(scopeName);
-        try {
-            createScopeStatus.get();
-        } catch (ExecutionException e) {
-            assertEquals("Create duplicate scope ", true, e.getCause() instanceof StoreException);
-            assertEquals("Create duplicate scope ", NODE_EXISTS, ((StoreException) e.getCause()).getType());
-        }
+        assertEquals("Create new scope :", CreateScopeStatus.SCOPE_EXISTS, createScopeStatus.get());
 
         //listStreamsInScope test
         final String streamName1 = "Stream1";

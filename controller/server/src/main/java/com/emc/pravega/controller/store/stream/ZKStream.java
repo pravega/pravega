@@ -137,7 +137,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                     if (x) {
                         return;
                     } else {
-                        throw new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found.");
+                        StoreException.create(StoreException.Type.NODE_EXISTS);
                     }
                 });
     }

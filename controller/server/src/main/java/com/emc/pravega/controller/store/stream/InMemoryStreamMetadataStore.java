@@ -38,12 +38,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     synchronized Scope newScope(final String scopeName) {
-        Scope scope = scopes.get(scopeName);
-        if (scope != null) {
-            return scope;
-        } else {
-            throw new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found.");
-        }
+        return scopes.get(scopeName);
     }
 
     @Override
@@ -92,15 +87,13 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public synchronized CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName) {
         if (scopes.containsKey(scopeName)) {
-            return scopes.get(scopeName).listStreamsInScope().thenApply(streams -> {
-                if (streams.size() == 0) {
-                    scopes.get(scopeName).deleteScope();
-                    scopes.remove(scopeName);
-                    return DeleteScopeStatus.SUCCESS;
-                } else {
-                    return DeleteScopeStatus.SCOPE_NOT_EMPTY;
-                }
-            });
+            if (scopes.get(scopeName).getStreamsInScope().size() == 0) {
+                scopes.get(scopeName).deleteScope();
+                scopes.remove(scopeName);
+                return CompletableFuture.completedFuture(DeleteScopeStatus.SUCCESS);
+            } else {
+                return CompletableFuture.completedFuture(DeleteScopeStatus.SCOPE_NOT_EMPTY);
+            }
         } else {
             return CompletableFuture.completedFuture(DeleteScopeStatus.SCOPE_NOT_FOUND);
         }

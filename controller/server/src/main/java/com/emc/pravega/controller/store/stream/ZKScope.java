@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.KeeperException;
 
@@ -70,9 +71,9 @@ public class ZKScope implements Scope {
             try {
                 client.create().creatingParentsIfNeeded().forPath(path);
             } catch (KeeperException.NodeExistsException e) {
-                throw new StoreException(StoreException.Type.NODE_EXISTS, e);
+                StoreException.create(StoreException.Type.NODE_EXISTS, path);
             } catch (Exception e) {
-                throw new StoreException(StoreException.Type.UNKNOWN, e);
+                StoreException.create(StoreException.Type.UNKNOWN, path);
             }
         });
     }
@@ -82,11 +83,11 @@ public class ZKScope implements Scope {
             try {
                 client.delete().forPath(path);
             } catch (KeeperException.NoNodeException e) {
-                throw new StoreException(StoreException.Type.NODE_NOT_FOUND, e);
+                 StoreException.create(StoreException.Type.NODE_NOT_FOUND, path);
             } catch (KeeperException.NotEmptyException e) {
-                throw new StoreException(StoreException.Type.NODE_NOT_EMPTY, e);
+                 StoreException.create(StoreException.Type.NODE_NOT_EMPTY, path);
             } catch (Exception e) {
-                throw new StoreException(StoreException.Type.UNKNOWN, e);
+                StoreException.create(StoreException.Type.UNKNOWN, path);
             }
         });
     }
@@ -96,10 +97,11 @@ public class ZKScope implements Scope {
             try {
                 return client.getChildren().forPath(path);
             } catch (KeeperException.NoNodeException e) {
-                throw new StoreException(StoreException.Type.NODE_NOT_FOUND, e);
+                FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND, path));
             } catch (Exception e) {
-                throw new StoreException(StoreException.Type.UNKNOWN, e);
+                FutureHelpers.failedFuture(StoreException.create(StoreException.Type.UNKNOWN, path));
             }
+            return null;
         });
     }
 }
