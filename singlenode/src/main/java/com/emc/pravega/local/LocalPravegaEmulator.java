@@ -227,8 +227,6 @@ public class LocalPravegaEmulator implements AutoCloseable {
         }
 
         //1. LOAD configuration.
-        Config.setZKURL("localhost:" + zkPort);
-
         log.info("Creating store client");
         StoreClient storeClient = StoreClientFactory.createStoreClient(StoreClientFactory.StoreType.Zookeeper);
 

@@ -5,19 +5,19 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.metrics.MetricsConfig;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.curator.framework.CuratorFramework;
-
-import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import lombok.extern.slf4j.Slf4j;
+
+import org.apache.curator.framework.CuratorFramework;
 
 /**
  * ZK stream metadata store.
@@ -31,16 +31,16 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     public ZKStreamMetadataStore(ScheduledExecutorService executor) {
         this.executor = executor;
-        initialize(ZKUtils.getCuratorClient(), ZKUtils.getMetricsConfig());
+        initialize(ZKUtils.getCuratorClient());
     }
 
     @VisibleForTesting
     public ZKStreamMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
         this.executor = executor;
-        initialize(client, ZKUtils.getMetricsConfig());
+        initialize(client);
     }
 
-    private void initialize(CuratorFramework client, MetricsConfig metricsConfig) {
+    private void initialize(CuratorFramework client) {
 
         // Garbage collector for completed transactions
         ZKStream.initialize(client);
@@ -66,9 +66,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
             }
             // find completed transactions to be gc'd
         }, INITIAL_DELAY, PERIOD, TimeUnit.HOURS);
-        if (metricsConfig != null) {
-            METRICS_PROVIDER.start(metricsConfig);
-        }
+        METRICS_PROVIDER.start();
     }
 
     @Override
