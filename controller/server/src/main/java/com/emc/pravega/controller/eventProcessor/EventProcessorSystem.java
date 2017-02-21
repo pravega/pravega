@@ -51,8 +51,10 @@ public interface EventProcessorSystem {
      *              in the EventProcessorGroup.
      * @param <T> Stream Event type parameter.
      * @return EventProcessorGroup reference.
+     * @throws CheckpointStoreException on error accessing or updating checkpoint store.
      */
-    <T extends StreamEvent> EventProcessorGroup<T> createEventProcessorGroup(Props<T> props);
+    <T extends StreamEvent> EventProcessorGroup<T> createEventProcessorGroup(Props<T> props)
+            throws CheckpointStoreException;
 
     /**
      * Returns the list of all event processor groups created in the system.

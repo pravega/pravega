@@ -20,7 +20,7 @@ package com.emc.pravega.controller.server;
 /**
  * Base class for exceptions thrown from controller server code base.
  */
-public class ControllerServerException extends RuntimeException {
+public class ControllerServerException extends Exception {
 
     public ControllerServerException(Throwable t) {
         super(t);

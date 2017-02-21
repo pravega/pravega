@@ -53,7 +53,7 @@ class InMemoryCheckpointStore implements CheckpointStore {
         private State state;
         private Map<String, Position> map;
 
-        void update(String readerId, Position position) {
+        void update(String readerId, Position position) throws CheckpointStoreException {
             if (this.map.containsKey(readerId)) {
                 this.map.put(readerId, position);
             } else {
@@ -64,7 +64,7 @@ class InMemoryCheckpointStore implements CheckpointStore {
 
     @Override
     @Synchronized
-    public void setPosition(String process, String readerGroup, String readerId, Position position) {
+    public void setPosition(String process, String readerGroup, String readerId, Position position) throws CheckpointStoreException {
         String key = getKey(process, readerGroup);
         if (map.containsKey(key)) {
             map.get(key).update(readerId, position);
@@ -81,7 +81,7 @@ class InMemoryCheckpointStore implements CheckpointStore {
 
     @Override
     @Synchronized
-    public void addReaderGroup(String process, String readerGroup) {
+    public void addReaderGroup(String process, String readerGroup) throws CheckpointStoreException {
         String key = getKey(process, readerGroup);
         if (!map.containsKey(key)) {
             ReaderGroupData groupData = new ReaderGroupData(ReaderGroupData.State.Active, new HashMap<>());
@@ -93,7 +93,7 @@ class InMemoryCheckpointStore implements CheckpointStore {
 
     @Override
     @Synchronized
-    public Map<String, Position> sealReaderGroup(String process, String readerGroup) {
+    public Map<String, Position> sealReaderGroup(String process, String readerGroup) throws CheckpointStoreException {
         String key = getKey(process, readerGroup);
         if (map.containsKey(key)) {
             ReaderGroupData groupData = map.get(key);
@@ -107,7 +107,7 @@ class InMemoryCheckpointStore implements CheckpointStore {
 
     @Override
     @Synchronized
-    public void removeReaderGroup(String process, String readerGroup) {
+    public void removeReaderGroup(String process, String readerGroup) throws CheckpointStoreException {
         String key = getKey(process, readerGroup);
         if (map.containsKey(key)) {
             // Remove the reader group only if it has no active readers.
@@ -137,7 +137,7 @@ class InMemoryCheckpointStore implements CheckpointStore {
 
     @Override
     @Synchronized
-    public void addReader(String process, String readerGroup, String readerId) {
+    public void addReader(String process, String readerGroup, String readerId) throws CheckpointStoreException {
         String key = getKey(process, readerGroup);
         if (map.containsKey(key)) {
             ReaderGroupData groupData = map.get(key);

@@ -19,6 +19,7 @@ package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.StreamManager;
+import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.Props;
@@ -72,7 +73,7 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
         return this.process;
     }
 
-    public <T extends StreamEvent> EventProcessorGroup<T> createEventProcessorGroup(Props<T> props) {
+    public <T extends StreamEvent> EventProcessorGroup<T> createEventProcessorGroup(Props<T> props) throws CheckpointStoreException {
         EventProcessorGroupImpl<T> actorGroup;
 
         // Create event processor group.

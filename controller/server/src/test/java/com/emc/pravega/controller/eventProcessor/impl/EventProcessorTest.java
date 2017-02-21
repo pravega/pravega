@@ -19,6 +19,7 @@ package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
+import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.Decider;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
@@ -149,7 +150,7 @@ public class EventProcessorTest {
     }
 
     @Test
-    public void testEventProcessorCell() {
+    public void testEventProcessorCell() throws CheckpointStoreException {
         CheckpointStore checkpointStore = new InMemoryCheckpointStore();
 
         CheckpointConfig.CheckpointPeriod period =
@@ -230,7 +231,7 @@ public class EventProcessorTest {
                                     final EventStreamReader<TestEvent> reader,
                                     final String readerId,
                                     final CheckpointStore checkpointStore,
-                                    final int expectedSum) {
+                                    final int expectedSum) throws CheckpointStoreException {
         EventProcessorCell<TestEvent> cell =
                 new EventProcessorCell<>(props, reader, system.getProcess(), readerId, checkpointStore);
 

@@ -45,7 +45,7 @@ public abstract class CheckpointStoreTests {
     public abstract void cleanupCheckpointStore() throws IOException;
 
     @Test
-    public void folderOperationTests() {
+    public void folderOperationTests() throws CheckpointStoreException {
 
         final String process1 = "process1";
         final String readerGroup1 = "rg1";

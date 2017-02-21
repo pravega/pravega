@@ -220,7 +220,7 @@ class EventProcessorCell<T extends StreamEvent> {
             }
         }
 
-        void stop() {
+        void stop() throws CheckpointStoreException {
             checkpointStore.removeReader(process, readerGroupName, readerId);
         }
     }

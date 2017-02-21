@@ -24,7 +24,7 @@ import java.util.Set;
 /**
  * EventProcessor group interface. It provides mechanism to manage event
  * processors processing events from a Pravega Stream by participating in
- * the same Pravega ReaderGroup.
+ * the same ReaderGroup.
  */
 public interface EventProcessorGroup<T extends StreamEvent> {
 
@@ -32,8 +32,9 @@ public interface EventProcessorGroup<T extends StreamEvent> {
      * Notifies Pravega ReaderGroup about failure of a process
      * participating in the Reader Group.
      * @param process Failed process's identifier.
+     * @throws CheckpointStoreException on error accessing or updating checkpoint store.
      */
-    void notifyProcessFailure(String process);
+    void notifyProcessFailure(String process) throws CheckpointStoreException;
 
     /**
      * Increase/decrease the number of event processors reading from the Pravega
@@ -43,8 +44,9 @@ public interface EventProcessorGroup<T extends StreamEvent> {
      * decreased event throughput.
      * @param count Number of event processors to add. Negative number indicates
      *              decreasing the Actor count.
+     * @throws CheckpointStoreException on error accessing or updating checkpoint store.
      */
-    void changeEventProcessorCount(int count);
+    void changeEventProcessorCount(int count) throws CheckpointStoreException;
 
     /**
      * Returns a reference to its writer.
@@ -61,6 +63,7 @@ public interface EventProcessorGroup<T extends StreamEvent> {
     /**
      * Initiates stop on all event processors in this group and waits for
      * their termination.
+     * @throws CheckpointStoreException on error accessing or updating checkpoint store.
      */
-    void stopAll();
+    void stopAll() throws CheckpointStoreException;
 }
