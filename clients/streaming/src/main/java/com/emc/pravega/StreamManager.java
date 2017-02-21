@@ -64,7 +64,7 @@ public interface StreamManager extends AutoCloseable {
     void deleteStream(String toDelete);
     
     /**
-     * @see java.lang.AutoCloseable#close()
+     * See @see java.lang.AutoCloseable#close() .
      */
     @Override
     void close();

@@ -85,12 +85,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         result.initializeGroup(segments);
         return result;
     }
-
-    @Override
-    public ReaderGroup alterReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames) {
-        throw new NotImplementedException();
-    }
-
+    
     @Override
     public ReaderGroup getReaderGroup(String groupName) {
         throw new NotImplementedException();

@@ -77,6 +77,20 @@ public interface ReaderGroup {
     void resetReadersToCheckpoint(Checkpoint checkpoint);
     
     /**
+     * Updates a reader group. All existing readers will have to call
+     * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)} . If they continue to read
+     * events they will eventually encounter an {@link ReinitializationRequiredException}.
+     * 
+     * Readers connecting to the group will start from the point defined in the config, exactly as though it
+     * were a new reader group.
+     * 
+     * @param config The configuration for the new ReaderGroup.
+     * @param streamNames The name of the streams the reader will read from.
+     * @return ReaderGroup with updated configuration
+     */
+    ReaderGroup alterConfig(ReaderGroupConfig config, List<String> streamNames);
+    
+    /**
      * Invoked when a reader that was added to the group is no longer consuming events. This will
      * cause the events that were going to that reader to be redistributed among the other
      * readers. Events after the lastPosition provided will be (re)read by other readers in the

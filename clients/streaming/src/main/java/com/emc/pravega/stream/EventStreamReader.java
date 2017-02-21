@@ -5,7 +5,6 @@
  */
 package com.emc.pravega.stream;
 
-import com.emc.pravega.StreamManager;
 import com.emc.pravega.stream.impl.EventReadImpl;
 import com.emc.pravega.stream.impl.segment.NoSuchEventException;
 
@@ -29,7 +28,7 @@ public interface EventStreamReader<T> extends AutoCloseable {
      * @return The next event in the stream, or null if timeout is reached.
      * @throws ReinitializationRequiredException Is throw in the event that
      *         {@link ReaderGroup#resetReadersToCheckpoint(Checkpoint)} or
-     *         {@link StreamManager#alterReaderGroup(String, ReaderGroupConfig, java.util.List)} was called
+     *         {@link ReaderGroup#alterConfig(ReaderGroupConfig, java.util.List)} was called
      *         which requires readers to be reinitialized.
      */
     EventRead<T> readNextEvent(long timeout) throws ReinitializationRequiredException;

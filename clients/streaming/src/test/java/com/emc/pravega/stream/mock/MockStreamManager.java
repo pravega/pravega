@@ -110,11 +110,6 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     public Position getInitialPosition(String stream) {
         return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L));
     }
-    
-    @Override
-    public ReaderGroup alterReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames) {
-        throw new NotImplementedException();
-    }
 
     @Override
     public ReaderGroup getReaderGroup(String groupName) {

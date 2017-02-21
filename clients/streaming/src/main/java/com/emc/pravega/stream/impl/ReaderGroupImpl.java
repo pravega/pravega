@@ -80,4 +80,10 @@ public class ReaderGroupImpl implements ReaderGroup {
     public void resetReadersToCheckpoint(Checkpoint checkpointName) {
         throw new NotImplementedException();
     }
+
+    @Override
+    public ReaderGroup alterConfig(ReaderGroupConfig config, List<String> streamNames) {
+        throw new NotImplementedException();
+    }
+
 }
