@@ -9,7 +9,6 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.ClusterListener;
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.util.CollectionHelpers;
 import com.google.common.base.Preconditions;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -155,7 +154,7 @@ public class ClusterZKImpl implements Cluster {
     @Override
     public void close() throws Exception {
         synchronized (entryMap) {
-            CollectionHelpers.forEach(entryMap.values(), this::close);
+            entryMap.values().forEach(this::close);
             cache.ifPresent(this::close);
         }
     }
