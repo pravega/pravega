@@ -18,10 +18,28 @@ import java.util.concurrent.Future;
 public interface EventStreamWriter<Type> extends AutoCloseable {
     
     /**
-     * Send an event to the stream. Events that are written should appear in the stream exactly once in the
-     * order they were written. (If there are multiple writers they may be interleaved but any event written
-     * after the future of another writeEvent call has completed, will come after the fir)
+     * Send an event to the stream. Events that are written should appear in the stream exactly once.
      * 
+     * Note that the implementation provides retry logic to handle connection failures and service host
+     * failures. Internal retries will not violate the exactly once semantic so it is better to rely on them
+     * than to wrap this with custom retry logic.
+     * 
+     * @param event The event to be written to the stream
+     * @return A future that will complete when the event has been durably stored on the configured number of
+     *         replicas, and is available for readers to see. This future may complete exceptionally if this
+     *         cannot happen, however these exceptions are not transient failures. Failures that occur as a
+     *         result of connection drops or host death are handled internally with multiple retires and
+     *         exponential backoff. So there is no need to attempt to retry in the event of an exception.
+     */
+    default Future<Void> writeEvent(Type event) {
+        return writeEvent(null, event);
+    }
+    
+    
+    /**
+     * Write an event to the stream. Similar to {@link #writeEvent(Object)} but provides a routingKey which is
+     * used to specify ordering. Events written with the same routing key will be read by readers in exactly
+     * the same order they were written.  
      * 
      * Note that the implementation provides retry logic to handle connection failures and service host
      * failures. Internal retries will not violate the exactly once semantic so it is better to rely on them
