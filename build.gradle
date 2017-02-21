@@ -116,7 +116,7 @@ allprojects {
         testLogging.showCauses = true
         testLogging.showExceptions = true
         testLogging.showStackTraces = true
-        testLogging.events = ["PASSED", "FAILED", "standardOut", "standardError"]
+        testLogging.events = ["PASSED", "FAILED"]
         maxParallelForks = 2
         minHeapSize = "128m"
         maxHeapSize = "512m"
