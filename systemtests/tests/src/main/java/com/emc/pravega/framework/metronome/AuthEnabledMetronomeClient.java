@@ -5,21 +5,21 @@
  */
 package com.emc.pravega.framework.metronome;
 
-import com.emc.pravega.framework.NautilusLoginClient;
+import com.emc.pravega.framework.LoginClient;
 import com.emc.pravega.framework.metronome.model.v1.Job;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.auth.TokenAuthRequestInterceptor;
 
 import java.util.List;
 
-import static com.emc.pravega.framework.NautilusLoginClient.MESOS_URL;
-import static com.emc.pravega.framework.NautilusLoginClient.getAuthenticationRequestInterceptor;
+import static com.emc.pravega.framework.LoginClient.MESOS_URL;
+import static com.emc.pravega.framework.LoginClient.getAuthenticationRequestInterceptor;
 
 /**
- * Metronome client with Nautilus authentication enabled.
+ * Metronome client with authentication enabled.
  */
 @Slf4j
-public class MetronomeClientNautilus {
+public class AuthEnabledMetronomeClient {
 
     private static final String ENDPOINT = MESOS_URL + "/service/metronome";
     private static final String LOGIN_URL = MESOS_URL + "/auth/v1";
@@ -29,7 +29,7 @@ public class MetronomeClientNautilus {
     }
 
     private static Metronome createMetronomeClient() {
-        String token = NautilusLoginClient.getAuthToken(LOGIN_URL, getAuthenticationRequestInterceptor());
+        String token = LoginClient.getAuthToken(LOGIN_URL, getAuthenticationRequestInterceptor());
         return MetronomeClient.getInstance(ENDPOINT, new TokenAuthRequestInterceptor(token));
     }
 

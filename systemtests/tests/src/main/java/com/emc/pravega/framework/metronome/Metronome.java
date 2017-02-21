@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
 package com.emc.pravega.framework.metronome;
@@ -16,7 +14,7 @@ import java.util.List;
 
 /**
  * REST client for https://github.com/dcos/metronome , this project is the replacement for Chronos (No active
- * developmented is happening on Chronos).
+ * development is happening on Chronos).
  * Note: Not all REST endpoints have been enabled. This can be done as a future task..
  */
 public interface Metronome {

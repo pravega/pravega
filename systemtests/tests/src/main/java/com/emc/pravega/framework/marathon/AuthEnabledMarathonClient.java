@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.framework.marathon;
 
-import com.emc.pravega.framework.NautilusLoginClient;
+import com.emc.pravega.framework.LoginClient;
 import feign.Feign;
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
@@ -18,18 +18,19 @@ import mesosphere.marathon.client.auth.TokenAuthRequestInterceptor;
 import mesosphere.marathon.client.utils.MarathonException;
 import mesosphere.marathon.client.utils.ModelUtils;
 
-import static com.emc.pravega.framework.NautilusLoginClient.MESOS_URL;
-import static com.emc.pravega.framework.NautilusLoginClient.getAuthenticationRequestInterceptor;
-import static com.emc.pravega.framework.NautilusLoginClient.getClientHostVerificationDisabled;
+import static com.emc.pravega.framework.LoginClient.MESOS_URL;
+import static com.emc.pravega.framework.LoginClient.getAuthenticationRequestInterceptor;
+import static com.emc.pravega.framework.LoginClient.getClientHostVerificationDisabled;
 import static java.util.Arrays.asList;
 
 /**
- * Marathon client with Nautilus authentication enabled.
+ * Marathon client with authentication enabled.
  */
-public class MarathonClientNautilus {
+public class AuthEnabledMarathonClient {
 
     private static final String ENDPOINT = MESOS_URL + "/marathon";
     private static final String LOGIN_URL = MESOS_URL + "/auth/v1";
+    private static final String APPLICATION_JSON = "application/json";
 
     public static Marathon getClient() {
         return createMarathonClient();
@@ -38,8 +39,8 @@ public class MarathonClientNautilus {
     static class MarathonHeadersInterceptor implements RequestInterceptor {
         @Override
         public void apply(RequestTemplate template) {
-            template.header("Accept", "application/json");
-            template.header("Content-Type", "application/json");
+            template.header("Accept", APPLICATION_JSON);
+            template.header("Content-Type", APPLICATION_JSON);
         }
     }
 
@@ -51,7 +52,7 @@ public class MarathonClientNautilus {
     }
 
     private static Marathon createMarathonClient() {
-        String token = NautilusLoginClient.getAuthToken(LOGIN_URL, getAuthenticationRequestInterceptor());
+        String token = LoginClient.getAuthToken(LOGIN_URL, getAuthenticationRequestInterceptor());
         return getInstance(ENDPOINT, new TokenAuthRequestInterceptor(token));
     }
 

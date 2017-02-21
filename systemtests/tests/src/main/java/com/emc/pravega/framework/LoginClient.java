@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
 package com.emc.pravega.framework;
@@ -21,9 +19,9 @@ import java.util.Collection;
 import static javax.ws.rs.core.Response.Status.OK;
 
 /**
- * This class is used to handle the Authentication with the nautilus-auth-service.
+ * This class is used to handle the Authentication with the authentication-service.
  */
-public class NautilusLoginClient {
+public class LoginClient {
 
     static final String MESOS_MASTER = getMesosMasterIP();
     public static final String MESOS_URL = String.format("https://%s", MESOS_MASTER);
@@ -31,11 +29,11 @@ public class NautilusLoginClient {
     private static final String TOKEN_HEADER_NAME = "X-AUTH-TOKEN";
 
     /**
-     * Fetch the authentication token from the nautilus authentication service.
+     * Fetch the token from the authentication service.
      *
-     * @param loginURL           Login Url to Nautilus.
-     * @param requestInterceptor Auth request interceptor for basic authentication.
-     * @return Auth token.
+     *  @param loginURL           Login Url.
+     *  @param requestInterceptor Auth request interceptor for basic authentication.
+     *  @return Auth token.
      */
     public static String getAuthToken(final String loginURL, final RequestInterceptor requestInterceptor) {
 
@@ -50,8 +48,8 @@ public class NautilusLoginClient {
             Collection<String> headers = response.headers().get(TOKEN_HEADER_NAME);
             return headers.toArray(new String[headers.size()])[0];
         } else {
-            throw new TestFrameworkException(TestFrameworkException.Type.NautilusLoginFailed, "Exception while " +
-                    "logging into the nautilus cluster. Nautilus Authentication service returned the following error: "
+            throw new TestFrameworkException(TestFrameworkException.Type.LoginFailed, "Exception while " +
+                    "logging into the cluster. Authentication service returned the following error: "
                     + response);
         }
     }

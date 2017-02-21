@@ -27,13 +27,13 @@ import java.util.concurrent.CompletableFuture;
 public class SystemTestRunner extends BlockJUnit4ClassRunner {
 
     /**
-     * Creates a BlockJUnit4ClassRunner to run {@code klass}.
+     * Creates a BlockJUnit4ClassRunner to run {@code testClass}.
      *
-     * @param klass class to be tested.
-     * @throws InitializationError if the test class is malformed.
+     *  @param testClass class to be tested.
+     *  @throws InitializationError if the test class is malformed.
      */
-    public SystemTestRunner(Class<?> klass) throws InitializationError {
-        super(klass);
+    public SystemTestRunner(Class<?> testClass) throws InitializationError {
+        super(testClass);
     }
 
     @Override

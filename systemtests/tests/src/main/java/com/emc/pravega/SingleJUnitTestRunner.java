@@ -19,31 +19,31 @@ import java.lang.reflect.Method;
  */
 @Slf4j
 public class SingleJUnitTestRunner extends BlockJUnit4ClassRunner {
-    /**
-     * Creates a BlockJUnit4ClassRunner to run {@code klass}.
-     *
-     * @param klass
-     * @throws InitializationError if the test class is malformed.
-     */
+
     private String methodName;
-    private Class<?> className;
+    private Class<?> testClass;
 
-    public SingleJUnitTestRunner(Class<?> klass, String method) throws InitializationError {
-        super(klass);
-        className = klass;
-        methodName = method;
-
+    /**
+     * Creates a BlockJUnit4ClassRunner to run {@code testClass}.
+     *  @param testClass Class containing the test to be run.
+     *  @param method Name of the test method to be executed.
+     *  @throws InitializationError if class is malformed.
+     */
+    public SingleJUnitTestRunner(Class<?> testClass, String method) throws InitializationError {
+        super(testClass);
+        this.testClass = testClass;
+        this.methodName = method;
     }
 
     public void runMethod() {
         Method m = null;
         try {
-            m = className.getDeclaredMethod(methodName);
+            m = this.testClass.getDeclaredMethod(this.methodName);
             Statement statement = methodBlock(new FrameworkMethod(m));
             statement.evaluate();
         } catch (Throwable ex) {
             throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Exception while running test" +
-                    " method: " + methodName, ex);
+                    " method: " + this.methodName, ex);
         }
     }
 

@@ -16,7 +16,7 @@ import feign.gson.GsonDecoder;
 import feign.gson.GsonEncoder;
 import mesosphere.marathon.client.auth.TokenAuthRequestInterceptor;
 
-import static com.emc.pravega.framework.NautilusLoginClient.getClientHostVerificationDisabled;
+import static com.emc.pravega.framework.LoginClient.getClientHostVerificationDisabled;
 import static java.util.Arrays.asList;
 
 public class MetronomeClient {
@@ -42,7 +42,7 @@ public class MetronomeClient {
      * The generalized version of the method that allows more in-depth customizations via
      * {@link RequestInterceptor}s.
      *
-     * @param endpoint URL of Metronome
+     *  @param endpoint URL of Metronome
      */
     public static Metronome getInstance(String endpoint, RequestInterceptor... interceptors) {
         Feign.Builder b = Feign.builder().client(getClientHostVerificationDisabled())
@@ -66,9 +66,9 @@ public class MetronomeClient {
     /*
      * Creates a Marathon client proxy that uses a token for authentication.
      *
-     * @param endpoint URL of Marathon
-     * @param token    token
-     * @return Metronome client
+     *  @param endpoint URL of Marathon
+     *  @param token    token
+     *  @return Metronome client
      */
     public static Metronome getInstanceWithTokenAuth(String endpoint, String token) {
         return getInstance(endpoint, new TokenAuthRequestInterceptor(token));

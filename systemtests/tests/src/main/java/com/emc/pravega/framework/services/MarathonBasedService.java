@@ -8,7 +8,7 @@ package com.emc.pravega.framework.services;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.framework.TestFrameworkException;
-import com.emc.pravega.framework.marathon.MarathonClientNautilus;
+import com.emc.pravega.framework.marathon.AuthEnabledMarathonClient;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.model.v2.GetAppResponse;
@@ -41,7 +41,7 @@ public abstract class MarathonBasedService implements Service {
 
     MarathonBasedService(final String id) {
         this.id = id;
-        this.marathonClient = MarathonClientNautilus.getClient();
+        this.marathonClient = AuthEnabledMarathonClient.getClient();
     }
 
     @Override
@@ -88,7 +88,7 @@ public abstract class MarathonBasedService implements Service {
         if (e.getStatus() == NOT_FOUND.getStatusCode()) {
             log.info("App is not running : {}", this.id);
         }
-        throw new TestFrameworkException(RequestFailed, "Marathon Exception while fetching details of RedisService", e);
+        throw new TestFrameworkException(RequestFailed, "Marathon Exception while fetching details of service", e);
     }
 
     void waitUntilServiceRunning() {

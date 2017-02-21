@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.framework;
 
@@ -14,16 +12,16 @@ import java.util.concurrent.CompletableFuture;
 public interface TestExecutor {
 
     /**
-     * Start Test Execution given a Method.
-     * @param method java.lang.reflect.Method test method to be executed.
-     * @return
+     * Start Test Execution given a test method.
+     *  @param testMethod test method to be executed.
+     *  @return a CompletableFuture which is completed once the test method execution is completed.
      */
-    CompletableFuture<Void> startTestExecution(Method method);
+    CompletableFuture<Void> startTestExecution(Method testMethod);
 
     /**
      * Stop Test Execution given the testID.
-     * @param testID testIdentifier indicating the test to be terminated.
-     * @return
+     *  @param testID testIdentifier indicating the test to be terminated.
+     *  @return a CompletableFuture which is completed once the test method execution is stopped.
      */
     CompletableFuture<Void> stopTestExecution(String testID);
 

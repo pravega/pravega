@@ -19,7 +19,7 @@ public interface Service {
     /**
      * Start a given service.
      *
-     * @param wait true indicates that it is a blocking call.
+     *  @param wait true indicates that it is a blocking call.
      */
     public void start(final boolean wait);
 
@@ -43,14 +43,14 @@ public interface Service {
     /**
      * Check if the service is up and running.
      *
-     * @return true if the service is running.
+     *  @return true if the service is running.
      */
     public boolean isRunning();
 
     /**
      * Get the list of Host:port URIs where the service is running.
      *
-     * @return List<URI> list of Host:port where the service is running.
+     *  @return List<URI> list of Host:port where the service is running.
      */
     public List<URI> getServiceDetails();
 }

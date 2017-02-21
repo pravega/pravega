@@ -7,7 +7,7 @@ package com.emc.pravega.framework;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.framework.metronome.Metronome;
-import com.emc.pravega.framework.metronome.MetronomeClientNautilus;
+import com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient;
 import com.emc.pravega.framework.metronome.MetronomeException;
 import com.emc.pravega.framework.metronome.model.v1.Artifact;
 import com.emc.pravega.framework.metronome.model.v1.Job;
@@ -27,7 +27,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.emc.pravega.framework.NautilusLoginClient.MESOS_MASTER;
+import static com.emc.pravega.framework.LoginClient.MESOS_MASTER;
 import static javax.ws.rs.core.Response.Status.CREATED;
 
 /**
@@ -36,16 +36,16 @@ import static javax.ws.rs.core.Response.Status.CREATED;
  */
 @Slf4j
 public class RemoteSequential implements TestExecutor {
-    private static final Metronome CLIENT = MetronomeClientNautilus.getClient();
+    private static final Metronome CLIENT = AuthEnabledMetronomeClient.getClient();
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     @Override
-    public CompletableFuture<Void> startTestExecution(Method method) {
+    public CompletableFuture<Void> startTestExecution(Method testMethod) {
 
-        log.debug("Starting test execution for method: {}", method);
+        log.debug("Starting test execution for method: {}", testMethod);
 
-        String className = method.getDeclaringClass().getName();
-        String methodName = method.getName();
+        String className = testMethod.getDeclaringClass().getName();
+        String methodName = testMethod.getName();
         String jobId = (methodName + ".testJob").toLowerCase(); //All jobIds should have lowercase for metronome.
 
         return CompletableFuture.<Void>runAsync(() -> {
@@ -53,7 +53,7 @@ public class RemoteSequential implements TestExecutor {
             Response response = CLIENT.triggerJobRun(jobId);
             if (response.status() != CREATED.getStatusCode()) {
                 throw new TestFrameworkException(TestFrameworkException.Type.ConnectionFailed, "Error while starting " +
-                        "test " + method);
+                        "test " + testMethod);
             }
         }).thenCompose(v2 -> waitForJobCompletion(jobId))
                 .<Void>thenApply(v1 -> {
@@ -102,8 +102,7 @@ public class RemoteSequential implements TestExecutor {
         art.setCache(false); // It caches the artifacts, disabling it for now.
         art.setExecutable(false); // jar is not executable.
         art.setExtract(false);
-        art.setUri("http://asdrepo.isus.emc.com:8081/artifactory/nautilus-pravega-testframework/pravega/systemtests" +
-                "/0.1/systemtests-0.1.jar");
+        art.setUri(System.getProperty("testArtifactUrl", "InvalidTestArtifactURL"));
 
         Restart restart = new Restart();
         restart.setActiveDeadlineSeconds(120); // the tests are expected to finish in 2 mins, this can be changed to

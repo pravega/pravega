@@ -17,7 +17,7 @@ public class TestFrameworkException extends RuntimeException {
     public enum Type {
         ConnectionFailed,
         RequestFailed,
-        NautilusLoginFailed,
+        LoginFailed,
         InternalError,
     }
 

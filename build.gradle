@@ -557,6 +557,7 @@ project('systemtests:tests') {
         if (System.getProperty("masterIP") == null) {
             systemProperty "masterIP", "INVALID_MASTER_IP"
         }
+        systemProperty "testArtifactUrl", project.property('testArtifactUrl') + "/pravega/systemtests/0.1/systemtests-0.1.jar"
     }
     publishing {
         publications {
@@ -573,7 +574,7 @@ project('systemtests:tests') {
                     username "$testFrameworkRepoUser"
                     password "$testFrameworkRepoPass"
                 }
-                url "http://asdrepo.isus.emc.com:8081/artifactory/nautilus-pravega-testframework"
+                url "$testArtifactUrl"
             }
         }
     }
