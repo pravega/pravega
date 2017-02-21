@@ -15,7 +15,8 @@ public interface InitialUpdate<StateT extends Revisioned> extends Update<StateT>
     /**
      * Returns an object of type StateT with the provided revision.
      * @param scopedStreamName The name of the stream that this state is associated with.
-     * @param revision the revision to use
+     * @param revision The revision to use
+     * @return A revisioned state object
      */
     StateT create(String scopedStreamName, Revision revision);
     

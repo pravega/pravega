@@ -7,8 +7,8 @@ package com.emc.pravega.controller.server.rest.resources;
 
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.controller.server.rest.ModelHelper;
-import com.emc.pravega.controller.server.rest.contract.request.CreateStreamRequest;
-import com.emc.pravega.controller.server.rest.contract.request.UpdateStreamRequest;
+import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.v1.ApiV1;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
@@ -21,13 +21,14 @@ import lombok.extern.slf4j.Slf4j;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
+import javax.ws.rs.core.SecurityContext;
 import java.util.concurrent.CompletableFuture;
 
 /**
  * Stream metadata resource implementation.
  */
 @Slf4j
-public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
+public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
     private final ControllerService controllerService;
 
@@ -44,7 +45,7 @@ public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
      */
     @Override
     public void createStream(final String scope, final CreateStreamRequest createStreamRequest,
-                             final AsyncResponse asyncResponse) {
+            final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "createStream");
 
         StreamConfiguration streamConfiguration = ModelHelper.getCreateStreamConfig(createStreamRequest, scope);
@@ -78,9 +79,8 @@ public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
      * @param asyncResponse       AsyncResponse provides means for asynchronous server side response processing
      */
     @Override
-    public void updateStreamConfig(final String scope, final String stream,
-                                   final UpdateStreamRequest updateStreamRequest,
-                                   final AsyncResponse asyncResponse) {
+    public void updateStream(final String scope, final String stream, final UpdateStreamRequest updateStreamRequest,
+            final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "updateStreamConfig");
 
         StreamConfiguration streamConfiguration = ModelHelper.getUpdateStreamConfig(updateStreamRequest, scope, stream);
@@ -112,7 +112,8 @@ public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
      * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing
      */
     @Override
-    public void getStreamConfig(String scope, String stream, final AsyncResponse asyncResponse) {
+    public void getStream(final String scope, final String stream, final SecurityContext securityContext,
+            final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamConfig");
 
         StreamMetadataStore streamStore = controllerService.getStreamStore();

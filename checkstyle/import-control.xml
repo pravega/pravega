@@ -35,6 +35,7 @@
     <allow pkg="org.glassfish.jersey"/>
     <allow pkg="javax.ws.rs"/>
     <allow pkg="org.glassfish.hk2"/>
+    <allow pkg="io.swagger"/>
     <allow pkg="javax.validation"/>
-  
+
 </import-control>
