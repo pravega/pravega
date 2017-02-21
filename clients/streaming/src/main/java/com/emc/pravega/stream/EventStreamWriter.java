@@ -30,7 +30,7 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      *         result of connection drops or host death are handled internally with multiple retires and
      *         exponential backoff. So there is no need to attempt to retry in the event of an exception.
      */
-    default Future<Void> writeEvent(Type event) {
+    default AckFuture writeEvent(Type event) {
         return writeEvent(null, event);
     }
     
