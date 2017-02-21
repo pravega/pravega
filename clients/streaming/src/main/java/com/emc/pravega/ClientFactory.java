@@ -51,7 +51,7 @@ import java.net.URI;
  * Otherwise this can be done by creating new reader by calling:
  * {@link RebalancerUtils#rebalance(java.util.Collection, int)} .
  */
-public interface ClientFactory {
+public interface ClientFactory extends AutoCloseable {
 
     /**
      * Creates a new instance of Client Factory.
@@ -158,5 +158,11 @@ public interface ClientFactory {
                                                       Serializer<UpdateT> updateSerializer,
                                                       Serializer<InitT> initSerializer,
                                                       SynchronizerConfig config);
+    
+    /**
+     * @see java.lang.AutoCloseable#close()
+     */
+    @Override
+    void close();
 
 }

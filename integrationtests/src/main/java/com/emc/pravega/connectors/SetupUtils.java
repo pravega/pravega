@@ -6,6 +6,7 @@
 package com.emc.pravega.connectors;
 
 import com.emc.pravega.ClientFactory;
+import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
@@ -138,9 +139,9 @@ public final class SetupUtils {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(streamName);
 
-        StreamManager streamManager = StreamManager.withScope(scope, SetupUtils.CONTROLLER_URI);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, SetupUtils.CONTROLLER_URI);
         final String readerGroup = "testReaderGroup" + scope + streamName;
-        streamManager.createReaderGroup(
+        readerGroupManager.createReaderGroup(
                 readerGroup,
                 ReaderGroupConfig.builder().startingTime(0).build(),
                 Collections.singletonList(streamName));

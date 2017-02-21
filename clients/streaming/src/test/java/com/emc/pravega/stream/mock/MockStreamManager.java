@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.stream.mock;
 
+import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.state.SynchronizerConfig;
@@ -31,7 +32,7 @@ import lombok.Getter;
 
 import org.apache.commons.lang.NotImplementedException;
 
-public class MockStreamManager implements StreamManager {
+public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     private final String scope;
     private final ConnectionFactoryImpl connectionFactory;
