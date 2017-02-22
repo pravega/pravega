@@ -63,6 +63,8 @@ paths:
           description: Successfully deleted the scope
         404:
           description: Scope not found
+        412:
+          description: Connot delete scope which has non-empty list of streams
         500:
           description: Server error
   /scopes/{scopeName}/streams:
@@ -139,7 +141,7 @@ paths:
           schema:
             $ref: "#/definitions/StreamProperty"
         404:
-          description: Stream not found
+          description: Scope or stream not found
         500:
           description: Server error
     put:
@@ -166,7 +168,7 @@ paths:
           schema:
             $ref: "#/definitions/StreamProperty"
         404:
-          description: Stream not found
+          description: Scope or stream not found
         500:
           description: Server error
     delete:
@@ -175,7 +177,7 @@ paths:
         204:
           description: Successfully deleted the stream
         404:
-          description: Stream not found
+          description: Scope or stream not found
         500:
           description: Server error
 

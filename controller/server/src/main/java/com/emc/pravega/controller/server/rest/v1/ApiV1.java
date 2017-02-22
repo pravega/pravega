@@ -98,6 +98,10 @@ public final class ApiV1 {
 
                 @io.swagger.annotations.ApiResponse(code = 404, message = "Scope not found", response = void.class),
 
+                @io.swagger.annotations.ApiResponse(
+                        code = 412, message = "Connot delete scope which has non-empty list of streams",
+                        response = void.class),
+
                 @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = void.class) })
         void deleteScope(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
@@ -109,7 +113,8 @@ public final class ApiV1 {
                 @io.swagger.annotations.ApiResponse(
                         code = 204, message = "Successfully deleted the stream", response = void.class),
 
-                @io.swagger.annotations.ApiResponse(code = 404, message = "Stream not found", response = void.class),
+                @io.swagger.annotations.ApiResponse(code = 404, message = "Scope or stream not found",
+                        response = void.class),
 
                 @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = void.class) })
         void deleteStream(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
@@ -126,7 +131,7 @@ public final class ApiV1 {
                         code = 200, message = "Found stream configuration", response = StreamProperty.class),
 
                 @io.swagger.annotations.ApiResponse(
-                        code = 404, message = "Stream not found", response = StreamProperty.class),
+                        code = 404, message = "Scope or stream not found", response = StreamProperty.class),
 
                 @io.swagger.annotations.ApiResponse(
                         code = 500, message = "Server error", response = StreamProperty.class) })
@@ -175,7 +180,7 @@ public final class ApiV1 {
                         response = StreamProperty.class),
 
                 @io.swagger.annotations.ApiResponse(
-                        code = 404, message = "Stream not found", response = StreamProperty.class),
+                        code = 404, message = "Scope or stream not found", response = StreamProperty.class),
 
                 @io.swagger.annotations.ApiResponse(
                         code = 500, message = "Server error", response = StreamProperty.class) })

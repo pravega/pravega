@@ -79,6 +79,8 @@ public class ScopesApi  {
         
         @io.swagger.annotations.ApiResponse(code = 404, message = "Scope not found", response = void.class),
         
+        @io.swagger.annotations.ApiResponse(code = 412, message = "Connot delete scope which has non-empty list of streams", response = void.class),
+        
         @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = void.class) })
     public Response deleteScope(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
 ,@Context SecurityContext securityContext)
@@ -93,7 +95,7 @@ public class ScopesApi  {
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 204, message = "Successfully deleted the stream", response = void.class),
         
-        @io.swagger.annotations.ApiResponse(code = 404, message = "Stream not found", response = void.class),
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope or stream not found", response = void.class),
         
         @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = void.class) })
     public Response deleteStream(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
@@ -110,7 +112,7 @@ public class ScopesApi  {
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 200, message = "Found stream configuration", response = StreamProperty.class),
         
-        @io.swagger.annotations.ApiResponse(code = 404, message = "Stream not found", response = StreamProperty.class),
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope or stream not found", response = StreamProperty.class),
         
         @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = StreamProperty.class) })
     public Response getStream(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
@@ -156,7 +158,7 @@ public class ScopesApi  {
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 200, message = "Successfully updated the stream configuration", response = StreamProperty.class),
         
-        @io.swagger.annotations.ApiResponse(code = 404, message = "Stream not found", response = StreamProperty.class),
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope or stream not found", response = StreamProperty.class),
         
         @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = StreamProperty.class) })
     public Response updateStream(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
