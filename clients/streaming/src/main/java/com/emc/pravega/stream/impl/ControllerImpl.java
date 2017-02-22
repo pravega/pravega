@@ -9,8 +9,6 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.ControllerService;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
@@ -73,32 +71,6 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<CreateScopeStatus> createScope(String scope) {
-        log.trace("Invoke AdminService.Client.createScope() with name: {}", scope);
-
-        final ThriftAsyncCallback<ControllerService.AsyncClient.createScope_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall( () -> {
-            client.createScope(scope, callback);
-            return null;
-        });
-        return callback.getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
-    }
-
-    @Override
-    public CompletableFuture<DeleteScopeStatus> deleteScope(String scope) {
-        log.trace("Invoke AdminService.Client.deleteScope() with name: {}", scope);
-
-        final ThriftAsyncCallback<ControllerService.AsyncClient.deleteScope_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall( () -> {
-            client.deleteScope(scope, callback);
-            return null;
-        });
-        return callback.getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
-    }
-
-    @Override
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig) {
         log.trace("Invoke AdminService.Client.createStream() with streamConfiguration: {}", streamConfig);
 
@@ -148,7 +120,7 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String streamName) {
         log.trace("Invoke AdminService.Client.sealStream() for stream: {}", streamName);
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.sealStream_call> callback = new ThriftAsyncCallback<>();
+        final ThriftAsyncCallback<ControllerService.AsyncClient.alterStream_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
             client.sealStream(scope, streamName, callback);
             return null;
