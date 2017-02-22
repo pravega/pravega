@@ -115,9 +115,19 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         }
         return toResend;
     }
+    
+    @Override
+    public AckFuture writeEvent(Type event) {
+        return writeEventInternal(null, event);
+    }
 
     @Override
     public AckFuture writeEvent(String routingKey, Type event) {
+        Preconditions.checkNotNull(routingKey);
+        return writeEventInternal(routingKey, event);
+    }
+    
+    private AckFuture writeEventInternal(String routingKey, Type event) {
         Preconditions.checkState(!closed.get());
         CompletableFuture<Boolean> result = new CompletableFuture<Boolean>();
         synchronized (lock) {
@@ -185,6 +195,9 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             this.stream = stream;
         }
 
+        /**
+         * Uses the transactionId to generate the routing key so that we only need to use one segment.
+         */
         @Override
         public void writeEvent(Type event) throws TxnFailedException {
             writeEvent(txId.toString(), event);

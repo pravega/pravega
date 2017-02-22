@@ -30,9 +30,7 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      *         result of connection drops or host death are handled internally with multiple retires and
      *         exponential backoff. So there is no need to attempt to retry in the event of an exception.
      */
-    default AckFuture writeEvent(Type event) {
-        return writeEvent(null, event);
-    }
+    AckFuture writeEvent(Type event);
     
     
     /**
@@ -46,7 +44,7 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * 
      * @param routingKey A free form string that is used to route messages to readers. Two events written with
      *        the same routingKey are guaranteed to be read in order. Two events with different routing keys
-     *        may be read in parallel. If this is null, the event will be routed randomly.
+     *        may be read in parallel. 
      * @param event The event to be written to the stream
      * @return A future that will complete when the event has been durably stored on the configured number of
      *         replicas, and is available for readers to see. This future may complete exceptionally if this
