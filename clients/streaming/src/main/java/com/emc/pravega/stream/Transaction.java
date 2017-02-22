@@ -35,7 +35,6 @@ public interface Transaction<Type> {
      * Sends an event to the stream just like {@link EventStreamWriter#writeEvent} but with the caveat that
      * the message will not be visible to anyone until {@link #commit()} is called.
      *
-     * @param routingKey The Routing Key to use for writing.
      * @param event The Event to write.
      * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
