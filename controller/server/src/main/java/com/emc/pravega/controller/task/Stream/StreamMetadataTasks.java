@@ -150,7 +150,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
         if (!validateName(stream)) {
-            log.debug("Create scope failed due to invalid stream name {}", stream);
+            log.debug("Create stream failed due to invalid stream name {}", stream);
             return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
         } else {
             return this.streamMetadataStore.createStream(scope, stream, config, timestamp)

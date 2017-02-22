@@ -120,7 +120,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 })
                 .thenApply(x -> {
                     if (x) {
-                        throw new StreamAlreadyExistsException(getName());
+                        StoreException.create(StoreException.Type.NODE_EXISTS, creationPath);
                     }
                     return null;
                 });
@@ -137,7 +137,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                     if (x) {
                         return;
                     } else {
-                        StoreException.create(StoreException.Type.NODE_EXISTS);
+                        StoreException.create(StoreException.Type.NODE_NOT_FOUND);
                     }
                 });
     }
