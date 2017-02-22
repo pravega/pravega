@@ -8,7 +8,6 @@ package com.emc.pravega.service.server.containers;
 import com.emc.pravega.common.AbstractTimer;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.Timer;
-import com.emc.pravega.common.util.CollectionHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -18,7 +17,6 @@ import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.time.Duration;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -31,8 +29,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import lombok.extern.slf4j.Slf4j;
-import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -198,9 +194,9 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             segmentMetadata.markDeleted();
 
             // Find any transactions that point to this StreamSegment (as a parent).
-            this.segmentMetadata
+            this.metadataById
                     .values().stream()
-                    .filter(m -> m.getParentId() == streamSegmentId)
+                    .filter(m -> m.getParentId() == segmentMetadata.getId())
                     .forEach(m -> {
                         m.markDeleted();
                         result.add(m);

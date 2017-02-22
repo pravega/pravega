@@ -1154,18 +1154,6 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         /**
-         * Accepts an UpdateAttributesOperation in the metadata.
-         *
-         * @param operation The operation to accept.
-         * @throws IllegalArgumentException If the operation is for a different StreamSegment.
-         */
-        void acceptOperation(UpdateAttributesOperation operation) {
-            ensureSegmentId(operation);
-            acceptAttributes(operation.getAttributeUpdates());
-            this.isChanged = true;
-        }
-
-        /**
          * Accepts a StreamSegmentSealOperation in the metadata.
          *
          * @param operation The operation to accept.
