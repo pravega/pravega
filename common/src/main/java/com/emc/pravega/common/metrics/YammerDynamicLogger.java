@@ -22,8 +22,8 @@ public class YammerDynamicLogger implements DynamicLogger {
     private final long cacheSize;
     private final long ttlSeconds;
 
-    protected final MetricRegistry metrics;
-    protected final StatsLogger underlying;
+    private final MetricRegistry metrics;
+    private final StatsLogger underlying;
     private final Cache<String, Counter> countersCache;
     private final Cache<String, Gauge> gaugesCache;
     private final Cache<String, Meter> metersCache;
