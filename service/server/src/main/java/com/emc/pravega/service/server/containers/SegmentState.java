@@ -7,7 +7,7 @@
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.server.logs.operations.AttributeSerializer;
+import com.emc.pravega.service.server.AttributeSerializer;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;

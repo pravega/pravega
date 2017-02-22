@@ -176,7 +176,7 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
 
     private static class WriterCollection implements AutoCloseable {
         private static final ByteArraySerializer SERIALIZER = new ByteArraySerializer();
-        private static final EventWriterConfig WRITER_CONFIG = new EventWriterConfig(null);
+        private static final EventWriterConfig WRITER_CONFIG = EventWriterConfig.builder().build();
         private final List<EventStreamWriter<byte[]>> writers;
         private final AtomicInteger nextWriterId;
 

@@ -17,7 +17,6 @@ import java.io.IOException;
 public class MergeTransactionOperation extends StorageOperation {
     //region Members
 
-    public static final byte OPERATION_TYPE = 3;
     private static final byte VERSION = 0;
     private long streamSegmentOffset;
     private long length;
@@ -102,8 +101,8 @@ public class MergeTransactionOperation extends StorageOperation {
     }
 
     @Override
-    protected byte getOperationType() {
-        return OPERATION_TYPE;
+    protected OperationType getOperationType() {
+        return OperationType.Merge;
     }
 
     @Override

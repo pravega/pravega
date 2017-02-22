@@ -5,7 +5,7 @@
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
-import com.emc.pravega.StreamManager;
+import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
 import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
@@ -19,7 +19,6 @@ import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Sequence;
-import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import lombok.extern.slf4j.Slf4j;
@@ -56,7 +55,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 .clientFactory
                 .createEventWriter(eventProcessorConfig.getConfig().getStreamName(),
                         eventProcessorConfig.getSerializer(),
-                        new EventWriterConfig(new SegmentOutputConfiguration()));
+                        EventWriterConfig.builder().build());
 
         this.checkpointStore = CheckpointStoreFactory.create(eventProcessorConfig.getConfig().getCheckpointConfig());
     }
@@ -68,7 +67,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         // Continue creating reader group if adding reader group to checkpoint store succeeds.
 
         readerGroup = createIfNotExists(
-                actorSystem.streamManager,
+                actorSystem.readerGroupManager,
                 eventProcessorConfig.getConfig().getReaderGroupName(),
                 ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build(),
                 Collections.singletonList(eventProcessorConfig.getConfig().getStreamName()));
@@ -76,11 +75,11 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         createEventProcessors(eventProcessorConfig.getConfig().getEventProcessorCount());
     }
 
-    private ReaderGroup createIfNotExists(final StreamManager streamManager,
+    private ReaderGroup createIfNotExists(final ReaderGroupManager readerGroupManager,
                                           final String groupName,
                                           final ReaderGroupConfig groupConfig,
                                           final List<String> streamNanes) {
-        return streamManager.createReaderGroup(groupName, groupConfig, streamNanes);
+        return readerGroupManager.createReaderGroup(groupName, groupConfig, streamNanes);
         // todo: getReaderGroup currently throws NotImplementedException
         //ReaderGroup readerGroup = streamManager.getReaderGroup(groupName);
         //if (readerGroup == null) {
@@ -105,7 +104,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                     actorSystem.clientFactory.createReader(readerId,
                             eventProcessorConfig.getConfig().getReaderGroupName(),
                             eventProcessorConfig.getSerializer(),
-                            new ReaderConfig());
+                            ReaderConfig.builder().build());
 
             // Create event processor, and add it to the actors list.
             EventProcessorCell<T> actorCell =

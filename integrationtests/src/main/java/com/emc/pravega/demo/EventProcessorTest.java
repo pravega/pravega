@@ -28,8 +28,6 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
 import com.google.common.base.Preconditions;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -81,7 +79,6 @@ public class EventProcessorTest {
         int number;
     }
 
-
     @Test
     public static void main(String[] args) throws Exception {
         TestingServer zkTestServer = new TestingServer();
@@ -101,10 +98,11 @@ public class EventProcessorTest {
         final String streamName = "stream1";
         final String readerGroup = "readerGroup";
 
-        final StreamConfiguration config =
-                new StreamConfigurationImpl(scope,
-                        streamName,
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 1));
+        final StreamConfiguration config = StreamConfiguration.builder()
+                .scope(scope)
+                .streamName(streamName)
+                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 1))
+                .build();
 
         System.err.println(String.format("Creating stream (%s, %s)", scope, streamName));
         CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
@@ -116,7 +114,7 @@ public class EventProcessorTest {
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
 
         EventStreamWriter<TestEvent> producer = clientFactory.createEventWriter(streamName,
-                new JavaSerializer<>(), new EventWriterConfig(new SegmentOutputConfiguration()));
+                new JavaSerializer<>(), EventWriterConfig.builder().build());
 
         int[] input = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
         int expectedSum = input.length * (input.length + 1) / 2;

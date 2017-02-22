@@ -6,6 +6,7 @@
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.server.AttributeSerializer;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
@@ -21,7 +22,6 @@ import java.util.UUID;
 public class TransactionMapOperation extends MetadataOperation implements StreamSegmentMapping {
     //region Members
 
-    public static final byte OPERATION_TYPE = 5;
     private static final byte CURRENT_VERSION = 0;
     private long parentStreamSegmentId;
     private long streamSegmentId;
@@ -111,8 +111,8 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
     //region Operation Implementation
 
     @Override
-    protected byte getOperationType() {
-        return OPERATION_TYPE;
+    protected OperationType getOperationType() {
+        return OperationType.TransactionMap;
     }
 
     @Override

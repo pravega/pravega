@@ -6,7 +6,7 @@
 package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.ClientFactory;
-import com.emc.pravega.StreamManager;
+import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
@@ -14,7 +14,7 @@ import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
-import com.emc.pravega.stream.impl.StreamManagerImpl;
+import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -27,7 +27,7 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
 
     final Controller controller;
     final ClientFactory clientFactory;
-    final StreamManager streamManager;
+    final ReaderGroupManager readerGroupManager;
 
     private final String name;
     private final String process;
@@ -44,7 +44,7 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
         this.scope = scope;
         this.controller = controller;
         this.clientFactory = new ClientFactoryImpl(scope, controller);
-        this.streamManager = new StreamManagerImpl(scope, controller, clientFactory);
+        this.readerGroupManager = new ReaderGroupManagerImpl(scope, controller);
     }
 
     @Override

@@ -16,7 +16,10 @@ public class ReaderGroupConfig {
    private final Sequence startingPosition;
    private final long groupRefreshTimeMillis;
 
-   public static class ReaderGroupConfigBuilder {
+   private final long automaticCheckpointIntervalSeconds;
+   
+   public static final class ReaderGroupConfigBuilder {
+       long automaticCheckpointIntervalSeconds = 30;
 
        /**
          * Returns a config builder that started at  a given time.
