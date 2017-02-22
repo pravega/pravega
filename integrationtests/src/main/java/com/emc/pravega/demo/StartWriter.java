@@ -30,14 +30,14 @@ public class StartWriter {
         for (int i = 0; i < 10; i++) {
             String event = "\n Transactional write \n";
             System.err.println("Writing event: " + event);
-            transaction.writeEvent("", event);
+            transaction.writeEvent(event);
             transaction.flush();
             Thread.sleep(500);
         }
         for (int i = 0; i < 10; i++) {
             String event = "\n Non-transactional Publish \n";
             System.err.println("Writing event: " + event);
-            writer.writeEvent("", event);
+            writer.writeEvent(event);
             writer.flush();
             Thread.sleep(500);
         }
