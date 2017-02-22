@@ -21,6 +21,8 @@ import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -54,6 +56,16 @@ public class MockController implements Controller {
     private final String endpoint;
     private final int port;
     private final ConnectionFactory connectionFactory;
+
+    @Override
+    public CompletableFuture<CreateScopeStatus> createScope(String scope) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<DeleteScopeStatus> deleteScope(String scope) {
+        throw new NotImplementedException();
+    }
 
     @Override
     public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {

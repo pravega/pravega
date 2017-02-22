@@ -10,6 +10,7 @@ import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
+import com.emc.pravega.common.util.AsyncMap;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
@@ -65,6 +66,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final Cache cache;
     private final Writer writer;
     private final Storage storage;
+    private final AsyncMap<String, SegmentState> stateStore;
     private final StreamSegmentMapper segmentMapper;
     private final Executor executor;
     private boolean closed;
@@ -104,7 +106,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.durableLog.addListener(new ServiceShutdownListener(createComponentStoppedHandler("DurableLog"), createComponentFailedHandler("DurableLog")), this.executor);
         this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex);
         this.writer.addListener(new ServiceShutdownListener(createComponentStoppedHandler("Writer"), createComponentFailedHandler("Writer")), this.executor);
-        this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage, this.executor);
+        this.stateStore = new SegmentStateStore(this.storage, this.executor);
+        this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.stateStore, this.storage, this.executor);
     }
 
     //endregion
@@ -267,7 +270,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         CompletableFuture[] deletionFutures = new CompletableFuture[streamSegmentsToDelete.size()];
         int count = 0;
         for (String s : streamSegmentsToDelete.values()) {
-            deletionFutures[count] = this.storage.delete(s, timer.getRemaining());
+            // Delete Segment and any associated attributes.
+            deletionFutures[count] = this.storage
+                    .delete(s, timer.getRemaining())
+                    .thenComposeAsync(v -> this.stateStore.remove(s, timer.getRemaining()), this.executor);
             count++;
         }
 
@@ -277,7 +283,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout) {
+    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         ensureRunning();
 
         logRequest("mergeTransaction", transactionName);
@@ -292,7 +298,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
                     Operation op = new MergeTransactionOperation(transactionMetadata.getParentId(), transactionMetadata.getId());
                     return this.durableLog.add(op, timer.getRemaining());
-                });
+                })
+                .thenComposeAsync(v -> this.stateStore.remove(transactionName, timer.getRemaining()), this.executor);
     }
 
     @Override
