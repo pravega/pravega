@@ -114,17 +114,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final String streamName,
                                                    final StreamConfiguration configuration,
                                                    final long createTimestamp) {
-        if (!validateName(scopeName)) {
-            log.error("Create stream failed due to invalid stream name {}", scopeName);
-            return CompletableFuture.completedFuture(false);
-        } else {
-            Stream stream = getStream(scopeName, streamName);
-            return stream.create(configuration, createTimestamp).thenApply(result -> {
-                CREATE_STREAM.reportSuccessValue(1);
-                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), 0);
-                return result;
-            });
-        }
+        Stream stream = getStream(scopeName, streamName);
+        return stream.create(configuration, createTimestamp).thenApply(result -> {
+            CREATE_STREAM.reportSuccessValue(1);
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), 0);
+            return result;
+        });
     }
 
     /**

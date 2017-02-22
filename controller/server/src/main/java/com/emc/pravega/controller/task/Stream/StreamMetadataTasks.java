@@ -149,8 +149,8 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
-        if (!validateZNodeName(scope)) {
-            log.debug("Create scope failed due to invalid scope name {}", scope);
+        if (!validateName(stream)) {
+            log.debug("Create scope failed due to invalid stream name {}", stream);
             return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
         } else {
             return this.streamMetadataStore.createStream(scope, stream, config, timestamp)
@@ -181,7 +181,7 @@ public class StreamMetadataTasks extends TaskBase {
         }
     }
 
-    private static boolean validateZNodeName(final String path) {
+    private static boolean validateName(final String path) {
         return (path.indexOf('\\') >= 0 || path.indexOf('/') >= 0) ? false : true;
     }
 

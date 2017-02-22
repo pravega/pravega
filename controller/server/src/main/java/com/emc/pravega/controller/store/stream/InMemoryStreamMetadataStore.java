@@ -45,25 +45,20 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     public synchronized CompletableFuture<Boolean> createStream(final String scopeName, final String streamName,
                                                                 final StreamConfiguration configuration,
                                                                 final long timeStamp) {
-        if (!validateName(streamName)) {
-            log.error("Create stream failed due to invalid stream name {}", scopeName);
-            return CompletableFuture.completedFuture(false);
-        } else {
-            if (scopes.containsKey(scopeName)) {
-                if (!streams.containsKey(scopedStreamName(scopeName, streamName))) {
-                    InMemoryStream stream = new InMemoryStream(scopeName, streamName);
-                    stream.create(configuration, timeStamp);
-                    streams.put(scopedStreamName(scopeName, streamName), stream);
-                    scopes.get(scopeName).addStreamToScope(streamName);
-                    return CompletableFuture.completedFuture(true);
-                } else {
-                    return FutureHelpers.
-                            failedFuture(new StoreException(StoreException.Type.NODE_EXISTS, "Stream already exists."));
-                }
+        if (scopes.containsKey(scopeName)) {
+            if (!streams.containsKey(scopedStreamName(scopeName, streamName))) {
+                InMemoryStream stream = new InMemoryStream(scopeName, streamName);
+                stream.create(configuration, timeStamp);
+                streams.put(scopedStreamName(scopeName, streamName), stream);
+                scopes.get(scopeName).addStreamToScope(streamName);
+                return CompletableFuture.completedFuture(true);
             } else {
                 return FutureHelpers.
-                        failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
+                        failedFuture(new StoreException(StoreException.Type.NODE_EXISTS, "Stream already exists."));
             }
+        } else {
+            return FutureHelpers.
+                    failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
         }
     }
 
