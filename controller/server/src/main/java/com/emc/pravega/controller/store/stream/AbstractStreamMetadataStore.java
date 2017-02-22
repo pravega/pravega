@@ -186,7 +186,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private int findSplits(final List<AbstractMap.SimpleEntry<Double, Double>> sealedRanges,
                            final List<AbstractMap.SimpleEntry<Double, Double>> newRanges) {
         int splits = 0;
-        for (AbstractMap.SimpleEntry<Double, Double> sealedRange : sealedRanges){
+        for (AbstractMap.SimpleEntry<Double, Double> sealedRange : sealedRanges) {
             int overlaps = 0;
             for (AbstractMap.SimpleEntry<Double, Double> newRange : newRanges) {
                 if (Segment.overlaps(sealedRange, newRange)) {
