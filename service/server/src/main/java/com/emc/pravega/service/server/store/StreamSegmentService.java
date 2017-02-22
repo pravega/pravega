@@ -77,6 +77,14 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
+    public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        long traceId = LoggerHelpers.traceEnter(log, "updateAttributes", streamSegmentName, attributeUpdates, timeout);
+        return withCompletion(
+                () -> getContainer(streamSegmentName).thenCompose(container -> container.updateAttributes(streamSegmentName, attributeUpdates, timeout)),
+                r -> traceLeave(log, "updateAttributes", traceId, r));
+    }
+
+    @Override
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, "read", streamSegmentName, offset, maxLength, timeout);
         return withCompletion(

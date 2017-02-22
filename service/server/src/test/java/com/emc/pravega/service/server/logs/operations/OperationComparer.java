@@ -156,6 +156,8 @@ public class OperationComparer {
             assertSame(message, (StreamSegmentMapOperation) expected, (StreamSegmentMapOperation) actual);
         } else if (expected instanceof TransactionMapOperation) {
             assertSame(message, (TransactionMapOperation) expected, (TransactionMapOperation) actual);
+        } else if (expected instanceof UpdateAttributesOperation) {
+            assertSame(message, (UpdateAttributesOperation) expected, (UpdateAttributesOperation) actual);
         } else {
             Assert.fail(message + " No comparison implemented for operation " + expected);
         }
@@ -165,14 +167,19 @@ public class OperationComparer {
         Assert.assertEquals(message + " Unexpected StreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
         Assert.assertEquals(message + " Unexpected StreamSegmentLength.", expected.getLength(), actual.getLength());
         Assert.assertEquals(message + " Unexpected StreamSegmentName.", expected.getStreamSegmentName(), actual.getStreamSegmentName());
-        AssertExtensions.assertMapEquals(message+ "Unexpected attributes.", expected.getAttributes(), actual.getAttributes());
+        AssertExtensions.assertMapEquals(message + "Unexpected attributes.", expected.getAttributes(), actual.getAttributes());
     }
 
     private void assertSame(String message, TransactionMapOperation expected, TransactionMapOperation actual) {
         Assert.assertEquals(message + " Unexpected TransactionStreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
         Assert.assertEquals(message + " Unexpected TransactionStreamSegmentName.", expected.getStreamSegmentName(), actual.getStreamSegmentName());
         Assert.assertEquals(message + " Unexpected ParentStreamSegmentId.", expected.getParentStreamSegmentId(), actual.getParentStreamSegmentId());
-        AssertExtensions.assertMapEquals(message+ "Unexpected attributes.", expected.getAttributes(), actual.getAttributes());
+        AssertExtensions.assertMapEquals(message + "Unexpected attributes.", expected.getAttributes(), actual.getAttributes());
+    }
+
+    private void assertSame(String message, UpdateAttributesOperation expected, UpdateAttributesOperation actual) {
+        Assert.assertEquals(message + " Unexpected StreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
+        assertSame(message + "Unexpected attributes.", expected.getAttributeUpdates(), actual.getAttributeUpdates());
     }
 
     private void assertSame(String message, MetadataCheckpointOperation expected, MetadataCheckpointOperation actual) {
