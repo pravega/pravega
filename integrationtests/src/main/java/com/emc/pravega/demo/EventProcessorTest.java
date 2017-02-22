@@ -1,30 +1,18 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.demo;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
-import com.emc.pravega.controller.eventProcessor.Decider;
+import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
-import com.emc.pravega.controller.eventProcessor.Props;
-import com.emc.pravega.controller.eventProcessor.StreamEvent;
+import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
+import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
@@ -47,6 +35,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
+import org.junit.Test;
 
 import java.io.Serializable;
 import java.util.concurrent.CompletableFuture;
@@ -88,11 +77,12 @@ public class EventProcessorTest {
 
     @Data
     @AllArgsConstructor
-    public static class TestEvent implements StreamEvent, Serializable {
+    public static class TestEvent implements ControllerEvent, Serializable {
         int number;
     }
 
 
+    @Test
     public static void main(String[] args) throws Exception {
         TestingServer zkTestServer = new TestingServer();
 
@@ -162,19 +152,21 @@ public class EventProcessorTest {
                         .build();
 
         // Test case 1. Actor does not throw any exception during normal operation.
-        Props<TestEvent> props = Props.<TestEvent>builder()
+        EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new TestEventProcessor(false, result))
                 .serializer(new JavaSerializer<>())
-                .decider((Throwable e) -> Decider.Directive.Stop)
+                .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(eventProcessorGroupConfig)
                 .build();
-        system.createEventProcessorGroup(props);
+        system.createEventProcessorGroup(eventProcessorConfig);
 
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());
         System.err.println("SUCCESS: received expected sum");
         producer.close();
-        system.getEventProcessorGroups().stream().forEach(EventProcessorGroup::stopAll);
+        for (EventProcessorGroup group : system.getEventProcessorGroups()) {
+            group.stopAll();
+        }
         server.close();
         zkTestServer.close();
     }

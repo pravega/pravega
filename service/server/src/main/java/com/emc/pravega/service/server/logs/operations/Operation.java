@@ -9,7 +9,6 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.server.LogItem;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -74,6 +73,16 @@ public abstract class Operation implements LogItem {
         Exceptions.checkArgument(value >= 0, "value", "Sequence Number must be a non-negative number.");
 
         this.sequenceNumber = value;
+    }
+
+    /**
+     * Gets a value indicating whether this operation can be serialized to the DurableDataLog. This generally differentiates
+     * between control operations (i.e. ProbeOperations) and operations that serve a real purpose.
+     *
+     * @return True if can (and must) serialize, false otherwise.
+     */
+    public boolean canSerialize() {
+        return true;
     }
 
     /**

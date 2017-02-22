@@ -17,16 +17,22 @@ package com.emc.pravega.stream;
 public interface Stream {
     /**
      * Gets the scope of this stream.
+     *
+     * @return String scope name
      */
     String getScope();
 
     /**
      * Gets the name of this stream  (Not including the scope).
+     *
+     * @return String a stream name
      */
     String getStreamName();
 
     /**
      * Gets the scoped name of this stream.
+     *
+     * @return String a fully scoped stream name
      */
     String getScopedName();
 

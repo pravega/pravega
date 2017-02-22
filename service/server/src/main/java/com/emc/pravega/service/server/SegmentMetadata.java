@@ -5,16 +5,19 @@
  */
 package com.emc.pravega.service.server;
 
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.SegmentProperties;
-
-import java.util.Collection;
-import java.util.UUID;
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
+import java.util.HashMap;
 
 /**
  * Defines an immutable StreamSegment Metadata.
  */
 public interface SegmentMetadata extends SegmentProperties {
+    /**
+     * Defines an attribute value that denotes a missing value.
+     */
+    Long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE;
+
     /**
      * Gets a value indicating the id of this StreamSegment.
      */
@@ -52,16 +55,12 @@ public interface SegmentMetadata extends SegmentProperties {
     long getDurableLogLength();
 
     /**
-     * Gets the Append Context for the Last Committed Append related to the given client.
-     * Note that this may not be available for appends that occurred long in the past (this data is not persisted with
-     * the metadata).
+     * Creates a new SegmentProperties instance with current information from this SegmentMetadata object.
      *
-     * @param clientId The Client Id to inquire for.
+     * @return The new SegmentProperties instance. This object is completely detached from the SegmentMetadata from which
+     * it was created (changes to the base object will not be reflected in the result).
      */
-    AppendContext getLastAppendContext(UUID clientId);
-
-    /**
-     * Gets a collection of all known Client Ids (mapped to AppendContexts).
-     */
-    Collection<UUID> getKnownClientIds();
+    default SegmentProperties getSnapshot() {
+        return new StreamSegmentInformation(this, new HashMap<>(getAttributes()));
+    }
 }

@@ -54,7 +54,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
         this.ssl = ssl;
         this.port = port;
         this.store = streamSegmentStore;
-        InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
+        InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
     }
 
     public void startListening() {

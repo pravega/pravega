@@ -54,6 +54,13 @@ import java.net.URI;
  */
 public interface ClientFactory {
 
+    /**
+     * Creates a new instance of Client Factory.
+     *
+     * @param scope The scope string.
+     * @param controllerUri The URI for controller.
+     * @return Instance of ClientFactory implementation.
+     */
     static ClientFactory withScope(String scope, URI controllerUri) {
         return new ClientFactoryImpl(scope, controllerUri);
     }
@@ -69,6 +76,7 @@ public interface ClientFactory {
      * @param config The writer configuration.
      * @param s The Serializer.
      * @param <T> The type of events.
+     * @return Newly created writer object
      */
     <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
     
@@ -80,8 +88,10 @@ public interface ClientFactory {
      * @param config The writer configuration.
      * @param s The Serializer.
      * @param <T> The type of events.
+     * @return Newly created idempotent writer object
      */
-    <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
+    <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
+            EventWriterConfig config);
 
     /**
      * Creates a new manually managed reader that will read from the specified stream at the
@@ -97,6 +107,7 @@ public interface ClientFactory {
      * @param config The reader configuration.
      * @param startingPosition The StartingPosition to use.
      * @param <T> The type of events.
+     * @return Newly created reader object (manually managed)
      */
     <T> EventStreamReader<T> createReader(String streamName, Serializer<T> s, ReaderConfig config,
             Position startingPosition);
@@ -119,6 +130,7 @@ public interface ClientFactory {
      * @param s The serializer for events.
      * @param config The readers configuration.
      * @param <T> The type of events.
+     * @return Newly created reader object that is a part of reader group
      */
     <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config);
 
@@ -129,6 +141,7 @@ public interface ClientFactory {
      * @param serializer The serializer for updates.
      * @param config The client configuration
      * @param <T> The type of events
+     * @return Revisioned stream client
      */
     <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
             SynchronizerConfig config);
@@ -143,6 +156,7 @@ public interface ClientFactory {
      * @param updateSerializer The serializer for updates.
      * @param initSerializer The serializer for the initial update.
      * @param config The synchronizer configuration
+     * @return Newly created StateSynchronizer that will work on the given stream
      */
     <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
     StateSynchronizer<StateT> createStateSynchronizer(String streamName,

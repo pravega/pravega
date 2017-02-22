@@ -1,30 +1,18 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
 import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
-import com.emc.pravega.controller.eventProcessor.Decider;
+import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.EventProcessorInitException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorReinitException;
-import com.emc.pravega.controller.eventProcessor.Props;
-import com.emc.pravega.controller.eventProcessor.StreamEvent;
+import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
+import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.Position;
@@ -49,7 +37,7 @@ import lombok.extern.slf4j.Slf4j;
  * @param <T> Event type parameter.
  */
 @Slf4j
-class EventProcessorCell<T extends StreamEvent> {
+class EventProcessorCell<T extends ControllerEvent> {
 
     private final EventStreamReader<T> reader;
 
@@ -69,11 +57,11 @@ class EventProcessorCell<T extends StreamEvent> {
     private class Delegate extends AbstractExecutionThreadService {
 
         private final long defaultTimeout = 2000L;
-        private final Props<T> props;
+        private final EventProcessorConfig<T> eventProcessorConfig;
         private EventRead<T> event;
 
-        Delegate(Props<T> props) {
-            this.props = props;
+        Delegate(EventProcessorConfig<T> eventProcessorConfig) {
+            this.eventProcessorConfig = eventProcessorConfig;
         }
 
         @Override
@@ -83,7 +71,7 @@ class EventProcessorCell<T extends StreamEvent> {
                 actor.beforeStart();
             } catch (Exception e) {
                 log.warn("Failed while executing preStart for event processor " + this, e);
-                handleException(new EventProcessorInitException(actor, e));
+                handleException(new EventProcessorInitException(e));
             }
         }
 
@@ -138,18 +126,18 @@ class EventProcessorCell<T extends StreamEvent> {
                 actor.beforeRestart(error, event);
 
                 // Now clean up the event processor state by re-creating it and then invoke startUp.
-                actor = createEventProcessor(props);
+                actor = createEventProcessor(eventProcessorConfig);
 
                 startUp();
 
             } catch (Exception e) {
                 log.warn("Failed while executing preRestart for event processor " + this, e);
-                handleException(new EventProcessorReinitException(actor, e));
+                handleException(new EventProcessorReinitException(e));
             }
         }
 
         private void handleException(Exception e) {
-            Decider.Directive directive = props.getDecider().run(e);
+            ExceptionHandler.Directive directive = eventProcessorConfig.getExceptionHandler().run(e);
             switch (directive) {
                 case Restart:
                     this.restart(e, event == null ? null : event.getEvent());
@@ -220,22 +208,22 @@ class EventProcessorCell<T extends StreamEvent> {
             }
         }
 
-        void stop() {
+        void stop() throws CheckpointStoreException {
             checkpointStore.removeReader(process, readerGroupName, readerId);
         }
     }
 
-    EventProcessorCell(final Props<T> props,
+    EventProcessorCell(final EventProcessorConfig<T> eventProcessorConfig,
                        final EventStreamReader<T> reader,
                        final String process,
                        final String readerId,
                        final CheckpointStore checkpointStore) {
 
         this.reader = reader;
-        this.actor = createEventProcessor(props);
-        this.delegate = new Delegate(props);
-        this.state = new CheckpointState(checkpointStore, process, props.getConfig().getReaderGroupName(),
-                readerId, props.getConfig().getCheckpointConfig().getCheckpointPeriod());
+        this.actor = createEventProcessor(eventProcessorConfig);
+        this.delegate = new Delegate(eventProcessorConfig);
+        this.state = new CheckpointState(checkpointStore, process, eventProcessorConfig.getConfig().getReaderGroupName(),
+                readerId, eventProcessorConfig.getConfig().getCheckpointConfig().getCheckpointPeriod());
     }
 
     final void startAsync() {
@@ -255,8 +243,8 @@ class EventProcessorCell<T extends StreamEvent> {
         }
     }
 
-    private EventProcessor<T> createEventProcessor(final Props<T> props) {
-        return props.getSupplier().get();
+    private EventProcessor<T> createEventProcessor(final EventProcessorConfig<T> eventProcessorConfig) {
+        return eventProcessorConfig.getSupplier().get();
     }
 
 }

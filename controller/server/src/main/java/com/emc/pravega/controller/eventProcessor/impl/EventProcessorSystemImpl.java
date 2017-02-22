@@ -1,34 +1,25 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.StreamManager;
+import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
-import com.emc.pravega.controller.eventProcessor.Props;
-import com.emc.pravega.controller.eventProcessor.StreamEvent;
+import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
+import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.StreamManagerImpl;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Slf4j
@@ -52,9 +43,8 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
 
         this.scope = scope;
         this.controller = controller;
-        this.streamManager = StreamManager.withScope(scope, controller);
         this.clientFactory = new ClientFactoryImpl(scope, controller);
-
+        this.streamManager = new StreamManagerImpl(scope, controller, clientFactory);
     }
 
     @Override
@@ -72,17 +62,17 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
         return this.process;
     }
 
-    public <T extends StreamEvent> EventProcessorGroup<T> createEventProcessorGroup(Props<T> props) {
+    public <T extends ControllerEvent> EventProcessorGroup<T> createEventProcessorGroup(EventProcessorConfig<T> eventProcessorConfig) throws CheckpointStoreException {
         EventProcessorGroupImpl<T> actorGroup;
 
         // Create event processor group.
-        actorGroup = new EventProcessorGroupImpl<>(this, props);
+        actorGroup = new EventProcessorGroupImpl<>(this, eventProcessorConfig);
 
         // Initialize it.
         actorGroup.initialize();
 
         // If successful in initializing it, add it to the list and start it.
-        synchronized (actorGroup) {
+        synchronized (actorGroups) {
             actorGroups.add(actorGroup);
         }
 
@@ -93,6 +83,6 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
 
     @Override
     public List<EventProcessorGroup> getEventProcessorGroups() {
-        return actorGroups;
+        return Collections.unmodifiableList(actorGroups);
     }
 }

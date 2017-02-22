@@ -5,11 +5,13 @@
  */
 package com.emc.pravega.service.server.logs.operations;
 
+import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.Collection;
 
 /**
  * Log Operation that represents a StreamSegment Append. As opposed from StreamSegmentAppendOperation, this operation cannot
@@ -21,6 +23,7 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
 
     private final int length;
     private final long streamSegmentOffset;
+    private final Collection<AttributeUpdate> attributeUpdates;
 
     //endregion
 
@@ -43,19 +46,31 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
         if (baseOperation.getSequenceNumber() >= 0) {
             setSequenceNumber(baseOperation.getSequenceNumber());
         }
+
+        this.attributeUpdates = baseOperation.getAttributeUpdates();
     }
 
     //endregion
 
     //region Properties
 
+    /**
+     * Gets the Attribute updates for this StreamSegmentAppendOperation, if any.
+     *
+     * @return A Collection of Attribute updates, or null if no updates are available.
+     */
+    public Collection<AttributeUpdate> getAttributeUpdates() {
+        return this.attributeUpdates;
+    }
+
     @Override
     public String toString() {
         return String.format(
-                "%s, Offset = %d, Length = %d",
+                "%s, Offset = %d, Length = %d, Attributes = %d",
                 super.toString(),
                 this.streamSegmentOffset,
-                this.length);
+                this.length,
+                this.attributeUpdates == null ? 0 : this.attributeUpdates.size());
     }
 
     //endregion

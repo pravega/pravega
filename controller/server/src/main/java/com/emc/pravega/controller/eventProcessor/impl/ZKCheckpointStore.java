@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
@@ -24,6 +12,7 @@ import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.zookeeper.CreateMode;
@@ -57,23 +46,23 @@ class ZKCheckpointStore implements CheckpointStore {
 
     @Data
     @AllArgsConstructor
-    static class ReaderGroupData implements Serializable {
+    private static class ReaderGroupData implements Serializable {
         enum State {
             Active,
             Sealed,
         }
 
-        private State state;
-        private List<String> readerIds;
+        private final State state;
+        private final List<String> readerIds;
     }
 
     @Override
-    public void setPosition(String process, String readerGroup, String readerId, Position position) {
+    public void setPosition(String process, String readerGroup, String readerId, Position position) throws CheckpointStoreException {
         updateNode(getReaderPath(process, readerGroup, readerId), positionSerializer.serialize(position).array());
     }
 
     @Override
-    public Map<String, Position> getPositions(String process, String readerGroup) {
+    public Map<String, Position> getPositions(String process, String readerGroup) throws CheckpointStoreException {
         Map<String, Position> map = new HashMap<>();
         String path = getReaderGroupPath(process, readerGroup);
         for (String child : getChildren(path)) {
@@ -88,21 +77,19 @@ class ZKCheckpointStore implements CheckpointStore {
     }
 
     @Override
-    public void addReaderGroup(String process, String readerGroup) {
+    public void addReaderGroup(String process, String readerGroup) throws CheckpointStoreException {
         ReaderGroupData data = new ReaderGroupData(ReaderGroupData.State.Active, new ArrayList<>());
         addNode(getReaderGroupPath(process, readerGroup), groupDataSerializer.serialize(data).array());
     }
 
     @Override
-    public Map<String, Position> sealReaderGroup(String process, String readerGroup) {
+    public Map<String, Position> sealReaderGroup(String process, String readerGroup) throws CheckpointStoreException {
         String path = getReaderGroupPath(process, readerGroup);
 
         try {
 
-            updateReaderGroupData(path, groupData -> {
-                groupData.setState(ReaderGroupData.State.Sealed);
-                return groupData;
-            });
+            updateReaderGroupData(path, groupData ->
+                    new ReaderGroupData(ReaderGroupData.State.Sealed, groupData.getReaderIds()));
 
             return getPositions(process, readerGroup);
 
@@ -114,7 +101,7 @@ class ZKCheckpointStore implements CheckpointStore {
     }
 
     @Override
-    public void removeReaderGroup(String process, String readerGroup) {
+    public void removeReaderGroup(String process, String readerGroup) throws CheckpointStoreException {
         String path = getReaderGroupPath(process, readerGroup);
         byte[] data = getData(path);
 
@@ -130,31 +117,29 @@ class ZKCheckpointStore implements CheckpointStore {
     }
 
     @Override
-    public List<String> getReaderGroups(String process) {
+    public List<String> getReaderGroups(String process) throws CheckpointStoreException {
         return getChildren(getProcessPath(process));
     }
 
     @Override
-    public void addReader(String process, String readerGroup, String readerId) {
+    public void addReader(String process, String readerGroup, String readerId) throws CheckpointStoreException {
         String path = getReaderGroupPath(process, readerGroup);
 
         try {
 
             updateReaderGroupData(path, groupData -> {
                 if (groupData.getState() == ReaderGroupData.State.Sealed) {
-                    throw new CheckpointStoreException(CheckpointStoreException.Type.Sealed,
-                            "ReaderGroup is sealed");
+                    throw Lombok.sneakyThrow(new CheckpointStoreException(CheckpointStoreException.Type.Sealed,
+                            "ReaderGroup is sealed"));
                 }
                 List<String> list = groupData.getReaderIds();
                 if (list.contains(readerId)) {
-                    throw new CheckpointStoreException(CheckpointStoreException.Type.NodeExists,
-                            "Duplicate readerId");
+                    throw Lombok.sneakyThrow(new CheckpointStoreException(CheckpointStoreException.Type.NodeExists,
+                            "Duplicate readerId"));
                 }
 
                 list.add(readerId);
-                groupData.setReaderIds(list);
-
-                return groupData;
+                return new ReaderGroupData(groupData.getState(), list);
             });
 
             addNode(getReaderPath(process, readerGroup, readerId));
@@ -170,7 +155,7 @@ class ZKCheckpointStore implements CheckpointStore {
     }
 
     @Override
-    public void removeReader(String process, String readerGroup, String readerId) {
+    public void removeReader(String process, String readerGroup, String readerId) throws CheckpointStoreException {
         String path = getReaderGroupPath(process, readerGroup);
 
         try {
@@ -180,8 +165,7 @@ class ZKCheckpointStore implements CheckpointStore {
                 List<String> list = groupData.getReaderIds();
                 if (list.contains(readerId)) {
                     list.remove(readerId);
-                    groupData.setReaderIds(list);
-                    return groupData;
+                    return new ReaderGroupData(groupData.getState(), list);
                 } else {
                     return groupData;
                 }
@@ -239,11 +223,11 @@ class ZKCheckpointStore implements CheckpointStore {
                 });
     }
 
-    private void addNode(String path) {
+    private void addNode(String path) throws CheckpointStoreException {
         addNode(path, new byte[0]);
     }
 
-    private void addNode(String path, byte[] data) {
+    private void addNode(String path, byte[] data) throws CheckpointStoreException {
         try {
 
             client.create()
@@ -258,7 +242,7 @@ class ZKCheckpointStore implements CheckpointStore {
         }
     }
 
-    private void removeEmptyNode(String path) {
+    private void removeEmptyNode(String path) throws CheckpointStoreException {
         try {
 
             client.delete().forPath(path);
@@ -272,7 +256,7 @@ class ZKCheckpointStore implements CheckpointStore {
         }
     }
 
-    private void updateNode(String path, byte[] data) {
+    private void updateNode(String path, byte[] data) throws CheckpointStoreException {
         try {
 
             client.setData().forPath(path, data);
@@ -284,7 +268,7 @@ class ZKCheckpointStore implements CheckpointStore {
         }
     }
 
-    private List<String> getChildren(String path) {
+    private List<String> getChildren(String path) throws CheckpointStoreException {
         try {
 
             return client.getChildren().forPath(path);
@@ -297,7 +281,7 @@ class ZKCheckpointStore implements CheckpointStore {
         }
     }
 
-    private byte[] getData(String path) {
+    private byte[] getData(String path) throws CheckpointStoreException {
         try {
 
             return client.getData().forPath(path);

@@ -1,11 +1,9 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.selftest;
 
-import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
@@ -16,14 +14,19 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.impl.ByteArraySerializer;
 import com.emc.pravega.stream.mock.MockStreamManager;
-
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import lombok.val;
 
 /**
  * Store adapter wrapping a real StreamSegmentStore and Connection Listener.
@@ -34,7 +37,8 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     private static final String LISTENING_ADDRESS = "localhost";
     private final int listeningPort;
     private final boolean autoFlush;
-    private final ConcurrentHashMap<String, EventStreamWriter<byte[]>> producers;
+    private final int writerCount;
+    private final ConcurrentHashMap<String, WriterCollection> writers;
     private PravegaConnectionListener listener;
     private MockStreamManager streamManager;
 
@@ -49,15 +53,16 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
         super(testConfig, builderConfig, testExecutor);
         this.listeningPort = testConfig.getClientPort();
         this.autoFlush = testConfig.isClientAutoFlush();
-        this.producers = new ConcurrentHashMap<>();
+        this.writerCount = testConfig.getClientWriterCount();
+        this.writers = new ConcurrentHashMap<>();
     }
 
     //region AutoCloseable Implementation
 
     @Override
     public void close() {
-        this.producers.values().forEach(EventStreamWriter::close);
-        this.producers.clear();
+        this.writers.values().forEach(WriterCollection::close);
+        this.writers.clear();
 
         if (this.streamManager != null) {
             this.streamManager.close();
@@ -95,19 +100,16 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
         ensureInitializedAndNotClosed();
         return CompletableFuture.runAsync(() -> {
-            if (this.producers.containsKey(streamSegmentName)) {
+            if (this.writers.containsKey(streamSegmentName)) {
                 throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
             }
 
-            streamManager.createStream(streamSegmentName, null);
-            EventStreamWriter<byte[]> producer = streamManager.getClientFactory()
-                                                              .createEventWriter(streamSegmentName,
-                                                                                 new ByteArraySerializer(),
-                                                                                 new EventWriterConfig(null));
-            this.producers.putIfAbsent(streamSegmentName, producer);
+            this.streamManager.createStream(streamSegmentName, null);
+            WriterCollection producers = new WriterCollection(streamSegmentName, this.writerCount, this.streamManager);
+            this.writers.putIfAbsent(streamSegmentName, producers);
         }, this.testExecutor);
     }
 
@@ -118,17 +120,18 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext context, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         ensureInitializedAndNotClosed();
         return CompletableFuture.runAsync(() -> {
-            EventStreamWriter<byte[]> producer = this.producers.getOrDefault(streamSegmentName, null);
-            if (producer == null) {
+            WriterCollection segmentWriterCollection = this.writers.getOrDefault(streamSegmentName, null);
+            if (segmentWriterCollection == null) {
                 throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
             }
 
-            Future<Void> r = producer.writeEvent(streamSegmentName, data);
+            EventStreamWriter<byte[]> writer = segmentWriterCollection.next();
+            Future<Void> r = writer.writeEvent(streamSegmentName, data);
             if (this.autoFlush) {
-                producer.flush();
+                writer.flush();
             }
 
             try {
@@ -158,7 +161,7 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, Duration timeout) {
+    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
         ensureInitializedAndNotClosed();
         throw new UnsupportedOperationException("transactions are not supported.");
     }
@@ -170,4 +173,32 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     }
 
     //endregion
+
+    private static class WriterCollection implements AutoCloseable {
+        private static final ByteArraySerializer SERIALIZER = new ByteArraySerializer();
+        private static final EventWriterConfig WRITER_CONFIG = new EventWriterConfig(null);
+        private final List<EventStreamWriter<byte[]>> writers;
+        private final AtomicInteger nextWriterId;
+
+        WriterCollection(String segmentName, int count, MockStreamManager streamManager) {
+            this.writers = Collections.synchronizedList(new ArrayList<>(count));
+            this.nextWriterId = new AtomicInteger();
+            for (int i = 0; i < count; i++) {
+                val writer = streamManager.getClientFactory()
+                                          .createEventWriter(segmentName,
+                                                  SERIALIZER,
+                                                  WRITER_CONFIG);
+                this.writers.add(writer);
+            }
+        }
+
+        EventStreamWriter<byte[]> next() {
+            return this.writers.get(this.nextWriterId.getAndIncrement() % this.writers.size());
+        }
+
+        @Override
+        public void close() {
+            this.writers.forEach(EventStreamWriter::close);
+        }
+    }
 }

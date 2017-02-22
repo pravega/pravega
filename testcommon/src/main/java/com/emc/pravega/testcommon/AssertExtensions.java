@@ -5,18 +5,18 @@
  */
 package com.emc.pravega.testcommon;
 
-import org.junit.Assert;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import org.junit.Assert;
 
 /**
  * Additional Assert Methods that are useful during testing.
@@ -203,6 +203,26 @@ public class AssertExtensions {
             if (!contains) {
                 Assert.fail(String.format("%s Element %s does not exist.", message, e));
             }
+        }
+    }
+
+    /**
+     * Asserts that the contents of the given maps are the same.
+     *
+     * @param message  The message to include in the Assert calls.
+     * @param expected A Map to check against.
+     * @param actual   The Map to check.
+     * @param <K>      The type of the map's keys.
+     * @param <V>      The type of the map's values.
+     */
+    public static <K extends Comparable<? super K>, V extends Comparable<? super V>> void assertMapEquals(String message, Map<K, V> expected, Map<K, V> actual) {
+        Assert.assertEquals(String.format("%s Maps differ in size.", message), expected.size(), actual.size());
+        for (Map.Entry<K, V> e : expected.entrySet()) {
+            if (!actual.containsKey(e.getKey())) {
+                Assert.fail(String.format("%s Element with key %s does not exist.", message, e.getKey()));
+            }
+
+            Assert.assertEquals(String.format("%s Element values for key %s differ.", message, e.getKey()), e.getValue(), actual.get(e.getKey()));
         }
     }
 
