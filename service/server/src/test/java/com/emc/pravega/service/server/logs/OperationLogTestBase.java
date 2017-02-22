@@ -12,6 +12,7 @@ import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.containers.InMemoryStateStore;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.SegmentMetadata;
@@ -87,7 +88,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
      * Creates a number of StreamSegments in the given Metadata and OperationLog.
      */
     HashSet<Long> createStreamSegmentsWithOperations(int streamSegmentCount, ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
-        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, storage, ForkJoinPool.commonPool());
+        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, new InMemoryStateStore(), storage, ForkJoinPool.commonPool());
         HashSet<Long> result = new HashSet<>();
         for (int i = 0; i < streamSegmentCount; i++) {
             String name = getStreamSegmentName(i);
@@ -128,7 +129,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
      */
     AbstractMap<Long, Long> createTransactionsWithOperations(HashSet<Long> streamSegmentIds, int transactionsPerStreamSegment, ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
         HashMap<Long, Long> result = new HashMap<>();
-        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, storage, ForkJoinPool.commonPool());
+        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, new InMemoryStateStore(), storage, ForkJoinPool.commonPool());
         for (long streamSegmentId : streamSegmentIds) {
             String streamSegmentName = containerMetadata.getStreamSegmentMetadata(streamSegmentId).getName();
 

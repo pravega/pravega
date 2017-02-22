@@ -113,11 +113,11 @@ public interface StreamSegmentStore {
      *
      * @param transactionName The name of the Transaction StreamSegment to merge.
      * @param timeout         Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will contain the offset within the parent StreamSegment
-     * where the transaction has been merged at. If the operation failed, the future will be failed with the causing exception.
+     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
+     * failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout);
+    CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout);
 
     /**
      * Seals a StreamSegment for modifications.

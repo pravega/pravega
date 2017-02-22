@@ -7,6 +7,7 @@ package com.emc.pravega.service.selftest;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.ExecutorServiceHelpers;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
@@ -27,7 +28,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 /**
  * Store Adapter wrapping a real StreamSegmentStore.
@@ -36,8 +36,6 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     //region Members
 
     private static final String LOG_ID = "SegmentStoreAdapter";
-    private static final Consumer<Long> LONG_TO_VOID = ignored -> {
-    };
     protected final Executor testExecutor;
     private final AtomicBoolean closed;
     private final AtomicBoolean initialized;
@@ -151,13 +149,13 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     @Override
     public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.mergeTransaction(transactionName, timeout).thenAccept(LONG_TO_VOID);
+        return this.streamSegmentStore.mergeTransaction(transactionName, timeout);
     }
 
     @Override
     public CompletableFuture<Void> sealStreamSegment(String streamSegmentName, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.sealStreamSegment(streamSegmentName, timeout).thenAccept(LONG_TO_VOID);
+        return FutureHelpers.toVoid(this.streamSegmentStore.sealStreamSegment(streamSegmentName, timeout));
     }
 
     @Override

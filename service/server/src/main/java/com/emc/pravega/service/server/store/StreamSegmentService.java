@@ -114,7 +114,7 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout) {
+    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, "mergeTransaction", transactionName, timeout);
         return withCompletion(
                 () -> getContainer(transactionName)
