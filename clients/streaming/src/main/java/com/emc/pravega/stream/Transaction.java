@@ -32,11 +32,21 @@ public interface Transaction<Type> {
     UUID getTxnId();
     
     /**
-     * Sends an event to the stream just like {@link EventStreamWriter#writeEvent} but with the caveat that the message will not be
-     * visible to anyone until {@link #commit()} is called.
+     * Sends an event to the stream just like {@link EventStreamWriter#writeEvent} but with the caveat that
+     * the message will not be visible to anyone until {@link #commit()} is called.
      *
      * @param routingKey The Routing Key to use for writing.
-     * @param event      The Event to write.
+     * @param event The Event to write.
+     * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
+     */
+    void writeEvent(Type event) throws TxnFailedException;
+    
+    /**
+     * Sends an event to the stream just like {@link EventStreamWriter#writeEvent} but with the caveat that
+     * the message will not be visible to anyone until {@link #commit()} is called.
+     *
+     * @param routingKey The Routing Key to use for writing.
+     * @param event The Event to write.
      * @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
     void writeEvent(String routingKey, Type event) throws TxnFailedException;

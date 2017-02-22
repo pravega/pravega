@@ -186,6 +186,11 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         }
 
         @Override
+        public void writeEvent(Type event) throws TxnFailedException {
+            writeEvent(txId.toString(), event);
+        }
+        
+        @Override
         public void writeEvent(String routingKey, Type event) throws TxnFailedException {
             Preconditions.checkState(!closed.get());
             Segment s = router.getSegmentForEvent(routingKey);
