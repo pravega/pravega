@@ -5,8 +5,6 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
-import java.util.List;
-
 /**
  * It acts as the manager and wrapper around EventProcessor groups
  * processing events from Pravega Streams belonging to a specific scope.

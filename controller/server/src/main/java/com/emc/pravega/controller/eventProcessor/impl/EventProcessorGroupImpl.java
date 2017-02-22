@@ -179,7 +179,16 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         checkpointStore.removeReaderGroup(process, readerGroup.getGroupName());
     }
 
-    @Override
+    /**
+     * Increase/decrease the number of event processors reading from the Pravega
+     * Stream and participating in the ReaderGroup. This method may be
+     * invoked if the number of active segments in the Pravega Stream
+     * increases/decreased on account of a Scale event due to increased/
+     * decreased event throughput.
+     * @param count Number of event processors to add. Negative number indicates
+     *              decreasing the Actor count.
+     * @throws CheckpointStoreException on error accessing or updating checkpoint store.
+     */
     public void changeEventProcessorCount(int count) throws CheckpointStoreException {
         Preconditions.checkState(this.isRunning(), this.state().name());
         if (count <= 0) {
