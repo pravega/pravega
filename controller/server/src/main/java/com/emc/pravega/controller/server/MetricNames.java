@@ -18,7 +18,12 @@ public interface MetricNames {
     public final static String ABORT_TRANSACTION = "ABORT_TRANSACTION";
     public final static String TIMEOUT_TRANSACTION = "TIMEOUT_TRANSACTION";
     public final static String OPEN_TRANSACTIONS = "OPEN_TRANSACTIONS"; // Gauge
-    
+
+    // Stream segment counts (Dynamic)
+    String NUMBER_OF_SEGMENTS = "NUMBER_OF_SEGMENTS"; //Counter
+    String SPLITS = "SPLITS"; // Guage
+    String MERGES = "MERGES"; // Guage
+
     static String nameFromStream(String metric, String scope, String stream) {
         return metric + "." + scope + "." + stream;
     }

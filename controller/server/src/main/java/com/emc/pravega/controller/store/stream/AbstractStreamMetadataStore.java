@@ -34,7 +34,10 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import static com.emc.pravega.controller.server.MetricNames.ABORT_TRANSACTION;
 import static com.emc.pravega.controller.server.MetricNames.COMMIT_TRANSACTION;
 import static com.emc.pravega.controller.server.MetricNames.CREATE_TRANSACTION;
+import static com.emc.pravega.controller.server.MetricNames.MERGES;
+import static com.emc.pravega.controller.server.MetricNames.NUMBER_OF_SEGMENTS;
 import static com.emc.pravega.controller.server.MetricNames.OPEN_TRANSACTIONS;
+import static com.emc.pravega.controller.server.MetricNames.SPLITS;
 import static com.emc.pravega.controller.server.MetricNames.nameFromStream;
 
 /**
@@ -78,6 +81,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return stream.create(configuration, createTimestamp).thenApply(result -> {
             CREATE_STREAM.reportSuccessValue(1);
             DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, "", name), 0);
+            DYNAMIC_LOGGER.incCounterValue(nameFromStream(NUMBER_OF_SEGMENTS, "", name),
+                    configuration.getScalingPolicy().getMinNumSegments());
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SPLITS, "", name), 0);
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(MERGES, "", name), 0);
             return result;
         });
     }
@@ -144,18 +151,65 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                   final List<Integer> sealedSegments,
                                                   final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                   final long scaleTimestamp) {
-        return getStream(name).scale(sealedSegments, newRanges, scaleTimestamp);
+        return getStream(name).scale(sealedSegments, newRanges, scaleTimestamp)
+                .thenApply(result -> {
+                    DYNAMIC_LOGGER.incCounterValue(nameFromStream(NUMBER_OF_SEGMENTS, "", name),
+                            newRanges.size() - sealedSegments.size());
+
+                    getSealedRanges(name, sealedSegments)
+                            .thenAccept(sealedRanges -> {
+
+                                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SPLITS, "", name),
+                                        findSplits(sealedRanges, newRanges));
+
+                                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(MERGES, "", name),
+                                        findSplits(newRanges, sealedRanges));
+                            });
+
+                    return result;
+                });
+    }
+
+    private CompletableFuture<List<AbstractMap.SimpleEntry<Double, Double>>> getSealedRanges(final String name,
+                                                                                             final List<Integer>
+                                                                                                     sealedSegments) {
+        return FutureHelpers.allOfWithResults(
+                sealedSegments.stream()
+                        .map(value ->
+                                getSegment(name, value).thenApply(segment ->
+                                        new AbstractMap.SimpleEntry<>(
+                                                segment.getKeyStart(),
+                                                segment.getKeyEnd())))
+                        .collect(Collectors.toList()));
+    }
+
+    private int findSplits(final List<AbstractMap.SimpleEntry<Double, Double>> sealedRanges,
+                           final List<AbstractMap.SimpleEntry<Double, Double>> newRanges) {
+        int splits = 0;
+        for (AbstractMap.SimpleEntry<Double, Double> sealedRange : sealedRanges){
+            int overlaps = 0;
+            for (AbstractMap.SimpleEntry<Double, Double> newRange : newRanges) {
+                if (Segment.overlaps(sealedRange, newRange)) {
+                    overlaps++;
+                }
+                if (overlaps > 1) {
+                    splits++;
+                    break;
+                }
+            }
+        }
+        return splits;
     }
 
     @Override
     public CompletableFuture<UUID> createTransaction(final String scope, final String streamName) {
         Stream stream = getStream(streamName);
         return stream.createTransaction().thenApply(result -> {
-           stream.getNumberOfOngoingTransactions().thenAccept(count -> {
-               DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(CREATE_TRANSACTION, scope, streamName), 1);
-               DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
-           });
-           return result; 
+            stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(CREATE_TRANSACTION, scope, streamName), 1);
+                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
+            });
+            return result;
         });
     }
 
@@ -172,8 +226,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(COMMIT_TRANSACTION, scope, streamName), 1);
                 DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
             });
-            return result; 
-         });
+            return result;
+        });
     }
 
     @Override
@@ -189,8 +243,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(ABORT_TRANSACTION, scope, streamName), 1);
                 DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
             });
-            return result; 
-         });
+            return result;
+        });
     }
 
     @Override
