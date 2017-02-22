@@ -138,24 +138,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     @Override
     public void deleteStream(final String scopeName, final String streamName, final SecurityContext securityContext,
             final AsyncResponse asyncResponse) {
-        long traceId = LoggerHelpers.traceEnter(log, "deleteStream");
-
-        controllerService.deleteScope(scopeName).thenApply(scopeStatus -> {
-            if (scopeStatus == DeleteScopeStatus.SUCCESS) {
-                return Response.status(Status.NO_CONTENT).build();
-            } else if (scopeStatus == DeleteScopeStatus.SCOPE_NOT_FOUND) {
-                return Response.status(Status.NOT_FOUND).build();
-            } else if (scopeStatus == DeleteScopeStatus.SCOPE_NOT_EMPTY) {
-                return Response.status(Status.PRECONDITION_FAILED).build();
-            } else {
-                return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-            }
-        }).exceptionally(exception -> {
-            log.warn("Exception occurred while executing deleteStream: " + exception);
-            return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-        }).thenApply(asyncResponse::resume);
-
-        LoggerHelpers.traceLeave(log, "deleteStream", traceId);
+        asyncResponse.resume(Response.status(Status.NOT_IMPLEMENTED));
     }
 
     /**
