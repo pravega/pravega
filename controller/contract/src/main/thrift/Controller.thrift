@@ -40,6 +40,19 @@ enum ScalingPolicyType {
     BY_RATE_IN_EVENTS,
 }
 
+enum CreateScopeStatus {
+    SUCCESS,
+    FAILURE,
+    SCOPE_EXISTS
+}
+
+enum DeleteScopeStatus {
+    SUCCESS,
+    FAILURE,
+    SCOPE_NOT_FOUND,
+    SCOPE_NOT_EMPTY
+}
+
 struct ScalingPolicy {
   1: required ScalingPolicyType type,
   2: required i64 targetRate,
@@ -101,5 +114,7 @@ service ControllerService {
     TxnStatus commitTransaction(1:string scope, 2:string stream, 3:TxnId txnid)
     TxnStatus abortTransaction(1:string scope, 2:string stream, 3:TxnId txnid)
     TxnState  checkTransactionStatus(1:string scope, 2:string stream, 3:TxnId txnid)
+    CreateScopeStatus createScope(1: string scope)
+    DeleteScopeStatus deleteScope(1: string scope)
 }
 //TODO: Placeholder for Pravega Host to Stream Controller APIs.

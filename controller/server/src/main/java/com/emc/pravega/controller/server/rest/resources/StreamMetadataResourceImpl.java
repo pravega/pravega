@@ -13,8 +13,9 @@ import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamReques
 import com.emc.pravega.controller.server.rest.v1.ApiV1;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.StreamConfiguration;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +24,6 @@ import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.SecurityContext;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Stream metadata resource implementation.
@@ -47,7 +47,22 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     @Override
     public void createScope(final CreateScopeRequest createScopeRequest, final SecurityContext securityContext,
             final AsyncResponse asyncResponse) {
-        asyncResponse.resume(Response.status(Status.NOT_IMPLEMENTED));
+        long traceId = LoggerHelpers.traceEnter(log, "createScope");
+
+        controllerService.createScope(createScopeRequest.getScopeName()).thenApply(scopeStatus -> {
+            if (scopeStatus == CreateScopeStatus.SUCCESS) {
+                return Response.status(Status.CREATED).entity(createScopeRequest).build();
+            } else if (scopeStatus == CreateScopeStatus.SCOPE_EXISTS) {
+                return Response.status(Status.CONFLICT).build();
+            } else {
+                return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+            }
+        }).exceptionally(exception -> {
+            log.warn("Exception occurred while executing createScope: " + exception);
+            return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+        }).thenApply(asyncResponse::resume);
+
+        LoggerHelpers.traceLeave(log, "createScope", traceId);
     }
 
     /**
@@ -64,10 +79,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         long traceId = LoggerHelpers.traceEnter(log, "createStream");
 
         StreamConfiguration streamConfiguration = ModelHelper.getCreateStreamConfig(createStreamRequest, scopeName);
-        CompletableFuture<CreateStreamStatus> createStreamStatus = controllerService.createStream(streamConfiguration,
-                System.currentTimeMillis());
-
-        createStreamStatus.thenApply(streamStatus -> {
+        controllerService.createStream(streamConfiguration, System.currentTimeMillis())
+                .thenApply(streamStatus -> {
                     if (streamStatus == CreateStreamStatus.SUCCESS) {
                         return Response.status(Status.CREATED).
                                 entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
@@ -76,11 +89,10 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     } else {
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
-                }
-        ).exceptionally(exception -> {
-            log.debug("Exception occurred while executing createStream: " + exception);
-            return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-        }).thenApply(response -> asyncResponse.resume(response));
+                }).exceptionally(exception -> {
+                    log.warn("Exception occurred while executing createStream: " + exception);
+                    return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+                }).thenApply(asyncResponse::resume);
 
         LoggerHelpers.traceLeave(log, "createStream", traceId);
     }
@@ -95,7 +107,24 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     @Override
     public void deleteScope(final String scopeName, final SecurityContext securityContext,
             final AsyncResponse asyncResponse) {
-        asyncResponse.resume(Response.status(Status.NOT_IMPLEMENTED));
+        long traceId = LoggerHelpers.traceEnter(log, "deleteScope");
+
+        controllerService.deleteScope(scopeName).thenApply(scopeStatus -> {
+            if (scopeStatus == DeleteScopeStatus.SUCCESS) {
+                return Response.status(Status.NO_CONTENT).build();
+            } else if (scopeStatus == DeleteScopeStatus.SCOPE_NOT_FOUND) {
+                return Response.status(Status.NOT_FOUND).build();
+            } else if (scopeStatus == DeleteScopeStatus.SCOPE_NOT_EMPTY) {
+                return Response.status(Status.PRECONDITION_FAILED).build();
+            } else {
+                return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+            }
+        }).exceptionally(exception -> {
+            log.warn("Exception occurred while executing deleteScope: " + exception);
+            return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+        }).thenApply(asyncResponse::resume);
+
+        LoggerHelpers.traceLeave(log, "deleteScope", traceId);
     }
 
     /**
@@ -109,7 +138,24 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     @Override
     public void deleteStream(final String scopeName, final String streamName, final SecurityContext securityContext,
             final AsyncResponse asyncResponse) {
-        asyncResponse.resume(Response.status(Status.NOT_IMPLEMENTED));
+        long traceId = LoggerHelpers.traceEnter(log, "deleteStream");
+
+        controllerService.deleteScope(scopeName).thenApply(scopeStatus -> {
+            if (scopeStatus == DeleteScopeStatus.SUCCESS) {
+                return Response.status(Status.NO_CONTENT).build();
+            } else if (scopeStatus == DeleteScopeStatus.SCOPE_NOT_FOUND) {
+                return Response.status(Status.NOT_FOUND).build();
+            } else if (scopeStatus == DeleteScopeStatus.SCOPE_NOT_EMPTY) {
+                return Response.status(Status.PRECONDITION_FAILED).build();
+            } else {
+                return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+            }
+        }).exceptionally(exception -> {
+            log.warn("Exception occurred while executing deleteStream: " + exception);
+            return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+        }).thenApply(asyncResponse::resume);
+
+        LoggerHelpers.traceLeave(log, "deleteStream", traceId);
     }
 
     /**
@@ -123,24 +169,23 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     @Override
     public void getStream(final String scopeName, final String streamName, final SecurityContext securityContext,
             final AsyncResponse asyncResponse) {
-        long traceId = LoggerHelpers.traceEnter(log, "getStreamConfig");
+        long traceId = LoggerHelpers.traceEnter(log, "getStream");
 
-        StreamMetadataStore streamStore = controllerService.getStreamStore();
-        streamStore.getConfiguration(streamName)
-                .thenApply(streamConfig -> {
-                    return Response.status(Status.OK).entity(ModelHelper.encodeStreamResponse(streamConfig)).build();
-                })
+        controllerService.getStream(scopeName, streamName)
+                .thenApply(streamConfig -> Response.status(Status.OK)
+                        .entity(ModelHelper.encodeStreamResponse(streamConfig))
+                        .build())
                 .exceptionally(exception -> {
                     if (exception.getCause() instanceof DataNotFoundException
                             || exception instanceof DataNotFoundException) {
                         return Response.status(Status.NOT_FOUND).build();
                     } else {
-                        log.debug("Exception occurred while executing getStreamConfig: " + exception);
+                        log.debug("Exception occurred while executing getStream: " + exception);
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
-                }).thenApply(response -> asyncResponse.resume(response));
+                }).thenApply(asyncResponse::resume);
 
-        LoggerHelpers.traceLeave(log, "getStreamConfig", traceId);
+        LoggerHelpers.traceLeave(log, "getStream", traceId);
     }
 
     /**
@@ -180,27 +225,24 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     public void updateStream(final String scopeName, final String streamName,
             final UpdateStreamRequest updateStreamRequest, final SecurityContext securityContext,
             final AsyncResponse asyncResponse) {
-        long traceId = LoggerHelpers.traceEnter(log, "updateStreamConfig");
+        long traceId = LoggerHelpers.traceEnter(log, "updateStream");
 
         StreamConfiguration streamConfiguration = ModelHelper.getUpdateStreamConfig(
                 updateStreamRequest, scopeName, streamName);
-        CompletableFuture<UpdateStreamStatus> updateStreamStatus = controllerService.alterStream(streamConfiguration);
-
-        updateStreamStatus.thenApply(streamStatus -> {
-                                         if (streamStatus == UpdateStreamStatus.SUCCESS) {
-                                             return Response.status(Status.CREATED).
-                                                     entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
-                                         } else if (streamStatus == UpdateStreamStatus.STREAM_NOT_FOUND) {
-                                             return Response.status(Status.NOT_FOUND).build();
-                                         } else {
-                                             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-                                         }
-                                     }
-        ).exceptionally(exception -> {
-            log.debug("Exception occurred while executing updateStreamConfig: " + exception);
+        controllerService.alterStream(streamConfiguration).thenApply(streamStatus -> {
+            if (streamStatus == UpdateStreamStatus.SUCCESS) {
+                 return Response.status(Status.OK)
+                         .entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
+             } else if (streamStatus == UpdateStreamStatus.STREAM_NOT_FOUND) {
+                 return Response.status(Status.NOT_FOUND).build();
+             } else {
+                 return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+             }
+         }).exceptionally(exception -> {
+            log.debug("Exception occurred while executing updateStream: " + exception);
             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-        }).thenApply(response -> asyncResponse.resume(response));
+        }).thenApply(asyncResponse::resume);
 
-        LoggerHelpers.traceLeave(log, "updateStreamConfig", traceId);
+        LoggerHelpers.traceLeave(log, "updateStream", traceId);
     }
 }

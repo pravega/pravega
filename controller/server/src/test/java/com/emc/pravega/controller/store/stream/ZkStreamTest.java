@@ -7,6 +7,8 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.TxnStatus;
@@ -56,22 +58,93 @@ public class ZkStreamTest {
     }
 
     @Test
+    public void testZkCreateScope() throws Exception {
+
+        // create new scope test
+        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
+        final String scopeName = "Scope1";
+        CompletableFuture<CreateScopeStatus> createScopeStatus = store.createScope(scopeName);
+
+        // createScope returns null on success, and exception on failure
+        assertEquals("Create new scope :", CreateScopeStatus.SUCCESS, createScopeStatus.get());
+
+        // create duplicate scope test
+        createScopeStatus = store.createScope(scopeName);
+        assertEquals("Create new scope :", CreateScopeStatus.SCOPE_EXISTS, createScopeStatus.get());
+
+        //listStreamsInScope test
+        final String streamName1 = "Stream1";
+        final String streamName2 = "Stream2";
+        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
+        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(scopeName, streamName1, policy);
+        StreamConfigurationImpl streamConfig2 = new StreamConfigurationImpl(scopeName, streamName2, policy);
+        store.createStream(scopeName, streamName1, streamConfig, System.currentTimeMillis()).get();
+        store.createStream(scopeName, streamName2, streamConfig2, System.currentTimeMillis()).get();
+
+        List<Stream> listOfStreams = store.listStreamsInScope(scopeName).get();
+        assertEquals("Size of list", 2, listOfStreams.size());
+        assertEquals("Name of stream at index zero", "Stream1", listOfStreams.get(0).getName());
+        assertEquals("Name of stream at index one", "Stream2", listOfStreams.get(1).getName());
+    }
+
+    @Test
+    public void testZkDeleteScope() throws Exception {
+        // create new scope
+        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
+        final String scopeName = "Scope1";
+        store.createScope(scopeName).get();
+
+        // Delete empty scope Scope1
+        CompletableFuture<DeleteScopeStatus> deleteScopeStatus = store.deleteScope(scopeName);
+        assertEquals("Delete Empty Scope", DeleteScopeStatus.SUCCESS, deleteScopeStatus.get());
+
+        // Delete non-existent scope Scope2
+        CompletableFuture<DeleteScopeStatus> deleteScopeStatus2 = store.deleteScope("Scope2");
+        assertEquals("Delete non-existent Scope", DeleteScopeStatus.SCOPE_NOT_FOUND, deleteScopeStatus2.get());
+
+        // Delete non-empty scope Scope3
+        store.createScope("Scope3").get();
+        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
+        final StreamConfigurationImpl streamConfig = new StreamConfigurationImpl("Scope3", "Stream3", policy);
+        store.createStream("Scope3", "Stream3", streamConfig, System.currentTimeMillis()).get();
+        CompletableFuture<DeleteScopeStatus> deleteScopeStatus3 = store.deleteScope("Scope3");
+        assertEquals("Delete non-empty Scope", DeleteScopeStatus.SCOPE_NOT_EMPTY, deleteScopeStatus3.get());
+    }
+
+    @Test
+    public void testZkListScope() throws Exception {
+        // list scope test
+        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
+        store.createScope("Scope1").get();
+        store.createScope("Scope2").get();
+        store.createScope("Scope3").get();
+
+        List<String> listScopes = store.listScopes().get();
+        assertEquals("List Scopes ", 3, listScopes.size());
+
+        store.deleteScope("Scope3").get();
+        listScopes = store.listScopes().get();
+        assertEquals("List Scopes ", 2, listScopes.size());
+    }
+
+    @Test
     public void testZkStream() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test";
+        final String scopeName = "test";
+        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(scopeName, streamName, policy);
+        store.createScope(scopeName).get();
+        store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis()).get();
 
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
-        store.createStream(streamName, streamConfig, System.currentTimeMillis()).get();
-
-        List<Segment> segments = store.getActiveSegments(streamName).get();
+        List<Segment> segments = store.getActiveSegments(scopeName, streamName).get();
         assertEquals(segments.size(), 5);
         assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0, 1, 2, 3, 4).contains(x.getNumber())));
 
         long start = segments.get(0).getStart();
 
-        assertEquals(store.getConfiguration(streamName).get(), streamConfig);
+        assertEquals(store.getConfiguration(scopeName, streamName).get(), streamConfig);
 
         List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
 
@@ -82,9 +155,9 @@ public class ZkStreamTest {
                 new AbstractMap.SimpleEntry<>(0.6, 1.0));
 
         long scale1 = start + 10;
-        store.scale(streamName, Lists.newArrayList(3, 4), newRanges, scale1).get();
+        store.scale(scopeName, streamName, Lists.newArrayList(3, 4), newRanges, scale1).get();
 
-        segments = store.getActiveSegments(streamName).get();
+        segments = store.getActiveSegments(scopeName, streamName).get();
         assertEquals(segments.size(), 4);
         assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0, 1, 2, 5).contains(x.getNumber())));
 
@@ -96,9 +169,9 @@ public class ZkStreamTest {
                 new AbstractMap.SimpleEntry<>(0.4, 1.0));
 
         long scale2 = scale1 + 10;
-        store.scale(streamName, Lists.newArrayList(1, 2, 5), newRanges, scale2).get();
+        store.scale(scopeName, streamName, Lists.newArrayList(1, 2, 5), newRanges, scale2).get();
 
-        segments = store.getActiveSegments(streamName).get();
+        segments = store.getActiveSegments(scopeName, streamName).get();
         assertEquals(segments.size(), 4);
         assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0, 6, 7, 8).contains(x.getNumber())));
 
@@ -110,60 +183,60 @@ public class ZkStreamTest {
                 new AbstractMap.SimpleEntry<>(0.6, 1.0));
 
         long scale3 = scale2 + 10;
-        store.scale(streamName, Lists.newArrayList(7, 8), newRanges, scale3).get();
+        store.scale(scopeName, streamName, Lists.newArrayList(7, 8), newRanges, scale3).get();
 
-        segments = store.getActiveSegments(streamName).get();
+        segments = store.getActiveSegments(scopeName, streamName).get();
         assertEquals(segments.size(), 5);
         assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0, 6, 9, 10, 11).contains(x.getNumber())));
 
         // start -1
-        SegmentFutures segmentFutures = store.getActiveSegments(streamName, start - 1).get();
+        SegmentFutures segmentFutures = store.getActiveSegments(scopeName, streamName, start - 1).get();
         assertEquals(segmentFutures.getCurrent().size(), 5);
         assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 1, 2, 3, 4)));
 
         // start + 1
-        segmentFutures = store.getActiveSegments(streamName, start + 1).get();
+        segmentFutures = store.getActiveSegments(scopeName, streamName, start + 1).get();
         assertEquals(segmentFutures.getCurrent().size(), 5);
         assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 1, 2, 3, 4)));
 
         // scale1 + 1
-        segmentFutures = store.getActiveSegments(streamName, scale1 + 1).get();
+        segmentFutures = store.getActiveSegments(scopeName, streamName, scale1 + 1).get();
         assertEquals(segmentFutures.getCurrent().size(), 4);
         assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 1, 2, 5)));
 
         // scale2 + 1
-        segmentFutures = store.getActiveSegments(streamName, scale2 + 1).get();
+        segmentFutures = store.getActiveSegments(scopeName, streamName, scale2 + 1).get();
         assertEquals(segmentFutures.getCurrent().size(), 4);
         assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 6, 7, 8)));
 
         // scale3 + 1
-        segmentFutures = store.getActiveSegments(streamName, scale3 + 1).get();
+        segmentFutures = store.getActiveSegments(scopeName, streamName, scale3 + 1).get();
         assertEquals(segmentFutures.getCurrent().size(), 5);
         assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 6, 9, 10, 11)));
 
         // scale 3 + 100
-        segmentFutures = store.getActiveSegments(streamName, scale3 + 100).get();
+        segmentFutures = store.getActiveSegments(scopeName, streamName, scale3 + 100).get();
         assertEquals(segmentFutures.getCurrent().size(), 5);
         assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 6, 9, 10, 11)));
 
-        assertFalse(store.isSealed(streamName).get());
-        assertNotEquals(0, store.getActiveSegments(streamName).get().size());
-        Boolean sealOperationStatus = store.setSealed(streamName).get();
+        assertFalse(store.isSealed(scopeName, streamName).get());
+        assertNotEquals(0, store.getActiveSegments(scopeName, streamName).get().size());
+        Boolean sealOperationStatus = store.setSealed(scopeName, streamName).get();
         assertTrue(sealOperationStatus);
-        assertTrue(store.isSealed(streamName).get());
-        assertEquals(0, store.getActiveSegments(streamName).get().size());
+        assertTrue(store.isSealed(scopeName, streamName).get());
+        assertEquals(0, store.getActiveSegments(scopeName, streamName).get().size());
 
         //seal an already sealed stream.
-        Boolean sealOperationStatus1 = store.setSealed(streamName).get();
+        Boolean sealOperationStatus1 = store.setSealed(scopeName, streamName).get();
         assertTrue(sealOperationStatus1);
-        assertTrue(store.isSealed(streamName).get());
-        assertEquals(0, store.getActiveSegments(streamName).get().size());
+        assertTrue(store.isSealed(scopeName, streamName).get());
+        assertEquals(0, store.getActiveSegments(scopeName, streamName).get().size());
 
         //seal a non existing stream.
         try {
-            Boolean sealOperationStatus2 = store.setSealed("nonExistentStream").get();
+            Boolean sealOperationStatus2 = store.setSealed(scopeName, "nonExistentStream").get();
         } catch (Exception e) {
-           assertEquals(StreamNotFoundException.class, e.getCause().getClass());
+            assertEquals(StreamNotFoundException.class, e.getCause().getClass());
         }
     }
 
@@ -174,17 +247,19 @@ public class ZkStreamTest {
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test2";
+        final String scopeName = "test2";
 
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
-        store.createStream(streamName, streamConfig, System.currentTimeMillis()).get();
+        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(scopeName, streamName, policy);
+        store.createScope(scopeName);
+        store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis()).get();
 
-        List<Segment> initial = store.getActiveSegments(streamName).get();
+        List<Segment> initial = store.getActiveSegments(scopeName, streamName).get();
         assertEquals(initial.size(), 6);
         assertTrue(initial.stream().allMatch(x -> Lists.newArrayList(0, 1, 2, 3, 4, 5).contains(x.getNumber())));
 
         long start = initial.get(0).getStart();
 
-        assertEquals(store.getConfiguration(streamName).get(), streamConfig);
+        assertEquals(store.getConfiguration(scopeName, streamName).get(), streamConfig);
 
         IntStream.range(0, SegmentRecord.SEGMENT_CHUNK_SIZE + 2).forEach(x -> {
             List<AbstractMap.SimpleEntry<Double, Double>> newRanges = Arrays.asList(
@@ -200,7 +275,7 @@ public class ZkStreamTest {
             try {
 
                 List<Integer> list = IntStream.range(x * 6, (x + 1) * 6).boxed().collect(Collectors.toList());
-                store.scale(streamName, list, newRanges, scaleTs).get();
+                store.scale(scopeName, streamName, list, newRanges, scaleTs).get();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -208,7 +283,7 @@ public class ZkStreamTest {
 
         Thread.sleep(1000);
 
-        List<Segment> segments = store.getActiveSegments(streamName).get();
+        List<Segment> segments = store.getActiveSegments(scopeName, streamName).get();
         assertEquals(segments.size(), 6);
 
     }
@@ -219,33 +294,35 @@ public class ZkStreamTest {
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testTx";
+        final String scopeName = "testTx";
 
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
-        store.createStream(streamName, streamConfig, System.currentTimeMillis()).get();
+        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(scopeName, streamName, policy);
+        store.createScope(scopeName).get();
+        store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis()).get();
 
-        UUID tx = store.createTransaction(streamName, streamName).get();
+        UUID tx = store.createTransaction(scopeName, streamName).get();
 
         List<ActiveTxRecordWithStream> y = store.getAllActiveTx().get();
         ActiveTxRecordWithStream z = y.get(0);
         assert z.getTxid().equals(tx) && z.getTxRecord().getTxnStatus() == TxnStatus.OPEN;
 
-        UUID tx2 = store.createTransaction(streamName, streamName).get();
+        UUID tx2 = store.createTransaction(scopeName, streamName).get();
         y = store.getAllActiveTx().get();
 
         assert y.size() == 2;
 
-        store.sealTransaction(streamName, streamName, tx).get();
-        assert store.transactionStatus(streamName, streamName, tx).get().equals(TxnStatus.SEALED);
+        store.sealTransaction(scopeName, streamName, tx).get();
+        assert store.transactionStatus(scopeName, streamName, tx).get().equals(TxnStatus.SEALED);
 
-        CompletableFuture<TxnStatus> f1 = store.commitTransaction(streamName, streamName, tx);
-        CompletableFuture<TxnStatus> f2 = store.abortTransaction(streamName, streamName, tx2);
+        CompletableFuture<TxnStatus> f1 = store.commitTransaction(scopeName, streamName, tx);
+        CompletableFuture<TxnStatus> f2 = store.abortTransaction(scopeName, streamName, tx2);
 
         CompletableFuture.allOf(f1, f2).get();
 
-        assert store.transactionStatus(streamName, streamName, tx).get().equals(TxnStatus.COMMITTED);
-        assert store.transactionStatus(streamName, streamName, tx2).get().equals(TxnStatus.ABORTED);
+        assert store.transactionStatus(scopeName, streamName, tx).get().equals(TxnStatus.COMMITTED);
+        assert store.transactionStatus(scopeName, streamName, tx2).get().equals(TxnStatus.ABORTED);
 
-        assert store.commitTransaction(streamName, streamName, UUID.randomUUID())
+        assert store.commitTransaction(scopeName, streamName, UUID.randomUUID())
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof TransactionNotFoundException) {
                         return true;
@@ -254,7 +331,7 @@ public class ZkStreamTest {
                     }
                 }).get();
 
-        assert store.abortTransaction(streamName, streamName, UUID.randomUUID())
+        assert store.abortTransaction(scopeName, streamName, UUID.randomUUID())
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof TransactionNotFoundException) {
                         return true;
@@ -263,6 +340,6 @@ public class ZkStreamTest {
                     }
                 }).get();
 
-        assert store.transactionStatus(streamName, streamName, UUID.randomUUID()).get().equals(TxnStatus.UNKNOWN);
+        assert store.transactionStatus(scopeName, streamName, UUID.randomUUID()).get().equals(TxnStatus.UNKNOWN);
     }
 }
