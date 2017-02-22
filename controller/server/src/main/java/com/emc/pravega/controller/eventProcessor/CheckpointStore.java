@@ -11,9 +11,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Store to mapping (readerId, position) of readers running in a process and participating
- * in a reader group. Schema of each entry in the map is as follows.
- * (ProcessId, ReaderGroupName) -> Map (readerId, position)
+ * Store maintains the following two mappings
+ * 1. ProcessId -> ReaderGroupName, which maps ProcessId to all the reader groups within it.
+ * 2. (ProcessId, ReaderGroupName) -> List (readerId, position), which maps the pair
+ * (ProcessId, ReaderGroupName) to the readers participating in the reader group and running
+ * within the process.
+ *
+ * When a ReaderGroup is added to the store, it is in ACTIVE state. Readers can be added to the
+ * ReaderGroup in this state. Subsequently, ReaderGroup may transition to SEALED state by
+ * invocation of sealReaderGroup API. Once sealed, no more readers can be added to the ReaderGroup.
  */
 public interface CheckpointStore {
 
