@@ -117,6 +117,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
         this.hashedWheelTimer = new HashedWheelTimer();
         map = new HashMap<>();
+        this.startAsync();
     }
 
     /**

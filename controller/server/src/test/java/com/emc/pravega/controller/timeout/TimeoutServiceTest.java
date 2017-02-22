@@ -145,7 +145,6 @@ public class TimeoutServiceTest {
 
         // Create TimeoutService
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks);
-        timeoutService.startAsync();
 
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService);

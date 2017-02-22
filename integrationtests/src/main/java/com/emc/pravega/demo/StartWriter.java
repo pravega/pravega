@@ -37,7 +37,7 @@ public class StartWriter {
         EventStreamWriter<String> writer = streamManager.getClientFactory().createEventWriter(StartLocalService.STREAM_NAME,
                                                                 new JavaSerializer<>(),
                                                                 new EventWriterConfig(null));
-        Transaction<String> transaction = writer.beginTxn(60000);
+        Transaction<String> transaction = writer.beginTxn(60000, 60000, 60000);
 
         for (int i = 0; i < 10; i++) {
             String event = "\n Transactional write \n";

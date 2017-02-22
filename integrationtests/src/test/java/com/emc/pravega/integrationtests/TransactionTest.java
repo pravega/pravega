@@ -91,7 +91,7 @@ public class TransactionTest {
                                                                              new JavaSerializer<>(),
                                                                              new EventWriterConfig(null));
         producer.writeEvent(routingKey, nonTxEvent);
-        Transaction<String> transaction = producer.beginTxn(60000);
+        Transaction<String> transaction = producer.beginTxn(60000, 60000, 60000);
         producer.writeEvent(routingKey, nonTxEvent);
         transaction.writeEvent(routingKey, txnEvent);
         producer.writeEvent(routingKey, nonTxEvent);
@@ -151,7 +151,7 @@ public class TransactionTest {
                                                           .createEventWriter(streamName,
                                                                              new JavaSerializer<>(),
                                                                              new EventWriterConfig(null));
-        Transaction<String> transaction = producer.beginTxn(60000);
+        Transaction<String> transaction = producer.beginTxn(60000, 60000, 60000);
         transaction.writeEvent(routingKey, event);
         transaction.commit();
         AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit());
@@ -180,7 +180,7 @@ public class TransactionTest {
                                                                              new JavaSerializer<>(),
                                                                              new EventWriterConfig(null));
 
-        Transaction<String> transaction = producer.beginTxn(60000);
+        Transaction<String> transaction = producer.beginTxn(60000, 60000, 60000);
         transaction.writeEvent(routingKey, txnEvent);
         transaction.flush();
         transaction.abort();

@@ -101,6 +101,15 @@ public interface Controller {
                                               final long scaleGracePeriod);
 
     /**
+     * API to send transaction heartbeat and increase the transaction timeout by lease amount of milliseconds.
+     *
+     * @param stream stream name
+     * @param txId transaction id
+     * @param lease Time for which transaction shall remain open with sending any heartbeat.
+     */
+    CompletableFuture<Void> pingTransaction(final Stream stream, final UUID txId, final long lease);
+
+    /**
      * Commits a transaction, atomically committing all events to the stream, subject to the
      * ordering guarantees specified in {@link EventStreamWriter}. Will fail with
      * {@link TxnFailedException} if the transaction has already been committed or aborted.

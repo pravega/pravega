@@ -21,6 +21,7 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.ControllerService;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.PingStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
@@ -28,6 +29,7 @@ import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.util.ThriftAsyncCallback;
 import com.emc.pravega.controller.util.ThriftHelper;
+import com.emc.pravega.stream.PingFailedException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -224,6 +226,21 @@ public class ControllerImpl implements Controller {
         });
         return callback.getResult()
                 .thenApply(result -> ThriftHelper.thriftCall(result::getResult)).thenApply(ModelHelper::encode);
+    }
+
+    @Override
+    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
+        log.trace("Invoke AdminService.Client.pingTransaction() with stream: {}, txId: {}", stream, txId);
+
+        final ThriftAsyncCallback<ControllerService.AsyncClient.pingTransaction_call> callback = new ThriftAsyncCallback<>();
+        ThriftHelper.thriftCall(() -> {
+            client.pingTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), lease, callback);
+            return null;
+        });
+        return FutureHelpers.toVoidExpecting(callback.getResult()
+                        .thenApply(result -> ThriftHelper.thriftCall(result::getResult)),
+                PingStatus.OK,
+                PingFailedException::new);
     }
 
     @Override
