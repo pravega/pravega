@@ -155,14 +155,12 @@ public class EventProcessorTest {
                 .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(eventProcessorGroupConfig)
                 .build();
-        system.createEventProcessorGroup(eventProcessorConfig);
+        EventProcessorGroup<TestEvent> eventEventProcessorGroup = system.createEventProcessorGroup(eventProcessorConfig);
 
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());
         producer.close();
-        for (EventProcessorGroup group : system.getEventProcessorGroups()) {
-            group.stopAll();
-        }
+        eventEventProcessorGroup.stopAll();
         server.close();
         zkTestServer.close();
     }

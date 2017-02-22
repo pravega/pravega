@@ -43,10 +43,4 @@ public interface EventProcessorSystem {
      */
     <T extends ControllerEvent> EventProcessorGroup<T> createEventProcessorGroup(EventProcessorConfig<T> eventProcessorConfig)
             throws CheckpointStoreException;
-
-    /**
-     * Returns the list of all event processor groups created in the system.
-     * @return List of all event processor groups created in the system.
-     */
-    List<EventProcessorGroup> getEventProcessorGroups();
 }
