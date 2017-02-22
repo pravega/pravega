@@ -129,7 +129,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         DistributedLogAdmin admin = new DistributedLogAdmin();
         String[] params = {"bind", "-dlzr", "localhost:" + zkPort, "-dlzw", "localhost:" + 7000, "-s", "localhost:" +
                 zkPort, "-bkzr", "localhost:" + 7000, "-l", "/ledgers", "-i", "false", "-r", "true", "-c",
-                "distributedlog://localhost:" + zkPort + "/messaging/distributedlog/mynamespace"};
+                "distributedlog://localhost:" + zkPort + "/pravega/segmentstore/containers"};
         try {
             admin.run(params);
         } catch (Exception e) {
