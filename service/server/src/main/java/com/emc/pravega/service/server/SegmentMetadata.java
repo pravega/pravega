@@ -6,6 +6,8 @@
 package com.emc.pravega.service.server;
 
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
+import java.util.HashMap;
 
 /**
  * Defines an immutable StreamSegment Metadata.
@@ -62,4 +64,14 @@ public interface SegmentMetadata extends SegmentProperties {
      * The time returned is only valid within the context of the ContainerMetadata that owns this object.
      */
     long getLastKnownRequestTime();
+
+    /**
+     * Creates a new SegmentProperties instance with current information from this SegmentMetadata object.
+     *
+     * @return The new SegmentProperties instance. This object is completely detached from the SegmentMetadata from which
+     * it was created (changes to the base object will not be reflected in the result).
+     */
+    default SegmentProperties getSnapshot() {
+        return new StreamSegmentInformation(this, new HashMap<>(getAttributes()));
+    }
 }

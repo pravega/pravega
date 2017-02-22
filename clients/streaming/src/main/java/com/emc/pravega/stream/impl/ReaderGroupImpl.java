@@ -8,6 +8,7 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
+import com.emc.pravega.stream.Checkpoint;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
@@ -20,8 +21,11 @@ import com.google.common.annotations.VisibleForTesting;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Future;
 
 import lombok.Data;
+
+import org.apache.commons.lang.NotImplementedException;
 
 @Data
 public class ReaderGroupImpl implements ReaderGroup {
@@ -66,4 +70,20 @@ public class ReaderGroupImpl implements ReaderGroup {
         synchronizer.fetchUpdates();
         return synchronizer.getState().getOnlineReaders();
     }
+
+    @Override
+    public Future<Checkpoint> initiateCheckpoint(String checkpointName) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public void resetReadersToCheckpoint(Checkpoint checkpointName) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public ReaderGroup alterConfig(ReaderGroupConfig config, List<String> streamNames) {
+        throw new NotImplementedException();
+    }
+
 }

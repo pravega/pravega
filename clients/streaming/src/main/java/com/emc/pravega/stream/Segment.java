@@ -18,11 +18,19 @@ import lombok.NonNull;
  */
 @Data
 public class Segment implements Serializable {
+    private static final long serialVersionUID = 1L;
     private final String scope;
     @NonNull
     private final String streamName;
     private final int segmentNumber;
 
+    /**
+     * Creates a new instance of Segment class.
+     *
+     * @param scope      The scope string the segment belongs to.
+     * @param streamName The stream name that the segment belongs to.
+     * @param number     ID number for the segment.
+     */
     public Segment(String scope, String streamName, int number) {
         Preconditions.checkNotNull(streamName);
         Preconditions.checkArgument(streamName.matches("^\\w+\\z"), "Name must be [a-zA-Z0-9]*");
@@ -30,7 +38,7 @@ public class Segment implements Serializable {
         this.streamName = streamName;
         this.segmentNumber = number;
     }
-    
+
     public String getScopedStreamName() {
         StringBuffer sb = new StringBuffer();
         if (scope != null) {
@@ -40,7 +48,7 @@ public class Segment implements Serializable {
         sb.append(streamName);
         return sb.toString();
     }
-    
+
     public String getScopedName() {
         return getScopedName(scope, streamName, segmentNumber);
     }
@@ -57,6 +65,12 @@ public class Segment implements Serializable {
         return sb.toString();
     }
 
+    /**
+     * Parses fully scoped name, and extracts the segment name only.
+     *
+     * @param qualifiedName Fully scoped segment name
+     * @return Segment name.
+     */
     public static Segment fromScopedName(String qualifiedName) {
         String[] tokens = qualifiedName.split("[/#]");
         if (tokens.length == 2) {

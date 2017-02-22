@@ -16,7 +16,10 @@ import java.util.Map.Entry;
 public interface RevisionedStreamClient<T> {
     
     /**
-     * Returns the latest revision. 
+     * Returns the latest revision.
+     *
+     * @return Latest revision.
+     *
      */
     Revision fetchRevision();
     

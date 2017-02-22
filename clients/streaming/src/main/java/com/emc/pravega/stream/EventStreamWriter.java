@@ -6,7 +6,6 @@
 package com.emc.pravega.stream;
 
 import java.util.UUID;
-import java.util.concurrent.Future;
 
 /**
  * A writer can write events to a stream.
@@ -20,12 +19,12 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
     /**
      * Send an event to the stream. Events that are written should appear in the stream exactly once
      * in the order they were written. (If there are multiple writers they may be interleaved but
-     * any event written after the future of another writeEvent call has completed, will come after the fir)
+     * any event written after the future of another writeEvent call has completed, will come after the first)
      * 
      * 
      * Note that the implementation provides retry logic to handle connection failures and service
      * host failures. Internal retries will not violate the exactly once semantic so it is better to
-     * rely on them than to wrap this with custom retry logic.
+     * rely on this than to wrap this method with custom retry logic.
      * 
      * @param routingKey A free form string that is used to route messages to readers. Two events
      *        written with the same routingKey are guaranteed to be read in order. Two events with
@@ -38,7 +37,7 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      *         handled internally with multiple retires and exponential backoff. So there is no need
      *         to attempt to retry in the event of an exception.
      */
-    Future<Void> writeEvent(String routingKey, Type event);
+    AckFuture writeEvent(String routingKey, Type event);
 
     /**
      * Start a new transaction on this stream.
@@ -55,11 +54,14 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * Returns a previously created transaction.
      * 
      * @param transactionId The result retained from calling {@link Transaction#getTxnId()}
+     * @return Transaction object with given UUID
      */
     Transaction<Type> getTxn(UUID transactionId);
 
     /**
      * Returns the configuration that this writer was create with.
+     *
+     * @return Writer configuration
      */
     EventWriterConfig getConfig();
 

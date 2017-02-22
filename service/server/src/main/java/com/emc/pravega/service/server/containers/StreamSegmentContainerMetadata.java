@@ -18,6 +18,7 @@ import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -30,6 +31,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.extern.slf4j.Slf4j;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -195,10 +198,10 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             segmentMetadata.markDeleted();
 
             // Find any transactions that point to this StreamSegment (as a parent).
-            CollectionHelpers.forEach(
-                    this.metadataById.values(),
-                    m -> m.getParentId() == segmentMetadata.getId(),
-                    m -> {
+            this.segmentMetadata
+                    .values().stream()
+                    .filter(m -> m.getParentId() == streamSegmentId)
+                    .forEach(m -> {
                         m.markDeleted();
                         result.add(m);
                     });

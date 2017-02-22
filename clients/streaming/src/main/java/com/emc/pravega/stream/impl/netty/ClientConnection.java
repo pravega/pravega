@@ -16,6 +16,12 @@ import com.emc.pravega.common.netty.WireCommand;
  */
 public interface ClientConnection extends AutoCloseable {
 
+    /**
+     * Sends a wire command asynchronously.
+     *
+     * @param cmd The wire comment to be sent.
+     * @return A future.
+     */
     Future<Void> sendAsync(WireCommand cmd);
 
     /**
@@ -30,7 +36,7 @@ public interface ClientConnection extends AutoCloseable {
     /**
      * Sends the provided append request. This operation may block.
      * (Though buffering is used to try to prevent it)
-     * 
+     *
      * @param append The append command to send.
      * @throws ConnectionFailedException The connection has died, and can no longer be used.
      */
