@@ -33,7 +33,7 @@ public class RetryableHelper {
     private static boolean isRetryable(Throwable e) {
         Throwable cause = ExceptionHelpers.getRealException(e);
 
-        return RETRIABLES.stream().anyMatch(retryable -> cause.getCause().getClass().isAssignableFrom(retryable));
+        return RETRIABLES.stream().anyMatch(retryable -> cause.getClass().isAssignableFrom(retryable));
     }
 
     public static Optional<RetryableException> getRetryable(Throwable e) {
@@ -48,7 +48,7 @@ public class RetryableHelper {
 
     public static <T> CompletableFuture<T> transformWithRetryable(CompletableFuture<T> future) {
         CompletableFuture<T> result = new CompletableFuture<T>();
-        return future.whenComplete((r, e) -> {
+        future.whenComplete((r, e) -> {
             if (e != null) {
                 Optional<RetryableException> retryable = getRetryable(e);
                 if (retryable.isPresent()) {
@@ -60,6 +60,8 @@ public class RetryableHelper {
                 result.complete(r);
             }
         });
+
+        return result;
     }
 
 }

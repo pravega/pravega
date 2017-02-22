@@ -14,6 +14,7 @@ import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.StatsProvider;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
+import com.emc.pravega.service.server.host.stat.SegmentStatsFactory;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
@@ -101,6 +102,8 @@ public final class ServiceStarter {
 
         log.info("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
+
+        SegmentStatsFactory.createSegmentStatsRecorder(service);
 
         this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningPort(), service);
         this.listener.startListening();

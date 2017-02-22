@@ -140,16 +140,4 @@ public interface StreamSegmentStore {
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout);
-
-    /**
-     * Update policy associated with StreamSegment.
-     *
-     * @param streamSegmentName The name of the StreamSegment to create.
-     * @param attributes        A Collection of Attribute-Values to set on the newly created StreamSegment.
-     * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
-     * failed, the future will be failed with the causing exception.
-     * @throws IllegalArgumentException If any of the arguments are invalid.
-     */
-    CompletableFuture<Void> updateStreamSegmentPolicy(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout);
 }

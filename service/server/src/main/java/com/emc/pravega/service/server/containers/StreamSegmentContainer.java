@@ -9,7 +9,6 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.AttributeUpdate;
@@ -34,8 +33,6 @@ import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
-import com.emc.pravega.service.server.stats.SegmentStatsFactory;
-import com.emc.pravega.service.server.stats.SegmentStatsRecorder;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.Storage;
@@ -55,10 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 
-import static com.emc.pravega.service.contracts.Attributes.CREATION_TIME;
 import static com.emc.pravega.service.contracts.Attributes.EVENT_COUNT;
-import static com.emc.pravega.service.contracts.Attributes.SCALE_POLICY_RATE;
-import static com.emc.pravega.service.contracts.Attributes.SCALE_POLICY_TYPE;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -76,7 +70,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final Writer writer;
     private final Storage storage;
     private final StreamSegmentMapper segmentMapper;
-    private final SegmentStatsRecorder statsRecorder;
     private final Executor executor;
     private boolean closed;
 
@@ -94,17 +87,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * @param writerFactory            The WriterFactory to use to create Writers.
      * @param storageFactory           The StorageFactory to use to create Storage Adapters.
      * @param cacheFactory             The CacheFactory to use to create Caches.
-     * @param statsFactory             The StatsFactory to use to aggregate stats.
      * @param executor                 An Executor that can be used to run async tasks.
      */
-    StreamSegmentContainer(int streamSegmentContainerId, MetadataRepository metadataRepository, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory, CacheFactory cacheFactory, SegmentStatsFactory statsFactory, Executor executor) {
+    StreamSegmentContainer(int streamSegmentContainerId, MetadataRepository metadataRepository, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory, CacheFactory cacheFactory, Executor executor) {
         Preconditions.checkNotNull(metadataRepository, "metadataRepository");
         Preconditions.checkNotNull(durableLogFactory, "durableLogFactory");
         Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
         Preconditions.checkNotNull(writerFactory, "writerFactory");
         Preconditions.checkNotNull(storageFactory, "storageFactory");
         Preconditions.checkNotNull(cacheFactory, "cacheFactory");
-        Preconditions.checkNotNull(statsFactory, "statsFactory");
         Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
@@ -118,7 +109,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex);
         this.writer.addListener(new ServiceShutdownListener(createComponentStoppedHandler("Writer"), createComponentFailedHandler("Writer")), this.executor);
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage, this.executor);
-        this.statsRecorder = statsFactory.createSegmentStatsRecorder(cacheFactory);
     }
 
     //endregion
@@ -202,9 +192,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 .thenCompose(streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, attributeUpdates);
                     return this.durableLog.add(operation, timer.getRemaining());
-                })).thenAccept((Void v) -> {
-                    statsRecorder.record(streamSegmentName, data.length, numOfEvents);
-                });
+                }));
     }
 
     @Override
@@ -219,9 +207,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 .thenCompose(streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, attributeUpdates);
                     return this.durableLog.add(operation, timer.getRemaining());
-                })).thenAccept((Void v) -> {
-                    statsRecorder.record(streamSegmentName, data.length, numOfEvents);
-                });
+                }));
     }
 
     @Override
@@ -270,12 +256,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         ensureRunning();
 
         logRequest("createStreamSegment", streamSegmentName);
-        return this.segmentMapper.createNewStreamSegment(streamSegmentName, attributes, timeout)
-                .thenAccept((Void v) -> {
-                    byte scaleType = getValue(attributes, SCALE_POLICY_TYPE, WireCommands.CreateSegment.NO_SCALE).byteValue();
-                    int scaleRate = getValue(attributes, SCALE_POLICY_RATE, 0L).intValue();
-                    statsRecorder.createSegment(streamSegmentName, scaleType, scaleRate);
-                });
+        return this.segmentMapper.createNewStreamSegment(streamSegmentName, attributes, timeout);
     }
 
     @Override
@@ -311,19 +292,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Void> updateStreamSegmentPolicy(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
-        ensureRunning();
-        // TODO: update policy in tier 2
-        return CompletableFuture.runAsync(() -> {
-                    byte scaleType = getValue(attributes, SCALE_POLICY_TYPE, WireCommands.CreateSegment.NO_SCALE).byteValue();
-                    int scaleRate = getValue(attributes, SCALE_POLICY_RATE, 0L).intValue();
-
-                    logRequest("updateStreamSegmentPolicy", streamSegmentName);
-                    statsRecorder.policyUpdate(streamSegmentName, scaleType, scaleRate);
-                }, executor);
-    }
-
-    @Override
     public CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout) {
         ensureRunning();
 
@@ -343,13 +311,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
                     CompletableFuture<Long> addToLog = this.durableLog.add(op, timer.getRemaining());
 
-                    addToLog.thenCompose(txId -> getStreamSegmentInfo(transactionName, false, timeout))
-                            .thenAccept(txnSegmentProperties -> {
-                                long creationTime = txnSegmentProperties.getAttributes().get(CREATION_TIME);
-                                int eventCount = txnSegmentProperties.getAttributes().get(EVENT_COUNT).intValue();
-                                statsRecorder.merge(parentMetadata.getName(), txnSegmentProperties.getLength(), eventCount,
-                                        txnSegmentProperties.getLastModified().getTime() - creationTime);
-                            });
+                    addToLog.thenCompose(txId -> getStreamSegmentInfo(transactionName, false, timeout));
 
                     return addToLog;
                 });
@@ -369,7 +331,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     return this.durableLog.add(operation.get(), timer.getRemaining());
                 })
                 .thenApply(seqNo -> operation.get().getStreamSegmentOffset());
-        sealFuture.thenAccept(completion -> statsRecorder.sealSegment(streamSegmentName));
 
         return sealFuture;
     }

@@ -192,7 +192,6 @@ project('service') {
         compile project(':service:contracts')
         compile project(':service:server')
         compile project(':service:server:host')
-        compile project(':service:monitor')
         compile project(':service:storage')
         compile project(':service:storage:impl')
     }
@@ -200,7 +199,6 @@ project('service') {
         from project(":service:contracts").sourceSets.main.output
         from project(":service:server").sourceSets.main.output
         from project(":service:server:host").sourceSets.main.output
-        from project(":service:monitor").sourceSets.main.output
         from project(":service:storage").sourceSets.main.output
         from project(":service:storage:impl").sourceSets.main.output
     }
@@ -291,6 +289,7 @@ project('service:server:host') {
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
+        compile project(':service:monitor')
         compile project(':service:storage')
         compile project(':service:storage:impl')
         compile project(':service:server')

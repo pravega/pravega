@@ -28,6 +28,7 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
 import com.emc.pravega.service.server.SegmentMetadata;
+import com.emc.pravega.service.server.host.stat.SegmentStatsFactory;
 import com.google.common.collect.LinkedListMultimap;
 import com.google.common.collect.Sets;
 import io.netty.buffer.ByteBuf;
@@ -181,7 +182,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else {
             future = store.append(segment, bytes, attributes, TIMEOUT);
         }
-        future.whenComplete((t, u) -> {
+        future.thenAccept(r -> {
+            SegmentStatsFactory.getSegmentStatsRecorder().ifPresent(x ->
+                    x.record(segment, bytes.length, (int) numOfEvents));
+        }).whenComplete((t, u) -> {
             try {
                 boolean conditionalFailed = u != null
                         && (u instanceof BadOffsetException || u.getCause() instanceof BadOffsetException);

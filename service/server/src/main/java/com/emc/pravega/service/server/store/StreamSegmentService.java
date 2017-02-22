@@ -140,15 +140,6 @@ public class StreamSegmentService implements StreamSegmentStore {
                 r -> traceLeave(log, "deleteStreamSegment", traceId, r));
     }
 
-    @Override
-    public CompletableFuture<Void> updateStreamSegmentPolicy(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
-        long traceId = LoggerHelpers.traceEnter(log, "updateStreamSegmentPolicy", streamSegmentName, timeout);
-        return withCompletion(
-                () -> getContainer(streamSegmentName)
-                        .thenCompose(container -> container.updateStreamSegmentPolicy(streamSegmentName, attributes, timeout)),
-                r -> traceLeave(log, "updateStreamSegmentPolicy", traceId, r));
-    }
-
     private <T> CompletableFuture<T> withCompletion(Supplier<CompletableFuture<T>> supplier, Consumer<T> leaveCallback) {
         CompletableFuture<T> resultFuture = supplier.get();
         resultFuture.thenAccept(r -> CallbackHelpers.invokeSafely(leaveCallback, r, null));

@@ -1,36 +1,30 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
-package com.emc.pravega.service.server.stats;
+package com.emc.pravega.service.server.host.stat;
 
 import com.emc.pravega.common.netty.WireCommands;
+import com.emc.pravega.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.service.contracts.Attributes;
+import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.monitor.SegmentTrafficMonitor;
-import com.emc.pravega.service.storage.CacheFactory;
-import com.emc.pravega.stream.Serializer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.RemovalCause;
-import com.google.common.cache.RemovalListener;
 import lombok.extern.slf4j.Slf4j;
 
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -46,63 +40,46 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     private static final long TWO_MINUTES = Duration.ofMinutes(2).toMillis();
     private static final int INITIAL_CAPACITY = 1000;
     private static final int MAX_CACHE_SIZE = 100000; // 100k segment records in memory.
-    private static final ScheduledExecutorService CACHE_MAINTENANCE_EXECUTOR = Executors.newScheduledThreadPool(1);
-    private static final ExecutorService EXECUTOR = new ThreadPoolExecutor(1, // core size
-            10, // max size
-            60L, // idle timeout
-            TimeUnit.SECONDS,
-            new ArrayBlockingQueue<Runnable>(100000)); // queue with a size
 
     private final List<SegmentTrafficMonitor> monitors;
 
     private final Set<String> pendingCacheLoads;
     private final Cache<String, SegmentAggregates> cache;
-    private final Optional<com.emc.pravega.service.storage.Cache> diskBackedCache;
-    private final Serializer<SegmentAggregates> serializer;
     private final long reportingDuration;
+    private final StreamSegmentStore store;
+    private final Executor executor;
 
-    SegmentStatsRecorderImpl(List<SegmentTrafficMonitor> monitors, CacheFactory cacheFactory, Serializer<SegmentAggregates> serializer) {
-        this(monitors, cacheFactory, serializer, TWO_MINUTES);
+    SegmentStatsRecorderImpl(List<SegmentTrafficMonitor> monitors, StreamSegmentStore store,
+                             ExecutorService executor, ScheduledExecutorService maintenanceExecutor) {
+        this(monitors, store, TWO_MINUTES, executor, maintenanceExecutor);
     }
 
     @VisibleForTesting
-    SegmentStatsRecorderImpl(List<SegmentTrafficMonitor> monitors, CacheFactory cacheFactory, Serializer<SegmentAggregates> serializer, long reportingDuration) {
+    SegmentStatsRecorderImpl(List<SegmentTrafficMonitor> monitors, StreamSegmentStore store,
+                             long reportingDuration, ExecutorService executor, ScheduledExecutorService maintenanceExecutor) {
         Preconditions.checkNotNull(monitors);
-
-        this.serializer = serializer;
+        Preconditions.checkNotNull(executor);
         this.monitors = monitors;
-        pendingCacheLoads = new HashSet<>();
-
-        diskBackedCache = Optional.ofNullable(cacheFactory).map(factory -> factory.getCache("aggregate"));
+        this.executor = executor;
+        this.pendingCacheLoads = new HashSet<>();
 
         this.cache = CacheBuilder.newBuilder()
                 .initialCapacity(INITIAL_CAPACITY)
                 .maximumSize(MAX_CACHE_SIZE)
-                .removalListener((RemovalListener<String, SegmentAggregates>) notification -> {
-                    if (notification.getCause().equals(RemovalCause.SIZE)) {
-                        // move to disk backed cache
-                        // Note: if something has moved to disk backed cache, it means that segment is
-                        // either not accessed for expiry duration, or our cache size is stressed because
-                        // of number of segments. Even in that case Least recently accessed scheme is employed
-                        // to push segments to disk based cache. This means
-                        diskBackedCache.ifPresent(x -> x.insert(new Key(notification.getKey()), serializer.serialize(notification.getValue()).array()));
-                    } else if (notification.getCause().equals(RemovalCause.EXPLICIT)) {
-                        // remove from disk backed cache
-                        diskBackedCache.ifPresent(x -> x.remove(new Key(notification.getKey())));
-                    }
-                })
                 .build();
 
         // Dedicated thread for cache clean up scheduled periodically. This ensures that read and write
         // on cache are not used for cache maintenance activities.
-        CACHE_MAINTENANCE_EXECUTOR.scheduleAtFixedRate(cache::cleanUp, Duration.ofMinutes(5).toMillis(), 2, TimeUnit.MINUTES);
+        maintenanceExecutor.scheduleAtFixedRate(cache::cleanUp, Duration.ofMinutes(5).toMillis(), 2, TimeUnit.MINUTES);
         this.reportingDuration = reportingDuration;
+        this.store = store;
     }
 
     private SegmentAggregates getSegmentAggregate(String streamSegmentName) {
         SegmentAggregates aggregates = cache.getIfPresent(streamSegmentName);
 
-        if (aggregates == null) {
+        if (aggregates == null &&
+                StreamSegmentNameUtils.getParentStreamSegmentName(streamSegmentName) != null) {
             loadAsynchronously(streamSegmentName);
         }
 
@@ -110,25 +87,24 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     }
 
     private void loadAsynchronously(String streamSegmentName) {
+
         if (!pendingCacheLoads.contains(streamSegmentName)) {
             pendingCacheLoads.add(streamSegmentName);
-            CompletableFuture.runAsync(() -> {
-                final byte[] data = diskBackedCache.map(x -> x.get(new Key(streamSegmentName))).orElse(null);
-                if (data != null) {
-                    SegmentAggregates aggregates = serializer.deserialize(ByteBuffer.wrap(data));
-                    // if we have loaded from diskbacked cache into main cache, we can remove it from disk backed as
-                    // there is no point in keeping two copies of data.
-                    cache.put(streamSegmentName, aggregates);
-                    diskBackedCache.ifPresent(x -> x.remove(new Key(streamSegmentName)));
-                }
-            }, CACHE_MAINTENANCE_EXECUTOR)
-                    .thenAccept((Void v) -> pendingCacheLoads.remove(streamSegmentName));
+            Optional.ofNullable(store).ifPresent(s -> s.getStreamSegmentInfo(streamSegmentName, false, Duration.ofMinutes(1))
+                    .thenAccept(prop -> {
+                        if (prop != null) {
+                            byte type = prop.getAttributes().get(Attributes.SCALE_POLICY_TYPE).byteValue();
+                            int rate = prop.getAttributes().get(Attributes.SCALE_POLICY_TYPE).intValue();
+                            cache.put(streamSegmentName, new SegmentAggregates(type, rate));
+                        }
+                        pendingCacheLoads.remove(streamSegmentName);
+                    }));
         }
     }
 
     @Override
     public void createSegment(String streamSegmentName, byte type, int targetRate) {
-        cache.put(streamSegmentName, new SegmentAggregates(targetRate, type));
+        cache.put(streamSegmentName, new SegmentAggregates(type, targetRate));
         if (type != WireCommands.CreateSegment.NO_SCALE) {
             monitors.forEach(x -> x.notify(streamSegmentName, SegmentTrafficMonitor.NotificationType.SegmentCreated));
         }
@@ -179,7 +155,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                             CompletableFuture.runAsync(() -> monitors.forEach(monitor -> monitor.process(streamSegmentName,
                                     aggregates.getTargetRate(), aggregates.getScaleType(), aggregates.getStartTime(),
                                     aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(),
-                                    aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate())), EXECUTOR);
+                                    aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate())), executor);
                             aggregates.setLastReportedTime(System.currentTimeMillis());
                         } catch (RejectedExecutionException e) {
                             // We will not keep posting indefinitely and let the queue grow. We will only post optimistically

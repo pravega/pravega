@@ -17,6 +17,7 @@ import org.junit.Test;
 
 import java.time.Duration;
 import java.util.UUID;
+import java.util.concurrent.Executors;
 
 public class MonitorTest {
 
@@ -63,7 +64,8 @@ public class MonitorTest {
             }
         };
 
-        ThresholdMonitor monitor = new ThresholdMonitor(writer);
+        AutoScaleMonitor monitor = new AutoScaleMonitor(writer, AutoScalerConfig.DEFAULT,
+                Executors.newFixedThreadPool(10), Executors.newSingleThreadScheduledExecutor());
 
         String streamSegmentName = Segment.getScopedName(SCOPE, STREAM, 0);
         monitor.notify(streamSegmentName, SegmentTrafficMonitor.NotificationType.SegmentCreated);

@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.monitor;
 
@@ -11,6 +9,7 @@ import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
@@ -23,14 +22,12 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.time.Duration;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -40,7 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * If a scale has to be triggered, then it puts a new scale request into the request stream.
  */
 @Slf4j
-public class ThresholdMonitor implements SegmentTrafficMonitor {
+public class AutoScaleMonitor implements SegmentTrafficMonitor {
 
     private static final long TWO_MINUTES = Duration.ofMinutes(2).toMillis();
     private static final long FIVE_MINUTES = Duration.ofMinutes(5).toMillis();
@@ -49,85 +46,62 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
 
     // TODO: read from config
     private static final String STREAM_NAME = "requeststream";
-    // Duration for which scale request posts to request stream will be muted for a segment.
-    private static final Duration MUTE_DURATION = Duration.ofMinutes(10);
-    // Duration for which no scale operation will be performed on a segment after its creation
-    private static final Duration MINIMUM_COOLDOWN_PERIOD = Duration.ofMinutes(10);
-
-    // We are keeping processing limited to 2000 write requests. after every 2000 requests are pending a new thread is spawned,
-    // but we will never have more than 2000 requests posted.
-    // This limits our memory footprint.
-    private static final ExecutorService EXECUTOR = new ThreadPoolExecutor(1, // core size
-            10, // max size
-            10 * 60L, // idle timeout
-            TimeUnit.SECONDS,
-            new ArrayBlockingQueue<Runnable>(2000)); // queue with a size
-
-    private static final ScheduledExecutorService SCHEDULED_EXECUTOR = new ScheduledThreadPoolExecutor(1);
 
     private static final int MAX_CACHE_SIZE = 1000000;
     private static final int INITIAL_CAPACITY = 1000;
 
-    private static long muteDuration = MUTE_DURATION.toMillis();
-    private static long cooldownPeriod = MINIMUM_COOLDOWN_PERIOD.toMillis();
-
-    private static long cacheCleanup = 10;
-    private static long cacheExpiry = 20;
-    private static TimeUnit unit = TimeUnit.MINUTES;
-
-    private static AtomicReference<ThresholdMonitor> singletonMonitor = new AtomicReference<>();
+    private static AtomicReference<AutoScaleMonitor> singletonMonitor = new AtomicReference<>();
 
     private final AtomicReference<ClientFactory> clientFactory = new AtomicReference<>();
-
     private final AtomicBoolean initialized = new AtomicBoolean(false);
-
     private final Cache<String, Pair<Long, Long>> cache;
+    private final Serializer<ScaleRequest> serializer;
+    private final AtomicReference<EventStreamWriter<ScaleRequest>> writer;
+    private final EventWriterConfig writerConfig;
+    private final AutoScalerConfig configuration;
+    private final Executor executor;
+    private final ScheduledExecutorService maintenanceExecutor;
 
-    private EventStreamWriter<ScaleRequest> writer;
-    private EventWriterConfig config;
-    private JavaSerializer<ScaleRequest> serializer;
+    private AutoScaleMonitor(AutoScalerConfig configuration, Executor executor,
+                             ScheduledExecutorService maintenanceExecutor) {
+        this.configuration = configuration;
 
-    private ThresholdMonitor() {
         cache = CacheBuilder.newBuilder()
                 .initialCapacity(INITIAL_CAPACITY)
                 .maximumSize(MAX_CACHE_SIZE)
-                .expireAfterAccess(cacheExpiry, unit)
+                .expireAfterAccess(configuration.getCacheExpiry().getSeconds(), TimeUnit.SECONDS)
                 .removalListener((RemovalListener<String, Pair<Long, Long>>) notification -> {
                     if (notification.getCause().equals(RemovalCause.EXPIRED)) {
                         triggerScaleDown(notification.getKey(), true);
                     }
                 })
                 .build();
+        this.executor = executor;
+        this.maintenanceExecutor = maintenanceExecutor;
+        serializer = new JavaSerializer<>();
+        writerConfig = new EventWriterConfig(null);
+        writer = new AtomicReference<>();
     }
 
-    private ThresholdMonitor(ClientFactory clientFactory) {
-        this();
-        serializer = new JavaSerializer<>();
-        config = new EventWriterConfig(null);
+    private AutoScaleMonitor(ClientFactory clientFactory, AutoScalerConfig configuration, Executor executor, ScheduledExecutorService maintenanceExecutor) {
+        this(configuration, executor, maintenanceExecutor);
 
         this.clientFactory.set(clientFactory);
-        CompletableFuture.runAsync(this::bootstrapRequestWriters, EXECUTOR);
+        CompletableFuture.runAsync(this::bootstrapRequestWriters, maintenanceExecutor);
     }
 
     @VisibleForTesting
-    ThresholdMonitor(EventStreamWriter<ScaleRequest> writer) {
-        this();
-        this.writer = writer;
+    AutoScaleMonitor(EventStreamWriter<ScaleRequest> writer, AutoScalerConfig configuration, Executor executor, ScheduledExecutorService maintenanceExecutor) {
+        this(configuration, executor, maintenanceExecutor);
+        this.writer.set(writer);
         this.initialized.set(true);
     }
 
-    @VisibleForTesting
-    public static void setDefaults(Duration mute, Duration coolDown, long cacheCleanup, long cacheExpiry, TimeUnit unit) {
-        muteDuration = mute.toMillis();
-        cooldownPeriod = coolDown.toMillis();
-        ThresholdMonitor.cacheCleanup = cacheCleanup;
-        ThresholdMonitor.cacheExpiry = cacheExpiry;
-        ThresholdMonitor.unit = unit;
-    }
-
-    static ThresholdMonitor getMonitorSingleton(ClientFactory clientFactory) {
+    static AutoScaleMonitor getMonitor(ClientFactory clientFactory, AutoScalerConfig configuration,
+                                       ExecutorService executor, ScheduledExecutorService maintenanceExecutor) {
         if (singletonMonitor.get() == null) {
-            singletonMonitor.compareAndSet(null, new ThresholdMonitor(clientFactory));
+            singletonMonitor.compareAndSet(null, new AutoScaleMonitor(clientFactory, configuration,
+                    executor, maintenanceExecutor));
         }
         return singletonMonitor.get();
     }
@@ -141,23 +115,17 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
         // However, we have this wrapped in retryIndefinitely which means the creation of writer will be retried.
         // We are introducing a delay to avoid exceptions in the log in case creation of writer is attempted before
         // creation of requeststream.
-        SCHEDULED_EXECUTOR.schedule(() -> retryIndefinitely(() -> {
-            try {
-                this.writer = clientFactory.get().createEventWriter(STREAM_NAME,
+        maintenanceExecutor.schedule(() -> retryIndefinitely(() -> {
+                this.writer.set(clientFactory.get().createEventWriter(STREAM_NAME,
                         serializer,
-                        config);
-            } catch (Throwable t) {
-                System.err.println(t);
-                throw new RuntimeException(t);
-            }
+                        writerConfig));
             initialized.set(true);
             // even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
             // caches do not perform clean up if there is no activity. This is because they do not maintain their
             // own background thread.
-            // TODO: shivesh
-            SCHEDULED_EXECUTOR.scheduleAtFixedRate(cache::cleanUp, 0, cacheCleanup, unit);
+            maintenanceExecutor.scheduleAtFixedRate(cache::cleanUp, 0, configuration.getCacheCleanup().getSeconds(), TimeUnit.SECONDS);
             log.debug("bootstrapping threshold monitor done");
-        }, createWriter), 10, TimeUnit.SECONDS);
+        }, createWriter, maintenanceExecutor), 10, TimeUnit.SECONDS);
     }
 
     private void triggerScaleUp(String streamSegmentName, int numOfSplits) {
@@ -171,7 +139,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
 
             long timestamp = System.currentTimeMillis();
 
-            if (timestamp - lastRequestTs > muteDuration) {
+            if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
                 log.debug("sending request for scale up for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
@@ -192,12 +160,14 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
             }
 
             long timestamp = System.currentTimeMillis();
-            if (timestamp - lastRequestTs > muteDuration) {
+            if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
                 log.debug("sending request for scale down for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
-                ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), ScaleRequest.DOWN, timestamp, 0, silent);
-                writeRequest(event).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(0L, timestamp)));
+                ScaleRequest event = new ScaleRequest(segment.getScope(), segment.getStreamName(),
+                        segment.getSegmentNumber(), ScaleRequest.DOWN, timestamp, 0, silent);
+                writeRequest(event).thenAccept(x -> cache.put(streamSegmentName,
+                        new ImmutablePair<>(0L, timestamp)));
                 // mute only scale downs
             }
         });
@@ -208,13 +178,13 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
         try {
             CompletableFuture.runAsync(() -> {
                 try {
-                    writer.writeEvent(event.getKey(), event).get();
+                    writer.get().writeEvent(event.getKey(), event).get();
                     result.complete(null);
                 } catch (InterruptedException | ExecutionException e) {
                     log.error("error sending request to requeststream {}", e);
                     result.completeExceptionally(e);
                 }
-            }, EXECUTOR);
+            }, executor);
         } catch (RejectedExecutionException e) {
             log.error("our executor queue is full. failed to post scale event for {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
             result.completeExceptionally(e);
@@ -232,7 +202,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
             // So we will decide whether to scale or not and then unblock by asynchronously calling 'writeEvent'
             if (type != WireCommands.CreateSegment.NO_SCALE) {
                 long currentTime = System.currentTimeMillis();
-                if (currentTime - startTime > cooldownPeriod) {
+                if (currentTime - startTime > configuration.getCooldownPeriod().toMillis()) {
                     log.debug("cool down period elapsed for {}", streamSegmentName);
 
                     // process to see if a scale operation needs to be performed.
@@ -279,7 +249,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
         }
     }
 
-    private static void retryIndefinitely(Runnable supplier, CompletableFuture<Void> promise) {
+    private static void retryIndefinitely(Runnable supplier, CompletableFuture<Void> promise, ScheduledExecutorService executor) {
         try {
             if (!promise.isDone()) {
                 supplier.run();
@@ -288,7 +258,7 @@ public class ThresholdMonitor implements SegmentTrafficMonitor {
         } catch (Exception e) {
             log.error("threshold monitor writer creation failed {}", e);
             // Until we are able to start these readers, keep retrying indefinitely by scheduling it back
-            SCHEDULED_EXECUTOR.schedule(() -> retryIndefinitely(supplier, promise), 10, TimeUnit.SECONDS);
+            executor.schedule(() -> retryIndefinitely(supplier, promise, executor), 10, TimeUnit.SECONDS);
         }
     }
 }

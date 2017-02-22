@@ -92,8 +92,4 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
         return result;
     }
 
-    @Override
-    public CompletableFuture<Void> updateStreamSegmentPolicy(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
-        return CompletableFuture.completedFuture(null);
-    }
 }

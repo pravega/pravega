@@ -1,19 +1,17 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package com.emc.pravega.service.server.stats;
+package com.emc.pravega.service.server.host.stat;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.service.monitor.SegmentTrafficMonitor;
-import com.emc.pravega.stream.impl.JavaSerializer;
 import com.google.common.collect.Lists;
 import org.junit.Test;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SegmentAggregatesTest {
@@ -23,7 +21,7 @@ public class SegmentAggregatesTest {
     @Test
     public void testRecorder() {
         AtomicBoolean loop = new AtomicBoolean(true);
-        List<SegmentTrafficMonitor> x = Lists.newArrayList(new SegmentTrafficMonitor() {
+        List<SegmentTrafficMonitor> monitors = Lists.newArrayList(new SegmentTrafficMonitor() {
             @Override
             public void process(String streamSegmentName, long targetRate, byte rateType, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
                 loop.set(false);
@@ -40,7 +38,8 @@ public class SegmentAggregatesTest {
             }
         });
 
-        SegmentStatsRecorderImpl impl = new SegmentStatsRecorderImpl(x, null, new JavaSerializer<>(), Duration.ofSeconds(10).toMillis());
+        SegmentStatsRecorderImpl impl = new SegmentStatsRecorderImpl(monitors, null,
+                Duration.ofSeconds(10).toMillis(), Executors.newFixedThreadPool(10), Executors.newSingleThreadScheduledExecutor());
         impl.createSegment(STREAM_SEGMENT_NAME, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 1000);
         impl.record(STREAM_SEGMENT_NAME, 0, 1000);
 

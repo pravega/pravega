@@ -1,9 +1,7 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package com.emc.pravega.service.server.stats;
+package com.emc.pravega.service.server.host.stat;
 
 import com.emc.pravega.common.netty.WireCommands;
 import lombok.Getter;
@@ -76,7 +74,7 @@ class SegmentAggregates implements Serializable {
     // Note: we are not concurrency protecting this variable for performance reasons
     private volatile long currentCount;
 
-    SegmentAggregates(int targetRate, byte scaleType) {
+    SegmentAggregates(byte scaleType, int targetRate) {
         this.targetRate = targetRate;
         this.scaleType = scaleType;
         startTime = System.currentTimeMillis();
