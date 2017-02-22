@@ -235,6 +235,11 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+            return null;
+        }
+
+        @Override
         public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
             return null;
         }
@@ -255,7 +260,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout) {
+        public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
             return null;
         }
 
@@ -266,6 +271,11 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
 
         @Override
         public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
+            return null;
+        }
+
+        @Override
+        public Collection<SegmentProperties> getActiveSegments() {
             return null;
         }
 

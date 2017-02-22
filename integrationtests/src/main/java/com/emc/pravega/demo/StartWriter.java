@@ -24,7 +24,7 @@ public class StartWriter {
         @Cleanup
         EventStreamWriter<String> writer = streamManager.getClientFactory().createEventWriter(StartLocalService.STREAM_NAME,
                                                                 new JavaSerializer<>(),
-                                                                new EventWriterConfig(null));
+                                                                EventWriterConfig.builder().build());
         Transaction<String> transaction = writer.beginTxn(60000);
 
         for (int i = 0; i < 10; i++) {

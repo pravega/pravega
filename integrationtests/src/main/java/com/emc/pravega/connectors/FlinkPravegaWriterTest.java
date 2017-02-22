@@ -125,8 +125,7 @@ public class FlinkPravegaWriterTest {
         Preconditions.checkArgument(jobParallelism > 0);
         Preconditions.checkNotNull(streamName);
 
-        final String testStream = streamName;
-        SetupUtils.createTestStream(SCOPE, testStream);
+        SetupUtils.createTestStream(SCOPE, streamName, 1);
 
         StreamExecutionEnvironment execEnv = StreamExecutionEnvironment.createLocalEnvironment().
                 setParallelism(jobParallelism);
@@ -138,13 +137,13 @@ public class FlinkPravegaWriterTest {
         FlinkPravegaWriter<Integer> pravegaSink = new FlinkPravegaWriter<>(
                 SetupUtils.CONTROLLER_URI,
                 SCOPE,
-                testStream,
+                streamName,
                 element -> String.valueOf(element).getBytes(),
                 event -> "fixedkey");
         pravegaSink.setPravegaWriterMode(PravegaWriterMode.ATLEAST_ONCE);
 
         dataStream.addSink(pravegaSink);
         execEnv.execute();
-        consumeAndVerify(testStream, jobParallelism, EVENT_COUNT_PER_SOURCE);
+        consumeAndVerify(streamName, jobParallelism, EVENT_COUNT_PER_SOURCE);
     }
 }

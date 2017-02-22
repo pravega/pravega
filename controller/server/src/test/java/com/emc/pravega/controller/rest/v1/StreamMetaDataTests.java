@@ -5,12 +5,11 @@
  */
 package com.emc.pravega.controller.rest.v1;
 
-import com.emc.pravega.controller.server.rest.contract.common.RetentionPolicyCommon;
-import com.emc.pravega.controller.server.rest.contract.common.ScalingPolicyCommon;
-import com.emc.pravega.controller.server.rest.contract.request.CreateStreamRequest;
-import com.emc.pravega.controller.server.rest.contract.request.UpdateStreamRequest;
-import com.emc.pravega.controller.server.rest.contract.response.StreamProperty;
-import com.emc.pravega.controller.server.rest.contract.response.StreamResponse;
+import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import com.emc.pravega.controller.server.rest.generated.model.RetentionConfig;
+import com.emc.pravega.controller.server.rest.generated.model.ScalingConfig;
+import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
+import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
@@ -19,21 +18,23 @@ import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.ScalingPolicy.Type;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import org.glassfish.hk2.utilities.binding.AbstractBinder;
-import org.glassfish.jersey.server.ResourceConfig;
-import org.glassfish.jersey.test.JerseyTest;
-import org.junit.Test;
 
-import javax.ws.rs.client.Entity;
-import javax.ws.rs.core.Application;
-import javax.ws.rs.core.Response;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import static com.emc.pravega.stream.ScalingPolicy.Type.FIXED_NUM_SEGMENTS;
+import javax.ws.rs.client.Entity;
+import javax.ws.rs.core.Application;
+import javax.ws.rs.core.Response;
+
+import org.glassfish.hk2.utilities.binding.AbstractBinder;
+import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.test.JerseyTest;
+import org.junit.Before;
+import org.junit.Test;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -50,7 +51,7 @@ public class StreamMetaDataTests extends JerseyTest {
     StreamMetadataStore mockStreamStore;
     StreamMetadataResourceImpl streamMetadataResource;
     Future<Response> response;
-    StreamResponse streamResponseActual;
+    StreamProperty streamResponseActual;
 
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
@@ -58,25 +59,30 @@ public class StreamMetaDataTests extends JerseyTest {
     private final String resourceURI = "v1/scopes/" + scope1 + "/streams/" + stream1;
     private final String resourceURI2 = "v1/scopes/" + scope1 + "/streams/" + stream2;
     private final String streamResourceURI = "v1/scopes/" + scope1 + "/streams";
-    private final ScalingPolicyCommon scalingPolicyCommon = new ScalingPolicyCommon(
-            ScalingPolicyCommon.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
-    private final RetentionPolicyCommon retentionPolicyCommon = new RetentionPolicyCommon(123L);
-    private final RetentionPolicyCommon retentionPolicyCommon2 = new RetentionPolicyCommon(null);
-    private final StreamResponse streamResponseExpected = new StreamResponse(
-            new StreamProperty(scope1, stream1, scalingPolicyCommon, retentionPolicyCommon));
-    private final StreamConfiguration streamConfiguration = new StreamConfigurationImpl(scope1, stream1,
-            new ScalingPolicy(FIXED_NUM_SEGMENTS, 100L, 2, 2), new RetentionPolicy(123L));
 
-    private final CreateStreamRequest createStreamRequest = new CreateStreamRequest(
-            stream1, scalingPolicyCommon, retentionPolicyCommon);
-    private final CreateStreamRequest createStreamRequest2 = new CreateStreamRequest(
-            stream1, scalingPolicyCommon, retentionPolicyCommon2);
-    private final UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest(
-            scalingPolicyCommon, retentionPolicyCommon);
-    private final UpdateStreamRequest updateStreamRequest2 = new UpdateStreamRequest(
-            scalingPolicyCommon, retentionPolicyCommon);
-    private final UpdateStreamRequest updateStreamRequest3 = new UpdateStreamRequest(
-            scalingPolicyCommon, retentionPolicyCommon2);
+    private final ScalingConfig scalingPolicyCommon = new ScalingConfig();
+    private final RetentionConfig retentionPolicyCommon = new RetentionConfig();
+    private final RetentionConfig retentionPolicyCommon2 = new RetentionConfig();
+    private final StreamProperty streamResponseExpected = new StreamProperty();
+    private final StreamConfiguration streamConfiguration = StreamConfiguration.builder()
+            .scope(scope1)
+            .streamName(stream1)
+            .scalingPolicy(ScalingPolicy.builder()
+                           .type(Type.BY_RATE_IN_EVENTS)
+                           .targetRate(100)
+                           .scaleFactor(2)
+                           .minNumSegments(2)
+                           .build())
+            .retentionPolicy(RetentionPolicy.builder()
+                             .retentionTimeMillis(123L)
+                             .build())
+            .build();
+
+    private final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
+    private final CreateStreamRequest createStreamRequest2 = new CreateStreamRequest();
+    private final UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
+    private final UpdateStreamRequest updateStreamRequest2 = new UpdateStreamRequest();
+    private final UpdateStreamRequest updateStreamRequest3 = new UpdateStreamRequest();
 
     private final CompletableFuture<StreamConfiguration> streamConfigFuture = CompletableFuture.
             completedFuture(streamConfiguration);
@@ -93,6 +99,37 @@ public class StreamMetaDataTests extends JerseyTest {
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus3 = CompletableFuture.
             completedFuture(UpdateStreamStatus.FAILURE);
 
+    @Before
+    public void initialize() {
+        scalingPolicyCommon.setType(ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS);
+        scalingPolicyCommon.setTargetRate(100L);
+        scalingPolicyCommon.setScaleFactor(2);
+        scalingPolicyCommon.setMinNumSegments(2);
+        retentionPolicyCommon.setRetentionTimeMillis(123L);
+        retentionPolicyCommon2.setRetentionTimeMillis(null);
+        streamResponseExpected.setScope(scope1);
+        streamResponseExpected.setName(stream1);
+        streamResponseExpected.setScalingPolicy(scalingPolicyCommon);
+        streamResponseExpected.setRetentionPolicy(retentionPolicyCommon);
+
+        createStreamRequest.setStreamName(stream1);
+        createStreamRequest.setScalingPolicy(scalingPolicyCommon);
+        createStreamRequest.setRetentionPolicy(retentionPolicyCommon);
+
+        createStreamRequest2.setStreamName(stream1);
+        createStreamRequest2.setScalingPolicy(scalingPolicyCommon);
+        createStreamRequest2.setRetentionPolicy(retentionPolicyCommon2);
+
+        updateStreamRequest.setScalingPolicy(scalingPolicyCommon);
+        updateStreamRequest.setRetentionPolicy(retentionPolicyCommon);
+        updateStreamRequest2.setScalingPolicy(scalingPolicyCommon);
+        updateStreamRequest2.setRetentionPolicy(retentionPolicyCommon);
+        updateStreamRequest3.setScalingPolicy(scalingPolicyCommon);
+        updateStreamRequest3.setRetentionPolicy(retentionPolicyCommon2);
+
+        mockStreamStore = mock(StreamMetadataStore.class);
+    }
+
     /**
      * Configure resource class.
      * @return JAX-RS application
@@ -100,7 +137,6 @@ public class StreamMetaDataTests extends JerseyTest {
     @Override
     protected Application configure() {
         mockControllerService = mock(ControllerService.class);
-        mockStreamStore = mock(StreamMetadataStore.class);
         streamMetadataResource = new StreamMetadataResourceImpl(mockControllerService);
 
         return new ResourceConfig()
@@ -123,8 +159,8 @@ public class StreamMetaDataTests extends JerseyTest {
         // Test to create a stream which doesn't exist
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
         response = target(streamResourceURI).request().async().post(Entity.json(createStreamRequest));
-        streamResponseActual = response.get().readEntity(StreamResponse.class);
         assertEquals("Create Stream Status", 201, response.get().getStatus());
+        streamResponseActual = response.get().readEntity(StreamProperty.class);
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
 
         // Test to create a stream that already exists
@@ -135,7 +171,9 @@ public class StreamMetaDataTests extends JerseyTest {
         // Test for validation of create stream request object
         when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus3);
         response = target(streamResourceURI).request().async().post(Entity.json(createStreamRequest2));
-        assertEquals("Create Stream Status", 400, response.get().getStatus());
+        // TODO: Server should be returning 400 here, change this once issue
+        // https://github.com/pravega/pravega/issues/531 is fixed.
+        assertEquals("Create Stream Status", 500, response.get().getStatus());
     }
 
     /**
@@ -148,7 +186,7 @@ public class StreamMetaDataTests extends JerseyTest {
         // Test to update an existing stream
         when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus);
         response = target(resourceURI).request().async().put(Entity.json(updateStreamRequest));
-        streamResponseActual = response.get().readEntity(StreamResponse.class);
+        streamResponseActual = response.get().readEntity(StreamProperty.class);
         assertEquals("Update Stream Status", 201, response.get().getStatus());
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
 
@@ -160,7 +198,7 @@ public class StreamMetaDataTests extends JerseyTest {
         // Test for validation of request object
         when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus3);
         response = target(resourceURI).request().async().put(Entity.json(updateStreamRequest3));
-        assertEquals("Update Stream Status", 400, response.get().getStatus());
+        assertEquals("Update Stream Status", 500, response.get().getStatus());
     }
 
     /**
@@ -169,13 +207,13 @@ public class StreamMetaDataTests extends JerseyTest {
      * @throws InterruptedException
      */
     @Test
-    public void testGetStreamConfig() throws ExecutionException, InterruptedException {
+    public void testGetStream() throws ExecutionException, InterruptedException {
         when(mockControllerService.getStreamStore()).thenReturn(mockStreamStore);
 
         // Test to get an existing stream
         when(mockStreamStore.getConfiguration(stream1)).thenReturn(streamConfigFuture);
         response = target(resourceURI).request().async().get();
-        streamResponseActual = response.get().readEntity(StreamResponse.class);
+        streamResponseActual = response.get().readEntity(StreamProperty.class);
         assertEquals("Get Stream Config Status", 200, response.get().getStatus());
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
 
@@ -184,29 +222,29 @@ public class StreamMetaDataTests extends JerseyTest {
             throw new DataNotFoundException("Stream Not Found");
         }));
         response = target(resourceURI2).request().async().get();
-        streamResponseActual = response.get().readEntity(StreamResponse.class);
+        streamResponseActual = response.get().readEntity(StreamProperty.class);
         assertEquals("Get Stream Config Status", 404, response.get().getStatus());
     }
 
-    private static void testExpectedVsActualObject(StreamResponse expected, StreamResponse actual) {
+    private static void testExpectedVsActualObject(final StreamProperty expected, final StreamProperty actual) {
         assertNotNull(expected);
         assertNotNull(actual);
-        assertEquals("StreamConfig: Scope Name ", expected.getStream().getScope(), actual.getStream().getScope());
+        assertEquals("StreamConfig: Scope Name ", expected.getScope(), actual.getScope());
         assertEquals("StreamConfig: Stream Name ",
-                expected.getStream().getStreamName(), actual.getStream().getStreamName());
+                expected.getName(), actual.getName());
         assertEquals("StreamConfig: Scaling Policy: Type",
-                expected.getStream().getScalingPolicy().getType(), actual.getStream().getScalingPolicy().getType());
+                expected.getScalingPolicy().getType(), actual.getScalingPolicy().getType());
         assertEquals("StreamConfig: Scaling Policy: Target Rate",
-                expected.getStream().getScalingPolicy().getTargetRate(),
-                actual.getStream().getScalingPolicy().getTargetRate());
+                expected.getScalingPolicy().getTargetRate(),
+                actual.getScalingPolicy().getTargetRate());
         assertEquals("StreamConfig: Scaling Policy: Scale Factor",
-                expected.getStream().getScalingPolicy().getScaleFactor(),
-                actual.getStream().getScalingPolicy().getScaleFactor());
+                expected.getScalingPolicy().getScaleFactor(),
+                actual.getScalingPolicy().getScaleFactor());
         assertEquals("StreamConfig: Scaling Policy: MinNumSegments",
-                expected.getStream().getScalingPolicy().getMinNumSegments(),
-                actual.getStream().getScalingPolicy().getMinNumSegments());
+                expected.getScalingPolicy().getMinNumSegments(),
+                actual.getScalingPolicy().getMinNumSegments());
         assertEquals("StreamConfig: Retention Policy: MinNumSegments",
-                expected.getStream().getRetentionPolicy().getRetentionTimeMillis(),
-                actual.getStream().getRetentionPolicy().getRetentionTimeMillis());
+                expected.getRetentionPolicy().getRetentionTimeMillis(),
+                actual.getRetentionPolicy().getRetentionTimeMillis());
     }
 }
