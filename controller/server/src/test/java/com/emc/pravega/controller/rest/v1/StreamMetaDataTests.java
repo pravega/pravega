@@ -18,22 +18,23 @@ import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.ScalingPolicy.Type;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+
+import javax.ws.rs.client.Entity;
+import javax.ws.rs.core.Application;
+import javax.ws.rs.core.Response;
+
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
 import org.junit.Before;
 import org.junit.Test;
 
-import javax.ws.rs.client.Entity;
-import javax.ws.rs.core.Application;
-import javax.ws.rs.core.Response;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-
-import static com.emc.pravega.stream.ScalingPolicy.Type.FIXED_NUM_SEGMENTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -58,12 +59,24 @@ public class StreamMetaDataTests extends JerseyTest {
     private final String resourceURI = "v1/scopes/" + scope1 + "/streams/" + stream1;
     private final String resourceURI2 = "v1/scopes/" + scope1 + "/streams/" + stream2;
     private final String streamResourceURI = "v1/scopes/" + scope1 + "/streams";
+
     private final ScalingConfig scalingPolicyCommon = new ScalingConfig();
     private final RetentionConfig retentionPolicyCommon = new RetentionConfig();
     private final RetentionConfig retentionPolicyCommon2 = new RetentionConfig();
     private final StreamProperty streamResponseExpected = new StreamProperty();
-    private final StreamConfiguration streamConfiguration = new StreamConfigurationImpl(
-            scope1, stream1, new ScalingPolicy(FIXED_NUM_SEGMENTS, 100L, 2, 2), new RetentionPolicy(123L));
+    private final StreamConfiguration streamConfiguration = StreamConfiguration.builder()
+            .scope(scope1)
+            .streamName(stream1)
+            .scalingPolicy(ScalingPolicy.builder()
+                           .type(Type.BY_RATE_IN_EVENTS)
+                           .targetRate(100)
+                           .scaleFactor(2)
+                           .minNumSegments(2)
+                           .build())
+            .retentionPolicy(RetentionPolicy.builder()
+                             .retentionTimeMillis(123L)
+                             .build())
+            .build();
 
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
     private final CreateStreamRequest createStreamRequest2 = new CreateStreamRequest();
@@ -88,7 +101,7 @@ public class StreamMetaDataTests extends JerseyTest {
 
     @Before
     public void initialize() {
-        scalingPolicyCommon.setType(ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS);
+        scalingPolicyCommon.setType(ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS);
         scalingPolicyCommon.setTargetRate(100L);
         scalingPolicyCommon.setScaleFactor(2);
         scalingPolicyCommon.setMinNumSegments(2);

@@ -18,6 +18,7 @@ import lombok.NonNull;
  */
 @Data
 public class Segment implements Serializable {
+    private static final long serialVersionUID = 1L;
     private final String scope;
     @NonNull
     private final String streamName;
