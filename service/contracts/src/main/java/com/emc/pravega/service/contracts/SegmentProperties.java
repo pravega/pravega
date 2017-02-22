@@ -6,6 +6,8 @@
 package com.emc.pravega.service.contracts;
 
 import com.emc.pravega.common.util.ImmutableDate;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * General properties about a StreamSegment.
@@ -35,5 +37,12 @@ public interface SegmentProperties {
      * Gets a value indicating the full, readable length of the StreamSegment.
      */
     long getLength();
+
+    /**
+     * Gets a read-only Map of AttributeId-Values for this Segment.
+     *
+     * @return The map.
+     */
+    Map<UUID, Long> getAttributes();
 }
 

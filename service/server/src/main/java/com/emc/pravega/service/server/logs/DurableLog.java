@@ -10,6 +10,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.common.util.SequencedItemList;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamingException;
@@ -17,11 +18,11 @@ import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.LogItemFactory;
 import com.emc.pravega.service.server.OperationLog;
-import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.OperationFactory;
+import com.emc.pravega.service.server.logs.operations.ProbeOperation;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.LogAddress;
@@ -263,6 +264,19 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             return result;
         }
+    }
+
+    @Override
+    public CompletableFuture<Void> operationProcessingBarrier(Duration timeout) {
+        return FutureHelpers
+                .toVoid(add(new ProbeOperation(), timeout))
+                .whenComplete((r, ex) -> {
+                    // We don't care if this operation completed successfully or not. The Operation Barrier needs to complete
+                    // when all operations prior to it completed, regardless of outcome.
+                    if (ex != null) {
+                        log.warn("{}: Error caught while waiting for {}: {}.", this.traceObjectId, ProbeOperation.class.getSimpleName(), ex);
+                    }
+                });
     }
 
     //endregion

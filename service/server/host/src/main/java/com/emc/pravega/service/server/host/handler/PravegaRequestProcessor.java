@@ -184,7 +184,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void getStreamSegmentInfo(GetStreamSegmentInfo getStreamSegmentInfo) {
         String segmentName = getStreamSegmentInfo.getSegmentName();
-        CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(segmentName, TIMEOUT);
+        CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT);
         future.thenApply(properties -> {
             if (properties != null) {
                 StreamSegmentInfo result = new StreamSegmentInfo(properties.getName(),
@@ -207,7 +207,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void getTransactionInfo(GetTransactionInfo request) {
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(request.getSegment(), request.getTxid());
-        CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(transactionName, TIMEOUT);
+        CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(transactionName, false, TIMEOUT);
         future.thenApply(properties -> {
             if (properties != null) {
                 TransactionInfo result = new TransactionInfo(request.getSegment(),
@@ -231,7 +231,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
-        CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), TIMEOUT);
+        CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), null, TIMEOUT);
         future.thenApply((Void v) -> {
             CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
             connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
@@ -243,7 +243,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         });
     }
 
-    // TODO: Duplicated in AppendProcessor.
     private void handleException(String segment, String operation, Throwable u) {
         if (u == null) {
             throw new IllegalStateException("Neither offset nor exception!?");
@@ -270,7 +269,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void createTransaction(CreateTransaction createTransaction) {
-        CompletableFuture<String> future = segmentStore.createTransaction(createTransaction.getSegment(), createTransaction.getTxid(), TIMEOUT);
+        CompletableFuture<String> future = segmentStore.createTransaction(createTransaction.getSegment(), createTransaction.getTxid(), null, TIMEOUT);
         future.thenApply((String txName) -> {
             connection.send(new TransactionCreated(createTransaction.getSegment(), createTransaction.getTxid()));
             return null;
@@ -284,9 +283,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void commitTransaction(CommitTransaction commitTx) {
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
         segmentStore.sealStreamSegment(transactionName, TIMEOUT).thenApply((Long length) -> {
-            segmentStore.mergeTransaction(transactionName, TIMEOUT).thenApply((Long offset) -> {
+            segmentStore.mergeTransaction(transactionName, TIMEOUT).thenAccept(v -> {
                 connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));
-                return null;
             }).exceptionally((Throwable e) -> {
                 handleException(transactionName, "Commit transaction", e);
                 return null;

@@ -20,6 +20,12 @@ public class StreamImpl implements Stream {
     @Getter
     private final String streamName;
 
+    /**
+     * Creates a new instance of the Stream class.
+     *
+     * @param scope      The scope of the stream.
+     * @param streamName The name of the stream.
+     */
     public StreamImpl(String scope, String streamName) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(streamName);

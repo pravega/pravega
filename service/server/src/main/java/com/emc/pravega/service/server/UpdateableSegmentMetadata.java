@@ -6,7 +6,8 @@
 package com.emc.pravega.service.server;
 
 import com.emc.pravega.common.util.ImmutableDate;
-import com.emc.pravega.service.contracts.AppendContext;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Defines an updateable StreamSegment Metadata.
@@ -51,11 +52,11 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
     void markMerged();
 
     /**
-     * Records the given Append Context and marks it as the one for the last committed Append Context.
+     * Sets/Updates the attributes for this StreamSegment to the exact values provided.
      *
-     * @param appendContext The AppendContext to record.
+     * @param attributeValues The values to set/update.
      */
-    void recordAppendContext(AppendContext appendContext);
+    void updateAttributes(Map<UUID, Long> attributeValues);
 
     /**
      * Sets the Last Modified date.

@@ -19,26 +19,29 @@ import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
-import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
+import com.emc.pravega.service.server.SegmentMetadata;
 import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.function.BiFunction;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_WRITE_BYTES;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_WRITE_LATENCY;
@@ -84,34 +87,27 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     public void setupAppend(SetupAppend setupAppend) {
         String newSegment = setupAppend.getSegment();
         UUID newConnection = setupAppend.getConnectionId();
-        CompletableFuture<AppendContext> future = store.getLastAppendContext(newSegment, newConnection, TIMEOUT);
-        future.handle(new BiFunction<AppendContext, Throwable, Void>() {
-            @Override
-            public Void apply(AppendContext info, Throwable u) {
-                try {
-                    if (u != null) {
-                        handleException(newSegment, u);
-                        return null;
-                    }
-                    long eventNumber;
-                    if (info == null) {
-                        eventNumber = 0;
-                    } else {
-                        if (!info.getClientId().equals(newConnection)) {
-                            throw new IllegalStateException("Wrong connection Info returned");
+        store.getStreamSegmentInfo(newSegment, true, TIMEOUT)
+                .whenComplete((info, u) -> {
+                    try {
+                        if (u != null) {
+                            handleException(newSegment, u);
+                        } else {
+                            long eventNumber = info.getAttributes().getOrDefault(newConnection, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+                            if (eventNumber == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                                // First append to this segment.
+                                eventNumber = 0;
+                            }
+
+                            synchronized (lock) {
+                                latestEventNumbers.putIfAbsent(newConnection, eventNumber);
+                            }
+                            connection.send(new AppendSetup(newSegment, newConnection, eventNumber));
                         }
-                        eventNumber = info.getEventNumber();
+                    } catch (Throwable e) {
+                        handleException(newSegment, e);
                     }
-                    synchronized (lock) {
-                        latestEventNumbers.putIfAbsent(newConnection, eventNumber);
-                    }
-                    connection.send(new AppendSetup(newSegment, newConnection, eventNumber));
-                } catch (Throwable e) {
-                    handleException(newSegment, e);
-                }
-                return null;
-            }
-        });
+                });
     }
 
     /**
@@ -133,7 +129,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 ByteBuf[] toAppend = new ByteBuf[appends.size()];
                 Append last = null;
                 int i = -1;
-                for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext();) {
+                for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext(); ) {
                     Append a = iterator.next();
                     if (a.isConditional()) {
                         break;
@@ -142,7 +138,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     toAppend[i] = a.getData();
                     last = a;
                     iterator.remove();
-                }                
+                }
                 ByteBuf data = Unpooled.wrappedBuffer(toAppend);
                 append = new Append(last.getSegment(), writer, last.getEventNumber(), data, null);
             }
@@ -156,57 +152,59 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     private void write(Append toWrite) {
         Timer timer = new Timer();
-        ByteBuf buf = Unpooled.unmodifiableBuffer(toWrite.getData());
+        ByteBuf buf = toWrite.getData().asReadOnly();
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
-        AppendContext context = new AppendContext(toWrite.getConnectionId(), toWrite.getEventNumber());
+        val attributes = Collections.singleton(new AttributeUpdate(
+                toWrite.getConnectionId(),
+                AttributeUpdateType.ReplaceIfGreater,
+                toWrite.getEventNumber()));
+
         CompletableFuture<Void> future;
         String segment = toWrite.getSegment();
         if (toWrite.isConditional()) {
-            future = store.append(segment, toWrite.getExpectedLength(), bytes, context, TIMEOUT);
+            future = store.append(segment, toWrite.getExpectedLength(), bytes, attributes, TIMEOUT);
         } else {
-            future = store.append(segment, bytes, context, TIMEOUT);
+            future = store.append(segment, bytes, attributes, TIMEOUT);
         }
-        future.handle(new BiFunction<Void, Throwable, Void>() {
-            @Override
-            public Void apply(Void t, Throwable u) {
-                try {
-                    boolean conditionalFailed = u != null
-                            && (u instanceof BadOffsetException || u.getCause() instanceof BadOffsetException);
-                    synchronized (lock) {
-                        if (outstandingAppend != toWrite) {
-                            throw new IllegalStateException(
-                                    "Synchronization error in: " + AppendProcessor.this.getClass().getName());
-                        }
-                        toWrite.getData().release();
-                        outstandingAppend = null;
-                        if (u != null && !conditionalFailed) {
-                            waitingAppends.removeAll(context.getClientId());
-                            latestEventNumbers.remove(context.getClientId());
-                        }
+        future.whenComplete((t, u) -> {
+            try {
+                boolean conditionalFailed = u != null
+                        && (u instanceof BadOffsetException || u.getCause() instanceof BadOffsetException);
+                synchronized (lock) {
+                    if (outstandingAppend != toWrite) {
+                        throw new IllegalStateException(
+                                "Synchronization error in: " + AppendProcessor.this.getClass().getName());
                     }
-                    if (u != null) {
-                        if (conditionalFailed) {
-                            connection.send(new ConditionalCheckFailed(context.getClientId(), context.getEventNumber()));
-                        } else {
-                            handleException(segment, u);
-                        }
-                    } else {
-                        DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, toWrite.getSegment()), bytes.length);
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromSegment(SEGMENT_WRITE_LATENCY, toWrite.getSegment()), timer.getElapsedMillis());
-                        connection.send(new DataAppended(context.getClientId(),  context.getEventNumber()));
+
+                    toWrite.getData().release();
+                    outstandingAppend = null;
+                    if (u != null && !conditionalFailed) {
+                        waitingAppends.removeAll(toWrite.getConnectionId());
+                        latestEventNumbers.remove(toWrite.getConnectionId());
                     }
-                    pauseOrResumeReading();
-                    performNextWrite();
-                } catch (Throwable e) {
-                    handleException(segment, e);
                 }
-                return null;
+
+                if (u != null) {
+                    if (conditionalFailed) {
+                        connection.send(new ConditionalCheckFailed(toWrite.getConnectionId(), toWrite.getEventNumber()));
+                    } else {
+                        handleException(segment, u);
+                    }
+                } else {
+                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, toWrite.getSegment()), bytes.length);
+                    DYNAMIC_LOGGER.reportGaugeValue(nameFromSegment(SEGMENT_WRITE_LATENCY, toWrite.getSegment()), timer.getElapsedMillis());
+                    connection.send(new DataAppended(toWrite.getConnectionId(), toWrite.getEventNumber()));
+                }
+
+                pauseOrResumeReading();
+                performNextWrite();
+            } catch (Throwable e) {
+                handleException(segment, e);
             }
         });
     }
 
-    // TODO: Duplicated in LogServiceRequestProcessor.
     private void handleException(String segment, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("Neither offset nor exception!?");
@@ -240,9 +238,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         int bytesWaiting;
         synchronized (lock) {
             bytesWaiting = waitingAppends.values()
-                .stream()
-                .mapToInt(a -> a.getData().readableBytes())
-                .sum();
+                    .stream()
+                    .mapToInt(a -> a.getData().readableBytes())
+                    .sum();
         }
 
         if (bytesWaiting > HIGH_WATER_MARK) {
