@@ -33,13 +33,13 @@ public class EventRouterTest {
         segments.put(0.75, new Segment(scope, streamName, 2));
         segments.put(1.0, new Segment(scope, streamName, 3));
         StreamSegments streamSegments = new StreamSegments(segments);
-        
+
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
         for (int i = 0; i < 20; i++) {
-            Segment segment = router.getSegmentForEvent(""+i);
+            Segment segment = router.getSegmentForEvent("" + i);
             assertNotNull(segment);
             counts[segment.getSegmentNumber()]++;
         }
@@ -58,7 +58,7 @@ public class EventRouterTest {
         segments.put(0.75, new Segment(scope, streamName, 2));
         segments.put(1.0, new Segment(scope, streamName, 3));
         StreamSegments streamSegments = new StreamSegments(segments);
-        
+
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
         int[] counts = new int[4];
@@ -72,7 +72,7 @@ public class EventRouterTest {
             assertTrue(count > 1);
         }
     }
-    
+
     @Test
     public void testSameRoutingKey() {
         Controller controller = Mockito.mock(Controller.class);
@@ -83,7 +83,7 @@ public class EventRouterTest {
         segments.put(0.75, new Segment(scope, streamName, 2));
         segments.put(1.0, new Segment(scope, streamName, 3));
         StreamSegments streamSegments = new StreamSegments(segments);
-        
+
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
         int[] counts = new int[4];
@@ -93,8 +93,7 @@ public class EventRouterTest {
             assertNotNull(segment);
             counts[segment.getSegmentNumber()]++;
         }
-        assertArrayEquals(new int[]{20,0,0,0}, counts);
+        assertArrayEquals(new int[] { 20, 0, 0, 0 }, counts);
     }
-    
 
 }
