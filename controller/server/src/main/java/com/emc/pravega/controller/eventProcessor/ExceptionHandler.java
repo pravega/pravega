@@ -22,7 +22,7 @@ package com.emc.pravega.controller.eventProcessor;
  * or Stop, on encountering an exception while executing event procssors's user-defined methods.
  */
 @FunctionalInterface
-public interface Decider {
+public interface ExceptionHandler {
 
     enum Directive {
         Restart,
@@ -34,12 +34,12 @@ public interface Decider {
      * The default decider that Stops the event processor on pre-defined event processor exceptions,
      * and Restarts it otherwise.
      */
-    Decider DEFAULT_DECIDER = (Throwable y) -> {
+    ExceptionHandler DEFAULT_EXCEPTION_HANDLER = (Throwable y) -> {
         if (y instanceof EventProcessorInitException ||
                 y instanceof EventProcessorReinitException) {
-            return Decider.Directive.Stop;
+            return ExceptionHandler.Directive.Stop;
         } else {
-            return Decider.Directive.Restart;
+            return ExceptionHandler.Directive.Restart;
         }
     };
 

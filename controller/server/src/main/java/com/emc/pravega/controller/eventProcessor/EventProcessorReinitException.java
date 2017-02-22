@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
-import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.controller.server.ControllerServerException;
 
 /**
@@ -25,21 +24,16 @@ import com.emc.pravega.controller.server.ControllerServerException;
  */
 public class EventProcessorReinitException extends ControllerServerException {
 
-    private final EventProcessor actor;
-
-    public EventProcessorReinitException(final EventProcessor actor, final String message) {
+    public EventProcessorReinitException(final String message) {
         super(message);
-        this.actor = actor;
     }
 
-    public EventProcessorReinitException(final EventProcessor actor, final String message, final Throwable throwable) {
+    public EventProcessorReinitException(final String message, final Throwable throwable) {
         super(message, throwable);
-        this.actor = actor;
     }
 
-    public EventProcessorReinitException(final EventProcessor actor, final Throwable throwable) {
+    public EventProcessorReinitException(final Throwable throwable) {
         super(throwable);
-        this.actor = actor;
     }
 
 }

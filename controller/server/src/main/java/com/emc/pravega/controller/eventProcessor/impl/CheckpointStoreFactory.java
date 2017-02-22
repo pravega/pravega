@@ -26,7 +26,9 @@ import org.apache.curator.framework.CuratorFramework;
  */
 public class CheckpointStoreFactory {
 
-    static CheckpointStore create(CheckpointConfig.StoreType type, Object client) {
+    static CheckpointStore create(CheckpointConfig checkpointConfig) {
+        final CheckpointConfig.StoreType type = checkpointConfig.getStoreType();
+        final Object client = checkpointConfig.getCheckpointStoreClient();
         switch (type) {
             case InMemory:
                 return new InMemoryCheckpointStore();

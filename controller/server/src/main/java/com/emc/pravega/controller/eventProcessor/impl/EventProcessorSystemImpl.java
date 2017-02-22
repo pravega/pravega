@@ -22,8 +22,8 @@ import com.emc.pravega.StreamManager;
 import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
-import com.emc.pravega.controller.eventProcessor.Props;
-import com.emc.pravega.controller.eventProcessor.StreamEvent;
+import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
+import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import lombok.extern.slf4j.Slf4j;
@@ -73,11 +73,11 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
         return this.process;
     }
 
-    public <T extends StreamEvent> EventProcessorGroup<T> createEventProcessorGroup(Props<T> props) throws CheckpointStoreException {
+    public <T extends ControllerEvent> EventProcessorGroup<T> createEventProcessorGroup(EventProcessorConfig<T> eventProcessorConfig) throws CheckpointStoreException {
         EventProcessorGroupImpl<T> actorGroup;
 
         // Create event processor group.
-        actorGroup = new EventProcessorGroupImpl<>(this, props);
+        actorGroup = new EventProcessorGroupImpl<>(this, eventProcessorConfig);
 
         // Initialize it.
         actorGroup.initialize();

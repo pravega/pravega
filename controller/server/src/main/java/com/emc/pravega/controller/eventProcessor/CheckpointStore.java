@@ -76,6 +76,9 @@ public interface CheckpointStore {
      * Removes the specified readerGroup from specified process if
      * (1) it has no active readers, and
      * (2) it is in SEALED state.
+     * If these preconditions do not hold, a CheckpointStoreException shall be thrown with type field set to
+     * NodeNotEmpty and Active, respectively.
+     *
      * @param process Process identifier.
      * @param readerGroup Reader group name.
      * @throws CheckpointStoreException on error accessing or updating checkpoint store.

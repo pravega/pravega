@@ -22,6 +22,6 @@ import java.io.Serializable;
 /**
  * Interface that all controller events need to implement.
  */
-public interface StreamEvent extends Serializable {
+public interface ControllerEvent extends Serializable {
 
 }

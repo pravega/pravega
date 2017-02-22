@@ -26,7 +26,7 @@ import java.util.Set;
  * processors processing events from a Pravega Stream by participating in
  * the same ReaderGroup.
  */
-public interface EventProcessorGroup<T extends StreamEvent> {
+public interface EventProcessorGroup<T extends ControllerEvent> {
 
     /**
      * Notifies Pravega ReaderGroup about failure of a process

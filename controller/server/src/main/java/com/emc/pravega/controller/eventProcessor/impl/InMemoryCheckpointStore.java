@@ -24,6 +24,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.Synchronized;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -36,6 +37,8 @@ import java.util.Map;
 class InMemoryCheckpointStore implements CheckpointStore {
 
     private final static String SEPARATOR = ":::";
+
+    @GuardedBy("$lock")
     private final Map<String, ReaderGroupData> map;
 
     InMemoryCheckpointStore() {
@@ -44,7 +47,7 @@ class InMemoryCheckpointStore implements CheckpointStore {
 
     @Data
     @AllArgsConstructor
-    static class ReaderGroupData {
+    private static class ReaderGroupData {
         enum State {
             Active,
             Sealed,

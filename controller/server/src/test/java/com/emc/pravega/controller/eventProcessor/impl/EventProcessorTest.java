@@ -20,11 +20,11 @@ package com.emc.pravega.controller.eventProcessor.impl;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
 import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
-import com.emc.pravega.controller.eventProcessor.Decider;
+import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
-import com.emc.pravega.controller.eventProcessor.Props;
-import com.emc.pravega.controller.eventProcessor.StreamEvent;
+import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
+import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
@@ -64,7 +64,7 @@ public class EventProcessorTest {
 
     @Data
     @AllArgsConstructor
-    public static class TestEvent implements StreamEvent, Serializable {
+    public static class TestEvent implements ControllerEvent, Serializable {
         int number;
     }
 
@@ -193,47 +193,47 @@ public class EventProcessorTest {
         // Test case 1. Actor does not throw any exception during normal operation.
         Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
 
-        Props<TestEvent> props = Props.<TestEvent>builder()
+        EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new TestEventProcessor(false))
                 .serializer(new JavaSerializer<>())
-                .decider((Throwable e) -> Decider.Directive.Stop)
+                .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(config)
                 .build();
-        testEventProcessor(system, props, reader, readerId, checkpointStore, expectedSum);
+        testEventProcessor(system, eventProcessorConfig, reader, readerId, checkpointStore, expectedSum);
 
         // Test case 2. Actor throws an error during normal operation, and Directive is to Resume on error.
         Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
 
-        props = Props.<TestEvent>builder()
+        eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new TestEventProcessor(true))
                 .serializer(new JavaSerializer<>())
                 .decider((Throwable e) ->
-                        (e instanceof IllegalArgumentException) ? Decider.Directive.Resume : Decider.Directive.Stop)
+                        (e instanceof IllegalArgumentException) ? ExceptionHandler.Directive.Resume : ExceptionHandler.Directive.Stop)
                 .config(config)
                 .build();
-        testEventProcessor(system, props, reader, readerId, checkpointStore, expectedSum);
+        testEventProcessor(system, eventProcessorConfig, reader, readerId, checkpointStore, expectedSum);
 
         // Test case 3. Actor throws an error during normal operation, and Directive is to Restart on error.
         Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
 
-        props = Props.<TestEvent>builder()
+        eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new TestEventProcessor(true))
                 .serializer(new JavaSerializer<>())
                 .decider((Throwable e) ->
-                        (e instanceof IllegalArgumentException) ? Decider.Directive.Restart : Decider.Directive.Stop)
+                        (e instanceof IllegalArgumentException) ? ExceptionHandler.Directive.Restart : ExceptionHandler.Directive.Stop)
                 .config(config)
                 .build();
-        testEventProcessor(system, props, reader, readerId, checkpointStore, 0);
+        testEventProcessor(system, eventProcessorConfig, reader, readerId, checkpointStore, 0);
     }
 
     private void testEventProcessor(final EventProcessorSystem system,
-                                    final Props<TestEvent> props,
+                                    final EventProcessorConfig<TestEvent> eventProcessorConfig,
                                     final EventStreamReader<TestEvent> reader,
                                     final String readerId,
                                     final CheckpointStore checkpointStore,
                                     final int expectedSum) throws CheckpointStoreException {
         EventProcessorCell<TestEvent> cell =
-                new EventProcessorCell<>(props, reader, system.getProcess(), readerId, checkpointStore);
+                new EventProcessorCell<>(eventProcessorConfig, reader, system.getProcess(), readerId, checkpointStore);
 
         cell.startAsync();
 

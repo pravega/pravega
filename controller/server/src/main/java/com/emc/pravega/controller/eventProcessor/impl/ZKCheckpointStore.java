@@ -58,14 +58,14 @@ class ZKCheckpointStore implements CheckpointStore {
 
     @Data
     @AllArgsConstructor
-    static class ReaderGroupData implements Serializable {
+    private static class ReaderGroupData implements Serializable {
         enum State {
             Active,
             Sealed,
         }
 
-        private State state;
-        private List<String> readerIds;
+        private final State state;
+        private final List<String> readerIds;
     }
 
     @Override
@@ -100,10 +100,8 @@ class ZKCheckpointStore implements CheckpointStore {
 
         try {
 
-            updateReaderGroupData(path, groupData -> {
-                groupData.setState(ReaderGroupData.State.Sealed);
-                return groupData;
-            });
+            updateReaderGroupData(path, groupData ->
+                    new ReaderGroupData(ReaderGroupData.State.Sealed, groupData.getReaderIds()));
 
             return getPositions(process, readerGroup);
 
@@ -153,9 +151,7 @@ class ZKCheckpointStore implements CheckpointStore {
                 }
 
                 list.add(readerId);
-                groupData.setReaderIds(list);
-
-                return groupData;
+                return new ReaderGroupData(groupData.getState(), list);
             });
 
             addNode(getReaderPath(process, readerGroup, readerId));
@@ -181,8 +177,7 @@ class ZKCheckpointStore implements CheckpointStore {
                 List<String> list = groupData.getReaderIds();
                 if (list.contains(readerId)) {
                     list.remove(readerId);
-                    groupData.setReaderIds(list);
-                    return groupData;
+                    return new ReaderGroupData(groupData.getState(), list);
                 } else {
                     return groupData;
                 }

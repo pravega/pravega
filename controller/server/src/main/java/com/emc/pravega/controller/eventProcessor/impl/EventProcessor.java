@@ -17,12 +17,12 @@
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
-import com.emc.pravega.controller.eventProcessor.StreamEvent;
+import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 
 /**
- * Actor interface.
+ * Event processor interface.
  */
-public abstract class EventProcessor<T extends StreamEvent> {
+public abstract class EventProcessor<T extends ControllerEvent> {
 
     /**
      * AbstractActor initialization hook that is called before actor starts receiving events.

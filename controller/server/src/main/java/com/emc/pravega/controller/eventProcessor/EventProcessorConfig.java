@@ -28,74 +28,74 @@ import java.util.function.Supplier;
  * Configuration object for creating EventProcessors via createEventProcessorGroup method of EventProcessorSystem.
  */
 @Data
-public class Props<T extends StreamEvent> {
+public class EventProcessorConfig<T extends ControllerEvent> {
 
     private final EventProcessorGroupConfig config;
-    private final Decider decider;
+    private final ExceptionHandler exceptionHandler;
     private final Serializer<T> serializer;
     private final Supplier<EventProcessor<T>> supplier;
 
-    private Props(final EventProcessorGroupConfig config,
-                  final Decider decider,
-                  final Serializer<T> serializer,
-                  final Supplier<EventProcessor<T>> supplier) {
+    private EventProcessorConfig(final EventProcessorGroupConfig config,
+                                 final ExceptionHandler exceptionHandler,
+                                 final Serializer<T> serializer,
+                                 final Supplier<EventProcessor<T>> supplier) {
 
         Preconditions.checkNotNull(config);
         Preconditions.checkNotNull(serializer);
         Preconditions.checkNotNull(supplier);
         this.config = config;
-        if (decider == null) {
-            this.decider = Decider.DEFAULT_DECIDER;
+        if (exceptionHandler == null) {
+            this.exceptionHandler = ExceptionHandler.DEFAULT_EXCEPTION_HANDLER;
         } else {
-            this.decider = decider;
+            this.exceptionHandler = exceptionHandler;
         }
         this.serializer = serializer;
         this.supplier = supplier;
     }
 
-    public static <T extends StreamEvent> Props.PropsBuilder<T> builder() {
-        return new Props.PropsBuilder<>();
+    public static <T extends ControllerEvent> EventProcessorConfigBuilder<T> builder() {
+        return new EventProcessorConfigBuilder<>();
     }
 
     /**
-     * PropsBuilder.
+     * EventProcessorConfigBuilder.
      * @param <T> Type parameter
      */
-    public static class PropsBuilder<T extends StreamEvent> {
+    public static class EventProcessorConfigBuilder<T extends ControllerEvent> {
         private EventProcessorGroupConfig config;
-        private Decider decider;
+        private ExceptionHandler exceptionHandler;
         private Serializer<T> serializer;
         private Supplier<EventProcessor<T>> supplier;
 
-        PropsBuilder() {
+        EventProcessorConfigBuilder() {
         }
 
-        public Props.PropsBuilder<T> config(EventProcessorGroupConfig config) {
+        public EventProcessorConfigBuilder<T> config(EventProcessorGroupConfig config) {
             this.config = config;
             return this;
         }
 
-        public Props.PropsBuilder<T> decider(Decider decider) {
-            this.decider = decider;
+        public EventProcessorConfigBuilder<T> decider(ExceptionHandler exceptionHandler) {
+            this.exceptionHandler = exceptionHandler;
             return this;
         }
 
-        public Props.PropsBuilder<T> serializer(Serializer<T> serializer) {
+        public EventProcessorConfigBuilder<T> serializer(Serializer<T> serializer) {
             this.serializer = serializer;
             return this;
         }
 
-        public Props.PropsBuilder<T> supplier(Supplier<EventProcessor<T>> supplier) {
+        public EventProcessorConfigBuilder<T> supplier(Supplier<EventProcessor<T>> supplier) {
             this.supplier = supplier;
             return this;
         }
 
-        public Props<T> build() {
-            return new Props<>(this.config, this.decider, this.serializer, this.supplier);
+        public EventProcessorConfig<T> build() {
+            return new EventProcessorConfig<>(this.config, this.exceptionHandler, this.serializer, this.supplier);
         }
 
         public String toString() {
-            return "Props.PropsBuilder(config=" + this.config + ", decider=" + this.decider + ", serializer=" +
+            return "Props.PropsBuilder(config=" + this.config + ", exceptionHandler=" + this.exceptionHandler + ", serializer=" +
                     this.serializer + ", supplier=" + this.supplier + ")";
         }
     }

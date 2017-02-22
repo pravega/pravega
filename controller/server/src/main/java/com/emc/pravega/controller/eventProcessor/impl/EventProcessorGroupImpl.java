@@ -21,8 +21,8 @@ import com.emc.pravega.StreamManager;
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
 import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
-import com.emc.pravega.controller.eventProcessor.Props;
-import com.emc.pravega.controller.eventProcessor.StreamEvent;
+import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
+import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -32,6 +32,7 @@ import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
+import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
@@ -45,11 +46,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
-public final class EventProcessorGroupImpl<T extends StreamEvent> extends AbstractService implements EventProcessorGroup<T> {
+public final class EventProcessorGroupImpl<T extends ControllerEvent> extends AbstractService implements EventProcessorGroup<T> {
 
     private final EventProcessorSystemImpl actorSystem;
 
-    private final Props<T> props;
+    private final EventProcessorConfig<T> eventProcessorConfig;
 
     private final ConcurrentHashMap<String, EventProcessorCell<T>> eventProcessorMap;
 
@@ -59,33 +60,32 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
 
     private final CheckpointStore checkpointStore;
 
-    EventProcessorGroupImpl(final EventProcessorSystemImpl actorSystem, final Props<T> props) {
+    EventProcessorGroupImpl(final EventProcessorSystemImpl actorSystem, final EventProcessorConfig<T> eventProcessorConfig) {
         this.actorSystem = actorSystem;
-        this.props = props;
+        this.eventProcessorConfig = eventProcessorConfig;
         this.eventProcessorMap = new ConcurrentHashMap<>();
         this.writer = actorSystem
                 .clientFactory
-                .createEventWriter(props.getConfig().getStreamName(),
-                        props.getSerializer(),
+                .createEventWriter(eventProcessorConfig.getConfig().getStreamName(),
+                        eventProcessorConfig.getSerializer(),
                         new EventWriterConfig(new SegmentOutputConfiguration()));
 
-        this.checkpointStore = CheckpointStoreFactory.create(props.getConfig().getCheckpointConfig().getStoreType(),
-                props.getConfig().getCheckpointConfig().getCheckpointStoreClient());
+        this.checkpointStore = CheckpointStoreFactory.create(eventProcessorConfig.getConfig().getCheckpointConfig());
     }
 
     void initialize() throws CheckpointStoreException {
 
-        checkpointStore.addReaderGroup(actorSystem.getProcess(), props.getConfig().getReaderGroupName());
+        checkpointStore.addReaderGroup(actorSystem.getProcess(), eventProcessorConfig.getConfig().getReaderGroupName());
 
         // Continue creating reader group if adding reader group to checkpoint store succeeds.
 
         readerGroup = createIfNotExists(
                 actorSystem.streamManager,
-                props.getConfig().getReaderGroupName(),
+                eventProcessorConfig.getConfig().getReaderGroupName(),
                 ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build(),
-                Collections.singletonList(props.getConfig().getStreamName()));
+                Collections.singletonList(eventProcessorConfig.getConfig().getStreamName()));
 
-        createEventProcessors(props.getConfig().getEventProcessorCount());
+        createEventProcessors(eventProcessorConfig.getConfig().getEventProcessorCount());
     }
 
     private ReaderGroup createIfNotExists(final StreamManager streamManager,
@@ -109,19 +109,19 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
             String readerId = UUID.randomUUID().toString();
 
             // Store the readerId in checkpoint store.
-            checkpointStore.addReader(actorSystem.getProcess(), props.getConfig().getReaderGroupName(), readerId);
+            checkpointStore.addReader(actorSystem.getProcess(), eventProcessorConfig.getConfig().getReaderGroupName(), readerId);
 
             // Once readerId is successfully persisted, create readers and event processors
             // Create reader.
             EventStreamReader<T> reader =
                     actorSystem.clientFactory.createReader(readerId,
-                            props.getConfig().getReaderGroupName(),
-                            props.getSerializer(),
+                            eventProcessorConfig.getConfig().getReaderGroupName(),
+                            eventProcessorConfig.getSerializer(),
                             new ReaderConfig());
 
             // Create event processor, and add it to the actors list.
             EventProcessorCell<T> actorCell =
-                    new EventProcessorCell<>(props, reader, actorSystem.getProcess(), readerId, checkpointStore);
+                    new EventProcessorCell<>(eventProcessorConfig, reader, actorSystem.getProcess(), readerId, checkpointStore);
 
             // Add new event processors to the map
             eventProcessorMap.put(readerId, actorCell);
@@ -194,19 +194,16 @@ public final class EventProcessorGroupImpl<T extends StreamEvent> extends Abstra
 
     @Override
     public void changeEventProcessorCount(int count) throws CheckpointStoreException {
-        if (this.isRunning()) {
-            if (count <= 0) {
-                throw new NotImplementedException();
-            } else {
-
-                // create new event processors
-                List<String> readerIds = createEventProcessors(count);
-
-                // start the new event processors
-                readerIds.stream().forEach(readerId -> eventProcessorMap.get(readerId).startAsync());
-            }
+        Preconditions.checkState(this.isRunning(), this.state().name());
+        if (count <= 0) {
+            throw new NotImplementedException();
         } else {
-            throw new IllegalStateException(this.state().name());
+
+            // create new event processors
+            List<String> readerIds = createEventProcessors(count);
+
+            // start the new event processors
+            readerIds.stream().forEach(readerId -> eventProcessorMap.get(readerId).startAsync());
         }
     }
 

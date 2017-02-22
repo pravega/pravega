@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.controller.eventProcessor;
 
-import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.controller.server.ControllerServerException;
 
 /**
@@ -25,21 +24,16 @@ import com.emc.pravega.controller.server.ControllerServerException;
  */
 public class EventProcessorInitException extends ControllerServerException {
 
-    private final EventProcessor actor;
-
-    public EventProcessorInitException(final EventProcessor actor, final String message) {
+    public EventProcessorInitException(final String message) {
         super(message);
-        this.actor = actor;
     }
 
-    public EventProcessorInitException(final EventProcessor actor, final String message, final Throwable throwable) {
+    public EventProcessorInitException(final String message, final Throwable throwable) {
         super(message, throwable);
-        this.actor = actor;
     }
 
-    public EventProcessorInitException(final EventProcessor actor, final Throwable throwable) {
+    public EventProcessorInitException(final Throwable throwable) {
         super(throwable);
-        this.actor = actor;
     }
 
 }

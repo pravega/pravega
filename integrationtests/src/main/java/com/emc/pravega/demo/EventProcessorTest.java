@@ -19,12 +19,12 @@ package com.emc.pravega.demo;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
-import com.emc.pravega.controller.eventProcessor.Decider;
+import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroup;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
-import com.emc.pravega.controller.eventProcessor.Props;
-import com.emc.pravega.controller.eventProcessor.StreamEvent;
+import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
+import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
@@ -88,7 +88,7 @@ public class EventProcessorTest {
 
     @Data
     @AllArgsConstructor
-    public static class TestEvent implements StreamEvent, Serializable {
+    public static class TestEvent implements ControllerEvent, Serializable {
         int number;
     }
 
@@ -161,13 +161,13 @@ public class EventProcessorTest {
                         .build();
 
         // Test case 1. Actor does not throw any exception during normal operation.
-        Props<TestEvent> props = Props.<TestEvent>builder()
+        EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new TestEventProcessor(false, result))
                 .serializer(new JavaSerializer<>())
-                .decider((Throwable e) -> Decider.Directive.Stop)
+                .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(eventProcessorGroupConfig)
                 .build();
-        system.createEventProcessorGroup(props);
+        system.createEventProcessorGroup(eventProcessorConfig);
 
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());
