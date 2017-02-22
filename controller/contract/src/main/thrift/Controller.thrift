@@ -3,7 +3,8 @@ namespace java com.emc.pravega.controller.stream.api.v1
 enum CreateStreamStatus {
     SUCCESS,
     FAILURE,
-    STREAM_EXISTS
+    STREAM_EXISTS,
+    SCOPE_NOT_FOUND
 }
 
 enum UpdateStreamStatus {
