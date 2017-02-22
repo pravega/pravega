@@ -10,11 +10,10 @@ import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
-import com.emc.pravega.common.util.ImmutableDate;
+import com.emc.pravega.common.util.AsyncMap;
 import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.MetadataRepository;
@@ -39,15 +38,17 @@ import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -65,6 +66,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final Cache cache;
     private final Writer writer;
     private final Storage storage;
+    private final AsyncMap<String, SegmentState> stateStore;
     private final StreamSegmentMapper segmentMapper;
     private final Executor executor;
     private boolean closed;
@@ -104,7 +106,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.durableLog.addListener(new ServiceShutdownListener(createComponentStoppedHandler("DurableLog"), createComponentFailedHandler("DurableLog")), this.executor);
         this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex);
         this.writer.addListener(new ServiceShutdownListener(createComponentStoppedHandler("Writer"), createComponentFailedHandler("Writer")), this.executor);
-        this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage, this.executor);
+        this.stateStore = new SegmentStateStore(this.storage, this.executor);
+        this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.stateStore, this.storage, this.executor);
     }
 
     //endregion
@@ -233,16 +236,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             segmentIdRetriever = this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining());
         }
 
-        return segmentIdRetriever
-                .thenApply(streamSegmentId -> {
-                    SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-                    return new StreamSegmentInformation(streamSegmentName,
-                            sm.getDurableLogLength(),
-                            sm.isSealed(),
-                            sm.isDeleted(),
-                            new HashMap<>(sm.getAttributes()),
-                            new ImmutableDate());
-                });
+        return segmentIdRetriever.thenApply(streamSegmentId -> this.metadata.getStreamSegmentMetadata(streamSegmentId).getSnapshot());
     }
 
     @Override
@@ -276,7 +270,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         CompletableFuture[] deletionFutures = new CompletableFuture[streamSegmentsToDelete.size()];
         int count = 0;
         for (String s : streamSegmentsToDelete.values()) {
-            deletionFutures[count] = this.storage.delete(s, timer.getRemaining());
+            // Delete Segment and any associated attributes.
+            deletionFutures[count] = this.storage
+                    .delete(s, timer.getRemaining())
+                    .thenComposeAsync(v -> this.stateStore.remove(s, timer.getRemaining()), this.executor);
             count++;
         }
 
@@ -286,7 +283,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout) {
+    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         ensureRunning();
 
         logRequest("mergeTransaction", transactionName);
@@ -301,7 +298,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
                     Operation op = new MergeTransactionOperation(transactionMetadata.getParentId(), transactionMetadata.getId());
                     return this.durableLog.add(op, timer.getRemaining());
-                });
+                })
+                .thenComposeAsync(v -> this.stateStore.remove(transactionName, timer.getRemaining()), this.executor);
     }
 
     @Override
@@ -318,6 +316,25 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     return this.durableLog.add(operation.get(), timer.getRemaining());
                 })
                 .thenApply(seqNo -> operation.get().getStreamSegmentOffset());
+    }
+
+    //endregion
+
+    //region SegmentContainer Implementation
+
+    @Override
+    public Collection<SegmentProperties> getActiveSegments() {
+        ensureRunning();
+        logRequest("getActiveSegments");
+
+        // To reduce locking in the metadata, we first get the list of Segment Ids, then we fetch their metadata
+        // one by one. This only locks the metadata on the first call and, individually, on each call to getStreamSegmentMetadata.
+        return new ArrayList<>(this.metadata.getAllStreamSegmentIds())
+                .stream()
+                .map(this.metadata::getStreamSegmentMetadata)
+                .filter(Objects::nonNull)
+                .map(SegmentMetadata::getSnapshot)
+                .collect(Collectors.toList());
     }
 
     //endregion

@@ -24,11 +24,14 @@ public interface SegmentEventReader extends AutoCloseable {
      *
      * @param timeout Timeout for the operation, in milliseconds.
      * @throws EndOfSegmentException If we reached the end of the segment.
+     * @return The next event.
      */
     ByteBuffer getNextEvent(long timeout) throws EndOfSegmentException;
 
     /**
      * Returns the current offset. This can be passed to {@link #setOffset(long)} to restore to the current position.
+     *
+     * @return Current offset of the reader.
      */
     long getOffset();
 
@@ -41,6 +44,7 @@ public interface SegmentEventReader extends AutoCloseable {
 
     /**
      * Closes the reader. Frees any resources associated with it.
+     *
      * No further opertations may be performed.
      */
     @Override
@@ -48,6 +52,8 @@ public interface SegmentEventReader extends AutoCloseable {
 
     /**
      * Returns true if the data can be read from the local buffer without blocking the caller.
+     *
+     * @return False if data read is blocking.
      */
     boolean canReadWithoutBlocking();
 

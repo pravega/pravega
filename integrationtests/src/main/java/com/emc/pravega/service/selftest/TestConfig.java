@@ -36,6 +36,7 @@ class TestConfig extends ComponentConfig {
     static final String PROPERTY_USE_CLIENT = "useClient";
     static final String PROPERTY_CLIENT_PORT = "clientPort";
     static final String PROPERTY_CLIENT_AUTO_FLUSH = "clientAutoFlush";
+    static final String PROPERTY_CLIENT_WRITER_COUNT = "clientWriterCount"; // Per segment.
 
     private static final int DEFAULT_OPERATION_COUNT = 1000 * 1000;
     private static final int DEFAULT_SEGMENT_COUNT = 100;
@@ -51,6 +52,7 @@ class TestConfig extends ComponentConfig {
     private static final boolean DEFAULT_USE_CLIENT = false;
     private static final int DEFAULT_CLIENT_PORT = 9876;
     private static final boolean DEFAULT_CLIENT_AUTO_FLUSH = true;
+    private static final int DEFAULT_CLIENT_WRITER_COUNT = 1;
 
     @Getter
     private int operationCount;
@@ -80,6 +82,8 @@ class TestConfig extends ComponentConfig {
     private int clientPort;
     @Getter
     private boolean clientAutoFlush;
+    @Getter
+    private int clientWriterCount;
 
     //endregion
 
@@ -119,6 +123,7 @@ class TestConfig extends ComponentConfig {
         this.useClient = getBooleanProperty(PROPERTY_USE_CLIENT, DEFAULT_USE_CLIENT);
         this.clientPort = getInt32Property(PROPERTY_CLIENT_PORT, DEFAULT_CLIENT_PORT);
         this.clientAutoFlush = getBooleanProperty(PROPERTY_CLIENT_AUTO_FLUSH, DEFAULT_CLIENT_AUTO_FLUSH);
+        this.clientWriterCount = getInt32Property(PROPERTY_CLIENT_WRITER_COUNT, DEFAULT_CLIENT_WRITER_COUNT);
     }
 
     //endregion
