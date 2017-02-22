@@ -26,10 +26,12 @@ import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.ControllerEvent;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.StreamManagerImpl;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Slf4j
@@ -53,9 +55,8 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
 
         this.scope = scope;
         this.controller = controller;
-        this.streamManager = StreamManager.withScope(scope, controller);
         this.clientFactory = new ClientFactoryImpl(scope, controller);
-
+        this.streamManager = new StreamManagerImpl(scope, controller, clientFactory);
     }
 
     @Override
@@ -83,7 +84,7 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
         actorGroup.initialize();
 
         // If successful in initializing it, add it to the list and start it.
-        synchronized (actorGroup) {
+        synchronized (actorGroups) {
             actorGroups.add(actorGroup);
         }
 
@@ -94,6 +95,6 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
 
     @Override
     public List<EventProcessorGroup> getEventProcessorGroups() {
-        return actorGroups;
+        return Collections.unmodifiableList(actorGroups);
     }
 }

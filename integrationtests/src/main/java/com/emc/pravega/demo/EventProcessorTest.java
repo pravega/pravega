@@ -47,6 +47,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
+import org.junit.Test;
 
 import java.io.Serializable;
 import java.util.concurrent.CompletableFuture;
@@ -93,6 +94,7 @@ public class EventProcessorTest {
     }
 
 
+    @Test
     public static void main(String[] args) throws Exception {
         TestingServer zkTestServer = new TestingServer();
         Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString());
