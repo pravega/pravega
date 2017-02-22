@@ -39,7 +39,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @VisibleForTesting
     public ZKStreamMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
         this.executor = executor;
-        this.storeHelper = new ZKStreamStoreHelper(ZKUtils.getCuratorClient());
+        this.storeHelper = new ZKStreamStoreHelper(client);
         initialize();
     }
 
