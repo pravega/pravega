@@ -34,6 +34,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import lombok.Cleanup;
 import lombok.val;
 
 public class ReaderGroupStateManagerTest {
@@ -55,7 +56,8 @@ public class ReaderGroupStateManagerTest {
             }
         };
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamFactory, streamFactory);
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
         SynchronizerConfig config = new SynchronizerConfig(null, null);
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
@@ -102,7 +104,8 @@ public class ReaderGroupStateManagerTest {
             }
         };
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamFactory, streamFactory);
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
         SynchronizerConfig config = new SynchronizerConfig(null, null);
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
@@ -140,7 +143,8 @@ public class ReaderGroupStateManagerTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamFactory, streamFactory);
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
 
         SynchronizerConfig config = new SynchronizerConfig(null, null);
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
@@ -172,7 +176,8 @@ public class ReaderGroupStateManagerTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamFactory, streamFactory);
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
 
         SynchronizerConfig config = new SynchronizerConfig(null, null);
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
@@ -250,7 +255,8 @@ public class ReaderGroupStateManagerTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, streamFactory, streamFactory);
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
         SynchronizerConfig config = new SynchronizerConfig(null, null);
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),

@@ -22,11 +22,12 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroupConfig;
+import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Sequence;
+import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
@@ -41,11 +42,13 @@ import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.TestUtils;
+
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -53,7 +56,9 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+
 import lombok.Cleanup;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -154,7 +159,7 @@ public class ReadTest {
         server.startListening();
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
         Controller controller = new MockController(endpoint, port, clientCF);
-        controller.createStream(new StreamConfigurationImpl(scope, stream, null));
+        controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
 
         SegmentOutputStreamFactoryImpl segmentproducerClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
 
@@ -175,7 +180,7 @@ public class ReadTest {
     }
 
     @Test
-    public void readThroughStreamClient() {
+    public void readThroughStreamClient() throws ReinitializationRequiredException {
         String endpoint = "localhost";
         String streamName = "abc";
         String readerName = "reader";
@@ -194,20 +199,20 @@ public class ReadTest {
         streamManager.createStream(streamName, null);
         streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singletonList(streamName));
         JavaSerializer<String> serializer = new JavaSerializer<>();
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, new EventWriterConfig(null));
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
 
         producer.writeEvent("RoutingKey", testString);
         producer.flush();
 
         @Cleanup
         EventStreamReader<String> reader = clientFactory
-                .createReader(readerName, readerGroup, serializer, new ReaderConfig());
+                .createReader(readerName, readerGroup, serializer, ReaderConfig.builder().build());
         String read = reader.readNextEvent(5000).getEvent();
         assertEquals(testString, read);
     }
 
     @Test(timeout = 10000)
-    public void testEventPointer() {
+    public void testEventPointer() throws ReinitializationRequiredException {
         String endpoint = "localhost";
         String streamName = "abc";
         String readerName = "reader";
@@ -226,7 +231,7 @@ public class ReadTest {
         streamManager.createStream(streamName, null);
         streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singletonList(streamName));
         JavaSerializer<String> serializer = new JavaSerializer<>();
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, new EventWriterConfig(null));
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
 
         for (int i = 0; i < 100; i++) {
             producer.writeEvent("RoutingKey", testString + i);
@@ -235,7 +240,7 @@ public class ReadTest {
 
         @Cleanup
         EventStreamReader<String> reader = clientFactory
-                .createReader(readerName, readerGroup, serializer, new ReaderConfig());
+                .createReader(readerName, readerGroup, serializer, ReaderConfig.builder().build());
         try {
             EventPointer pointer;
             String read;

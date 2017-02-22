@@ -6,6 +6,7 @@
 package com.emc.pravega.connectors;
 
 import com.emc.pravega.ClientFactory;
+import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
@@ -18,9 +19,9 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
+import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -30,18 +31,11 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroupConfig;
-import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
 
 import java.net.InetAddress;
 import java.net.URI;
@@ -51,6 +45,14 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.test.TestingServer;
 
 /**
  * Utility functions for creating the test setup.
@@ -90,30 +92,12 @@ public final class SetupUtils {
 
         @Cleanup
         StreamManager streamManager = StreamManager.withScope(scope, CONTROLLER_URI);
-        streamManager.createStream(
-                streamName,
-                new StreamConfiguration() {
-                    @Override
-                    public String getScope() {
-                        return scope;
-                    }
-
-                    @Override
-                    public String getName() {
-                        return streamName;
-                    }
-
-                    @Override
-                    public ScalingPolicy getScalingPolicy() {
-                        return  new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 1, numSegments);
-                    }
-
-                    @Override
-                    public RetentionPolicy getRetentionPolicy() {
-                        return new RetentionPolicy(Long.MAX_VALUE);
-                    }
-                }
-        );
+        streamManager.createStream(streamName,
+                                   StreamConfiguration.builder()
+                                                      .scope(scope)
+                                                      .streamName(streamName)
+                                                      .scalingPolicy(ScalingPolicy.fixed(numSegments))
+                                                      .build());
         log.info("Created stream: " + streamName);
     }
 
@@ -143,7 +127,7 @@ public final class SetupUtils {
                         return null;
                     }
                 },
-                new EventWriterConfig(null));
+                EventWriterConfig.builder().build());
     }
 
     /**
@@ -158,9 +142,9 @@ public final class SetupUtils {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(streamName);
 
-        StreamManager streamManager = StreamManager.withScope(scope, SetupUtils.CONTROLLER_URI);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, SetupUtils.CONTROLLER_URI);
         final String readerGroup = "testReaderGroup" + scope + streamName;
-        streamManager.createReaderGroup(
+        readerGroupManager.createReaderGroup(
                 readerGroup,
                 ReaderGroupConfig.builder().startingTime(0).build(),
                 Collections.singletonList(streamName));
@@ -182,7 +166,7 @@ public final class SetupUtils {
                         return Integer.valueOf(new String(serializedValue.array()));
                     }
                 },
-                new ReaderConfig());
+                ReaderConfig.builder().build());
     }
 
     // Start pravega service on localhost.

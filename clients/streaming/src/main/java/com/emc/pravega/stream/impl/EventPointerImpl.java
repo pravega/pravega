@@ -20,7 +20,6 @@ import lombok.ToString;
 @ToString
 public class EventPointerImpl extends EventPointerInternal {
     private static final long serialVersionUID = 1L;
-
     private final Segment segment;
     private final long eventStartOffset;
     private final int eventLength;

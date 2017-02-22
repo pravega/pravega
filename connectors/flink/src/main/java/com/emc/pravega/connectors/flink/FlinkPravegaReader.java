@@ -6,7 +6,7 @@
 package com.emc.pravega.connectors.flink;
 
 import com.emc.pravega.ClientFactory;
-import com.emc.pravega.StreamManager;
+import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.ReaderConfig;
@@ -88,7 +88,8 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
         // TODO: This will require the client to have access to the pravega controller and handle any temporary errors.
         //       See https://github.com/pravega/pravega/issues/553.
         log.info("Creating reader group: {} for the flink job", this.readerGroupName);
-        StreamManager.withScope(scope, controllerURI)
+
+        ReaderGroupManager.withScope(scope, controllerURI)
                 .createReaderGroup(this.readerGroupName, ReaderGroupConfig.builder().startingTime(startTime).build(),
                                    streamNames);
     }
@@ -136,7 +137,7 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
         };
         this.readerId = getRuntimeContext().getTaskNameWithSubtasks();
         this.pravegaReader = ClientFactory.withScope(this.scopeName, this.controllerURI)
-                .createReader(this.readerId, this.readerGroupName, deserializer, new ReaderConfig());
+                .createReader(this.readerId, this.readerGroupName, deserializer, ReaderConfig.builder().build());
         this.isRunning = new AtomicBoolean(true);
 
         log.info("Initialized pravega reader with controller URI: {}", this.controllerURI);

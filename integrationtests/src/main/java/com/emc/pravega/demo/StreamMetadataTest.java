@@ -15,16 +15,15 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.PositionInternal;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.StreamSegments;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-import org.apache.curator.test.TestingServer;
-
 import lombok.Cleanup;
+
+import org.apache.curator.test.TestingServer;
 
 public class StreamMetadataTest {
     @SuppressWarnings("checkstyle:ReturnCount")
@@ -42,10 +41,12 @@ public class StreamMetadataTest {
 
         final String scope1 = "scope1";
         final String streamName1 = "stream1";
-        final StreamConfiguration config1 =
-                new StreamConfigurationImpl(scope1,
-                        streamName1,
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
+        final ScalingPolicy scalingPolicy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
+        final StreamConfiguration config1 = StreamConfiguration.builder()
+                                                               .scope(scope1)
+                                                               .streamName(streamName1)
+                                                               .scalingPolicy(scalingPolicy)
+                                                               .build();
         CompletableFuture<CreateStreamStatus> createStatus;
 
         //create stream and seal stream
@@ -63,10 +64,11 @@ public class StreamMetadataTest {
         //Seal a stream given a streamName and scope.
         final String scopeSeal = "scopeSeal";
         final String streamNameSeal = "streamSeal";
-        final StreamConfiguration configSeal =
-                new StreamConfigurationImpl(scopeSeal,
-                        streamNameSeal,
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
+        final StreamConfiguration configSeal = StreamConfiguration.builder()
+                                                                  .scope(scopeSeal)
+                                                                  .streamName(streamNameSeal)
+                                                                  .scalingPolicy(scalingPolicy)
+                                                                  .build();
         System.err.println(String.format("Seal stream  (%s, %s)", scopeSeal, streamNameSeal));
         CreateStreamStatus createStream3Status = controller.createStream(configSeal).get();
         if ( createStream3Status != CreateStreamStatus.SUCCESS) {
@@ -119,10 +121,11 @@ public class StreamMetadataTest {
 
         //CS3:create a stream with same stream name in different scopes
         final String scope2 = "scope2";
-        final StreamConfiguration config2 =
-                new StreamConfigurationImpl(scope2,
-                        streamName1,
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
+        final StreamConfiguration config2 = StreamConfiguration.builder()
+                                                               .scope(scope2)
+                                                               .streamName(streamName1)
+                                                               .scalingPolicy(scalingPolicy)
+                                                               .build();
         System.err.println(String.format("Creating stream with same stream name (%s) in different scope (%s)", scope2, streamName1));
         createStatus = controller.createStream(config2);
         if (createStatus.get() != CreateStreamStatus.SUCCESS) {
@@ -134,10 +137,11 @@ public class StreamMetadataTest {
 
         //CS4:create a stream with different stream name and config  in same scope
         final String streamName2 = "stream2";
-        final StreamConfiguration config3 =
-                new StreamConfigurationImpl(scope1,
-                        streamName2,
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3));
+        final StreamConfiguration config3 = StreamConfiguration.builder()
+                .scope(scope1)
+                .streamName(streamName2)
+                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3))
+                .build();
         System.err.println(String.format("Creating stream with different stream  name (%s) and config in same scope (%s)", scope1, streamName2));
         createStatus = controller.createStream(config3);
         if (createStatus.get() != CreateStreamStatus.SUCCESS) {
@@ -150,10 +154,11 @@ public class StreamMetadataTest {
         //update stream config(alter Stream)
 
         //AS1:update the stream name
-        final StreamConfiguration config4 =
-                new StreamConfigurationImpl(scope1,
-                        "stream4",
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
+        final StreamConfiguration config4 = StreamConfiguration.builder()
+                                                               .scope(scope1)
+                                                               .streamName("stream4")
+                                                               .scalingPolicy(scalingPolicy)
+                                                               .build();
         CompletableFuture<UpdateStreamStatus> updateStatus;
         updateStatus = controller.alterStream(config4);
         System.err.println(String.format("Updating the stream name (%s, %s)", scope1, "stream4"));
@@ -165,10 +170,11 @@ public class StreamMetadataTest {
         }
 
         //AS2:update the scope name
-        final StreamConfiguration config5 =
-                new StreamConfigurationImpl("scope5",
-                        streamName1,
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2));
+        final StreamConfiguration config5 = StreamConfiguration.builder()
+                                                               .scope("scope5")
+                                                               .streamName(streamName1)
+                                                               .scalingPolicy(scalingPolicy)
+                                                               .build();
         updateStatus = controller.alterStream(config5);
         System.err.println(String.format("Updtaing the scope name (%s, %s)", "scope5", streamName1));
         if (updateStatus.get() != UpdateStreamStatus.FAILURE) {
@@ -179,10 +185,11 @@ public class StreamMetadataTest {
         }
 
         //AS3:update the type of scaling policy
-        final StreamConfiguration config6 =
-                new StreamConfigurationImpl(scope1,
-                        streamName1,
-                        new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_BYTES, 100L, 2, 2));
+        final StreamConfiguration config6 = StreamConfiguration.builder()
+                .scope(scope1)
+                .streamName(streamName1)
+                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_BYTES, 100L, 2, 2))
+                .build();
         updateStatus = controller.alterStream(config6);
         System.err.println(String.format("Updating the  type of scaling policy(%s, %s)", scope1, streamName1));
         if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
@@ -193,10 +200,12 @@ public class StreamMetadataTest {
         }
 
         //AS4:update the target rate of scaling policy
-        final StreamConfiguration config7 =
-                new StreamConfigurationImpl(scope1,
-                        streamName1,
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 200L, 2, 2));
+        final StreamConfiguration config7 = StreamConfiguration.builder()
+                                                               .scope(scope1)
+                                                               .streamName(streamName1)
+                                                               .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
+                                                                       200L, 2, 2))
+                                                               .build();
         System.err.println(String.format("Updating the target rate (%s, %s)", scope1, streamName1));
         updateStatus = controller.alterStream(config7);
         if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
@@ -207,10 +216,12 @@ public class StreamMetadataTest {
         }
 
         //AS5:update the scale factor of scaling policy
-        final StreamConfiguration config8 =
-                new StreamConfigurationImpl(scope1,
-                        streamName1,
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 3, 2));
+        final StreamConfiguration config8 = StreamConfiguration.builder()
+                                                               .scope(scope1)
+                                                               .streamName(streamName1)
+                                                               .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
+                                                                       100L, 3, 2))
+                                                               .build();
         System.err.println(String.format("Updating the scalefactor (%s, %s)", scope1, streamName1));
         updateStatus = controller.alterStream(config8);
         if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
@@ -221,10 +232,13 @@ public class StreamMetadataTest {
         }
 
         //AS6:update the minNumsegments of scaling policy
-        final StreamConfiguration config9 =
-                new StreamConfigurationImpl(scope1,
-                        streamName1,
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3));
+        final StreamConfiguration config9 = StreamConfiguration.builder()
+                                                               .scope(scope1)
+                                                               .streamName(streamName1)
+                                                               .scalingPolicy(new ScalingPolicy(
+                                                                       ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
+                                                                       100L, 2, 3))
+                                                               .build();
         System.err.println(String.format("Updating the min Num segments (%s, %s)", scope1, streamName1));
         updateStatus = controller.alterStream(config9);
         if (updateStatus.get() != UpdateStreamStatus.SUCCESS) {
@@ -235,10 +249,13 @@ public class StreamMetadataTest {
         }
 
         //AS7:alter configuration of non-existent stream.
-        final StreamConfiguration config =
-                new StreamConfigurationImpl("scope",
-                        "streamName",
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 200L, 2, 3));
+        final StreamConfiguration config = StreamConfiguration.builder()
+                                                              .scope("scope")
+                                                              .streamName("streamName")
+                                                              .scalingPolicy(new ScalingPolicy(
+                                                                      ScalingPolicy.Type.FIXED_NUM_SEGMENTS,
+                                                                      200L, 2, 3))
+                                                              .build();
         System.err.println(String.format("Altering the  configuration of a non-existent stream (%s, %s)", "scope", "streamName"));
         updateStatus = controller.alterStream(config);
         if (updateStatus.get() ==  UpdateStreamStatus.STREAM_NOT_FOUND) {
