@@ -22,6 +22,8 @@ import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.Segment;
@@ -90,6 +92,16 @@ public class ControllerWrapper implements Controller {
                 hostStore, taskMetadataStore, executor, hostId);
 
         controller = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+    }
+
+    @Override
+    public CompletableFuture<CreateScopeStatus> createScope(String scope) {
+        return controller.createScope(scope);
+    }
+
+    @Override
+    public CompletableFuture<DeleteScopeStatus> deleteScope(String scope) {
+        return controller.deleteScope(scope);
     }
 
     @Override
