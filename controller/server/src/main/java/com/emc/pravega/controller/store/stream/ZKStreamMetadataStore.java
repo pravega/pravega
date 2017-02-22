@@ -28,34 +28,33 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private static final long PERIOD = 1;
     private static final long TIMEOUT = 60 * 60 * 1000;
     private final ScheduledExecutorService executor;
+    private final ZKStreamStoreHelper storeHelper;
 
     public ZKStreamMetadataStore(ScheduledExecutorService executor) {
         this.executor = executor;
-        initialize(ZKUtils.getCuratorClient());
+        this.storeHelper = new ZKStreamStoreHelper(ZKUtils.getCuratorClient());
+        initialize();
     }
 
     @VisibleForTesting
     public ZKStreamMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
         this.executor = executor;
-        initialize(client);
+        this.storeHelper = new ZKStreamStoreHelper(ZKUtils.getCuratorClient());
+        initialize();
     }
 
-    private void initialize(CuratorFramework client) {
-
-        // Garbage collector for completed transactions
-        ZKStream.initialize(client);
-
+    private void initialize() {
         this.executor.scheduleAtFixedRate(() -> {
             // find completed transactions to be gc'd
             try {
                 final long currentTime = System.currentTimeMillis();
 
-                ZKStream.getAllCompletedTx().get().entrySet().stream()
+                storeHelper.getAllCompletedTx().get().entrySet().stream()
                         .forEach(x -> {
                             CompletedTxRecord completedTxRecord = CompletedTxRecord.parse(x.getValue().getData());
                             if (currentTime - completedTxRecord.getCompleteTime() > TIMEOUT) {
                                 try {
-                                    ZKStream.deletePath(x.getKey(), true);
+                                    storeHelper.deletePath(x.getKey(), true);
                                 } catch (Exception e) {
                                     // TODO: log and ignore
                                 }
@@ -71,11 +70,11 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     ZKStream newStream(final String name) {
-        return new ZKStream(name);
+        return new ZKStream(storeHelper, name);
     }
 
     @Override
     public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
-        return ZKStream.getAllActiveTx();
+        return storeHelper.getAllActiveTx();
     }
 }
