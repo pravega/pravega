@@ -78,14 +78,17 @@ public final class SetupUtils {
     /**
      * Create the test stream.
      *
-     * @param scope         Scope for the test stream.
-     * @param streamName    Name of the test stream.
+     * @param scope          Scope for the test stream.
+     * @param streamName     Name of the test stream.
+     * @param numSegments    Number of segments to be created for this stream.
      *
      * @throws Exception on any errors.
      */
-    public static void createTestStream(final String scope, final String streamName) throws Exception {
+    public static void createTestStream(final String scope, final String streamName, final int numSegments)
+            throws Exception {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(streamName);
+        Preconditions.checkArgument(numSegments > 0);
 
         @Cleanup
         StreamManager streamManager = StreamManager.withScope(scope, CONTROLLER_URI);
@@ -93,7 +96,7 @@ public final class SetupUtils {
                                    StreamConfiguration.builder()
                                                       .scope(scope)
                                                       .streamName(streamName)
-                                                      .scalingPolicy(ScalingPolicy.fixed(1))
+                                                      .scalingPolicy(ScalingPolicy.fixed(numSegments))
                                                       .build());
         log.info("Created stream: " + streamName);
     }
