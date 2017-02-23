@@ -59,7 +59,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -984,7 +983,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     private static class MetadataCleanupContainer extends StreamSegmentContainer {
         private TestMetadataCleaner metadataCleaner;
-        private final Executor executor;
+        private final ScheduledExecutorService executor;
 
         MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
                                  ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory,
@@ -1003,12 +1002,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         /**
          * Returns a CompletableFuture that completes when a MetadataCleanup has occurred.
-         * @param container
-         * @return
          */
-        CompletableFuture<Void> waitForMetadataCleanup(TestMetadataCleaner container) {
-            val metadataCleanupCompleted = new CompletableFuture<Void>();
-            container.metadataCleanupFinishedCallback = evicted -> {
+        CompletableFuture<Void> waitForMetadataCleanup() {
+            val metadataCleanupCompleted = FutureHelpers.<Void>futureWithTimeout(TIMEOUT, this.executor);
+            this.metadataCleaner.metadataCleanupFinishedCallback = evicted -> {
                 // We hook into the metadataCleanup() method and only complete this if an eviction was reported.
                 if (evicted) {
                     metadataCleanupCompleted.complete(null);
@@ -1028,7 +1025,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             return FutureHelpers.loop(
                     () -> remaining.decrementAndGet() >= 0,
                     () -> {
-                        CompletableFuture<Void> cleanupTask = waitForMetadataCleanup(this.metadataCleaner);
+                        CompletableFuture<Void> cleanupTask = waitForMetadataCleanup();
                         appendRandomly(() -> !cleanupTask.isDone());
                         return cleanupTask;
                     },
