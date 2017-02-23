@@ -465,8 +465,10 @@ class LogHandle implements AutoCloseable {
 
     private static class Metrics {
         private static final StatsLogger TIER1_LOGGER = MetricsProvider.createStatsLogger("DURABLELOG");
-        static final OpStatsLogger WRITE_LATENCY = TIER1_LOGGER.createStats(SegmentStoreMetricsNames.DURABLELOG_WRITE_LATENCY);
-        static final Counter WRITE_BYTES = TIER1_LOGGER.createCounter(SegmentStoreMetricsNames.DURABLELOG_WRITE_BYTES);
+        private static final OpStatsLogger WRITE_LATENCY = TIER1_LOGGER.createStats(SegmentStoreMetricsNames
+                .DURABLE_DATALOG_WRITE_LATENCY);
+        private static final Counter WRITE_BYTES = TIER1_LOGGER.createCounter(SegmentStoreMetricsNames
+                .DURABLE_DATALOG_WRITE_BYTES);
     }
 
     //endregion
