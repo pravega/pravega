@@ -89,7 +89,6 @@ public abstract class MarathonBasedService implements Service {
     }
 
     void waitUntilServiceRunning() {
-        AtomicBoolean mustWait = new AtomicBoolean(true);
         try {
             FutureHelpers.loop(() -> !isRunning(), //condition
                     () -> FutureHelpers.delayedFuture(Duration.ofSeconds(5), executorService),
