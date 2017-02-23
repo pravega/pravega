@@ -1473,6 +1473,8 @@ try {
                                   <input id='examples-Default-createStream-schema-data' type='hidden' value=''></input>
                                 </div>
                               </div>
+                            <h3> Status: 404 - Scope not found </h3>
+
                             <h3> Status: 409 - Stream already exists </h3>
 
                             <h3> Status: 500 - Server error </h3>
@@ -1691,6 +1693,8 @@ try {
                             <h3> Status: 204 - Successfully deleted the scope </h3>
 
                             <h3> Status: 404 - Scope not found </h3>
+
+                            <h3> Status: 412 - Cannot delete scope which has non-empty list of streams </h3>
 
                             <h3> Status: 500 - Server error </h3>
 
@@ -1950,11 +1954,7 @@ try {
 
 
                           <h2>Responses</h2>
-                            <h3> Status: 204 - Successfully deleted the stream </h3>
-
-                            <h3> Status: 404 - Stream not found </h3>
-
-                            <h3> Status: 500 - Server error </h3>
+                            <h3> Status: 501 - Not Implemented </h3>
 
                         </article>
                       </div>
@@ -2257,7 +2257,7 @@ try {
                                   <input id='examples-Default-getStream-schema-data' type='hidden' value=''></input>
                                 </div>
                               </div>
-                            <h3> Status: 404 - Stream not found </h3>
+                            <h3> Status: 404 - Scope or stream not found </h3>
 
                             <h3> Status: 500 - Server error </h3>
 
@@ -3102,7 +3102,7 @@ try {
                                   <input id='examples-Default-updateStream-schema-data' type='hidden' value=''></input>
                                 </div>
                               </div>
-                            <h3> Status: 404 - Stream not found </h3>
+                            <h3> Status: 404 - Scope or stream not found </h3>
 
                             <h3> Status: 500 - Server error </h3>
 
@@ -3123,7 +3123,7 @@ try {
           </div>
           <div id="generator">
             <div class="content">
-              Generated 2017-02-21T18:05:55.164Z
+              Generated 2017-02-23T14:48:09.219Z
             </div>
           </div>
       </div>
