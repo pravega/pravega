@@ -27,7 +27,7 @@ public class InMemoryScope implements Scope {
      *
      * @return a copy of streamsInScope list to avoid synchronization issues.
      */
-    public List<String> getStreamsInScope() {
+    public synchronized List<String> getStreamsInScope() {
         return new ArrayList<>(this.streamsInScope);
     }
 

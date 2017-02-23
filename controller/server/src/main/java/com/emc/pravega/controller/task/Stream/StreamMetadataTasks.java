@@ -169,7 +169,7 @@ public class StreamMetadataTasks extends TaskBase {
                             if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
                                 return CreateStreamStatus.STREAM_EXISTS;
                             } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) {
-                                return CreateStreamStatus.FAILURE;
+                                return CreateStreamStatus.SCOPE_NOT_FOUND;
                             } else {
                                 log.warn("Create stream failed due to ", ex);
                                 return CreateStreamStatus.FAILURE;

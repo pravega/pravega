@@ -67,8 +67,7 @@ public class ControllerServiceAsyncImplTest {
 
         StoreClient storeClient = new ZKStoreClient(zkClient);
 
-        streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory,
-                executor);
+        streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executor);
 
         final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
@@ -197,7 +196,7 @@ public class ControllerServiceAsyncImplTest {
         ThriftAsyncCallback<CreateStreamStatus> result4 = new ThriftAsyncCallback<>();
         this.controllerService.createStream(ModelHelper.decode(configuration3), result4);
         status = result4.getResult().get();
-        assertEquals(status, CreateStreamStatus.FAILURE);
+        assertEquals(status, CreateStreamStatus.SCOPE_NOT_FOUND);
 
         //create stream with invalid stream name "abc/def"
         ThriftAsyncCallback<CreateStreamStatus> result5 = new ThriftAsyncCallback<>();
