@@ -36,21 +36,19 @@ public class SegmentContainerMonitor extends AbstractIdleService {
      *
      * @param hostStore             The store to read and write the host container mapping data.
      * @param client                The curator client for coordination.
-     * @param clusterName           The unique name for this cluster.
      * @param balancer              The host to segment container balancer implementation.
      * @param minRebalanceInterval  The minimum interval between any two rebalance operations in seconds.
      *                              0 indicates there can be no waits between retries.
      */
-    public SegmentContainerMonitor(HostControllerStore hostStore, CuratorFramework client, String clusterName,
-            ContainerBalancer balancer, int minRebalanceInterval) {
+    public SegmentContainerMonitor(HostControllerStore hostStore, CuratorFramework client, ContainerBalancer balancer,
+            int minRebalanceInterval) {
         Preconditions.checkNotNull(hostStore, "hostStore");
         Preconditions.checkNotNull(client, "client");
-        Preconditions.checkNotNull(clusterName, "clusterName");
         Preconditions.checkNotNull(balancer, "balancer");
 
-        leaderZKPath = ZKPaths.makePath("cluster", clusterName, "faulthandlerleader");
+        leaderZKPath = ZKPaths.makePath("cluster", "faulthandlerleader");
 
-        segmentMonitorLeader = new SegmentMonitorLeader(clusterName, hostStore, balancer, minRebalanceInterval);
+        segmentMonitorLeader = new SegmentMonitorLeader(hostStore, balancer, minRebalanceInterval);
         leaderSelector = new LeaderSelector(client, leaderZKPath, segmentMonitorLeader);
 
         //Listen for any zookeeper connectivity error and relinquish leadership.
