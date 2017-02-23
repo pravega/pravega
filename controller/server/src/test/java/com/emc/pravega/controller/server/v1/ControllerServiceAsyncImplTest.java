@@ -24,18 +24,18 @@ import com.emc.pravega.controller.util.ThriftAsyncCallback;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.apache.thrift.TException;
 import org.junit.Test;
-
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 
@@ -143,7 +143,8 @@ public class ControllerServiceAsyncImplTest {
         assertEquals("Create Scope", CreateScopeStatus.SUCCESS, createScopeStatus);
 
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
-        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE2, stream1, policy1);
+        final StreamConfiguration configuration1 =
+                StreamConfiguration.builder().scope(SCOPE2).streamName(stream1).scalingPolicy(policy1).build();
         ThriftAsyncCallback<CreateStreamStatus> result4 = new ThriftAsyncCallback<>();
         this.controllerService.createStream(ModelHelper.decode(configuration1), result4);
         createStreamStatus = result4.getResult().get();
@@ -165,9 +166,13 @@ public class ControllerServiceAsyncImplTest {
     public void createStreamTests() throws TException, ExecutionException, InterruptedException {
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
-        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE1, stream1, policy1);
-        final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE1, stream2, policy2);
-        final StreamConfiguration configuration3 = new StreamConfigurationImpl("SCOPE3", stream2, policy2);
+        final StreamConfiguration configuration1 =
+                StreamConfiguration.builder().scope(SCOPE1).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration2 =
+                StreamConfiguration.builder().scope(SCOPE1).streamName(stream2).scalingPolicy(policy2).build();
+        final StreamConfiguration configuration3 =
+                StreamConfiguration.builder().scope("SCOPE3").streamName(stream2).scalingPolicy(policy2).build();
+
         CreateStreamStatus status;
 
         // region checkStream
@@ -200,7 +205,8 @@ public class ControllerServiceAsyncImplTest {
 
         //create stream with invalid stream name "abc/def"
         ThriftAsyncCallback<CreateStreamStatus> result5 = new ThriftAsyncCallback<>();
-        final StreamConfiguration configuration4 = new StreamConfigurationImpl("SCOPE3", "abc/def", policy2);
+        final StreamConfiguration configuration4 =
+                StreamConfiguration.builder().scope("SCOPE3").streamName("abc/def").scalingPolicy(policy2).build();
         this.controllerService.createStream(ModelHelper.decode(configuration4), result5);
         status = result5.getResult().get();
         assertEquals(status, CreateStreamStatus.INVALID_STREAM_NAME);

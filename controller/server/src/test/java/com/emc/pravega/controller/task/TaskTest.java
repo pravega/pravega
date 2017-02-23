@@ -21,7 +21,6 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.TestTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -36,6 +35,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.extern.slf4j.Slf4j;
+
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -48,10 +51,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.extern.slf4j.Slf4j;
-
 
 /**
  * Task test cases.
@@ -63,7 +62,7 @@ public class TaskTest {
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
     private final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
-    private final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
+    private final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore streamStore =
@@ -94,8 +93,8 @@ public class TaskTest {
 
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
-        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
-        final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy2).build();
 
         // region createStream
         streamStore.createScope(SCOPE);
@@ -142,7 +141,7 @@ public class TaskTest {
         final String deadThreadId = UUID.randomUUID().toString();
         final String scope = SCOPE;
         final String stream = "streamSweeper";
-        final StreamConfiguration configuration = new StreamConfigurationImpl(SCOPE, stream1, policy1);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
 
         final Resource resource = new Resource(scope, stream);
         final long timestamp = System.currentTimeMillis();
@@ -168,7 +167,7 @@ public class TaskTest {
 
         // ensure that the stream streamSweeper is created
         StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream).get();
-        assertTrue(config.getName().equals(configuration.getName()));
+        assertTrue(config.getStreamName().equals(configuration.getStreamName()));
         assertTrue(config.getScope().equals(configuration.getScope()));
         assertTrue(config.getScalingPolicy().equals(configuration.getScalingPolicy()));
     }
@@ -183,8 +182,8 @@ public class TaskTest {
         final String stream1 = "parallelSweeper1";
         final String stream2 = "parallelSweeper2";
 
-        final StreamConfiguration config1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
-        final StreamConfiguration config2 = new StreamConfigurationImpl(SCOPE, stream2, policy1);
+        final StreamConfiguration config1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration config2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy1).build();
 
         final Resource resource1 = new Resource(scope, stream1);
         final long timestamp1 = System.currentTimeMillis();
@@ -229,17 +228,17 @@ public class TaskTest {
 
         // ensure that the stream streamSweeper is created
         StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream1).get();
-        assertTrue(config.getName().equals(stream1));
+        assertTrue(config.getStreamName().equals(stream1));
 
         config = streamStore.getConfiguration(SCOPE, stream2).get();
-        assertTrue(config.getName().equals(stream2));
+        assertTrue(config.getStreamName().equals(stream2));
 
     }
 
     @Test
     public void testLocking() {
         TestTasks testTasks = new TestTasks(taskMetadataStore, executor, HOSTNAME);
-
+        
         CompletableFuture<Void> first = testTasks.testStreamLock(SCOPE, stream1);
         CompletableFuture<Void> second = testTasks.testStreamLock(SCOPE, stream1);
         try {

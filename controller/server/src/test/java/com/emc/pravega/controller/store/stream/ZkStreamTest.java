@@ -10,17 +10,9 @@ import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.collect.Lists;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Test;
 
 import java.util.AbstractMap;
 import java.util.Arrays;
@@ -32,6 +24,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -76,8 +77,12 @@ public class ZkStreamTest {
         final String streamName1 = "Stream1";
         final String streamName2 = "Stream2";
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(scopeName, streamName1, policy);
-        StreamConfigurationImpl streamConfig2 = new StreamConfigurationImpl(scopeName, streamName2, policy);
+        StreamConfiguration streamConfig =
+                StreamConfiguration.builder().scope(scopeName).streamName(streamName1).scalingPolicy(policy).build();
+
+        StreamConfiguration streamConfig2 =
+                StreamConfiguration.builder().scope(scopeName).streamName(streamName2).scalingPolicy(policy).build();
+
         store.createStream(scopeName, streamName1, streamConfig, System.currentTimeMillis()).get();
         store.createStream(scopeName, streamName2, streamConfig2, System.currentTimeMillis()).get();
 
@@ -105,7 +110,9 @@ public class ZkStreamTest {
         // Delete non-empty scope Scope3
         store.createScope("Scope3").get();
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
-        final StreamConfigurationImpl streamConfig = new StreamConfigurationImpl("Scope3", "Stream3", policy);
+        final StreamConfiguration streamConfig =
+                StreamConfiguration.builder().scope("Scope3").streamName("Stream3").scalingPolicy(policy).build();
+
         store.createStream("Scope3", "Stream3", streamConfig, System.currentTimeMillis()).get();
         CompletableFuture<DeleteScopeStatus> deleteScopeStatus3 = store.deleteScope("Scope3");
         assertEquals("Delete non-empty Scope", DeleteScopeStatus.SCOPE_NOT_EMPTY, deleteScopeStatus3.get());
@@ -129,13 +136,18 @@ public class ZkStreamTest {
 
     @Test
     public void testZkStream() throws Exception {
-        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
+        final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test";
         final String scopeName = "test";
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(scopeName, streamName, policy);
         store.createScope(scopeName).get();
+
+        StreamConfiguration streamConfig = StreamConfiguration.builder()
+                                                              .scope(streamName)
+                                                              .streamName(streamName)
+                                                              .scalingPolicy(policy)
+                                                              .build();
         store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis()).get();
 
         List<Segment> segments = store.getActiveSegments(scopeName, streamName).get();
@@ -243,14 +255,18 @@ public class ZkStreamTest {
     @Ignore("run manually")
     //    @Test
     public void testZkStreamChunking() throws Exception {
-        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 6);
+        final ScalingPolicy policy = ScalingPolicy.fixed(6);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test2";
         final String scopeName = "test2";
-
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(scopeName, streamName, policy);
         store.createScope(scopeName);
+
+        StreamConfiguration streamConfig = StreamConfiguration.builder()
+                                                              .scope(streamName)
+                                                              .streamName(streamName)
+                                                              .scalingPolicy(policy)
+                                                              .build();
         store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis()).get();
 
         List<Segment> initial = store.getActiveSegments(scopeName, streamName).get();
@@ -290,14 +306,18 @@ public class ZkStreamTest {
 
     @Test
     public void testTransaction() throws Exception {
-        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
+        final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testTx";
         final String scopeName = "testTx";
-
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(scopeName, streamName, policy);
         store.createScope(scopeName).get();
+
+        StreamConfiguration streamConfig = StreamConfiguration.builder()
+                                                              .scope(streamName)
+                                                              .streamName(streamName)
+                                                              .scalingPolicy(policy)
+                                                              .build();
         store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis()).get();
 
         UUID tx = store.createTransaction(scopeName, streamName).get();

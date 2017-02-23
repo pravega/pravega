@@ -37,7 +37,7 @@ public class EndToEndTransactionTest {
         MockClientFactory clientFactory = new MockClientFactory(StartLocalService.SCOPE, controller);
 
         @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME, new JavaSerializer<>(), new EventWriterConfig(null));
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME, new JavaSerializer<>(), EventWriterConfig.builder().build());
         Transaction<String> transaction = producer.beginTxn(60000);
 
         for (int i = 0; i < 1; i++) {
