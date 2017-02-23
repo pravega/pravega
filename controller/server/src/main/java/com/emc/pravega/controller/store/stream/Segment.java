@@ -8,6 +8,8 @@ package com.emc.pravega.controller.store.stream;
 import lombok.Data;
 import lombok.ToString;
 
+import java.util.AbstractMap;
+
 /**
  * Properties of a stream segment that don't change over its lifetime.
  */
@@ -26,5 +28,10 @@ public class Segment {
 
     public boolean overlaps(final double keyStart, final double keyEnd) {
         return keyEnd > this.keyStart && keyStart < this.keyEnd;
+    }
+
+    public static boolean overlaps(final AbstractMap.SimpleEntry<Double, Double> first,
+                                   final AbstractMap.SimpleEntry<Double, Double> second) {
+        return second.getValue() > first.getKey() && second.getKey() < first.getValue();
     }
 }

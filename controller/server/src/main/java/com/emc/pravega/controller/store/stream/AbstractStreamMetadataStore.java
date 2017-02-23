@@ -37,7 +37,10 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import static com.emc.pravega.controller.server.MetricNames.ABORT_TRANSACTION;
 import static com.emc.pravega.controller.server.MetricNames.COMMIT_TRANSACTION;
 import static com.emc.pravega.controller.server.MetricNames.CREATE_TRANSACTION;
+import static com.emc.pravega.controller.server.MetricNames.MERGES;
+import static com.emc.pravega.controller.server.MetricNames.NUMBER_OF_SEGMENTS;
 import static com.emc.pravega.controller.server.MetricNames.OPEN_TRANSACTIONS;
+import static com.emc.pravega.controller.server.MetricNames.SPLITS;
 import static com.emc.pravega.controller.server.MetricNames.nameFromStream;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
 import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_EMPTY;
@@ -117,6 +120,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return stream.create(configuration, createTimestamp).thenApply(result -> {
             CREATE_STREAM.reportSuccessValue(1);
             DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), 0);
+            DYNAMIC_LOGGER.incCounterValue(nameFromStream(NUMBER_OF_SEGMENTS, scopeName, streamName),
+                    configuration.getScalingPolicy().getMinNumSegments());
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SPLITS, scopeName, streamName), 0);
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(MERGES, scopeName, streamName), 0);
             return result;
         });
     }
@@ -257,7 +264,55 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                   final List<Integer> sealedSegments,
                                                   final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                   final long scaleTimestamp) {
-        return getStream(scopeName, streamName).scale(sealedSegments, newRanges, scaleTimestamp);
+        return getStream(scopeName, streamName).scale(sealedSegments, newRanges, scaleTimestamp)
+                .thenApply(result -> {
+                    DYNAMIC_LOGGER.incCounterValue(nameFromStream(NUMBER_OF_SEGMENTS, scopeName, streamName),
+                            newRanges.size() - sealedSegments.size());
+
+                    getSealedRanges(scopeName, streamName, sealedSegments)
+                            .thenAccept(sealedRanges -> {
+
+                                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SPLITS, scopeName, streamName),
+                                        findSplits(sealedRanges, newRanges));
+
+                                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(MERGES, scopeName, streamName),
+                                        findSplits(newRanges, sealedRanges));
+                            });
+
+                    return result;
+                });
+    }
+
+    private CompletableFuture<List<AbstractMap.SimpleEntry<Double, Double>>> getSealedRanges(final String scopeName,
+                                                                                             final String streamName,
+                                                                                             final List<Integer>
+                                                                                                     sealedSegments) {
+        return FutureHelpers.allOfWithResults(
+                sealedSegments.stream()
+                        .map(value ->
+                                getSegment(scopeName, streamName, value).thenApply(segment ->
+                                        new AbstractMap.SimpleEntry<>(
+                                                segment.getKeyStart(),
+                                                segment.getKeyEnd())))
+                        .collect(Collectors.toList()));
+    }
+
+    private int findSplits(final List<AbstractMap.SimpleEntry<Double, Double>> sealedRanges,
+                           final List<AbstractMap.SimpleEntry<Double, Double>> newRanges) {
+        int splits = 0;
+        for (AbstractMap.SimpleEntry<Double, Double> sealedRange : sealedRanges) {
+            int overlaps = 0;
+            for (AbstractMap.SimpleEntry<Double, Double> newRange : newRanges) {
+                if (Segment.overlaps(sealedRange, newRange)) {
+                    overlaps++;
+                }
+                if (overlaps > 1) {
+                    splits++;
+                    break;
+                }
+            }
+        }
+        return splits;
     }
 
     @Override
