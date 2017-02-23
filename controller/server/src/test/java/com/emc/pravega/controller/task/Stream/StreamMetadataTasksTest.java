@@ -18,14 +18,6 @@ import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -34,6 +26,14 @@ import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -87,13 +87,13 @@ public class StreamMetadataTasksTest {
                 streamTransactionMetadataTasks);
 
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
-        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
-
-        streamStorePartialMock.createStream(stream1, configuration1, System.currentTimeMillis());
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        streamStorePartialMock.createScope(SCOPE);
+        streamStorePartialMock.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis());
 
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        streamStorePartialMock.scale(stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20);
+        streamStorePartialMock.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20);
     }
 
     @After
@@ -111,7 +111,7 @@ public class StreamMetadataTasksTest {
 
         //a sealed stream should have zero active/current segments
         assertEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
-        assertTrue(streamStorePartialMock.isSealed(stream1).get());
+        assertTrue(streamStorePartialMock.isSealed(SCOPE, stream1).get());
 
         //reseal a sealed stream.
         assertEquals(UpdateStreamStatus.SUCCESS, streamMetadataTasksPartialMock.sealStreamBody(SCOPE, stream1).get());

@@ -18,7 +18,6 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 
 import java.io.IOException;
 import java.util.AbstractMap.SimpleEntry;
@@ -78,24 +77,27 @@ public class ControllerServiceTest {
 
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
-        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
-        final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy2).build();
+
+        // createScope
+        streamStore.createScope(SCOPE);
 
         // region createStream
-        streamStore.createStream(stream1, configuration1, System.currentTimeMillis());
-        streamStore.createStream(stream2, configuration2, System.currentTimeMillis());
+        streamStore.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis());
+        streamStore.createStream(SCOPE, stream2, configuration2, System.currentTimeMillis());
         // endregion
 
         // region scaleSegments
 
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20);
+        streamStore.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20);
 
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20);
+        streamStore.scale(SCOPE, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20);
         // endregion
     }
 

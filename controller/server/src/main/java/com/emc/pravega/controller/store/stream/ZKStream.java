@@ -36,7 +36,8 @@ import org.apache.curator.utils.ZKPaths;
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
 class ZKStream extends PersistentStreamBase<Integer> {
-    private static final String STREAM_PATH = "/streams/%s";
+    private static final String SCOPE_PATH = "/store/%s";
+    private static final String STREAM_PATH = SCOPE_PATH + "/%s";
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";
     private static final String CONFIGURATION_PATH = STREAM_PATH + "/configuration";
     private static final String STATE_PATH = STREAM_PATH + "/state";
@@ -54,27 +55,29 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String indexPath;
     private final String activeTxPath;
     private final String completedTxPath;
+    private final String scopePath;
     private final Cache<Integer> cache;
 
-    public ZKStream(ZKStreamStoreHelper store, final String name) {
-        super(name);
-        this.store = store;
-        creationPath = String.format(CREATION_TIME_PATH, name);
-        configurationPath = String.format(CONFIGURATION_PATH, name);
-        statePath = String.format(STATE_PATH, name);
-        segmentPath = String.format(SEGMENT_PATH, name);
+    public ZKStream(final String scopeName, final String streamName, ZKStreamStoreHelper storeHelper) {
+        super(scopeName, streamName);
+        store = storeHelper;
+        scopePath = String.format(SCOPE_PATH, scopeName);
+        creationPath = String.format(CREATION_TIME_PATH, scopeName, streamName);
+        configurationPath = String.format(CONFIGURATION_PATH, scopeName, streamName);
+        statePath = String.format(STATE_PATH, scopeName, streamName);
+        segmentPath = String.format(SEGMENT_PATH, scopeName, streamName);
         segmentChunkPathTemplate = segmentPath + "/%s";
-        historyPath = String.format(HISTORY_PATH, name);
-        indexPath = String.format(INDEX_PATH, name);
-        activeTxPath = String.format(ZKStreamStoreHelper.ACTIVE_TX_PATH, name);
-        completedTxPath = String.format(ZKStreamStoreHelper.COMPLETED_TX_PATH, name);
+        historyPath = String.format(HISTORY_PATH, scopeName, streamName);
+        indexPath = String.format(INDEX_PATH, scopeName, streamName);
+        activeTxPath = String.format(ZKStreamStoreHelper.ACTIVE_TX_PATH, streamName);
+        completedTxPath = String.format(ZKStreamStoreHelper.COMPLETED_TX_PATH, streamName);
 
         cache = new Cache<>(store::getData);
     }
 
     @Override
     public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
-        return store.getChildren(activeTxPath).thenApply(list -> { 
+        return store.getChildren(activeTxPath).thenApply(list -> {
             return list == null ? 0 : list.size();
         });
     }
@@ -91,16 +94,32 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 .thenCompose(x -> {
                     if (x) {
                         return cache.getCachedData(creationPath)
-                                    .thenApply(creationTime -> Utilities.toLong(creationTime.getData()) != create.getEventTime());
+                                .thenApply(creationTime -> Utilities.toLong(creationTime.getData()) != create.getEventTime());
                     } else {
                         return CompletableFuture.completedFuture(false);
                     }
                 })
                 .thenApply(x -> {
                     if (x) {
-                        throw new StreamAlreadyExistsException(getName());
+                        StoreException.create(StoreException.Type.NODE_EXISTS, creationPath);
                     }
                     return null;
+                });
+    }
+
+    /**
+     * Method to check whether a scope exists before creating a stream under that scope.
+     *
+     * @return A future either returning a result or an exception.
+     */
+    public CompletableFuture<Void> checkScopeExists() {
+        return store.checkExists(scopePath)
+                .thenAccept(x -> {
+                    if (x) {
+                        return;
+                    } else {
+                        StoreException.create(StoreException.Type.NODE_NOT_FOUND);
+                    }
                 });
     }
 
@@ -164,9 +183,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
         final int startingSegmentNumber = 0;
         final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = IntStream.range(0, numSegments)
-                                                                                 .boxed()
-                                                                                 .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
-                                                                                 .collect(Collectors.toList());
+                .boxed()
+                .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
+                .collect(Collectors.toList());
         final int toCreate = newRanges.size();
 
         final byte[] segmentTable = TableHelper.updateSegmentTable(startingSegmentNumber,
@@ -244,7 +263,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     public CompletableFuture<StreamConfiguration> getConfigurationData() {
         return cache.getCachedData(configurationPath)
-                    .thenApply(x -> (StreamConfiguration) SerializationUtils.deserialize(x.getData()));
+                .thenApply(x -> (StreamConfiguration) SerializationUtils.deserialize(x.getData()));
     }
 
     @Override
@@ -256,7 +275,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<State> getStateData() {
         return cache.getCachedData(statePath)
-                    .thenApply(x -> (State) SerializationUtils.deserialize(x.getData()));
+                .thenApply(x -> (State) SerializationUtils.deserialize(x.getData()));
     }
 
     @Override
@@ -307,6 +326,5 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private String getCompletedTxPath(final String txId) {
         return ZKPaths.makePath(completedTxPath, txId);
     }
-
 
 }

@@ -21,6 +21,7 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.RebalancerUtils;
 
 import java.net.URI;
@@ -51,7 +52,7 @@ import java.net.URI;
  * Otherwise this can be done by creating new reader by calling:
  * {@link RebalancerUtils#rebalance(java.util.Collection, int)} .
  */
-public interface ClientFactory {
+public interface ClientFactory extends AutoCloseable {
 
     /**
      * Creates a new instance of Client Factory.
@@ -60,8 +61,12 @@ public interface ClientFactory {
      * @param controllerUri The URI for controller.
      * @return Instance of ClientFactory implementation.
      */
-    public static ClientFactory withScope(String scope, URI controllerUri) {
+    static ClientFactory withScope(String scope, URI controllerUri) {
         return new ClientFactoryImpl(scope, controllerUri);
+    }
+
+    static ClientFactory withScope(String scope, Controller controller) {
+        return new ClientFactoryImpl(scope, controller);
     }
 
     /**
@@ -158,5 +163,11 @@ public interface ClientFactory {
                                                       Serializer<UpdateT> updateSerializer,
                                                       Serializer<InitT> initSerializer,
                                                       SynchronizerConfig config);
+    
+    /**
+     * See @see java.lang.AutoCloseable#close() .
+     */
+    @Override
+    void close();
 
 }

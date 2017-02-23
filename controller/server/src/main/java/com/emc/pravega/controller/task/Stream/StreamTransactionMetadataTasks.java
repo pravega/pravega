@@ -135,7 +135,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private CompletableFuture<UUID> createTxBody(final String scope, final String stream) {
         return streamMetadataStore.createTransaction(scope, stream)
                 .thenCompose(txId ->
-                        streamMetadataStore.getActiveSegments(stream)
+                        streamMetadataStore.getActiveSegments(scope, stream)
                                 .thenCompose(activeSegments ->
                                         FutureHelpers.allOf(
                                                 activeSegments.stream()
@@ -147,7 +147,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
 
     private CompletableFuture<TxnStatus> abortTxBody(final String scope, final String stream, final UUID txid) {
         // notify hosts to abort transaction
-        return streamMetadataStore.getActiveSegments(stream)
+        return streamMetadataStore.getActiveSegments(scope, stream)
                 .thenCompose(segments ->
                         FutureHelpers.allOf(
                                 segments.stream()
@@ -160,7 +160,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid) {
         return streamMetadataStore.sealTransaction(scope, stream, txid)
                 .thenCompose(x ->
-                        streamMetadataStore.getActiveSegments(stream)
+                        streamMetadataStore.getActiveSegments(scope, stream)
                                 .thenCompose(segments ->
                                         FutureHelpers.allOf(segments.stream()
                                                 .parallel()
@@ -175,11 +175,11 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> SegmentHelper.createTransaction(scope,
-                                stream,
-                                segmentNumber,
-                                txid,
-                                this.hostControllerStore,
-                                this.connectionFactory), executor);
+                        stream,
+                        segmentNumber,
+                        txid,
+                        this.hostControllerStore,
+                        this.connectionFactory), executor);
     }
 
     private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {

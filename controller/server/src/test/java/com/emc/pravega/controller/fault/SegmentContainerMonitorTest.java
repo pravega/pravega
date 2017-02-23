@@ -50,7 +50,7 @@ public class SegmentContainerMonitorTest {
 
         zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
-        cluster = new ClusterZKImpl(zkClient, CLUSTER_NAME);
+        cluster = new ClusterZKImpl(zkClient);
     }
 
     @After
@@ -61,7 +61,7 @@ public class SegmentContainerMonitorTest {
 
     @Test
     public void testMonitorWithZKStore() throws Exception {
-        HostControllerStore hostStore = new ZKHostStore(zkClient, CLUSTER_NAME);
+        HostControllerStore hostStore = new ZKHostStore(zkClient);
         testMonitor(hostStore);
     }
 
@@ -102,7 +102,7 @@ public class SegmentContainerMonitorTest {
         }
 
         SegmentContainerMonitor monitor = new SegmentContainerMonitor(new MockHostControllerStore(), zkClient,
-                CLUSTER_NAME, new UniformContainerBalancer(), 5);
+                new UniformContainerBalancer(), 5);
         monitor.startAsync().awaitRunning();
 
         assertEquals(hostStore.getContainerCount(), Config.HOST_STORE_CONTAINER_COUNT);

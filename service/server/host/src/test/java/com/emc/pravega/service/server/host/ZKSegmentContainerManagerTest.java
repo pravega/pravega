@@ -49,8 +49,7 @@ public class ZKSegmentContainerManagerTest {
     private final static int MAX_RETRY = 5;
     private final static int PORT = 12345;
     private final static Host PRAVEGA_SERVICE_ENDPOINT = new Host(getHostAddress(), PORT);
-    private final static String CLUSTER_NAME = "cluster-1";
-    private final static String PATH = ZKPaths.makePath("cluster", CLUSTER_NAME, "segmentContainerHostMapping");
+    private final static String PATH = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
     private String zkUrl;
 
     private TestingServer zkTestServer;
@@ -85,7 +84,7 @@ public class ZKSegmentContainerManagerTest {
 
         ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(createMockContainerRegistry(),
                 segmentToContainerMapper, zkClient,
-                PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
+                PRAVEGA_SERVICE_ENDPOINT);
 
         CompletableFuture<Void> result = segManager.initialize();
 
@@ -108,7 +107,7 @@ public class ZKSegmentContainerManagerTest {
 
         ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(containerRegistry,
                 segmentToContainerMapper, zkClient,
-                PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
+                PRAVEGA_SERVICE_ENDPOINT);
 
         segManager.initialize().get();
 
@@ -145,7 +144,7 @@ public class ZKSegmentContainerManagerTest {
 
         ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(containerRegistry,
                 segmentToContainerMapper, zkClient,
-                PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
+                PRAVEGA_SERVICE_ENDPOINT);
 
         CompletableFuture<Void> result = segManager.initialize();
 

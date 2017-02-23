@@ -69,8 +69,20 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    ZKStream newStream(final String name) {
-        return new ZKStream(storeHelper, name);
+    ZKStream newStream(final String scopedStreamName) {
+        final String scopeName = scopedStreamName.split("/")[0];
+        final String streamName = scopedStreamName.split("/")[1];
+        return new ZKStream(scopeName, streamName, storeHelper);
+    }
+
+    @Override
+    ZKScope newScope(final String scopeName) {
+        return new ZKScope(scopeName);
+    }
+
+    @Override
+    public CompletableFuture<List<String>> listScopes() {
+        return ZKScope.listScopes();
     }
 
     @Override

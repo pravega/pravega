@@ -32,7 +32,7 @@ public class StartReader {
         EventStreamReader<String> reader = streamManager.getClientFactory().createReader(UUID.randomUUID().toString(),
                                                                                          READER_GROUP,
                                                                                          new JavaSerializer<>(),
-                                                                                         new ReaderConfig());
+                                                                                         ReaderConfig.builder().build());
         for (int i = 0; i < 20; i++) {
             String event = reader.readNextEvent(60000).getEvent();
             System.err.println("Read event: " + event);

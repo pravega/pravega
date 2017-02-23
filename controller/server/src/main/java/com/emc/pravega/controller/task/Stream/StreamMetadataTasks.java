@@ -11,9 +11,9 @@ import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
-import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamNotFoundException;
+import com.emc.pravega.controller.store.stream.StoreException;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
@@ -29,6 +29,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.annotations.VisibleForTesting;
+
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -38,7 +39,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+
 import lombok.extern.slf4j.Slf4j;
+
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -65,12 +70,12 @@ public class StreamMetadataTasks extends TaskBase {
                                final String hostId) {
         this(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, new Context(hostId));
     }
-    
+
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
-            final HostControllerStore hostControllerStore,
-            final TaskMetadataStore taskMetadataStore,
-            final ScheduledExecutorService executor,
-            final Context context) {
+                                final HostControllerStore hostControllerStore,
+                                final TaskMetadataStore taskMetadataStore,
+                                final ScheduledExecutorService executor,
+                                final Context context) {
         super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
@@ -112,7 +117,8 @@ public class StreamMetadataTasks extends TaskBase {
 
     /**
      * Seal a stream.
-     * @param scope scope.
+     *
+     * @param scope  scope.
      * @param stream stream name.
      * @return update status.
      */
@@ -143,62 +149,73 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
-        return this.streamMetadataStore.createStream(stream, config, timestamp)
-                                       .thenCompose(x -> {
-                                           if (x) {
-                                               return this.streamMetadataStore.getActiveSegments(stream)
-                                                                              .thenApply(activeSegments ->
-                                                                                      notifyNewSegments(config.getScope(), stream, activeSegments))
-                                                                              .thenApply(y -> CreateStreamStatus.SUCCESS);
-                                           } else {
-                                               return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
-                                           }
-                                       })
-                                       .handle((result, ex) -> {
-                                           if (ex != null) {
-                                               if (ex.getCause() instanceof StreamAlreadyExistsException) {
-                                                   return CreateStreamStatus.STREAM_EXISTS;
-                                               } else {
-                                                   log.warn("Create stream failed due to ", ex);
-                                                   return CreateStreamStatus.FAILURE;
-                                               }
-                                           } else {
-                                               return result;
-                                           }
-                                       });
+        if (!validateName(stream)) {
+            log.debug("Create stream failed due to invalid stream name {}", stream);
+            return CompletableFuture.completedFuture(CreateStreamStatus.INVALID_STREAM_NAME);
+        } else {
+            return this.streamMetadataStore.createStream(scope, stream, config, timestamp)
+                    .thenCompose(x -> {
+                        if (x) {
+                            return this.streamMetadataStore.getActiveSegments(scope, stream)
+                                    .thenApply(activeSegments ->
+                                            notifyNewSegments(config.getScope(), stream, activeSegments))
+                                    .thenApply(y -> CreateStreamStatus.SUCCESS);
+                        } else {
+                            return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
+                        }
+                    })
+                    .handle((result, ex) -> {
+                        if (ex != null) {
+                            if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
+                                return CreateStreamStatus.STREAM_EXISTS;
+                            } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) {
+                                return CreateStreamStatus.SCOPE_NOT_FOUND;
+                            } else {
+                                log.warn("Create stream failed due to ", ex);
+                                return CreateStreamStatus.FAILURE;
+                            }
+                        } else {
+                            return result;
+                        }
+                    });
+        }
+    }
+
+    private static boolean validateName(final String path) {
+        return (path.indexOf('\\') >= 0 || path.indexOf('/') >= 0) ? false : true;
     }
 
     public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream, StreamConfiguration config) {
-        return streamMetadataStore.updateConfiguration(stream, config)
-                                  .handle((result, ex) -> {
-                                      if (ex != null) {
-                                          return handleUpdateStreamError(ex);
-                                      } else {
-                                          return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
-                                      }
-                                  });
+        return streamMetadataStore.updateConfiguration(scope, stream, config)
+                .handle((result, ex) -> {
+                    if (ex != null) {
+                        return handleUpdateStreamError(ex);
+                    } else {
+                        return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
+                    }
+                });
     }
 
     public CompletableFuture<UpdateStreamStatus> sealStreamBody(String scope, String stream) {
-        return streamMetadataStore.getActiveSegments(stream)
-                                  .thenCompose(activeSegments -> {
-                                      if (activeSegments.isEmpty()) { //if active segments are empty then the stream is sealed.
-                                          //Do not update the state if the stream is already sealed.
-                                          return CompletableFuture.completedFuture(UpdateStreamStatus.SUCCESS);
-                                      } else {
-                                          List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
-                                                  collect(Collectors.toList());
-                                          return notifySealedSegments(scope, stream, segmentsToBeSealed)
-                                                  .thenCompose(v -> streamMetadataStore.setSealed(stream))
-                                                  .handle((result, ex) -> {
-                                                      if (ex != null) {
-                                                          return handleUpdateStreamError(ex);
-                                                      } else {
-                                                          return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
-                                                      }
-                                                  });
-                                      }
-                                  }).exceptionally(this::handleUpdateStreamError);
+        return streamMetadataStore.getActiveSegments(scope, stream)
+                .thenCompose(activeSegments -> {
+                    if (activeSegments.isEmpty()) { //if active segments are empty then the stream is sealed.
+                        //Do not update the state if the stream is already sealed.
+                        return CompletableFuture.completedFuture(UpdateStreamStatus.SUCCESS);
+                    } else {
+                        List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
+                                collect(Collectors.toList());
+                        return notifySealedSegments(scope, stream, segmentsToBeSealed)
+                                .thenCompose(v -> streamMetadataStore.setSealed(scope, stream))
+                                .handle((result, ex) -> {
+                                    if (ex != null) {
+                                        return handleUpdateStreamError(ex);
+                                    } else {
+                                        return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
+                                    }
+                                });
+                    }
+                }).exceptionally(this::handleUpdateStreamError);
     }
 
     @VisibleForTesting
@@ -209,29 +226,29 @@ public class StreamMetadataTasks extends TaskBase {
         // 3. Transaction is active on the stream
         // 4. sealedSegments should be a subset of activeSegments.
         CompletableFuture<Boolean> checkValidity =
-                streamMetadataStore.getActiveSegments(stream)
-                                   .thenCompose(activeSegments ->
-                                           streamMetadataStore
-                                                   .isTransactionOngoing(scope, stream)
-                                                   .thenApply(active ->
-                                                           // transaction is ongoing
-                                                           active
-                                                                   ||
-                                                                   // some segment to be sealed is not an active segment
-                                                                   sealedSegments
-                                                                           .stream()
-                                                                           .anyMatch(x ->
-                                                                                   activeSegments
-                                                                                           .stream()
-                                                                                           .noneMatch(segment ->
-                                                                                                   segment.getNumber() == x))
-                                                                   ||
-                                                                   // scale timestamp is not larger than start time of
-                                                                   // some active segment
-                                                                   activeSegments
-                                                                           .stream()
-                                                                           .anyMatch(segment ->
-                                                                                   segment.getStart() > scaleTimestamp)));
+                streamMetadataStore.getActiveSegments(scope, stream)
+                        .thenCompose(activeSegments ->
+                                streamMetadataStore
+                                        .isTransactionOngoing(scope, stream)
+                                        .thenApply(active ->
+                                                // transaction is ongoing
+                                                active
+                                                        ||
+                                                        // some segment to be sealed is not an active segment
+                                                        sealedSegments
+                                                                .stream()
+                                                                .anyMatch(x ->
+                                                                        activeSegments
+                                                                                .stream()
+                                                                                .noneMatch(segment ->
+                                                                                        segment.getNumber() == x))
+                                                        ||
+                                                        // scale timestamp is not larger than start time of
+                                                        // some active segment
+                                                        activeSegments
+                                                                .stream()
+                                                                .anyMatch(segment ->
+                                                                        segment.getStart() > scaleTimestamp)));
 
         return checkValidity.thenCompose(result -> {
 
@@ -239,7 +256,7 @@ public class StreamMetadataTasks extends TaskBase {
                         return notifySealedSegments(scope, stream, sealedSegments)
 
                                 .thenCompose(results ->
-                                        streamMetadataStore.scale(stream, sealedSegments, newRanges, scaleTimestamp))
+                                        streamMetadataStore.scale(scope, stream, sealedSegments, newRanges, scaleTimestamp))
 
                                 .thenApply((List<Segment> newSegments) -> {
                                     notifyNewSegments(scope, stream, newSegments);
@@ -297,22 +314,24 @@ public class StreamMetadataTasks extends TaskBase {
     CompletableFuture<Boolean> notifySealedSegment(final String scope, final String stream, final int
             sealedSegment) {
         return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-                    .retryingOn(WireCommandFailedException.class)
-                    .throwingOn(RuntimeException.class)
-                    .runAsync(() ->
-                                    SegmentHelper.sealSegment(
-                                            scope,
-                                            stream,
-                                            sealedSegment,
-                                            this.hostControllerStore,
-                                            this.connectionFactory),
-                            executor);
+                .retryingOn(WireCommandFailedException.class)
+                .throwingOn(RuntimeException.class)
+                .runAsync(() ->
+                                SegmentHelper.sealSegment(
+                                        scope,
+                                        stream,
+                                        sealedSegment,
+                                        this.hostControllerStore,
+                                        this.connectionFactory),
+                        executor);
     }
 
     private UpdateStreamStatus handleUpdateStreamError(Throwable ex) {
         if (ex instanceof StreamNotFoundException ||
                 (ex instanceof CompletionException && ex.getCause() instanceof StreamNotFoundException)) {
             return UpdateStreamStatus.STREAM_NOT_FOUND;
+        } else if (ex instanceof StoreException && ( (StoreException) ex).getType() == NODE_NOT_FOUND) {
+            return UpdateStreamStatus.SCOPE_NOT_FOUND;
         } else {
             log.warn("Update stream failed due to ", ex);
             return UpdateStreamStatus.FAILURE;
