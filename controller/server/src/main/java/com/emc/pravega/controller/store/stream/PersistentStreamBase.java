@@ -93,7 +93,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Boolean> updateConfiguration(final StreamConfiguration configuration) {
         // replace the configurationPath with new configurationPath
-        return setConfigurationData(configuration).thenApply(x -> true);
+        return checkScopeExists()
+                .thenApply(x -> setConfigurationData(configuration))
+                .thenApply(x -> true);
     }
 
     /**

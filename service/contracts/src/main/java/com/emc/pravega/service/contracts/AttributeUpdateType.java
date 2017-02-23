@@ -6,7 +6,7 @@
 
 package com.emc.pravega.service.contracts;
 
-import java.util.Arrays;
+import com.emc.pravega.common.util.EnumHelpers;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -39,17 +39,9 @@ public enum AttributeUpdateType {
      */
     Accumulate((byte) 3);
 
-    private static final AttributeUpdateType[] MAPPING;
+    private static final AttributeUpdateType[] MAPPING = EnumHelpers.indexById(AttributeUpdateType.class, AttributeUpdateType::getTypeId);
     @Getter
     private final byte typeId;
-
-    static {
-        AttributeUpdateType[] values = AttributeUpdateType.values();
-        MAPPING = new AttributeUpdateType[Arrays.stream(values).mapToInt(AttributeUpdateType::getTypeId).max().orElse(0) + 1];
-        for (AttributeUpdateType ut : values) {
-            MAPPING[ut.getTypeId()] = ut;
-        }
-    }
 
     /**
      * Gets the AttributeUpdateType that has the given type id.

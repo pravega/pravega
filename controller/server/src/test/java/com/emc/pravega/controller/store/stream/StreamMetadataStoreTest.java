@@ -7,7 +7,6 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
@@ -35,8 +34,8 @@ public class StreamMetadataStoreTest {
     private final String stream2 = "stream2";
     private final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
     private final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
-    private final StreamConfiguration configuration1 = new StreamConfigurationImpl(scope, stream1, policy1);
-    private final StreamConfiguration configuration2 = new StreamConfigurationImpl(scope, stream2, policy2);
+    private final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(scope).streamName(stream1).scalingPolicy(policy1).build();
+    private final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream2).scalingPolicy(policy2).build();
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore store =
@@ -50,7 +49,7 @@ public class StreamMetadataStoreTest {
         store.createStream(scope, stream1, configuration1, System.currentTimeMillis());
         store.createStream(scope, stream2, configuration2, System.currentTimeMillis());
 
-        assertEquals(stream1, store.getConfiguration(scope, stream1).get().getName());
+        assertEquals(stream1, store.getConfiguration(scope, stream1).get().getStreamName());
         // endregion
 
         // region checkSegments
@@ -135,6 +134,14 @@ public class StreamMetadataStoreTest {
         assertEquals("List streams in scope", 2, streamInScope.size());
         assertEquals("List streams in scope", stream1, streamInScope.get(0));
         assertEquals("List streams in scope", stream2, streamInScope.get(1));
+
+        // List streams in non-existent scope 'Scope1'
+        try {
+            store.listStreamsInScope("Scope1").get();
+        } catch (StoreException se) {
+            assertTrue("List streams in non-existent scope Scope1",
+                    se.getType() == StoreException.Type.NODE_NOT_FOUND);
+        }
     }
 
     @Test
@@ -156,5 +163,4 @@ public class StreamMetadataStoreTest {
         list = store.listScopes().get();
         assertEquals("List Scopes size", 2, list.size());
     }
-
 }

@@ -3,13 +3,16 @@ namespace java com.emc.pravega.controller.stream.api.v1
 enum CreateStreamStatus {
     SUCCESS,
     FAILURE,
-    STREAM_EXISTS
+    STREAM_EXISTS,
+    SCOPE_NOT_FOUND,
+    INVALID_STREAM_NAME
 }
 
 enum UpdateStreamStatus {
     SUCCESS,
     FAILURE,
-    STREAM_NOT_FOUND
+    STREAM_NOT_FOUND,
+    SCOPE_NOT_FOUND
 }
 
 enum ScaleStreamStatus {
@@ -43,7 +46,8 @@ enum ScalingPolicyType {
 enum CreateScopeStatus {
     SUCCESS,
     FAILURE,
-    SCOPE_EXISTS
+    SCOPE_EXISTS,
+    INVALID_SCOPE_NAME
 }
 
 enum DeleteScopeStatus {

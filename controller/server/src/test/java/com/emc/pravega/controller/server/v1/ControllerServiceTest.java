@@ -18,7 +18,6 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 
 import java.io.IOException;
 import java.util.AbstractMap.SimpleEntry;
@@ -78,8 +77,8 @@ public class ControllerServiceTest {
 
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
-        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
-        final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy2).build();
 
         // createScope
         streamStore.createScope(SCOPE);

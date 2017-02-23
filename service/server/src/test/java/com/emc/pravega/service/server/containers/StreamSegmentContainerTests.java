@@ -51,6 +51,7 @@ import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -73,6 +74,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int SEGMENT_COUNT = 100;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
+    private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 50;
     private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
     private static final Duration TIMEOUT = Duration.ofSeconds(100);
@@ -100,13 +102,16 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the createSegment, append, read, getSegmentInfo, getActiveSegments.
+     * Tests the createSegment, append, updateAttributes, read, getSegmentInfo, getActiveSegments.
      */
     @Test
     public void testSegmentRegularOperations() throws Exception {
         final UUID attributeAccumulate = UUID.randomUUID();
         final UUID attributeReplace = UUID.randomUUID();
         final UUID attributeReplaceIfGreater = UUID.randomUUID();
+        final UUID attributeNoUpdate = UUID.randomUUID();
+        final long expectedAttributeValue = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
+
         @Cleanup
         TestContext context = new TestContext();
         context.container.startAsync().awaitRunning();
@@ -117,7 +122,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         checkActiveSegments(context.container, segmentNames.size());
 
         // 2. Add some appends.
-        ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
         HashMap<String, Long> lengths = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
@@ -128,15 +133,32 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, i + 1));
                 attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, i + 1));
                 byte[] appendData = getAppendData(segmentName, i);
-                appendFutures.add(context.container.append(segmentName, appendData, attributeUpdates, TIMEOUT));
+                opFutures.add(context.container.append(segmentName, appendData, attributeUpdates, TIMEOUT));
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
             }
         }
 
-        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        // 2.1 Update some of the attributes.
+        for (String segmentName : segmentNames) {
+            // Record a one-off update.
+            opFutures.add(context.container.updateAttributes(
+                    segmentName,
+                    Collections.singleton(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, expectedAttributeValue)),
+                    TIMEOUT));
 
-        // 3. getSegmentInfo & getLastAppendContext
+            for (int i = 0; i < ATTRIBUTE_UPDATES_PER_SEGMENT; i++) {
+                Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
+                attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1));
+                attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, APPENDS_PER_SEGMENT + i + 1));
+                attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, APPENDS_PER_SEGMENT + i + 1));
+                opFutures.add(context.container.updateAttributes(segmentName, attributeUpdates, TIMEOUT));
+            }
+        }
+
+        FutureHelpers.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // 3. getSegmentInfo
         for (String segmentName : segmentNames) {
             SegmentProperties sp = context.container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
             long expectedLength = lengths.get(segmentName);
@@ -145,13 +167,15 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             Assert.assertFalse("Unexpected value for isDeleted for segment " + segmentName, sp.isDeleted());
             Assert.assertFalse("Unexpected value for isSealed for segment " + segmentName, sp.isDeleted());
 
-            // Verify all attribute values. They were setup in such a way that all current values should equal APPENDS_PER_SEGMENT.
+            // Verify all attribute values.
             Assert.assertEquals("Unexpected value for attribute " + attributeAccumulate + " for segment " + segmentName,
-                    APPENDS_PER_SEGMENT, (long) sp.getAttributes().getOrDefault(attributeAccumulate, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                    expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeNoUpdate, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+            Assert.assertEquals("Unexpected value for attribute " + attributeAccumulate + " for segment " + segmentName,
+                    expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeAccumulate, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
             Assert.assertEquals("Unexpected value for attribute " + attributeReplace + " for segment " + segmentName,
-                    APPENDS_PER_SEGMENT, (long) sp.getAttributes().getOrDefault(attributeReplace, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                    expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeReplace, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
             Assert.assertEquals("Unexpected value for attribute " + attributeReplaceIfGreater + " for segment " + segmentName,
-                    APPENDS_PER_SEGMENT, (long) sp.getAttributes().getOrDefault(attributeReplaceIfGreater, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                    expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeReplaceIfGreater, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
         }
 
         checkActiveSegments(context.container, segmentNames.size());

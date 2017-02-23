@@ -23,24 +23,26 @@ import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.ScalingPolicy.Type;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+
+import javax.ws.rs.client.Entity;
+import javax.ws.rs.core.Application;
+import javax.ws.rs.core.Response;
+
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
 import org.junit.Before;
 import org.junit.Test;
 
-import javax.ws.rs.client.Entity;
-import javax.ws.rs.core.Application;
-import javax.ws.rs.core.Response;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
-import static com.emc.pravega.stream.ScalingPolicy.Type.FIXED_NUM_SEGMENTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -65,15 +67,28 @@ public class StreamMetaDataTests extends JerseyTest {
     private final String resourceURI = "v1/scopes/" + scope1 + "/streams/" + stream1;
     private final String resourceURI2 = "v1/scopes/" + scope1 + "/streams/" + stream2;
     private final String streamResourceURI = "v1/scopes/" + scope1 + "/streams";
+
     private final ScalingConfig scalingPolicyCommon = new ScalingConfig();
     private final RetentionConfig retentionPolicyCommon = new RetentionConfig();
     private final RetentionConfig retentionPolicyCommon2 = new RetentionConfig();
     private final StreamProperty streamResponseExpected = new StreamProperty();
-    private final StreamConfiguration streamConfiguration = new StreamConfigurationImpl(
-            scope1, stream1, new ScalingPolicy(FIXED_NUM_SEGMENTS, 100L, 2, 2), new RetentionPolicy(123L));
+    private final StreamConfiguration streamConfiguration = StreamConfiguration.builder()
+            .scope(scope1)
+            .streamName(stream1)
+            .scalingPolicy(ScalingPolicy.builder()
+                           .type(Type.BY_RATE_IN_EVENTS)
+                           .targetRate(100)
+                           .scaleFactor(2)
+                           .minNumSegments(2)
+                           .build())
+            .retentionPolicy(RetentionPolicy.builder()
+                             .retentionTimeMillis(123L)
+                             .build())
+            .build();
 
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
     private final CreateStreamRequest createStreamRequest2 = new CreateStreamRequest();
+    private final CreateStreamRequest createStreamRequest3 = new CreateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest2 = new UpdateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest3 = new UpdateStreamRequest();
@@ -86,16 +101,20 @@ public class StreamMetaDataTests extends JerseyTest {
             completedFuture(CreateStreamStatus.STREAM_EXISTS);
     private final CompletableFuture<CreateStreamStatus> createStreamStatus3 = CompletableFuture.
             completedFuture(CreateStreamStatus.FAILURE);
+    private final CompletableFuture<CreateStreamStatus> createStreamStatus4 = CompletableFuture.
+            completedFuture(CreateStreamStatus.SCOPE_NOT_FOUND);
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus = CompletableFuture.
             completedFuture(UpdateStreamStatus.SUCCESS);
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus2 = CompletableFuture.
             completedFuture(UpdateStreamStatus.STREAM_NOT_FOUND);
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus3 = CompletableFuture.
             completedFuture(UpdateStreamStatus.FAILURE);
+    private CompletableFuture<UpdateStreamStatus> updateStreamStatus4 = CompletableFuture.
+            completedFuture(UpdateStreamStatus.SCOPE_NOT_FOUND);
 
     @Before
     public void initialize() {
-        scalingPolicyCommon.setType(ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS);
+        scalingPolicyCommon.setType(ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS);
         scalingPolicyCommon.setTargetRate(100L);
         scalingPolicyCommon.setScaleFactor(2);
         scalingPolicyCommon.setMinSegments(2);
@@ -113,6 +132,10 @@ public class StreamMetaDataTests extends JerseyTest {
         createStreamRequest2.setStreamName(stream1);
         createStreamRequest2.setScalingPolicy(scalingPolicyCommon);
         createStreamRequest2.setRetentionPolicy(retentionPolicyCommon2);
+
+        createStreamRequest3.setStreamName(stream1);
+        createStreamRequest3.setScalingPolicy(scalingPolicyCommon);
+        createStreamRequest3.setRetentionPolicy(retentionPolicyCommon);
 
         updateStreamRequest.setScalingPolicy(scalingPolicyCommon);
         updateStreamRequest.setRetentionPolicy(retentionPolicyCommon);
@@ -170,6 +193,11 @@ public class StreamMetaDataTests extends JerseyTest {
         // TODO: Server should be returning 400 here, change this once issue
         // https://github.com/pravega/pravega/issues/531 is fixed.
         assertEquals("Create Stream Status", 500, response.get().getStatus());
+
+        // Test create stream for non-existent scope
+        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus4);
+        response = target(streamResourceURI).request().async().post(Entity.json(createStreamRequest3));
+        assertEquals("Create Stream Status for non-existent scope", 404, response.get().getStatus());
     }
 
     /**
@@ -195,7 +223,14 @@ public class StreamMetaDataTests extends JerseyTest {
         // Test for validation of request object
         when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus3);
         response = target(resourceURI).request().async().put(Entity.json(updateStreamRequest3));
+        // TODO: Server should be returning 400 here, change this once issue
+        // https://github.com/pravega/pravega/issues/531 is fixed.
         assertEquals("Update Stream Status", 500, response.get().getStatus());
+
+        // Test to update stream for non-existent scope
+        when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus4);
+        response = target(resourceURI).request().async().put(Entity.json(updateStreamRequest));
+        assertEquals("Update Stream Status", 404, response.get().getStatus());
     }
 
     /**

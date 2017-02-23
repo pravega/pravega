@@ -13,7 +13,6 @@ import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamReques
 import com.emc.pravega.stream.RetentionPolicy;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 
 /**
  * Provides translation between the Model classes and its REST representation.
@@ -29,16 +28,21 @@ public class ModelHelper {
      */
     public static final StreamConfiguration getCreateStreamConfig(final CreateStreamRequest createStreamRequest,
                                                                   final String scope) {
-        return new StreamConfigurationImpl(
-                scope,
-                createStreamRequest.getStreamName(),
-                new ScalingPolicy(
-                        ScalingPolicy.Type.valueOf(createStreamRequest.getScalingPolicy().getType().name()),
-                        createStreamRequest.getScalingPolicy().getTargetRate(),
-                        createStreamRequest.getScalingPolicy().getScaleFactor(),
-                        createStreamRequest.getScalingPolicy().getMinSegments()),
-                new RetentionPolicy(createStreamRequest.getRetentionPolicy().getRetentionTimeMillis())
-        );
+        return StreamConfiguration.builder()
+                                  .scope(scope)
+                                  .streamName(createStreamRequest.getStreamName())
+                                  .scalingPolicy(new ScalingPolicy(
+                                          ScalingPolicy.Type.valueOf(createStreamRequest.getScalingPolicy()
+                                                                                        .getType()
+                                                                                        .name()),
+                                          createStreamRequest.getScalingPolicy().getTargetRate(),
+                                          createStreamRequest.getScalingPolicy().getScaleFactor(),
+                                          createStreamRequest.getScalingPolicy().getMinSegments()))
+                                  .retentionPolicy(RetentionPolicy.builder()
+                                                                  .retentionTimeMillis(createStreamRequest.getRetentionPolicy()
+                                                                                                          .getRetentionTimeMillis())
+                                                                  .build())
+                                  .build();
     }
 
     /**
@@ -51,16 +55,21 @@ public class ModelHelper {
      */
     public static final StreamConfiguration getUpdateStreamConfig(final UpdateStreamRequest updateStreamRequest,
                                                                   final String scope, final String stream) {
-        return new StreamConfigurationImpl(
-                scope,
-                stream,
-                new ScalingPolicy(
-                        ScalingPolicy.Type.valueOf(updateStreamRequest.getScalingPolicy().getType().name()),
-                        updateStreamRequest.getScalingPolicy().getTargetRate(),
-                        updateStreamRequest.getScalingPolicy().getScaleFactor(),
-                        updateStreamRequest.getScalingPolicy().getMinSegments()),
-                new RetentionPolicy(updateStreamRequest.getRetentionPolicy().getRetentionTimeMillis())
-        );
+        return StreamConfiguration.builder()
+                                  .scope(scope)
+                                  .streamName(stream)
+                                  .scalingPolicy(new ScalingPolicy(
+                                          ScalingPolicy.Type.valueOf(updateStreamRequest.getScalingPolicy()
+                                                                                        .getType()
+                                                                                        .name()),
+                                          updateStreamRequest.getScalingPolicy().getTargetRate(),
+                                          updateStreamRequest.getScalingPolicy().getScaleFactor(),
+                                          updateStreamRequest.getScalingPolicy().getMinSegments()))
+                                  .retentionPolicy(RetentionPolicy.builder()
+                                                                  .retentionTimeMillis(updateStreamRequest.getRetentionPolicy()
+                                                                                                          .getRetentionTimeMillis())
+                                                                  .build())
+                                  .build();
     }
 
     /**
@@ -81,7 +90,7 @@ public class ModelHelper {
         retentionPolicy.setRetentionTimeMillis(streamConfiguration.getRetentionPolicy().getRetentionTimeMillis());
 
         StreamProperty streamProperty = new StreamProperty();
-        streamProperty.setStreamName(streamConfiguration.getName());
+        streamProperty.setStreamName(streamConfiguration.getStreamName());
         streamProperty.setScopeName(streamConfiguration.getScope());
         streamProperty.setScalingPolicy(scalingPolicy);
         streamProperty.setRetentionPolicy(retentionPolicy);

@@ -113,17 +113,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final String streamName,
                                                    final StreamConfiguration configuration,
                                                    final long createTimestamp) {
-        if (!validateName(scopeName)) {
-            log.error("Create stream failed due to invalid stream name {}", scopeName);
-            return CompletableFuture.completedFuture(false);
-        } else {
-            Stream stream = getStream(scopeName, streamName);
-            return stream.create(configuration, createTimestamp).thenApply(result -> {
-                CREATE_STREAM.reportSuccessValue(1);
-                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), 0);
-                return result;
-            });
-        }
+        Stream stream = getStream(scopeName, streamName);
+        return stream.create(configuration, createTimestamp).thenApply(result -> {
+            CREATE_STREAM.reportSuccessValue(1);
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), 0);
+            return result;
+        });
     }
 
     /**
@@ -136,7 +131,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
         if (!validateName(scopeName)) {
             log.error("Create scope failed due to invalid scope name {}", scopeName);
-            return CompletableFuture.completedFuture(CreateScopeStatus.FAILURE);
+            return CompletableFuture.completedFuture(CreateScopeStatus.INVALID_SCOPE_NAME);
         } else {
             return getScope(scopeName).createScope()
                     .handle((result, ex) -> {
@@ -173,7 +168,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                 ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) ||
                                 (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_FOUND))) {
                             return DeleteScopeStatus.SCOPE_NOT_FOUND;
-                        } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_EMPTY ||
+                        } else if (ex.getCause() instanceof StoreException &&
+                                ((StoreException) ex.getCause()).getType() == NODE_NOT_EMPTY ||
                                 (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_EMPTY))) {
                             return DeleteScopeStatus.SCOPE_NOT_EMPTY;
                         } else {

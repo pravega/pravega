@@ -7,7 +7,7 @@ PRAVEGA_PATH=${PRAVEGA_PATH:-"pravega"}
 BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
 
 BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${BK_CLUSTER_NAME}/ledgers"
-DL_NS_PATH="/messaging/distributedlog/mynamespace"
+DL_NS_PATH="/pravega/segmentstore/containers"
 
 echo "bookie service port0 is $PORT0 "
 echo "ZK_URL is $ZK_URL"

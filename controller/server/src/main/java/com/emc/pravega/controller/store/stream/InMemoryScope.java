@@ -5,6 +5,9 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import lombok.Synchronized;
+
+import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -16,19 +19,11 @@ public class InMemoryScope implements Scope {
 
     private final String scopeName;
 
+    @GuardedBy("$lock")
     private List<String> streamsInScope;
 
     InMemoryScope(String scopeName) {
         this.scopeName = scopeName;
-    }
-
-    /**
-     * A getter method for streamsInScope.
-     *
-     * @return a copy of streamsInScope list to avoid synchronization issues.
-     */
-    public List<String> getStreamsInScope() {
-        return new ArrayList<>(this.streamsInScope);
     }
 
     @Override
@@ -37,19 +32,22 @@ public class InMemoryScope implements Scope {
     }
 
     @Override
-    public synchronized CompletableFuture<Void> createScope() {
+    @Synchronized
+    public CompletableFuture<Void> createScope() {
         this.streamsInScope = new ArrayList<>();
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public synchronized CompletableFuture<Void> deleteScope() {
+    @Synchronized
+    public CompletableFuture<Void> deleteScope() {
         this.streamsInScope.clear();
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public synchronized CompletableFuture<List<String>> listStreamsInScope() {
+    @Synchronized
+    public CompletableFuture<List<String>> listStreamsInScope() {
         return CompletableFuture.completedFuture(new ArrayList<>(this.streamsInScope));
     }
 
@@ -63,7 +61,8 @@ public class InMemoryScope implements Scope {
      *
      * @param stream Name of stream to be added.
      */
-    public synchronized void addStreamToScope(String stream) {
+    @Synchronized
+    public void addStreamToScope(String stream) {
         this.streamsInScope.add(stream);
     }
 }

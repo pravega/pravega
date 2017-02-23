@@ -88,7 +88,7 @@ public abstract class Operation implements LogItem {
     /**
      * Gets an internal unique number representing the type of this operation.
      */
-    protected abstract byte getOperationType();
+    protected abstract OperationType getOperationType();
 
     @Override
     public String toString() {
@@ -121,7 +121,7 @@ public abstract class Operation implements LogItem {
         ensureSerializationCondition(this.sequenceNumber >= 0, "Sequence Number has not been assigned for this entry.");
 
         DataOutputStream target = new DataOutputStream(output);
-        OperationHeader header = new OperationHeader(getOperationType(), this.sequenceNumber);
+        OperationHeader header = new OperationHeader(getOperationType().getType(), this.sequenceNumber);
         header.serialize(target);
         serializeContent(target);
     }
@@ -134,8 +134,9 @@ public abstract class Operation implements LogItem {
      * @throws SerializationException If the deserialization failed.
      */
     private void deserialize(OperationHeader header, DataInputStream source) throws SerializationException {
-        if (header.operationType != getOperationType()) {
-            throw new SerializationException("Operation.deserialize", String.format("Invalid Operation Type. Expected %d, Found %d.", getOperationType(), header.operationType));
+        byte expectedOperationType = getOperationType().type;
+        if (header.operationType != expectedOperationType) {
+            throw new SerializationException("Operation.deserialize", String.format("Invalid Operation Type. Expected %d, Found %d.", expectedOperationType, header.operationType));
         }
 
         try {

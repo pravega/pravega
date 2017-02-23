@@ -26,17 +26,24 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     private final StreamSegmentStore impl;
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributes,
+    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates,
                                           Duration timeout) {
-        CompletableFuture<Void> result = impl.append(streamSegmentName, data, attributes, timeout);
+        CompletableFuture<Void> result = impl.append(streamSegmentName, data, attributeUpdates, timeout);
         FutureHelpers.await(result);
         return result;
     }
 
     @Override
     public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data,
-                                          Collection<AttributeUpdate> attributes, Duration timeout) {
-        CompletableFuture<Void> result = impl.append(streamSegmentName, offset, data, attributes, timeout);
+                                          Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        CompletableFuture<Void> result = impl.append(streamSegmentName, offset, data, attributeUpdates, timeout);
+        FutureHelpers.await(result);
+        return result;
+    }
+
+    @Override
+    public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        CompletableFuture<Void> result = impl.updateAttributes(streamSegmentName, attributeUpdates, timeout);
         FutureHelpers.await(result);
         return result;
     }

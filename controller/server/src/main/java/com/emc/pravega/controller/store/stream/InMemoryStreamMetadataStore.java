@@ -45,25 +45,32 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     public synchronized CompletableFuture<Boolean> createStream(final String scopeName, final String streamName,
                                                                 final StreamConfiguration configuration,
                                                                 final long timeStamp) {
-        if (!validateName(streamName)) {
-            log.error("Create stream failed due to invalid stream name {}", scopeName);
-            return CompletableFuture.completedFuture(false);
-        } else {
-            if (scopes.containsKey(scopeName)) {
-                if (!streams.containsKey(scopedStreamName(scopeName, streamName))) {
-                    InMemoryStream stream = new InMemoryStream(scopeName, streamName);
-                    stream.create(configuration, timeStamp);
-                    streams.put(scopedStreamName(scopeName, streamName), stream);
-                    scopes.get(scopeName).addStreamToScope(streamName);
-                    return CompletableFuture.completedFuture(true);
-                } else {
-                    return FutureHelpers.
-                            failedFuture(new StoreException(StoreException.Type.NODE_EXISTS, "Stream already exists."));
-                }
+        if (scopes.containsKey(scopeName)) {
+            if (!streams.containsKey(scopedStreamName(scopeName, streamName))) {
+                InMemoryStream stream = new InMemoryStream(scopeName, streamName);
+                stream.create(configuration, timeStamp);
+                streams.put(scopedStreamName(scopeName, streamName), stream);
+                scopes.get(scopeName).addStreamToScope(streamName);
+                return CompletableFuture.completedFuture(true);
             } else {
                 return FutureHelpers.
-                        failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
+                        failedFuture(new StoreException(StoreException.Type.NODE_EXISTS, "Stream already exists."));
             }
+        } else {
+            return FutureHelpers.
+                    failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
+        }
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateConfiguration(final String scopeName,
+                                                          final String streamName,
+                                                          final StreamConfiguration configuration) {
+        if (scopes.containsKey(scopeName)) {
+            return streams.get(scopedStreamName(scopeName, streamName)).updateConfiguration(configuration);
+        } else {
+            return FutureHelpers.
+                    failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
         }
     }
 
@@ -71,7 +78,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     public synchronized CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
         if (!validateName(scopeName)) {
             log.error("Create scope failed due to invalid scope name {}", scopeName);
-            return CompletableFuture.completedFuture(CreateScopeStatus.FAILURE);
+            return CompletableFuture.completedFuture(CreateScopeStatus.INVALID_SCOPE_NAME);
         } else {
             if (!scopes.containsKey(scopeName)) {
                 InMemoryScope scope = new InMemoryScope(scopeName);
@@ -87,13 +94,15 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public synchronized CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName) {
         if (scopes.containsKey(scopeName)) {
-            if (scopes.get(scopeName).getStreamsInScope().size() == 0) {
-                scopes.get(scopeName).deleteScope();
-                scopes.remove(scopeName);
-                return CompletableFuture.completedFuture(DeleteScopeStatus.SUCCESS);
-            } else {
-                return CompletableFuture.completedFuture(DeleteScopeStatus.SCOPE_NOT_EMPTY);
-            }
+            return scopes.get(scopeName).listStreamsInScope().thenApply((streams) -> {
+                if (streams.isEmpty()) {
+                    scopes.get(scopeName).deleteScope();
+                    scopes.remove(scopeName);
+                    return DeleteScopeStatus.SUCCESS;
+                } else {
+                    return DeleteScopeStatus.SCOPE_NOT_EMPTY;
+                }
+            });
         } else {
             return CompletableFuture.completedFuture(DeleteScopeStatus.SCOPE_NOT_FOUND);
         }
@@ -102,6 +111,22 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public CompletableFuture<List<String>> listScopes() {
         return CompletableFuture.completedFuture(new ArrayList<>(scopes.keySet()));
+    }
+
+    /**
+     * List the streams in scope.
+     *
+     * @param scopeName Name of scope
+     * @return List of streams in scope
+     */
+    @Override
+    public CompletableFuture<List<String>> listStreamsInScope(final String scopeName) {
+        InMemoryScope inMemoryScope = scopes.get(scopeName);
+        if (inMemoryScope != null) {
+            return inMemoryScope.listStreamsInScope();
+        } else {
+            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND));
+        }
     }
 
     @Override

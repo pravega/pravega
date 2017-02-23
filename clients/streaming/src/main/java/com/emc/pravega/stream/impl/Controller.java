@@ -9,8 +9,6 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
-import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
@@ -31,22 +29,6 @@ public interface Controller {
     // Controller Apis for administrative action for streams
 
     /**
-     * Api to create scope.
-     *
-     * @param scope Name of scope to be created.
-     * @return Status of create scope operation.
-     */
-    CompletableFuture<CreateScopeStatus> createScope(final String scope);
-
-    /**
-     * Api to delete scope.
-     *
-     * @param scope Name of scope to be deleted.
-     * @return Status of delete scope operation.
-     */
-    CompletableFuture<DeleteScopeStatus> deleteScope(final String scope);
-
-    /**
      * Api to create stream.
      *
      * @param streamConfig Stream configuration
@@ -64,7 +46,7 @@ public interface Controller {
 
     /**
      * Api to seal stream.
-     *
+     * 
      * @param scope Scope
      * @param streamName Stream name
      * @return Status of update stream operation.
@@ -73,7 +55,7 @@ public interface Controller {
 
     /**
      * API to merge or split stream segments.
-     *
+     * 
      * @param stream Stream object.
      * @param sealedSegments List of segments to be sealed.
      * @param newKeyRanges Key ranges after scaling the stream.
@@ -86,7 +68,7 @@ public interface Controller {
 
     /**
      * Api to get list of current segments for the stream to write to.
-     *
+     * 
      * @param scope Scope
      * @param streamName Stream name
      * @return Current stream segments.
@@ -95,7 +77,7 @@ public interface Controller {
 
     /**
      * Api to create a new transaction. The transaction timeout is relative to the creation time.
-     *
+     * 
      * @param stream Stream name
      * @param timeout Tx timeout
      * @return Transaction identifier.
@@ -106,7 +88,7 @@ public interface Controller {
      * Commits a transaction, atomically committing all events to the stream, subject to the
      * ordering guarantees specified in {@link EventStreamWriter}. Will fail with
      * {@link TxnFailedException} if the transaction has already been committed or aborted.
-     *
+     * 
      * @param stream Stream name
      * @param txId Transaction id
      * @return Void or TxnFailedException
@@ -117,7 +99,7 @@ public interface Controller {
      * Aborts a transaction. No events written to it may be read, and no further events may be
      * written. Will fail with {@link TxnFailedException} if the transaction has already been
      * committed or aborted.
-     *
+     * 
      * @param stream Stream name
      * @param txId Transaction id
      * @return Void or TxnFailedException
@@ -126,7 +108,7 @@ public interface Controller {
 
     /**
      * Returns the status of the specified transaction.
-     *
+     * 
      * @param stream Stream name
      * @param txId Transaction id
      * @return Transaction status.
@@ -149,22 +131,22 @@ public interface Controller {
     /**
      * Returns a Map containing each of the segments that are successors to the segment requested mapped to a
      * list of their predecessors.
-     *
+     * 
      * In the event of a scale up the newly created segments contain a subset of the keyspace of the original
      * segment and their only predecessor is the segment that was split. Example: If there are two segments A
      * and B. A scaling event split A into two new segments C and D. The successors of A are C and D. So
      * calling this method with A would return {C -> A, D -> A}
-     *
+     * 
      * In the event of a scale down there would be one segment the succeeds multiple. So it would contain the
      * union of the keyspace of its predecessors. So calling with that segment would map to multiple segments.
      * Example: If there are two segments A and B. A and B are merged into a segment C. The successor of A is
      * C. so calling this method with A would return {C -> {A, B}}
-     *
+     * 
      * If a segment has not been sealed, it may not have successors now even though it might in the future.
      * The successors to a sealed segment are always known and returned. Example: If there is only one segment
      * A and it is not sealed, and no scaling events have occurred calling this with a would return an empty
      * map.
-     *
+     * 
      * @param segment The segment whose successors should be looked up.
      * @return A mapping from Successor to the list of all of the Successor's predecessors
      */

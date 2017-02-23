@@ -149,9 +149,9 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
-        if (!validateZNodeName(scope)) {
-            log.debug("Create scope failed due to invalid scope name {}", scope);
-            return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
+        if (!validateName(stream)) {
+            log.debug("Create stream failed due to invalid stream name {}", stream);
+            return CompletableFuture.completedFuture(CreateStreamStatus.INVALID_STREAM_NAME);
         } else {
             return this.streamMetadataStore.createStream(scope, stream, config, timestamp)
                     .thenCompose(x -> {
@@ -169,7 +169,7 @@ public class StreamMetadataTasks extends TaskBase {
                             if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
                                 return CreateStreamStatus.STREAM_EXISTS;
                             } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) {
-                                return CreateStreamStatus.FAILURE;
+                                return CreateStreamStatus.SCOPE_NOT_FOUND;
                             } else {
                                 log.warn("Create stream failed due to ", ex);
                                 return CreateStreamStatus.FAILURE;
@@ -181,7 +181,7 @@ public class StreamMetadataTasks extends TaskBase {
         }
     }
 
-    private static boolean validateZNodeName(final String path) {
+    private static boolean validateName(final String path) {
         return (path.indexOf('\\') >= 0 || path.indexOf('/') >= 0) ? false : true;
     }
 
@@ -330,6 +330,8 @@ public class StreamMetadataTasks extends TaskBase {
         if (ex instanceof StreamNotFoundException ||
                 (ex instanceof CompletionException && ex.getCause() instanceof StreamNotFoundException)) {
             return UpdateStreamStatus.STREAM_NOT_FOUND;
+        } else if (ex instanceof StoreException && ( (StoreException) ex).getType() == NODE_NOT_FOUND) {
+            return UpdateStreamStatus.SCOPE_NOT_FOUND;
         } else {
             log.warn("Update stream failed due to ", ex);
             return UpdateStreamStatus.FAILURE;
