@@ -55,15 +55,10 @@ public interface SegmentMetadata extends SegmentProperties {
     long getDurableLogLength();
 
     /**
-     * Gets a value representing the Sequence Number of the last Operation that referenced this Segment.
+     * Gets a value representing the when the Segment was last used. The meaning of this value is implementation specific,
+     * however higher values should indicate it was used more recently.
      */
-    long getLastKnownSequenceNumber();
-
-    /**
-     * Gets a value representing the last time this Segment was referenced in the ContainerMetadata.
-     * The time returned is only valid within the context of the ContainerMetadata that owns this object.
-     */
-    long getLastKnownRequestTime();
+    long getLastUsed();
 
     /**
      * Creates a new SegmentProperties instance with current information from this SegmentMetadata object.

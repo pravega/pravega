@@ -7,6 +7,7 @@ import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.common.util.AsyncMap;
 import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AttributeUpdate;
@@ -27,6 +28,7 @@ import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.SegmentMetadataComparer;
+import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
@@ -57,6 +59,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -681,7 +684,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after append.", expectedAttributes, sp);
 
         // Wait until the segment is forgotten.
-        triggerMetadataCleanup(localContainer, 1).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        localContainer.triggerMetadataCleanup(1).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Now get attributes again and verify them.
         sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -712,7 +715,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // We want to wait for two cleanups here; to be absolutely sure that the deleted segment was properly cleaned up
         // from the metadata (if we do just one, it may be that the segment just didn't make the cut).
-        triggerMetadataCleanup(localContainer, 2).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        localContainer.triggerMetadataCleanup(2).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Now Create the Segment again and verify the old attributes were not "remembered".
         val newAttributes = createAttributeUpdates(attributes);
@@ -904,7 +907,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         contents.write(data);
     }
 
-    private String getSegmentName(int i) {
+    private static String getSegmentName(int i) {
         return "Segment_" + i;
     }
 
@@ -936,51 +939,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     private void applyAttributes(Collection<AttributeUpdate> updates, Map<UUID, Long> target) {
         updates.forEach(au -> target.put(au.getAttributeId(), au.getValue()));
-    }
-
-    private CompletableFuture<Void> waitForMetadataCleanup(MetadataCleanupContainer container) {
-        val metadataCleanupCompleted = new CompletableFuture<Void>();
-        container.metadataCleanupFinishedCallback = evicted -> {
-            // We hook into the metadataCleanup() method and only complete this if an eviction was reported.
-            if (evicted) {
-                metadataCleanupCompleted.complete(null);
-            }
-        };
-        return metadataCleanupCompleted;
-    }
-
-    /**
-     * Triggers a number of metadata cleanups by repeatedly appending to a random new segment until a cleanup task is detected.
-     *
-     * @param container    Container to trigger on.
-     * @param cleanupCount Number of cleanups to trigger.
-     */
-    private CompletableFuture<Void> triggerMetadataCleanup(MetadataCleanupContainer container, int cleanupCount) {
-        AtomicInteger remaining = new AtomicInteger(cleanupCount);
-
-        return FutureHelpers.loop(
-                () -> remaining.decrementAndGet() >= 0,
-                () -> {
-                    CompletableFuture<Void> cleanupTask = waitForMetadataCleanup(container);
-                    appendRandomly(container, () -> !cleanupTask.isDone());
-                    return cleanupTask;
-                },
-                executorService());
-    }
-
-    /**
-     * Appends continuously to a random new segment in the given container, as long as the given condition holds.
-     */
-    private CompletableFuture<Void> appendRandomly(StreamSegmentContainer container, Supplier<Boolean> canContinue) {
-        String segmentName = getSegmentName(Long.hashCode(System.nanoTime()));
-        byte[] appendData = new byte[1];
-        return container
-                .createStreamSegment(segmentName, null, TIMEOUT)
-                .thenCompose(v -> FutureHelpers.loop(
-                        canContinue,
-                        () -> container.append(segmentName, appendData, null, TIMEOUT),
-                        executorService()))
-                .thenCompose(v -> container.deleteStreamSegment(segmentName, TIMEOUT));
     }
 
     //region TestContext
@@ -1020,34 +978,122 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
-    private static class MetadataCleanupContainer extends StreamSegmentContainer {
-        Consumer<Boolean> metadataCleanupFinishedCallback;
+    //endregion
 
-        MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory, ScheduledExecutorService executor) {
+    //region MetadataCleanupContainer
+
+    private static class MetadataCleanupContainer extends StreamSegmentContainer {
+        private TestMetadataCleaner metadataCleaner;
+        private final Executor executor;
+
+        MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
+                                 ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory,
+                                 ScheduledExecutorService executor) {
             super(streamSegmentContainerId, config, durableLogFactory, readIndexFactory, writerFactory, storageFactory, executor);
+            this.executor = executor;
         }
 
         @Override
-        protected CompletableFuture<Boolean> metadataCleanup(Void ignored) {
-            CompletableFuture<Boolean> result = super.metadataCleanup(ignored);
+        protected MetadataCleaner createMetadataCleaner(ContainerConfig config, UpdateableContainerMetadata metadata,
+                                                        AsyncMap<String, SegmentState> stateStore, Consumer<Collection<SegmentMetadata>> cleanupCallback,
+                                                        ScheduledExecutorService executor, String traceObjectId) {
+            this.metadataCleaner = new TestMetadataCleaner(config, metadata, stateStore, cleanupCallback, executor, traceObjectId);
+            return this.metadataCleaner;
+        }
+
+        /**
+         * Returns a CompletableFuture that completes when a MetadataCleanup has occurred.
+         * @param container
+         * @return
+         */
+        CompletableFuture<Void> waitForMetadataCleanup(TestMetadataCleaner container) {
+            val metadataCleanupCompleted = new CompletableFuture<Void>();
+            container.metadataCleanupFinishedCallback = evicted -> {
+                // We hook into the metadataCleanup() method and only complete this if an eviction was reported.
+                if (evicted) {
+                    metadataCleanupCompleted.complete(null);
+                }
+            };
+            return metadataCleanupCompleted;
+        }
+
+        /**
+         * Triggers a number of metadata cleanups by repeatedly appending to a random new segment until a cleanup task is detected.
+         *
+         * @param cleanupCount Number of cleanups to trigger.
+         */
+        CompletableFuture<Void> triggerMetadataCleanup(int cleanupCount) {
+            AtomicInteger remaining = new AtomicInteger(cleanupCount);
+
+            return FutureHelpers.loop(
+                    () -> remaining.decrementAndGet() >= 0,
+                    () -> {
+                        CompletableFuture<Void> cleanupTask = waitForMetadataCleanup(this.metadataCleaner);
+                        appendRandomly(() -> !cleanupTask.isDone());
+                        return cleanupTask;
+                    },
+                    this.executor);
+        }
+
+        /**
+         * Appends continuously to a random new segment in the given container, as long as the given condition holds.
+         */
+        private CompletableFuture<Void> appendRandomly(Supplier<Boolean> canContinue) {
+            String segmentName = getSegmentName(Long.hashCode(System.nanoTime()));
+            byte[] appendData = new byte[1];
+            return createStreamSegment(segmentName, null, TIMEOUT)
+                    .thenCompose(v -> FutureHelpers.loop(
+                            canContinue,
+                            () -> append(segmentName, appendData, null, TIMEOUT),
+                            this.executor))
+                    .thenCompose(v -> deleteStreamSegment(segmentName, TIMEOUT));
+        }
+    }
+
+    //endregion
+
+    //region TestMetadataCleaner
+
+    private static class TestMetadataCleaner extends MetadataCleaner {
+        Consumer<Boolean> metadataCleanupFinishedCallback;
+        private final UpdateableContainerMetadata metadata;
+
+        TestMetadataCleaner(ContainerConfig config, UpdateableContainerMetadata metadata, AsyncMap<String, SegmentState> stateStore, Consumer<Collection<SegmentMetadata>> cleanupCallback, ScheduledExecutorService executor, String traceObjectId) {
+            super(config, metadata, stateStore, cleanupCallback, executor, traceObjectId);
+            this.metadata = metadata;
+        }
+
+        @Override
+        protected CompletableFuture<Void> runOnce(Void ignored) {
+            final HashSet<Long> beforeSegmentIds = new HashSet<>(this.metadata.getAllStreamSegmentIds());
+            CompletableFuture<Void> result = super.runOnce(ignored);
             Consumer<Boolean> callback = this.metadataCleanupFinishedCallback;
             if (callback != null) {
-                result.thenAccept(callback);
+                result.thenRun(() -> {
+                    // Determine if any segments were evicted.
+                    final HashSet<Long> afterSegmentIds = new HashSet<>(this.metadata.getAllStreamSegmentIds());
+                    callback.accept(!afterSegmentIds.containsAll(beforeSegmentIds));
+                });
             }
 
             return result;
         }
     }
 
+    //endregion
+
+    //region TestContainerConfig
+
     private static class TestContainerConfig extends ContainerConfig {
         @Getter
         @Setter
         private Duration segmentMetadataExpiration;
 
-        public TestContainerConfig(Properties properties) throws ConfigurationException {
+        TestContainerConfig(Properties properties) throws ConfigurationException {
             super(properties);
         }
     }
+
 
     //endregion
 }

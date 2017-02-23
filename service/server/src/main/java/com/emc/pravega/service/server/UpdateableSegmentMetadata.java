@@ -74,9 +74,10 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
     void copyFrom(SegmentMetadata other);
 
     /**
-     * Sets the Sequence Number of the last known Operation that involves this Segment.
+     * Sets a value indicating when the Segment was last used.
      *
-     * @param value The value to set.
+     * @param value The value to set. The meaning of this value is implementation-specific, however higher values should
+     *              indicate it was used more recently.
      */
-    void setLastKnownSequenceNumber(long value);
+    void setLastUsed(long value);
 }

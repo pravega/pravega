@@ -70,15 +70,15 @@ public class ContainerReadIndex implements ReadIndex {
      *
      * @param config       Configuration for the ReadIndex.
      * @param metadata     The ContainerMetadata to attach to.
-     * @param cachefactory A CacheFactory that can be used to store data into.
+     * @param cacheFactory A CacheFactory that can be used to create Caches for storing data into.
      * @param storage      Storage to read data not in the ReadIndex from.
      * @param cacheManager The CacheManager to use for cache lifecycle management.
      * @param executor     An Executor to run async callbacks on.
      */
-    public ContainerReadIndex(ReadIndexConfig config, ContainerMetadata metadata, CacheFactory cachefactory, ReadOnlyStorage storage, CacheManager cacheManager, ScheduledExecutorService executor) {
+    public ContainerReadIndex(ReadIndexConfig config, ContainerMetadata metadata, CacheFactory cacheFactory, ReadOnlyStorage storage, CacheManager cacheManager, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
-        Preconditions.checkNotNull(cachefactory, "cacheFactory");
+        Preconditions.checkNotNull(cacheFactory, "cacheFactory");
         Preconditions.checkNotNull(storage, "storage");
         Preconditions.checkNotNull(cacheManager, "cacheManager");
         Preconditions.checkNotNull(executor, "executor");
@@ -87,7 +87,7 @@ public class ContainerReadIndex implements ReadIndex {
         this.traceObjectId = String.format("ReadIndex[%s]", metadata.getContainerId());
         this.readIndices = new HashMap<>();
         this.config = config;
-        this.cache = cachefactory.getCache(String.format("Container_%d", metadata.getContainerId()));
+        this.cache = cacheFactory.getCache(String.format("Container_%d", metadata.getContainerId()));
         this.metadata = metadata;
         this.storage = storage;
         this.cacheManager = cacheManager;
@@ -245,8 +245,10 @@ public class ContainerReadIndex implements ReadIndex {
 
         // Swap metadata with recovery metadata (but still keep track of recovery metadata.
         synchronized (this.lock) {
-            Preconditions.checkArgument(this.metadata.getContainerId() == recoveryMetadataSource.getContainerId(), "Given ContainerMetadata refers to a different container than this ReadIndex.");
-            assert this.preRecoveryMetadata == null : "preRecoveryMetadata is not null, which should not happen unless we already are in recovery mode";
+            Preconditions.checkArgument(this.metadata.getContainerId() == recoveryMetadataSource.getContainerId(),
+                    "Given ContainerMetadata refers to a different container than this ReadIndex.");
+            assert this.preRecoveryMetadata == null
+                    : "preRecoveryMetadata is not null, which should not happen unless we already are in recovery mode";
             this.preRecoveryMetadata = this.metadata;
             this.metadata = recoveryMetadataSource;
         }
@@ -261,15 +263,18 @@ public class ContainerReadIndex implements ReadIndex {
         Preconditions.checkState(this.isRecoveryMode(), "Read Index is not in recovery mode.");
 
         synchronized (this.lock) {
-            assert this.preRecoveryMetadata != null : "preRecoveryMetadata not null, which should only be the case when we are not in recovery mode";
-            Preconditions.checkState(!this.preRecoveryMetadata.isRecoveryMode(), "Cannot take ReadIndex out of recovery: ContainerMetadata is still in recovery mode.");
+            assert this.preRecoveryMetadata != null
+                    : "preRecoveryMetadata not null, which should only be the case when we are not in recovery mode";
+            Preconditions.checkState(!this.preRecoveryMetadata.isRecoveryMode(),
+                    "Cannot take ReadIndex out of recovery: ContainerMetadata is still in recovery mode.");
 
             if (successfulRecovery) {
                 // Validate that the metadata has been properly recovered and that we are still in sync with it.
                 for (Map.Entry<Long, StreamSegmentReadIndex> e : this.readIndices.entrySet()) {
                     SegmentMetadata metadata = this.preRecoveryMetadata.getStreamSegmentMetadata(e.getKey());
                     if (metadata == null) {
-                        throw new DataCorruptionException(String.format("ContainerMetadata has no knowledge of StreamSegment Id %s.", e.getKey()));
+                        throw new DataCorruptionException(
+                                String.format("ContainerMetadata has no knowledge of StreamSegment Id %s.", e.getKey()));
                     }
 
                     e.getValue().exitRecoveryMode(metadata);

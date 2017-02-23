@@ -49,9 +49,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @GuardedBy("this")
     private ImmutableDate lastModified;
     @GuardedBy("this")
-    private long lastKnownRequestTime;
-    @GuardedBy("this")
-    private long lastKnownSequenceNumber;
+    private long lastUsed;
 
     //endregion
 
@@ -96,8 +94,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.durableLogLength = -1;
         this.attributes = new HashMap<>();
         this.lastModified = new ImmutableDate(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
-        this.lastKnownRequestTime = 0;
-        this.lastKnownSequenceNumber = 0;
+        this.lastUsed = 0;
     }
 
     //endregion
@@ -280,35 +277,17 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
             markDeleted();
         }
 
-        if (base instanceof StreamSegmentMetadata) {
-            StreamSegmentMetadata ssm = (StreamSegmentMetadata) base;
-            setLastKnownRequestTime(ssm.getLastKnownRequestTime());
-            setLastKnownSequenceNumber(ssm.getLastKnownSequenceNumber());
-        }
+        setLastUsed(base.getLastUsed());
     }
 
     @Override
-    public synchronized void setLastKnownSequenceNumber(long value) {
-        this.lastKnownSequenceNumber = Math.max(value, this.lastKnownSequenceNumber);
+    public synchronized void setLastUsed(long value) {
+        this.lastUsed = Math.max(value, this.lastUsed);
     }
 
     @Override
-    public synchronized long getLastKnownSequenceNumber() {
-        return this.lastKnownSequenceNumber;
-    }
-
-    /**
-     * Sets a value representing the last time this Segment was referenced in the ContainerMetadata.
-     *
-     * @param value The value. This is only valid within the context of the ContainerMetadata that owns this object.
-     */
-    synchronized void setLastKnownRequestTime(long value) {
-        this.lastKnownRequestTime = Math.max(value, this.lastKnownRequestTime);
-    }
-
-    @Override
-    public synchronized long getLastKnownRequestTime() {
-        return this.lastKnownRequestTime;
+    public synchronized long getLastUsed() {
+        return this.lastUsed;
     }
 
     //endregion

@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.logs;
 
@@ -17,12 +15,12 @@ import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.server.AttributeSerializer;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentMetadata;
-import com.emc.pravega.service.server.AttributeSerializer;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataOperation;
@@ -411,6 +409,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             TemporaryStreamSegmentMetadata segmentMetadata = null;
             if (operation instanceof SegmentOperation) {
                 segmentMetadata = getStreamSegmentMetadata(((SegmentOperation) operation).getStreamSegmentId());
+                segmentMetadata.setLastUsed(operation.getSequenceNumber());
             }
 
             if (operation instanceof StorageOperation) {
@@ -422,6 +421,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
                     MergeTransactionOperation mto = (MergeTransactionOperation) operation;
                     TemporaryStreamSegmentMetadata transactionMetadata = getStreamSegmentMetadata(mto.getTransactionSegmentId());
                     transactionMetadata.acceptAsTransactionSegment(mto);
+                    transactionMetadata.setLastUsed(operation.getSequenceNumber());
                     segmentMetadata.acceptAsParentSegment(mto, transactionMetadata);
                 }
             } else if (operation instanceof MetadataOperation) {
@@ -786,7 +786,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
         private boolean sealed;
         private boolean merged;
         private boolean deleted;
-        private long lastKnownSequenceNumber;
+        private long lastUsed;
         private boolean isChanged;
 
         //endregion
@@ -808,7 +808,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             this.merged = this.baseMetadata.isMerged();
             this.deleted = this.baseMetadata.isDeleted();
             this.updatedAttributeValues = new HashMap<>();
-            this.lastKnownSequenceNumber = -1;
+            this.lastUsed = -1;
         }
 
         //endregion
@@ -880,13 +880,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         @Override
-        public long getLastKnownSequenceNumber() {
-            return this.baseMetadata.getLastKnownSequenceNumber();
-        }
-
-        @Override
-        public long getLastKnownRequestTime() {
-            return this.baseMetadata.getLastKnownRequestTime();
+        public long getLastUsed() {
+            return this.baseMetadata.getLastUsed();
         }
 
         @Override
@@ -1137,7 +1132,6 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
             this.currentDurableLogLength += operation.getData().length;
             acceptAttributes(operation.getAttributeUpdates());
-            this.lastKnownSequenceNumber = operation.getSequenceNumber();
             this.isChanged = true;
         }
 
@@ -1176,7 +1170,6 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 }
             }
 
-            this.lastKnownSequenceNumber = operation.getSequenceNumber();
             this.isChanged = true;
         }
 
@@ -1201,7 +1194,6 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             this.currentDurableLogLength += transLength;
-            this.lastKnownSequenceNumber = operation.getSequenceNumber();
             this.isChanged = true;
         }
 
@@ -1216,7 +1208,6 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
             this.sealed = true;
             this.merged = true;
-            this.lastKnownSequenceNumber = operation.getSequenceNumber();
             this.isChanged = true;
         }
 
@@ -1235,6 +1226,15 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
         }
 
+        /**
+         * Sets the last used value to the given one.
+         *
+         * @param value The value to set.
+         */
+        void setLastUsed(long value) {
+            this.lastUsed = value;
+        }
+
         //endregion
 
         //region Operations
@@ -1249,7 +1249,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             // Apply to base metadata.
-            this.baseMetadata.setLastKnownSequenceNumber(this.lastKnownSequenceNumber);
+            this.baseMetadata.setLastUsed(this.lastUsed);
             this.baseMetadata.updateAttributes(this.updatedAttributeValues);
             this.baseMetadata.setDurableLogLength(this.currentDurableLogLength);
             if (this.isSealed()) {

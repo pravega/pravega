@@ -156,13 +156,18 @@ class MemoryStateUpdater {
             // log a warning indicating so. This means we do not optimize memory properly, and we end up storing data
             // in two different places.
             StreamSegmentAppendOperation appendOperation = (StreamSegmentAppendOperation) operation;
-            this.readIndex.append(appendOperation.getStreamSegmentId(), appendOperation.getStreamSegmentOffset(), appendOperation.getData());
+            this.readIndex.append(appendOperation.getStreamSegmentId(),
+                    appendOperation.getStreamSegmentOffset(),
+                    appendOperation.getData());
         } else if (operation instanceof MergeTransactionOperation) {
             // Record a MergeTransactionOperation. We call beginMerge here, and the StorageWriter will call completeMerge.
             MergeTransactionOperation mergeOperation = (MergeTransactionOperation) operation;
-            this.readIndex.beginMerge(mergeOperation.getStreamSegmentId(), mergeOperation.getStreamSegmentOffset(), mergeOperation.getTransactionSegmentId());
+            this.readIndex.beginMerge(mergeOperation.getStreamSegmentId(),
+                    mergeOperation.getStreamSegmentOffset(),
+                    mergeOperation.getTransactionSegmentId());
         } else {
-            assert !(operation instanceof CachedStreamSegmentAppendOperation) : "attempted to add a CachedStreamSegmentAppendOperation to the ReadIndex";
+            assert !(operation instanceof CachedStreamSegmentAppendOperation)
+                    : "attempted to add a CachedStreamSegmentAppendOperation to the ReadIndex";
         }
 
         // Record recent activity on stream segment, if applicable.

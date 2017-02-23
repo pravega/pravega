@@ -82,17 +82,14 @@ public class StreamSegmentMetadataTests {
         baseMetadata.markDeleted();
         baseMetadata.markSealed();
         baseMetadata.markMerged();
-        baseMetadata.setLastKnownRequestTime(1545895);
-        baseMetadata.setLastKnownSequenceNumber(89466);
+        baseMetadata.setLastUsed(1545895);
 
         // Normal metadata copy.
         StreamSegmentMetadata newMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
         newMetadata.copyFrom(baseMetadata);
         SegmentMetadataComparer.assertEquals("Metadata copy:", baseMetadata, newMetadata);
-        Assert.assertEquals("Metadata copy: getLastKnownRequestTime differs.",
-                baseMetadata.getLastKnownRequestTime(), newMetadata.getLastKnownRequestTime());
-        Assert.assertEquals("Metadata copy:  getLastKnownSequenceNumber differs.",
-                baseMetadata.getLastKnownSequenceNumber(), newMetadata.getLastKnownSequenceNumber());
+        Assert.assertEquals("Metadata copy: getLastUsed differs.",
+                baseMetadata.getLastUsed(), newMetadata.getLastUsed());
 
         // Verify we cannot copy from different StreamSegments.
         AssertExtensions.assertThrows(

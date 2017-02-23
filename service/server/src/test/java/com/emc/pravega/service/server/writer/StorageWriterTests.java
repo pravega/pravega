@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.writer;
 
@@ -13,7 +11,6 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
-import com.emc.pravega.service.server.ManualTimer;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.TestStorage;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -412,11 +409,9 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testCleanup() throws Exception {
-        final WriterConfig config = ConfigHelpers.createWriterConfig(DEFAULT_RAW_CONFIG.duplicate().with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1));
-        final Duration segmentExpiration = Duration.ofMillis(10);
+        final WriterConfig config = ConfigHelpers.createWriterConfig(PropertyBag.create(DEFAULT_RAW_CONFIG).with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1));
         @Cleanup
         final TestContext context = new TestContext(config);
-        context.metadataTimer.setElapsedMillis(0); // Base time reference.
         context.writer.startAsync();
 
         // Create a bunch of segments and Transaction.
@@ -442,11 +437,11 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         context.dataSource.waitFullyAcked().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Delete segment2 (markDeleted) and evict segment3 (by forcing the metadata to forget about it).
-        context.metadataTimer.setElapsedMillis(1000);
+        long evictionCutoff = context.metadata.nextOperationSequenceNumber() + 1;
         context.metadata.getStreamSegmentId(segment1.getName(), true);
         context.metadata.getStreamSegmentId(segment2.getName(), true);
         segment2.markDeleted();
-        Collection<Long> evictedSegments = evictSegments(segmentExpiration, context);
+        Collection<Long> evictedSegments = evictSegments(evictionCutoff, context);
 
         // Make sure the right segment is evicted, and not the other two ones (there are other segments in this system which we don't care about).
         Assert.assertTrue("Expected segment was not evicted.", evictedSegments.contains(segment3.getId()));
@@ -458,9 +453,9 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         context.dataSource.waitFullyAcked().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Get rid of Segment2 from the metadata.
-        context.metadataTimer.setElapsedMillis(2000);
+        evictionCutoff = context.metadata.nextOperationSequenceNumber() + 1;
         context.metadata.getStreamSegmentId(segment1.getName(), true);
-        evictedSegments = evictSegments(segmentExpiration, context);
+        evictedSegments = evictSegments(evictionCutoff, context);
         Assert.assertTrue("Expected segment was not evicted.", evictedSegments.contains(segment2.getId()));
 
         // Repopulate the metadata.
@@ -693,9 +688,9 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         return transactions;
     }
 
-    private Collection<Long> evictSegments(Duration segmentExpiration, TestContext context) {
-        Collection<SegmentMetadata> evictionCandidates = context.metadata.getEvictionCandidates(segmentExpiration);
-        context.metadata.cleanup(evictionCandidates, segmentExpiration);
+    private Collection<Long> evictSegments(long cutoffSeqNo, TestContext context) {
+        Collection<SegmentMetadata> evictionCandidates = context.metadata.getEvictionCandidates(cutoffSeqNo);
+        context.metadata.cleanup(evictionCandidates, cutoffSeqNo);
         return evictionCandidates
                 .stream()
                 .map(SegmentMetadata::getId)
@@ -728,12 +723,10 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         final InMemoryStorage baseStorage;
         final TestStorage storage;
         final WriterConfig config;
-        final ManualTimer metadataTimer;
         StorageWriter writer;
 
         TestContext(WriterConfig config) {
-            this.metadataTimer = new ManualTimer();
-            this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID, this.metadataTimer);
+            this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             this.baseStorage = new InMemoryStorage(executorService());
             this.storage = new TestStorage(this.baseStorage);
             this.config = config;

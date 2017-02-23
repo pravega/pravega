@@ -1,13 +1,9 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.containers;
 
-import com.emc.pravega.common.AbstractTimer;
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.Timer;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -16,7 +12,6 @@ import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -53,7 +48,6 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private final TreeMap<Long, LogAddress> truncationMarkers;
     @GuardedBy("truncationMarkers")
     private final TreeSet<Long> truncationPoints;
-    private final AbstractTimer segmentUsageTimer;
     private final Object lock = new Object();
 
     //endregion
@@ -66,17 +60,6 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
      * @param streamSegmentContainerId The Id of the StreamSegmentContainer.
      */
     public StreamSegmentContainerMetadata(int streamSegmentContainerId) {
-        this(streamSegmentContainerId, new Timer());
-    }
-
-    /**
-     * Creates a new instance of the StreamSegmentContainerMetadata.
-     *
-     * @param streamSegmentContainerId The Id of the StreamSegmentContainer.
-     * @param segmentUsageTimer        A time provider that can be used to track segment usage.
-     */
-    @VisibleForTesting
-    public StreamSegmentContainerMetadata(int streamSegmentContainerId, AbstractTimer segmentUsageTimer) {
         this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
         this.streamSegmentContainerId = streamSegmentContainerId;
         this.sequenceNumber = new AtomicLong();
@@ -86,7 +69,6 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         this.truncationPoints = new TreeSet<>();
         this.recoveryMode = new AtomicBoolean();
         this.lastTruncatedSequenceNumber = new AtomicLong();
-        this.segmentUsageTimer = segmentUsageTimer;
     }
 
     //endregion
@@ -98,7 +80,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         synchronized (this.lock) {
             StreamSegmentMetadata metadata = this.metadataByName.getOrDefault(streamSegmentName, null);
             if (updateLastUsed && metadata != null) {
-                markTimestamp(metadata);
+                metadata.setLastUsed(getOperationSequenceNumber());
             }
 
             return metadata != null ? metadata.getId() : NO_STREAM_SEGMENT_ID;
@@ -146,7 +128,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             this.metadataById.put(streamSegmentId, segmentMetadata);
         }
 
-        markTimestamp(segmentMetadata);
+        segmentMetadata.setLastUsed(getOperationSequenceNumber());
         log.info("{}: MapStreamSegment Id = {}, Name = '{}'", this.traceObjectId, streamSegmentId, streamSegmentName);
         return segmentMetadata;
     }
@@ -167,7 +149,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             this.metadataById.put(streamSegmentId, segmentMetadata);
         }
 
-        markTimestamp(segmentMetadata);
+        segmentMetadata.setLastUsed(getOperationSequenceNumber());
         log.info("{}: MapTransactionStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
         return segmentMetadata;
     }
@@ -223,34 +205,32 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
     @Override
-    public Collection<SegmentMetadata> getEvictionCandidates(Duration segmentExpiration) {
-        long timeExpirationThreshold = this.segmentUsageTimer.getElapsed().minus(segmentExpiration).toMillis();
+    public Collection<SegmentMetadata> getEvictionCandidates(long sequenceNumberCutoff) {
+        long adjustedCutoff = Math.min(sequenceNumberCutoff, this.lastTruncatedSequenceNumber.get());
         synchronized (this.lock) {
             // Find those segments that have active transactions associated with them.
-            Set<Long> activeTransactions = getSegmentsWithActiveTransactions(timeExpirationThreshold);
+            Set<Long> activeTransactions = getSegmentsWithActiveTransactions(adjustedCutoff);
 
             // The result is all segments that are eligible for removal but that do not have any active transactions.
             return this.metadataById
                     .values().stream()
-                    .filter(m -> !activeTransactions.contains(m.getId())
-                            && canEvict(m, timeExpirationThreshold))
+                    .filter(m -> isEligibleForEviction(m, adjustedCutoff) && !activeTransactions.contains(m.getId()))
                     .collect(Collectors.toList());
         }
     }
 
     @Override
-    public Collection<SegmentMetadata> cleanup(Collection<SegmentMetadata> evictionCandidates, Duration segmentExpiration) {
+    public Collection<SegmentMetadata> cleanup(Collection<SegmentMetadata> evictionCandidates, long sequenceNumberCutoff) {
+        long adjustedCutoff = Math.min(sequenceNumberCutoff, this.lastTruncatedSequenceNumber.get());
         Collection<SegmentMetadata> evictedSegments = new ArrayList<>(evictionCandidates.size());
-        long timeExpirationThreshold = this.segmentUsageTimer.getElapsed().minus(segmentExpiration).toMillis();
         synchronized (this.lock) {
             // Find those segments that have active transactions associated with them.
-            Set<Long> activeTransactions = getSegmentsWithActiveTransactions(timeExpirationThreshold);
+            Set<Long> activeTransactions = getSegmentsWithActiveTransactions(adjustedCutoff);
 
             // Remove those candidates that are still eligible for removal and which do not have any active transactions.
             evictionCandidates
                     .stream()
-                    .filter(m -> canEvict((StreamSegmentMetadata) m, timeExpirationThreshold)
-                            && !activeTransactions.contains(m.getId()))
+                    .filter(m -> isEligibleForEviction(m, adjustedCutoff) && !activeTransactions.contains(m.getId()))
                     .forEach(m -> {
                         this.metadataById.remove(m.getId());
                         this.metadataByName.remove(m.getName());
@@ -265,42 +245,30 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     /**
      * Gets a Set of Segment Ids that have active transactions referring to them.
      *
-     * @param timeExpirationThreshold The time expiration threshold, with a reference to segmentUsageTimer.
+     * @param sequenceNumberCutoff A Sequence Number that indicates the cutoff threshold. A Segment is eligible for eviction
+     *                             if it has a LastUsed value smaller than this threshold.
      * @return A Set of Segment Ids that have active transactions referring to them.
      */
     @GuardedBy("lock")
-    private Set<Long> getSegmentsWithActiveTransactions(long timeExpirationThreshold) {
+    private Set<Long> getSegmentsWithActiveTransactions(long sequenceNumberCutoff) {
         return this.metadataById
                 .values().stream()
                 .filter(m -> m.getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID
-                        && !canEvict(m, timeExpirationThreshold))
+                        && !isEligibleForEviction(m, sequenceNumberCutoff))
                 .map(SegmentMetadata::getParentId)
                 .collect(Collectors.toSet());
     }
 
     /**
-     * Determines whether the Segment with given metadata can be evicted. Conditions:
-     * <ul>
-     * <li> The Segment has not been used in a while.
-     * <li> There is no operation in the DurableLog that refers to this Segment.
-     * </ul>
-     * <p>
-     * Note: normally if we choose a high enough value for timeExpirationThreshold, there would not be a need to also
-     * check 'getLastKnownSequenceNumber'. However it's better to be paranoid in this case and make sure that some
-     * operation referencing this Segment isn't stuck somewhere in our system - evicting the Segment's Metadata in that
-     * case would likely lead to data corruption.
+     * Determines whether the Segment with given metadata can be evicted, based on the the given Sequence Number Threshold.
      *
-     * @param metadata                The Metadata for the Segment that is considered for eviction.
-     * @param timeExpirationThreshold The time expiration threshold, with a reference to segmentUsageTimer.
-     * @return True if the Segment can be safely evicted, false otherwise.
+     * @param metadata             The Metadata for the Segment that is considered for eviction.
+     * @param sequenceNumberCutoff A Sequence Number that indicates the cutoff threshold. A Segment is eligible for eviction
+     *                             if it has a LastUsed value smaller than this threshold.
+     * @return True if the Segment can be evicted, false otherwise.
      */
-    private boolean canEvict(StreamSegmentMetadata metadata, long timeExpirationThreshold) {
-        return metadata.getLastKnownRequestTime() < timeExpirationThreshold
-                && metadata.getLastKnownSequenceNumber() <= this.lastTruncatedSequenceNumber.get();
-    }
-
-    private void markTimestamp(StreamSegmentMetadata metadata) {
-        metadata.setLastKnownRequestTime(this.segmentUsageTimer.getElapsedMillis());
+    private boolean isEligibleForEviction(SegmentMetadata metadata, long sequenceNumberCutoff) {
+        return metadata.getLastUsed() < sequenceNumberCutoff;
     }
 
     //endregion
