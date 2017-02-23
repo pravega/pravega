@@ -127,8 +127,8 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     }
 
     @Override
-    public void policyUpdate(String segmentStreamName, byte type, int targetRate) {
-        SegmentAggregates aggregates = getSegmentAggregate(segmentStreamName);
+    public void policyUpdate(String streamSegmentName, byte type, int targetRate) {
+        SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
         if (aggregates != null) {
             aggregates.setTargetRate(targetRate);
             aggregates.setScaleType(type);

@@ -62,12 +62,12 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     private static final int METADATA_CHECKPOINT_FREQUENCY = 50;
     private static final WriterConfig DEFAULT_CONFIG = ConfigHelpers.createWriterConfig(
             PropertyBag.create()
-                    .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1000)
-                    .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
-                    .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
-                    .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250)
-                    .with(WriterConfig.PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE, 100)
-                    .with(WriterConfig.PROPERTY_ERROR_SLEEP_MILLIS, 0));
+                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1000)
+                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
+                       .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+                       .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250)
+                       .with(WriterConfig.PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE, 100)
+                       .with(WriterConfig.PROPERTY_ERROR_SLEEP_MILLIS, 0));
 
     private static final Duration TIMEOUT = Duration.ofSeconds(20);
 
@@ -255,11 +255,11 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         context.storage.setWriteInterceptor((segmentName, offset, data, length, storage) -> {
             if (writeCount.incrementAndGet() % failWriteEvery == 0) {
                 return storage.write(segmentName, offset, data, length, TIMEOUT)
-                        .thenAccept(v -> {
-                            long segmentId = context.metadata.getStreamSegmentId(segmentName);
-                            writeFailCount.incrementAndGet();
-                            throw new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
-                        });
+                              .thenAccept(v -> {
+                                  long segmentId = context.metadata.getStreamSegmentId(segmentName);
+                                  writeFailCount.incrementAndGet();
+                                  throw new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
+                              });
             }
 
             return null;
@@ -271,10 +271,10 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         context.storage.setSealInterceptor((segmentName, storage) -> {
             if (sealCount.incrementAndGet() % failSealEvery == 0) {
                 return storage.seal(segmentName, TIMEOUT)
-                        .thenAccept(v -> {
-                            sealFailCount.incrementAndGet();
-                            throw new IntentionalException(String.format("S=%s", segmentName));
-                        });
+                              .thenAccept(v -> {
+                                  sealFailCount.incrementAndGet();
+                                  throw new IntentionalException(String.format("S=%s", segmentName));
+                              });
             }
 
             return null;
@@ -286,10 +286,10 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         context.storage.setConcatInterceptor((targetSegment, offset, sourceSegment, storage) -> {
             if (mergeCount.incrementAndGet() % failMergeEvery == 0) {
                 return storage.concat(targetSegment, offset, sourceSegment, TIMEOUT)
-                        .thenAccept(v -> {
-                            mergeFailCount.incrementAndGet();
-                            throw new IntentionalException(String.format("T=%s,O=%d,S=%s", targetSegment, offset, sourceSegment));
-                        });
+                              .thenAccept(v -> {
+                                  mergeFailCount.incrementAndGet();
+                                  throw new IntentionalException(String.format("T=%s,O=%d,S=%s", targetSegment, offset, sourceSegment));
+                              });
             }
 
             return null;

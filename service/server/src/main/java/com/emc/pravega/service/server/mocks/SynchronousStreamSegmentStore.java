@@ -98,5 +98,4 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
         FutureHelpers.await(result);
         return result;
     }
-
 }

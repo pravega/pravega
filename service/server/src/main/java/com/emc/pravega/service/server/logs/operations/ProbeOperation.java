@@ -3,6 +3,7 @@
  *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
  */
+
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.service.server.logs.SerializationException;
