@@ -12,6 +12,7 @@ import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
+import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
@@ -92,7 +93,12 @@ public class Main {
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks);
 
-        //2. Start the RPC server.
+        //2. set up Event Processors
+        //region Setup Event Processors
+        LocalController localController = new LocalController(controllerService);
+        //endregion
+
+        //3. Start the RPC server.
         log.info("Starting RPC server");
         RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
 

@@ -70,6 +70,22 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     /**
+     * Creates a new instance of ClientFactory class.
+     *
+     * @param scope             The scope string.
+     * @param controller        The reference to Controller.
+     */
+    public ClientFactoryImpl(String scope, Controller controller) {
+        Preconditions.checkNotNull(scope);
+        Preconditions.checkNotNull(controller);
+        this.scope = scope;
+        this.controller = controller;
+        this.connectionFactory = new ConnectionFactoryImpl(false);
+        this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
+        this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
+    }
+
+    /**
      * Creates a new instance of the ClientFactory class.
      *
      * @param scope             The scope string.

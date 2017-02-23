@@ -20,7 +20,7 @@ import org.apache.commons.lang.NotImplementedException;
 public class StreamManagerImpl implements StreamManager {
 
     private final String scope;
-    private final ControllerImpl controller;
+    private final Controller controller;
 
     public StreamManagerImpl(String scope, URI controllerUri) {
         this.scope = scope;

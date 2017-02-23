@@ -371,6 +371,12 @@ project('integrationtests') {
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
+
+    task startEventProcessorTest(type: JavaExec) {
+        main = "com.emc.pravega.demo.EventProcessorTest"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+    }
 }
 
 project('controller') {
