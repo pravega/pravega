@@ -38,10 +38,13 @@ import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -54,6 +57,10 @@ import static org.mockito.Mockito.when;
  * Tests for Stream metadata REST APIs.
  */
 public class StreamMetaDataTests extends JerseyTest {
+
+    //Ensure each test completes within 30 seconds.
+    @Rule
+    public Timeout globalTimeout = new Timeout(5, TimeUnit.SECONDS);
 
     ControllerService mockControllerService;
     StreamMetadataStore mockStreamStore;
