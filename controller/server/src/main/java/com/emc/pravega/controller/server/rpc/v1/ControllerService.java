@@ -18,6 +18,8 @@ import com.emc.pravega.controller.stream.api.v1.TxnId;
 import com.emc.pravega.controller.stream.api.v1.TxnState;
 import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -30,6 +32,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Preconditions;
 import lombok.Getter;
 import org.apache.thrift.TException;
 
@@ -68,26 +71,26 @@ public class ControllerService {
 
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(final String scope, final String stream) {
         // fetch active segments from segment store
-        return streamStore.getActiveSegments(stream)
+        return streamStore.getActiveSegments(scope, stream)
                 .thenApply(activeSegments -> activeSegments
-                                .stream()
-                                .map(segment -> convert(scope, stream, segment))
-                                .collect(Collectors.toList())
+                        .stream()
+                        .map(segment -> convert(scope, stream, segment))
+                        .collect(Collectors.toList())
                 );
     }
 
     public CompletableFuture<List<Position>> getPositions(final String scope, final String stream, final long timestamp, final int count) {
         // first fetch segments active at specified timestamp from the specified stream
         // divide current segments in segmentFutures into at most count positions
-        return streamStore.getActiveSegments(stream, timestamp)
+        return streamStore.getActiveSegments(scope, stream, timestamp)
                 .thenApply(segmentFutures -> shard(scope, stream, segmentFutures, count));
-    }    
+    }
 
     public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatlyFollowing(SegmentId segment) {
-        return streamStore.getSuccessors(segment.getStreamName(), segment.getNumber()).thenApply(successors -> {
+        return streamStore.getSuccessors(segment.getScope(), segment.getStreamName(), segment.getNumber()).thenApply(successors -> {
             return successors.entrySet().stream().collect(
-                   Collectors.toMap(entry -> new SegmentId(segment.getScope(), segment.getStreamName(), entry.getKey()), 
-                                    entry -> entry.getValue()));
+                    Collectors.toMap(entry -> new SegmentId(segment.getScope(), segment.getStreamName(), entry.getKey()),
+                            entry -> entry.getValue()));
         });
     }
 
@@ -115,7 +118,7 @@ public class ControllerService {
     public CompletableFuture<Boolean> isSegmentValid(final String scope,
                                                      final String stream,
                                                      final int segmentNumber) throws TException {
-        return streamStore.getActiveSegments(stream)
+        return streamStore.getActiveSegments(scope, stream)
                 .thenApply(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber));
     }
 
@@ -196,11 +199,31 @@ public class ControllerService {
                 });
     }
 
-
     public CompletableFuture<TxnState> checkTransactionStatus(final String scope, final String stream, final TxnId
             txnId) {
         return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId))
                 .thenApply(ModelHelper::decode);
     }
 
+    /**
+     * Controller Service API to create scope.
+     *
+     * @param scope Name of scope to be created.
+     * @return Status of create scope.
+     */
+    public CompletableFuture<CreateScopeStatus> createScope(final String scope) {
+        Preconditions.checkNotNull(scope);
+        return streamStore.createScope(scope);
+    }
+
+    /**
+     * Controller Service API to delete scope.
+     *
+     * @param scope Name of scope to be deleted.
+     * @return Status of delete scope.
+     */
+    public CompletableFuture<DeleteScopeStatus> deleteScope(final String scope) {
+        Preconditions.checkNotNull(scope);
+        return streamStore.deleteScope(scope);
+    }
 }

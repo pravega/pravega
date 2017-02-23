@@ -11,15 +11,15 @@ import java.util.Map;
 import java.util.HashMap;
 import org.apache.thrift.TEnum;
 
-public enum UpdateStreamStatus implements org.apache.thrift.TEnum {
+public enum CreateScopeStatus implements org.apache.thrift.TEnum {
   SUCCESS(0),
   FAILURE(1),
-  STREAM_NOT_FOUND(2),
-  SCOPE_NOT_FOUND(3);
+  SCOPE_EXISTS(2),
+  INVALID_SCOPE_NAME(3);
 
   private final int value;
 
-  private UpdateStreamStatus(int value) {
+  private CreateScopeStatus(int value) {
     this.value = value;
   }
 
@@ -34,16 +34,16 @@ public enum UpdateStreamStatus implements org.apache.thrift.TEnum {
    * Find a the enum type by its integer value, as defined in the Thrift IDL.
    * @return null if the value is not found.
    */
-  public static UpdateStreamStatus findByValue(int value) { 
+  public static CreateScopeStatus findByValue(int value) { 
     switch (value) {
       case 0:
         return SUCCESS;
       case 1:
         return FAILURE;
       case 2:
-        return STREAM_NOT_FOUND;
+        return SCOPE_EXISTS;
       case 3:
-        return SCOPE_NOT_FOUND;
+        return INVALID_SCOPE_NAME;
       default:
         return null;
     }
