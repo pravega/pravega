@@ -5,39 +5,68 @@
  */
 package com.emc.pravega.demo;
 
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockClientFactory;
 
 import java.util.concurrent.CompletableFuture;
 
+import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 
-import lombok.Cleanup;
+import static org.junit.Assert.assertTrue;
 
 public class EndToEndTransactionTest {
     public static void main(String[] args) throws Exception {
         @Cleanup
         TestingServer zkTestServer = new TestingServer();
-        ControllerWrapper controller = new ControllerWrapper(zkTestServer.getConnectString());
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.PORT, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
-        MockClientFactory clientFactory = new MockClientFactory(StartLocalService.SCOPE, controller);
+        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString());
+
+        final String testScope = "testScope";
+        final String testStream = "testStream";
+
+        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 5);
+        StreamConfiguration streamConfig =
+                StreamConfiguration.builder()
+                        .scope(testScope)
+                        .streamName(testStream)
+                        .scalingPolicy(policy)
+                        .build();
+
+        CompletableFuture<CreateStreamStatus> futureStatus = controller.createStream(streamConfig);
+        CreateStreamStatus status = futureStatus.join();
+
+        if (status != CreateStreamStatus.SUCCESS) {
+            System.err.println("FAILURE: Error creating test stream");
+            return;
+        }
+
+        MockClientFactory clientFactory = new MockClientFactory(testScope, controller);
 
         @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME, new JavaSerializer<>(), EventWriterConfig.builder().build());
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(
+                testStream,
+                new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+
         Transaction<String> transaction = producer.beginTxn(60000);
 
         for (int i = 0; i < 1; i++) {
@@ -77,6 +106,22 @@ public class EndToEndTransactionTest {
 
         CompletableFuture.allOf(commit, drop).get();
 
-        System.exit(0);
+        Transaction.Status txnStatus = transaction.checkStatus();
+        assertTrue(txnStatus == Transaction.Status.COMMITTING || txnStatus == Transaction.Status.COMMITTED);
+        System.err.println("SUCCESS: successful in committing transaction. Transaction status=" + txnStatus);
+
+        Transaction.Status txn2Status = transaction2.checkStatus();
+        assertTrue(txn2Status == Transaction.Status.ABORTING || txn2Status == Transaction.Status.ABORTED);
+        System.err.println("SUCCESS: successful in dropping transaction. Transaction status=" + txn2Status);
+
+        Thread.sleep(2000);
+
+        txnStatus = transaction.checkStatus();
+        assertTrue(txnStatus == Transaction.Status.COMMITTED);
+        System.err.println("SUCCESS: successfully committed transaction. Transaction status=" + txnStatus);
+
+        txn2Status = transaction2.checkStatus();
+        assertTrue(txn2Status == Transaction.Status.ABORTED);
+        System.err.println("SUCCESS: successfully aborted transaction. Transaction status=" + txn2Status);
     }
 }

@@ -5,8 +5,12 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
+import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.controller.server.eventProcessor.AbortEvent;
+import com.emc.pravega.controller.server.eventProcessor.CommitEvent;
+import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -15,6 +19,10 @@ import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.impl.ClientFactoryImpl;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import java.io.Serializable;
@@ -44,6 +52,9 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactoryImpl connectionFactory;
 
+    private EventStreamWriter<CommitEvent> commitEventEventStreamWriter;
+    private EventStreamWriter<AbortEvent> abortEventEventStreamWriter;
+
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final HostControllerStore hostControllerStore,
                                           final TaskMetadataStore taskMetadataStore,
@@ -51,7 +62,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                                           final String hostId) {
         this(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, new Context(hostId));
     }
-    
+
     private StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
             final HostControllerStore hostControllerStore,
             final TaskMetadataStore taskMetadataStore,
@@ -83,6 +94,27 @@ public class StreamTransactionMetadataTasks extends TaskBase {
             // find completed transactions to be gc'd
         }, INITIAL_DELAY, PERIOD, TimeUnit.HOURS);
 
+    }
+
+    /**
+     * Initializes stream writers for commit and abort streams.
+     * This method should be called immediately after creating StreamTransactionMetadataTasks object.
+     *
+     * @param controller Local controller reference
+     */
+    public void initializeStreamWriters(Controller controller) {
+
+        ClientFactory clientFactory = new ClientFactoryImpl(ControllerEventProcessors.CONTROLLER_SCOPE, controller);
+
+        this.commitEventEventStreamWriter = clientFactory.createEventWriter(
+                ControllerEventProcessors.COMMIT_STREAM,
+                ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
+                EventWriterConfig.builder().build());
+
+        this.abortEventEventStreamWriter = clientFactory.createEventWriter(
+                ControllerEventProcessors.ABORT_STREAM,
+                ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
+                EventWriterConfig.builder().build());
     }
 
     /**
@@ -135,7 +167,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private CompletableFuture<UUID> createTxBody(final String scope, final String stream) {
         return streamMetadataStore.createTransaction(scope, stream)
                 .thenCompose(txId ->
-                        streamMetadataStore.getActiveSegments(stream)
+                        streamMetadataStore.getActiveSegments(scope, stream)
                                 .thenCompose(activeSegments ->
                                         FutureHelpers.allOf(
                                                 activeSegments.stream()
@@ -146,28 +178,21 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<TxnStatus> abortTxBody(final String scope, final String stream, final UUID txid) {
-        // notify hosts to abort transaction
-        return streamMetadataStore.getActiveSegments(stream)
-                .thenCompose(segments ->
-                        FutureHelpers.allOf(
-                                segments.stream()
-                                        .parallel()
-                                        .map(segment -> notifyDropToHost(scope, stream, segment.getNumber(), txid))
-                                        .collect(Collectors.toList())))
-                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txid));
+        return streamMetadataStore.sealTransaction(scope, stream, txid, false)
+                .thenApply(status -> {
+                    this.abortEventEventStreamWriter
+                            .writeEvent(txid.toString(), new AbortEvent(scope, stream, txid));
+                    return status;
+                });
     }
 
     private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid) {
-        return streamMetadataStore.sealTransaction(scope, stream, txid)
-                .thenCompose(x ->
-                        streamMetadataStore.getActiveSegments(stream)
-                                .thenCompose(segments ->
-                                        FutureHelpers.allOf(segments.stream()
-                                                .parallel()
-                                                .map(segment ->
-                                                        notifyCommitToHost(scope, stream, segment.getNumber(), txid))
-                                                .collect(Collectors.toList()))))
-                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txid));
+        return streamMetadataStore.sealTransaction(scope, stream, txid, true)
+                .thenApply(status -> {
+                    this.commitEventEventStreamWriter
+                            .writeEvent(scope + stream, new CommitEvent(scope, stream, txid));
+                    return status;
+                });
     }
 
     private CompletableFuture<UUID> notifyTxCreation(final String scope, final String stream, final int segmentNumber, final UUID txid) {
@@ -175,37 +200,11 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> SegmentHelper.createTransaction(scope,
-                                stream,
-                                segmentNumber,
-                                txid,
-                                this.hostControllerStore,
-                                this.connectionFactory), executor);
-    }
-
-    private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-                    .retryingOn(WireCommandFailedException.class)
-                    .throwingOn(RuntimeException.class)
-                    .runAsync(() -> SegmentHelper.abortTransaction(scope,
-                                                                  stream,
-                                                                  segmentNumber,
-                                                                  txId,
-                                                                  this.hostControllerStore,
-                                                                  this.connectionFactory),
-                              executor);
-    }
-
-    private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-                    .retryingOn(WireCommandFailedException.class)
-                    .throwingOn(RuntimeException.class)
-                    .runAsync(() -> SegmentHelper.commitTransaction(scope,
-                                                                    stream,
-                                                                    segmentNumber,
-                                                                    txId,
-                                                                    this.hostControllerStore,
-                                                                    this.connectionFactory),
-                              executor);
+                        stream,
+                        segmentNumber,
+                        txid,
+                        this.hostControllerStore,
+                        this.connectionFactory), executor);
     }
 
     @Override

@@ -15,6 +15,7 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamImpl;
 
 import java.util.Arrays;
@@ -36,7 +37,6 @@ public class ScaleTest {
     @SuppressWarnings("checkstyle:ReturnCount")
     public static void main(String[] args) throws Exception {
         TestingServer zkTestServer = new TestingServer();
-        ControllerWrapper controller = new ControllerWrapper(zkTestServer.getConnectString());
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
@@ -44,6 +44,8 @@ public class ScaleTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
+
+        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString());
 
         // Create controller object for testing against a separate controller process.
         // ControllerImpl controller = new ControllerImpl("localhost", 9090);

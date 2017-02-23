@@ -58,6 +58,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                                 entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
                     } else if (streamStatus == CreateStreamStatus.STREAM_EXISTS) {
                         return Response.status(Status.CONFLICT).build();
+                    } else if (streamStatus == CreateStreamStatus.SCOPE_NOT_FOUND) {
+                        return Response.status(Status.NOT_FOUND).build();
                     } else {
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
@@ -90,7 +92,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     if (streamStatus == UpdateStreamStatus.SUCCESS) {
                         return Response.status(Status.CREATED).
                                 entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
-                    } else if (streamStatus == UpdateStreamStatus.STREAM_NOT_FOUND) {
+                    } else if (streamStatus == UpdateStreamStatus.STREAM_NOT_FOUND || streamStatus == UpdateStreamStatus.SCOPE_NOT_FOUND) {
                         return Response.status(Status.NOT_FOUND).build();
                     } else {
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
@@ -117,7 +119,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamConfig");
 
         StreamMetadataStore streamStore = controllerService.getStreamStore();
-        streamStore.getConfiguration(stream)
+        streamStore.getConfiguration(scope, stream)
                 .thenApply(streamConfig -> {
                     return Response.status(Status.OK).entity(ModelHelper.encodeStreamResponse(streamConfig)).build();
                 })

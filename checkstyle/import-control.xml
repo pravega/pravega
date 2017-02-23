@@ -37,5 +37,7 @@
     <allow pkg="org.glassfish.hk2"/>
     <allow pkg="io.swagger"/>
     <allow pkg="javax.validation"/>
+    <allow pkg="mesosphere.marathon"/>
+    <allow pkg="feign"/>
 
 </import-control>

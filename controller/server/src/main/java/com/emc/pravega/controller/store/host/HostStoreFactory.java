@@ -35,7 +35,7 @@ public class HostStoreFactory {
             
         case Zookeeper:
             log.info("Creating Zookeeper based host store");
-            return new ZKHostStore(ZKUtils.getCuratorClient(), Config.CLUSTER_NAME);
+            return new ZKHostStore(ZKUtils.getCuratorClient());
             
         default:
             throw new NotImplementedException();
