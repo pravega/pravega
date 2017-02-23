@@ -110,10 +110,13 @@ allprojects {
     }
 
     tasks.withType(Test) {
+        systemProperties 'logback.configurationFile' : new File(buildDir,'resources/test/logback.xml').absolutePath
+        testLogging.showStandardStreams = true
         testLogging.exceptionFormat = "FULL"
         testLogging.showCauses = true
         testLogging.showExceptions = true
         testLogging.showStackTraces = true
+        testLogging.events = ["PASSED", "FAILED"]
         maxParallelForks = 2
         minHeapSize = "128m"
         maxHeapSize = "512m"
