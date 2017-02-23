@@ -45,7 +45,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String HISTORY_PATH = STREAM_PATH + "/history";
     private static final String INDEX_PATH = STREAM_PATH + "/index";
 
-    private final ZKStreamStoreHelper store;
+    private final ZKStoreHelper store;
     private final String creationPath;
     private final String configurationPath;
     private final String statePath;
@@ -58,7 +58,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String scopePath;
     private final Cache<Integer> cache;
 
-    public ZKStream(final String scopeName, final String streamName, ZKStreamStoreHelper storeHelper) {
+    public ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
         super(scopeName, streamName);
         store = storeHelper;
         scopePath = String.format(SCOPE_PATH, scopeName);
@@ -69,8 +69,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
         segmentChunkPathTemplate = segmentPath + "/%s";
         historyPath = String.format(HISTORY_PATH, scopeName, streamName);
         indexPath = String.format(INDEX_PATH, scopeName, streamName);
-        activeTxPath = String.format(ZKStreamStoreHelper.ACTIVE_TX_PATH, streamName);
-        completedTxPath = String.format(ZKStreamStoreHelper.COMPLETED_TX_PATH, streamName);
+        activeTxPath = String.format(ZKStoreHelper.ACTIVE_TX_PATH, streamName);
+        completedTxPath = String.format(ZKStoreHelper.COMPLETED_TX_PATH, streamName);
 
         cache = new Cache<>(store::getData);
     }

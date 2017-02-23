@@ -27,7 +27,7 @@ import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
 
 @Slf4j
-public class ZKStreamStoreHelper {
+public class ZKStoreHelper {
     
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
     private static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
@@ -37,10 +37,59 @@ public class ZKStreamStoreHelper {
     
     private CuratorFramework client;
 
-    public ZKStreamStoreHelper(final CuratorFramework cf) {
+    public ZKStoreHelper(final CuratorFramework cf) {
         client = cf;
     }
 
+
+    /**
+     * List Scopes in the cluster.
+     *
+     * @return A list of scopes.
+     */
+    public CompletableFuture<List<String>> listScopes() {
+        return getChildren("/store");
+    }
+
+    CompletableFuture<Void> addNode(final String path) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                client.create().creatingParentsIfNeeded().forPath(path);
+            } catch (KeeperException.NodeExistsException e) {
+                StoreException.create(StoreException.Type.NODE_EXISTS, path);
+            } catch (Exception e) {
+                StoreException.create(StoreException.Type.UNKNOWN, path);
+            }
+        });
+    }
+
+    CompletableFuture<Void> deleteNode(final String path) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                client.delete().forPath(path);
+            } catch (KeeperException.NoNodeException e) {
+                 StoreException.create(StoreException.Type.NODE_NOT_FOUND, path);
+            } catch (KeeperException.NotEmptyException e) {
+                 StoreException.create(StoreException.Type.NODE_NOT_EMPTY, path);
+            } catch (Exception e) {
+                StoreException.create(StoreException.Type.UNKNOWN, path);
+            }
+        });
+    }
+
+    CompletableFuture<List<String>> getStreamsInPath(final String path) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return client.getChildren().forPath(path);
+            } catch (KeeperException.NoNodeException e) {
+                FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND, path));
+            } catch (Exception e) {
+                FutureHelpers.failedFuture(StoreException.create(StoreException.Type.UNKNOWN, path));
+            }
+            return null;
+        });
+    }
+    
     CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
         return getAllTransactionData(ACTIVE_TX_ROOT_PATH)
                 .thenApply(x -> x.entrySet().stream()

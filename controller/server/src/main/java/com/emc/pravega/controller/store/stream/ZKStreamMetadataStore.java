@@ -28,18 +28,18 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private static final long PERIOD = 1;
     private static final long TIMEOUT = 60 * 60 * 1000;
     private final ScheduledExecutorService executor;
-    private final ZKStreamStoreHelper storeHelper;
+    private final ZKStoreHelper storeHelper;
 
     public ZKStreamMetadataStore(ScheduledExecutorService executor) {
         this.executor = executor;
-        this.storeHelper = new ZKStreamStoreHelper(ZKUtils.getCuratorClient());
+        this.storeHelper = new ZKStoreHelper(ZKUtils.getCuratorClient());
         initialize();
     }
 
     @VisibleForTesting
     public ZKStreamMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
         this.executor = executor;
-        this.storeHelper = new ZKStreamStoreHelper(client);
+        this.storeHelper = new ZKStoreHelper(client);
         initialize();
     }
 
@@ -77,12 +77,12 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     ZKScope newScope(final String scopeName) {
-        return new ZKScope(scopeName);
+        return new ZKScope(scopeName, storeHelper);
     }
 
     @Override
     public CompletableFuture<List<String>> listScopes() {
-        return ZKScope.listScopes();
+        return storeHelper.listScopes();
     }
 
     @Override
