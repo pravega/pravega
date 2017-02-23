@@ -14,7 +14,8 @@ import org.apache.thrift.TEnum;
 public enum CreateScopeStatus implements org.apache.thrift.TEnum {
   SUCCESS(0),
   FAILURE(1),
-  SCOPE_EXISTS(2);
+  SCOPE_EXISTS(2),
+  INVALID_SCOPE_NAME(3);
 
   private final int value;
 
@@ -41,6 +42,8 @@ public enum CreateScopeStatus implements org.apache.thrift.TEnum {
         return FAILURE;
       case 2:
         return SCOPE_EXISTS;
+      case 3:
+        return INVALID_SCOPE_NAME;
       default:
         return null;
     }

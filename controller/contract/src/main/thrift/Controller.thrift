@@ -4,7 +4,8 @@ enum CreateStreamStatus {
     SUCCESS,
     FAILURE,
     STREAM_EXISTS,
-    SCOPE_NOT_FOUND
+    SCOPE_NOT_FOUND,
+    INVALID_STREAM_NAME
 }
 
 enum UpdateStreamStatus {
@@ -44,7 +45,8 @@ enum ScalingPolicyType {
 enum CreateScopeStatus {
     SUCCESS,
     FAILURE,
-    SCOPE_EXISTS
+    SCOPE_EXISTS,
+    INVALID_SCOPE_NAME
 }
 
 enum DeleteScopeStatus {
