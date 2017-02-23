@@ -10,7 +10,6 @@ import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
-import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -48,7 +47,7 @@ import java.util.concurrent.ScheduledExecutorService;
 @Slf4j
 public class Main {
 
-    public static void main(String[] args) throws CheckpointStoreException {
+    public static void main(String[] args) {
         String hostId;
         try {
             //On each controller process restart, it gets a fresh hostId,
