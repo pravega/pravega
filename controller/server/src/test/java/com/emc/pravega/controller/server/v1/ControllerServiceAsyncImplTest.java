@@ -109,7 +109,7 @@ public class ControllerServiceAsyncImplTest {
         ThriftAsyncCallback<CreateScopeStatus> result4 = new ThriftAsyncCallback<>();
         this.controllerService.createScope("abc/def", result4);
         status = result4.getResult().get();
-        assertEquals(status, CreateScopeStatus.FAILURE);
+        assertEquals(status, CreateScopeStatus.INVALID_SCOPE_NAME);
         // endregion
     }
 
@@ -203,6 +203,6 @@ public class ControllerServiceAsyncImplTest {
         final StreamConfiguration configuration4 = new StreamConfigurationImpl("SCOPE3", "abc/def", policy2);
         this.controllerService.createStream(ModelHelper.decode(configuration4), result5);
         status = result5.getResult().get();
-        assertEquals(status, CreateStreamStatus.FAILURE);
+        assertEquals(status, CreateStreamStatus.INVALID_STREAM_NAME);
     }
 }

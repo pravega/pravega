@@ -66,7 +66,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     public synchronized CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
         if (!validateName(scopeName)) {
             log.error("Create scope failed due to invalid scope name {}", scopeName);
-            return CompletableFuture.completedFuture(CreateScopeStatus.FAILURE);
+            return CompletableFuture.completedFuture(CreateScopeStatus.INVALID_SCOPE_NAME);
         } else {
             if (!scopes.containsKey(scopeName)) {
                 InMemoryScope scope = new InMemoryScope(scopeName);
@@ -82,7 +82,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public synchronized CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName) {
         if (scopes.containsKey(scopeName)) {
-            if (scopes.get(scopeName).getStreamsInScope().size() == 0) {
+            if (scopes.get(scopeName).getStreamsInScope().isEmpty()) {
                 scopes.get(scopeName).deleteScope();
                 scopes.remove(scopeName);
                 return CompletableFuture.completedFuture(DeleteScopeStatus.SUCCESS);
@@ -97,6 +97,22 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public CompletableFuture<List<String>> listScopes() {
         return CompletableFuture.completedFuture(new ArrayList<>(scopes.keySet()));
+    }
+
+    /**
+     * List the streams in scope.
+     *
+     * @param scopeName Name of scope
+     * @return List of streams in scope
+     */
+    @Override
+    public CompletableFuture<List<String>> listStreamsInScope(final String scopeName) {
+        InMemoryScope inMemoryScope = scopes.get(scopeName);
+        if (inMemoryScope != null) {
+            return inMemoryScope.listStreamsInScope();
+        } else {
+            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND));
+        }
     }
 
     @Override
