@@ -15,17 +15,18 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface StreamSegmentStore {
     /**
-     * Appends a range of bytes at the end of a StreamSegment. The byte range will be appended as a
-     * contiguous block, however there is no guarantee of ordering between different calls to this
+     * Appends a range of bytes at the end of a StreamSegment and atomically updates the given attributes. The byte range
+     * will be appended as a contiguous block, however there is no guarantee of ordering between different calls to this
      * method.
      *
-     * @param streamSegmentName The name of the StreamSegment to add to.
+     * @param streamSegmentName The name of the StreamSegment to append to.
      * @param data              The data to add.
-     * @param attributeUpdates  A Collection of Attribute-Values to set or update.
+     * @param attributeUpdates  A Collection of Attribute-Values to set or update. Only the attributes contained here will
+     *                          be touched; all other attributes will be left intact. May be null (which indicates no updates).
      * @param timeout           Timeout for the operation
      * @return A CompletableFuture that, will completed normally, if the add was added. If the
      * operation failed, the future will be failed with the causing exception.
-     * @throws NullPointerException     If any of the arguments are null.
+     * @throws NullPointerException     If any of the arguments are null, except attributeUpdates.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't
      *                                  check if the StreamSegment does not exist - that exception will be set in the
      *                                  returned CompletableFuture).
@@ -33,23 +34,39 @@ public interface StreamSegmentStore {
     CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
 
     /**
-     * Appends a range of bytes at the end of a StreamSegment, but only if the current length of the StreamSegment equals
-     * a certain value. The byte range will be appended as a contiguous block. This method guarantees ordering (among
-     * subsequent calls).
+     * Appends a range of bytes at the end of a StreamSegment an atomically updates the given attributes, but only if the
+     * current length of the StreamSegment equals a certain value. The byte range will be appended as a contiguous block.
+     * This method guarantees ordering (among subsequent calls).
      *
-     * @param streamSegmentName The name of the StreamSegment to add to.
+     * @param streamSegmentName The name of the StreamSegment to append to.
      * @param offset            The offset at which to append. If the current length of the StreamSegment does not equal
      *                          this value, the operation will fail with a BadOffsetException.
      * @param data              The data to add.
-     * @param attributeUpdates  A Collection of Attribute-Values to set or update.
+     * @param attributeUpdates  A Collection of Attribute-Values to set or update. Only the attributes contained here will
+     *                          be touched; all other attributes will be left intact. May be null (which indicates no updates).
      * @param timeout           Timeout for the operation
      * @return A CompletableFuture that, when completed normally, will indicate the append completed successfully.
+     * If the operation failed, the future will be failed with the causing exception.
+     * @throws NullPointerException     If any of the arguments are null, except attributeUpdates.
+     * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
+     *                                  does not exist - that exception will be set in the returned CompletableFuture).
+     */
+    CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
+
+    /**
+     * Performs an attribute update operation on the given Segment.
+     *
+     * @param streamSegmentName The name of the StreamSegment which will have its attributes updated.
+     * @param attributeUpdates  A Collection of Attribute-Values to set or update. Only the attributes contained here will
+     *                          be touched; all other attributes will be left intact. Cannot be null.
+     * @param timeout           Timeout for the operation
+     * @return A CompletableFuture that, when completed normally, will indicate the update completed successfully.
      * If the operation failed, the future will be failed with the causing exception.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
      */
-    CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
+    CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
 
     /**
      * Initiates a Read operation on a particular StreamSegment and returns a ReadResult which can be used to consume the
@@ -113,11 +130,11 @@ public interface StreamSegmentStore {
      *
      * @param transactionName The name of the Transaction StreamSegment to merge.
      * @param timeout         Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will contain the offset within the parent StreamSegment
-     * where the transaction has been merged at. If the operation failed, the future will be failed with the causing exception.
+     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
+     * failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout);
+    CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout);
 
     /**
      * Seals a StreamSegment for modifications.

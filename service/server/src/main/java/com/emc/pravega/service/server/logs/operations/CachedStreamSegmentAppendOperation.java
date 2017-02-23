@@ -88,7 +88,7 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
     }
 
     @Override
-    protected byte getOperationType() {
+    protected OperationType getOperationType() {
         throw new UnsupportedOperationException(this.getClass().getSimpleName() + " cannot be serialized, thus it does not have an Operation Type.");
     }
 

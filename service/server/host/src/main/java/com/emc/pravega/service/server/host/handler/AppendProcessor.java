@@ -165,7 +165,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     private void write(final Append toWrite, long numOfEvents) {
         Timer timer = new Timer();
-        ByteBuf buf = Unpooled.unmodifiableBuffer(toWrite.getData());
+        ByteBuf buf = toWrite.getData().asReadOnly();
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
 

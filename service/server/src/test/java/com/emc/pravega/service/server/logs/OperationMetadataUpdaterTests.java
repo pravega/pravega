@@ -29,6 +29,7 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperati
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
+import com.emc.pravega.service.server.logs.operations.UpdateAttributesOperation;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.val;
@@ -206,6 +208,38 @@ public class OperationMetadataUpdaterTests {
      */
     @Test
     public void testStreamSegmentAppendWithAttributes() throws Exception {
+        testWithAttributes(attributeUpdates -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates));
+    }
+
+    /**
+     * Tests the ability of the OperationMetadataUpdater to reject StreamSegmentAppends with invalid Attribute Updates.
+     */
+    @Test
+    public void testStreamSegmentAppendWithBadAttributes() throws Exception {
+        testWithBadAttributes(attributeUpdates -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates));
+    }
+
+    //endregion
+
+    //region UpdateAttributesOperation
+
+    /**
+     * Tests the ability of the OperationMetadataUpdater to handle UpdateAttributeOperations with valid Attribute Updates.
+     */
+    @Test
+    public void testUpdateAttributes() throws Exception {
+        testWithAttributes(attributeUpdates -> new UpdateAttributesOperation(SEGMENT_ID, attributeUpdates));
+    }
+
+    /**
+     * Tests the ability of the OperationMetadataUpdater to reject UpdateAttributeOperations with invalid Attribute Updates.
+     */
+    @Test
+    public void testUpdateAttributesWithBadValues() throws Exception {
+        testWithBadAttributes(attributeUpdates -> new UpdateAttributesOperation(SEGMENT_ID, attributeUpdates));
+    }
+
+    private void testWithAttributes(Function<Collection<AttributeUpdate>, Operation> createOperation) throws Exception {
         final UUID attributeNoUpdate = UUID.randomUUID();
         final UUID attributeAccumulate = UUID.randomUUID();
         final UUID attributeReplace = UUID.randomUUID();
@@ -214,7 +248,7 @@ public class OperationMetadataUpdaterTests {
         UpdateableContainerMetadata metadata = createMetadata();
         OperationMetadataUpdater updater = createUpdater(metadata);
 
-        // Append #1.
+        // Update #1.
         Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
         attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 1)); // Initial add, so it's ok.
         attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1));
@@ -222,15 +256,15 @@ public class OperationMetadataUpdaterTests {
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 1));
         val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
 
-        StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates);
-        updater.preProcessOperation(appendOp);
-        updater.acceptOperation(appendOp);
+        Operation op = createOperation.apply(attributeUpdates);
+        updater.preProcessOperation(op);
+        updater.acceptOperation(op);
 
         // Verify that the AttributeUpdates still have the same values (there was nothing there prior) and that the updater
         // has internalized the attribute updates.
         verifyAttributeUpdates("after acceptOperation (1)", updater, attributeUpdates, expectedValues);
 
-        // Append #2: update all attributes that can be updated.
+        // Update #2: update all attributes that can be updated.
         attributeUpdates.clear();
         attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1)); // 1 + 1 = 2
         attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, 2));
@@ -239,15 +273,15 @@ public class OperationMetadataUpdaterTests {
         expectedValues.put(attributeReplace, 2L);
         expectedValues.put(attributeReplaceIfGreater, 2L);
 
-        appendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates);
-        updater.preProcessOperation(appendOp);
-        updater.acceptOperation(appendOp);
+        op = createOperation.apply(attributeUpdates);
+        updater.preProcessOperation(op);
+        updater.acceptOperation(op);
 
         // This is still in the transaction, so we need to add it for comparison sake.
         attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 1));
         verifyAttributeUpdates("after acceptOperation (2)", updater, attributeUpdates, expectedValues);
 
-        // Append #3: after commit, verify that attributes are committed when they need to.
+        // Update #3: after commit, verify that attributes are committed when they need to.
         val previousAcceptedValues = new HashMap<UUID, Long>(expectedValues);
         updater.commit();
         attributeUpdates.clear();
@@ -258,9 +292,9 @@ public class OperationMetadataUpdaterTests {
         expectedValues.put(attributeReplace, 3L);
         expectedValues.put(attributeReplaceIfGreater, 3L);
 
-        appendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates);
-        updater.preProcessOperation(appendOp);
-        updater.acceptOperation(appendOp);
+        op = createOperation.apply(attributeUpdates);
+        updater.preProcessOperation(op);
+        updater.acceptOperation(op);
 
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in segment metadata after commit+acceptOperation, but prior to second commit.",
                 previousAcceptedValues, metadata.getStreamSegmentMetadata(SEGMENT_ID));
@@ -272,11 +306,7 @@ public class OperationMetadataUpdaterTests {
                 expectedValues, metadata.getStreamSegmentMetadata(SEGMENT_ID));
     }
 
-    /**
-     * Tests the ability of the OperationMetadataUpdater to reject StreamSegmentAppends with invalid Attribute Updates.
-     */
-    @Test
-    public void testStreamSegmentAppendWithBadAttributes() throws Exception {
+    private void testWithBadAttributes(Function<Collection<AttributeUpdate>, Operation> createOperation) throws Exception {
         final UUID attributeNoUpdate = UUID.randomUUID();
         final UUID attributeReplaceIfGreater = UUID.randomUUID();
 
@@ -289,31 +319,31 @@ public class OperationMetadataUpdaterTests {
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 2));
         val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
 
-        StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates);
-        updater.preProcessOperation(appendOp);
-        updater.acceptOperation(appendOp);
+        Operation op = createOperation.apply(attributeUpdates);
+        updater.preProcessOperation(op);
+        updater.acceptOperation(op);
 
         // Append #2: Try to update attribute that cannot be updated.
         attributeUpdates.clear();
         attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 3));
         AssertExtensions.assertThrows(
-                "preProcessOperation accepted a StreamSegmentAppendOperation that was trying to update an unmodifiable attribute.",
-                () -> updater.preProcessOperation(new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates)),
+                "preProcessOperation accepted an operation that was trying to update an unmodifiable attribute.",
+                () -> updater.preProcessOperation(createOperation.apply(attributeUpdates)),
                 ex -> ex instanceof BadAttributeUpdateException);
 
         // Append #3: Try to update attribute with bad value for ReplaceIfGreater attribute.
         attributeUpdates.clear();
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 1));
         AssertExtensions.assertThrows(
-                "preProcessOperation accepted a StreamSegmentAppendOperation that was trying to update an attribute with the wrong value for ReplaceIfGreater.",
-                () -> updater.preProcessOperation(new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates)),
+                "preProcessOperation accepted an operation that was trying to update an attribute with the wrong value for ReplaceIfGreater.",
+                () -> updater.preProcessOperation(createOperation.apply(attributeUpdates)),
                 ex -> ex instanceof BadAttributeUpdateException);
 
         // Reset the attribute update list to its original state so we can do the final verification.
         attributeUpdates.clear();
         attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 2));
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 2));
-        verifyAttributeUpdates("after rejected appends", updater, attributeUpdates, expectedValues);
+        verifyAttributeUpdates("after rejected operations", updater, attributeUpdates, expectedValues);
         updater.commit();
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in segment metadata after commit.",
                 expectedValues, metadata.getStreamSegmentMetadata(SEGMENT_ID));

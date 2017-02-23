@@ -7,18 +7,17 @@ package com.emc.pravega.stream;
 
 import java.io.Serializable;
 
+import lombok.Builder;
+import lombok.Data;
+
 import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
 
+@Data
+@Builder
 public class ReaderConfig implements Serializable {
 
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
 
-    public SegmentInputConfiguration getSegmentConfig() {
-        // TODO Auto-generated method stub
-        return null;
-    }
+    private final SegmentInputConfiguration segmentConfig;
 
 }

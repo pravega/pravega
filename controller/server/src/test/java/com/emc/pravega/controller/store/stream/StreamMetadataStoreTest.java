@@ -8,7 +8,6 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -36,8 +35,8 @@ public class StreamMetadataStoreTest {
     private final String stream2 = "stream2";
     private final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 2);
     private final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 3);
-    private final StreamConfiguration configuration1 = new StreamConfigurationImpl(scope, stream1, policy1);
-    private final StreamConfiguration configuration2 = new StreamConfigurationImpl(scope, stream2, policy2);
+    private final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(scope).streamName(stream1).scalingPolicy(policy1).build();
+    private final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream2).scalingPolicy(policy2).build();
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore store =
@@ -55,7 +54,7 @@ public class StreamMetadataStoreTest {
         store.createStream(scope, stream1, configuration1, System.currentTimeMillis(), null, executor);
         store.createStream(scope, stream2, configuration2, System.currentTimeMillis(), null, executor);
 
-        assertEquals(stream1, store.getConfiguration(scope, stream1, null, executor).get().getName());
+        assertEquals(stream1, store.getConfiguration(scope, stream1, null, executor).get().getStreamName());
         // endregion
 
         // region checkSegments

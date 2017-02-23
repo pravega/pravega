@@ -8,17 +8,9 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.collect.Lists;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Test;
 
 import java.util.AbstractMap;
 import java.util.Arrays;
@@ -31,6 +23,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -64,7 +65,7 @@ public class ZkStreamTest {
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testfail";
 
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
+        final StreamConfiguration streamConfig = StreamConfiguration.builder().scope(streamName).streamName(streamName).scalingPolicy(policy).build();
 
         CompletableFuture<Boolean> createStream = store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor);
         zkTestServer.stop();
@@ -84,7 +85,11 @@ public class ZkStreamTest {
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testfail";
 
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
+        StreamConfiguration streamConfig = StreamConfiguration.builder()
+                .scope(streamName)
+                .streamName(streamName)
+                .scalingPolicy(policy)
+                .build();
 
         PersistentStreamBase.setCreationState(State.CREATING);
 
@@ -100,14 +105,17 @@ public class ZkStreamTest {
 
     @Test
     public void testZkStream() throws Exception {
-        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 5);
+        final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test";
 
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
+        StreamConfiguration streamConfig = StreamConfiguration.builder()
+                                                              .scope(streamName)
+                                                              .streamName(streamName)
+                                                              .scalingPolicy(policy)
+                                                              .build();
         store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
-
         OperationContext context = store.createContext(SCOPE, streamName);
 
         List<Segment> segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
@@ -214,13 +222,17 @@ public class ZkStreamTest {
 
     @Ignore("run manually")
     //    @Test
-    public void testZkStreamChukning() throws Exception {
-        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 6);
+    public void testZkStreamChunking() throws Exception {
+        final ScalingPolicy policy = ScalingPolicy.fixed(6);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test2";
 
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
+        StreamConfiguration streamConfig = StreamConfiguration.builder()
+                                                              .scope(streamName)
+                                                              .streamName(streamName)
+                                                              .scalingPolicy(policy)
+                                                              .build();
         store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
 
         OperationContext context = store.createContext(SCOPE, streamName);
@@ -262,12 +274,16 @@ public class ZkStreamTest {
 
     @Test
     public void testTransaction() throws Exception {
-        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 5);
+        final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testTx";
 
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
+        StreamConfiguration streamConfig = StreamConfiguration.builder()
+                                                              .scope(streamName)
+                                                              .streamName(streamName)
+                                                              .scalingPolicy(policy)
+                                                              .build();
         store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
 
         OperationContext context = store.createContext(SCOPE, streamName);

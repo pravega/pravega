@@ -13,6 +13,7 @@ import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ReaderConfig;
+import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.JavaSerializer;
@@ -55,7 +56,7 @@ public class TransactionTest {
     }
 
     @Test
-    public void testTransactionalWritesOrderedCorrectly() throws TxnFailedException {
+    public void testTransactionalWritesOrderedCorrectly() throws TxnFailedException, ReinitializationRequiredException {
         int readTimeout = 5000;
         String readerName = "reader";
         String groupName = "group";
@@ -77,7 +78,7 @@ public class TransactionTest {
         EventStreamWriter<String> producer = streamManager.getClientFactory()
                                                           .createEventWriter(streamName,
                                                                              new JavaSerializer<>(),
-                                                                             new EventWriterConfig(null));
+                                                                             EventWriterConfig.builder().build());
         producer.writeEvent(routingKey, nonTxEvent);
         Transaction<String> transaction = producer.beginTxn(60000);
         producer.writeEvent(routingKey, nonTxEvent);
@@ -101,7 +102,7 @@ public class TransactionTest {
         EventStreamReader<Serializable> consumer = streamManager.getClientFactory().createReader(readerName,
                                                                                                  groupName,
                                                                                                  new JavaSerializer<>(),
-                                                                                                 new ReaderConfig());
+                                                                                                 ReaderConfig.builder().build());
 
         assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getEvent());
         assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getEvent());
@@ -138,7 +139,7 @@ public class TransactionTest {
         EventStreamWriter<String> producer = streamManager.getClientFactory()
                                                           .createEventWriter(streamName,
                                                                              new JavaSerializer<>(),
-                                                                             new EventWriterConfig(null));
+                                                                             EventWriterConfig.builder().build());
         Transaction<String> transaction = producer.beginTxn(60000);
         transaction.writeEvent(routingKey, event);
         transaction.commit();
@@ -146,7 +147,7 @@ public class TransactionTest {
     }
 
     @Test
-    public void testDrop() throws TxnFailedException {
+    public void testDrop() throws TxnFailedException, ReinitializationRequiredException {
         String endpoint = "localhost";
         String groupName = "group";
         String streamName = "abc";
@@ -166,7 +167,7 @@ public class TransactionTest {
         EventStreamWriter<String> producer = streamManager.getClientFactory()
                                                           .createEventWriter(streamName,
                                                                              new JavaSerializer<>(),
-                                                                             new EventWriterConfig(null));
+                                                                             EventWriterConfig.builder().build());
 
         Transaction<String> transaction = producer.beginTxn(60000);
         transaction.writeEvent(routingKey, txnEvent);
@@ -180,7 +181,7 @@ public class TransactionTest {
         EventStreamReader<Serializable> consumer = streamManager.getClientFactory().createReader("reader",
                                                                                                  groupName,
                                                                                                  new JavaSerializer<>(),
-                                                                                                 new ReaderConfig());
+                                                                                                 ReaderConfig.builder().build());
         producer.writeEvent(routingKey, nonTxEvent);
         producer.flush();
         assertEquals(nonTxEvent, consumer.readNextEvent(1500).getEvent());

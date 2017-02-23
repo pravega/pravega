@@ -61,11 +61,11 @@ public class ControllerService {
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig, final long createTimestamp) {
-        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, createTimestamp);
+        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getStreamName(), streamConfig, createTimestamp);
     }
 
     public CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig) {
-        return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, null);
+        return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getStreamName(), streamConfig, null);
     }
 
     public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String stream) {

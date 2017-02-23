@@ -51,7 +51,7 @@ import java.net.URI;
  * Otherwise this can be done by creating new reader by calling:
  * {@link RebalancerUtils#rebalance(java.util.Collection, int)} .
  */
-public interface ClientFactory {
+public interface ClientFactory extends AutoCloseable {
 
     /**
      * Creates a new instance of Client Factory.
@@ -85,7 +85,8 @@ public interface ClientFactory {
      * @param <T> The type of events.
      * @return Newly created idempotent writer object
      */
-    <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
+    <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
+            EventWriterConfig config);
 
     /**
      * Creates a new manually managed reader that will read from the specified stream at the
@@ -157,5 +158,11 @@ public interface ClientFactory {
                                                       Serializer<UpdateT> updateSerializer,
                                                       Serializer<InitT> initSerializer,
                                                       SynchronizerConfig config);
+    
+    /**
+     * See @see java.lang.AutoCloseable#close() .
+     */
+    @Override
+    void close();
 
 }

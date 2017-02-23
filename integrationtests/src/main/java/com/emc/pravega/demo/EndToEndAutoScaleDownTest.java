@@ -13,8 +13,8 @@ import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.StreamSegments;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
@@ -26,11 +26,13 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
 
 @Slf4j
 public class EndToEndAutoScaleDownTest {
-    static StreamConfigurationImpl config = new StreamConfigurationImpl("test", "test",
-            new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 10, 2, 1));
+    static StreamConfiguration config =
+            StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(
+                    new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 10, 2, 1)).build();
 
     public static void main(String[] args) throws Exception {
         try {
@@ -48,7 +50,7 @@ public class EndToEndAutoScaleDownTest {
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-            SegmentStatsFactory.createSegmentStatsRecorder(store, executor, scheduledExecutor);
+            SegmentStatsFactory.createSegmentStatsRecorder(store, Executors.newFixedThreadPool(2), Executors.newSingleThreadScheduledExecutor());
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);

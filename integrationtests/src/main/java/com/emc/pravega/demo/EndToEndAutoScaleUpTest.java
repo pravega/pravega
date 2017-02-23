@@ -14,9 +14,9 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamSegments;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockClientFactory;
@@ -27,11 +27,13 @@ import org.apache.curator.test.TestingServer;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 
 @Slf4j
 public class EndToEndAutoScaleUpTest {
-    static StreamConfigurationImpl config = new StreamConfigurationImpl("test", "test",
-            new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 10, 2, 3));
+    static StreamConfiguration config =
+            StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(
+                    new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 10, 2, 3)).build();
 
     public static void main(String[] args) throws Exception {
         try {
@@ -47,7 +49,7 @@ public class EndToEndAutoScaleUpTest {
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-            SegmentStatsFactory.createSegmentStatsRecorder(store, executor, scheduledExecutor);
+            SegmentStatsFactory.createSegmentStatsRecorder(store, Executors.newFixedThreadPool(2), Executors.newSingleThreadScheduledExecutor());
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
@@ -58,7 +60,7 @@ public class EndToEndAutoScaleUpTest {
 
             // Mocking pravega service by putting scale up and scale down requests for the stream
             EventStreamWriter<String> test = clientFactory.createEventWriter(
-                    "test", new JavaSerializer<>(), new EventWriterConfig(null));
+                    "test", new JavaSerializer<>(), EventWriterConfig.builder().build());
 
             // keep writing. Scale should happen
             long start = System.currentTimeMillis();

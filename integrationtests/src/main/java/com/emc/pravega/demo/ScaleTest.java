@@ -15,7 +15,6 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 
 import java.util.Arrays;
@@ -25,9 +24,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import org.apache.curator.test.TestingServer;
-
 import lombok.Cleanup;
+
+import org.apache.curator.test.TestingServer;
 
 /**
  * End to end scale tests.
@@ -51,9 +50,8 @@ public class ScaleTest {
         final String scope = "scope";
         final String streamName = "stream1";
         final StreamConfiguration config =
-                new StreamConfigurationImpl(scope,
-                        streamName,
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 1));
+                StreamConfiguration.builder().scope(scope).streamName(streamName).scalingPolicy(
+                        ScalingPolicy.fixed(1)).build();
 
         Stream stream = new StreamImpl(scope, streamName);
 

@@ -130,13 +130,13 @@ public class RequestHandlersInit {
                 SCALE_READER_REF.compareAndSet(null, clientFactory.createReader(Config.SCALE_READER_ID,
                         Config.SCALE_READER_GROUP,
                         new JavaSerializer<>(),
-                        new ReaderConfig()));
+                        ReaderConfig.builder().build()));
             }
 
             if (SCALE_WRITER_REF.get() == null) {
                 SCALE_WRITER_REF.compareAndSet(null, clientFactory.createEventWriter(Config.SCALE_STREAM_NAME,
                         new JavaSerializer<>(),
-                        new EventWriterConfig(null)));
+                        EventWriterConfig.builder().build()));
             }
 
             if (SCALE_REQUEST_READER_REF.get() == null) {
