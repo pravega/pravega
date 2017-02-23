@@ -131,10 +131,10 @@ public class StreamMetadataStoreTest {
         store.createScope("Scope").get();
         store.createStream("Scope", stream1, configuration1, System.currentTimeMillis());
         store.createStream("Scope", stream2, configuration2, System.currentTimeMillis());
-        List<Stream> streamInScope = store.listStreamsInScope("Scope").get();
+        List<String> streamInScope = store.listStreamsInScope("Scope").get();
         assertEquals("List streams in scope", 2, streamInScope.size());
-        assertEquals("List streams in scope", stream1, streamInScope.get(0).getName());
-        assertEquals("List streams in scope", stream2, streamInScope.get(1).getName());
+        assertEquals("List streams in scope", stream1, streamInScope.get(0));
+        assertEquals("List streams in scope", stream2, streamInScope.get(1));
     }
 
     @Test
