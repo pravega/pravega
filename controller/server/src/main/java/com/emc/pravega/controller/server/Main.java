@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.server;
 
@@ -14,6 +12,7 @@ import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -97,12 +96,13 @@ public class Main {
             monitor.startAsync();
         }
 
+        SegmentHelper segmentHelper = new SegmentHelper();
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                taskExecutor, hostId);
+                segmentHelper, taskExecutor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, taskExecutor, hostId);
+                hostStore, taskMetadataStore, segmentHelper, taskExecutor, hostId);
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, controllerServiceExecutor);
+                streamTransactionMetadataTasks, new SegmentHelper(), controllerServiceExecutor);
 
         //2. Start the RPC server.
         log.info("Starting RPC server");

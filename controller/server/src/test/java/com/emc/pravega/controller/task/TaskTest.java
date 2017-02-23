@@ -3,7 +3,8 @@
  */
 package com.emc.pravega.controller.task;
 
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelperMock;
+import com.emc.pravega.controller.mocks.SegmentHelperMock;
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
@@ -48,7 +49,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-
 /**
  * Task test cases.
  */
@@ -71,18 +71,22 @@ public class TaskTest {
     private final TestingServer zkServer;
 
     private final StreamMetadataTasks streamMetadataTasks;
+    private final SegmentHelper segmentHelperMock;
 
     public TaskTest() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
 
-        SegmentHelperMock.init();
-
         CuratorFramework cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
         taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(cli), executor);
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, HOSTNAME);
+
+        segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
+
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
+                executor, HOSTNAME);
     }
+
 
     @Before
     public void prepareStreamStore() {

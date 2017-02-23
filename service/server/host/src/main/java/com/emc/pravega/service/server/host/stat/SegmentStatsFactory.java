@@ -3,42 +3,62 @@
  */
 package com.emc.pravega.service.server.host.stat;
 
+import com.emc.pravega.ClientFactory;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
-import com.emc.pravega.service.monitor.MonitorFactory;
-import com.emc.pravega.service.monitor.SegmentTrafficMonitor;
-import com.google.common.collect.Lists;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.Data;
-import lombok.Synchronized;
 
-import java.util.List;
-import java.util.Optional;
+import java.net.URI;
+import java.time.Duration;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @Data
 public class SegmentStatsFactory {
 
-    public static final AtomicReference<SegmentStatsRecorder> STAT_RECORDER = new AtomicReference<>();
-//    private static final ScheduledExecutorService CACHE_MAINTENANCE_EXECUTOR = Executors.newSingleThreadScheduledExecutor();
-//
-//    private static final ExecutorService EXECUTOR = new ThreadPoolExecutor(1, // core size
-//            10, // max size
-//            60L, // idle timeout
-//            TimeUnit.SECONDS,
-//            new ArrayBlockingQueue<Runnable>(100000)); // queue with a size
+    private static final int CORE_POOL_SIZE = 1;
+    private static final int MAXIMUM_POOL_SIZE = 10;
+    private static final int TASK_QUEUE_CAPACITY = 100000;
+    private static final long KEEP_ALIVE_TIME_IN_SECONDS = 10L;
 
-    @Synchronized
-    public static void createSegmentStatsRecorder(StreamSegmentStore store, ExecutorService executor, ScheduledExecutorService scheduledExecutor) {
-        if (STAT_RECORDER.get() == null) {
-            List<SegmentTrafficMonitor> monitors = Lists.newArrayList(
-                    MonitorFactory.createMonitor(MonitorFactory.MonitorType.AutoScaleMonitor, executor, scheduledExecutor));
-            STAT_RECORDER.compareAndSet(null, new SegmentStatsRecorderImpl(monitors, store, executor, scheduledExecutor));
-        }
+    private static final ScheduledExecutorService CACHE_MAINTENANCE_EXECUTOR = Executors.newSingleThreadScheduledExecutor(
+            new ThreadFactoryBuilder().setNameFormat("cache-maintenance-%d").build());
+
+    private static final ExecutorService EXECUTOR = new ThreadPoolExecutor(CORE_POOL_SIZE, // core size
+            MAXIMUM_POOL_SIZE, // max size
+            KEEP_ALIVE_TIME_IN_SECONDS, // idle timeout
+            TimeUnit.SECONDS,
+            new ArrayBlockingQueue<Runnable>(TASK_QUEUE_CAPACITY),
+            new ThreadFactoryBuilder().setNameFormat("stat-background-%d").build()); // queue with a size
+
+    public static SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store,
+                                                                  String scope,
+                                                                  String requestStream,
+                                                                  URI controllerUri) {
+        AutoScalerConfig configuration = new AutoScalerConfig(scope, requestStream, controllerUri);
+        AutoScaleProcessor monitor = new AutoScaleProcessor(configuration, EXECUTOR, CACHE_MAINTENANCE_EXECUTOR);
+        return new SegmentStatsRecorderImpl(monitor, store, EXECUTOR, CACHE_MAINTENANCE_EXECUTOR);
     }
 
-    public static Optional<SegmentStatsRecorder> getSegmentStatsRecorder() {
-        return Optional.ofNullable(STAT_RECORDER.get());
+    @VisibleForTesting
+    public static SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store,
+                                                                  String scope,
+                                                                  String requestStream,
+                                                                  ClientFactory clientFactory,
+                                                                  Duration cooldown,
+                                                                  Duration mute,
+                                                                  Duration cacheCleanup,
+                                                                  Duration cacheExpiry) {
+        AutoScalerConfig configuration = new AutoScalerConfig(cooldown, mute, cacheCleanup, cacheExpiry,
+                scope, requestStream, null);
+        AutoScaleProcessor monitor = new AutoScaleProcessor(configuration, clientFactory,
+                EXECUTOR, CACHE_MAINTENANCE_EXECUTOR);
+        return new SegmentStatsRecorderImpl(monitor, store,
+                EXECUTOR, CACHE_MAINTENANCE_EXECUTOR);
     }
-
 }

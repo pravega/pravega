@@ -44,7 +44,7 @@ public class ScaleTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
-        // Create controller object for testing against a separate controller process.
+        // Create controller object for testing against a separate controller report.
         // ControllerImpl controller = new ControllerImpl("localhost", 9090);
 
         final String scope = "scope";

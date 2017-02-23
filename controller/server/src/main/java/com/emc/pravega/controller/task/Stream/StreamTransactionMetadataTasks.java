@@ -14,6 +14,7 @@ import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.Serializable;
@@ -38,23 +39,25 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactoryImpl connectionFactory;
+    private final SegmentHelper segmentHelper;
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final HostControllerStore hostControllerStore,
                                           final TaskMetadataStore taskMetadataStore,
-                                          final ScheduledExecutorService executor,
+                                          SegmentHelper segmentHelper, final ScheduledExecutorService executor,
                                           final String hostId) {
-        this(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, new Context(hostId));
+        this(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, new Context(hostId));
     }
 
     private StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                            final HostControllerStore hostControllerStore,
                                            final TaskMetadataStore taskMetadataStore,
-                                           final ScheduledExecutorService executor,
+                                           SegmentHelper segmentHelper, final ScheduledExecutorService executor,
                                            final Context context) {
         super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
+        this.segmentHelper = segmentHelper;
         this.connectionFactory = new ConnectionFactoryImpl(false);
     }
 
@@ -149,8 +152,9 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 .thenCompose(x -> withRetries(() -> transformWithRetryable(streamMetadataStore.commitTransaction(scope, stream, txid, context, executor)), executor));
     }
 
-    private CompletableFuture<UUID> notifyTxCreation(final String scope, final String stream, final int segmentNumber, final UUID txid) {
-        return withRetries(() -> transformWithRetryable(SegmentHelper.getSegmentHelper().createTransaction(scope,
+    @VisibleForTesting
+    public CompletableFuture<UUID> notifyTxCreation(final String scope, final String stream, final int segmentNumber, final UUID txid) {
+        return withRetries(() -> transformWithRetryable(segmentHelper.createTransaction(scope,
                 stream,
                 segmentNumber,
                 txid,
@@ -158,8 +162,9 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 this.connectionFactory)), executor);
     }
 
-    private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return withRetries(() -> transformWithRetryable(SegmentHelper.getSegmentHelper().abortTransaction(scope,
+    @VisibleForTesting
+    public CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
+        return withRetries(() -> transformWithRetryable(segmentHelper.abortTransaction(scope,
                 stream,
                 segmentNumber,
                 txId,
@@ -167,8 +172,9 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 this.connectionFactory)), executor);
     }
 
-    private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return withRetries(() -> transformWithRetryable(SegmentHelper.getSegmentHelper().commitTransaction(scope,
+    @VisibleForTesting
+    public CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
+        return withRetries(() -> transformWithRetryable(segmentHelper.commitTransaction(scope,
                 stream,
                 segmentNumber,
                 txId,
@@ -181,7 +187,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
         return new StreamTransactionMetadataTasks(streamMetadataStore,
                 hostControllerStore,
                 taskMetadataStore,
-                executor,
+                segmentHelper, executor,
                 context);
     }
 }

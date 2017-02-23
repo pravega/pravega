@@ -1,12 +1,10 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.requesthandler;
 
 import com.emc.pravega.ClientFactory;
-import com.emc.pravega.StreamManager;
+import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.controller.embedded.EmbeddedController;
 import com.emc.pravega.controller.embedded.EmbeddedControllerImpl;
 import com.emc.pravega.controller.requests.ScaleRequest;
@@ -26,12 +24,11 @@ import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.StreamManagerImpl;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.google.common.collect.Lists;
 import lombok.extern.slf4j.Slf4j;
 
+import java.net.URI;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
@@ -42,29 +39,32 @@ import java.util.function.Supplier;
 
 @Slf4j
 public class RequestHandlersInit {
-    private static final StreamConfiguration REQUEST_STREAM_CONFIG = new StreamConfigurationImpl(Config.INTERNAL_SCOPE,
-            Config.SCALE_STREAM_NAME,
-            new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 1000, 2, 1));
+    private static final StreamConfiguration REQUEST_STREAM_CONFIG = StreamConfiguration.builder().scope(Config.INTERNAL_SCOPE).
+            streamName(Config.SCALE_STREAM_NAME).scalingPolicy(
+            new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 1000, 2, 1)).build();
 
     private static final AtomicReference<ScaleRequestHandler> SCALE_HANDLER_REF = new AtomicReference<>();
     private static final AtomicReference<EventStreamReader<ScaleRequest>> SCALE_READER_REF = new AtomicReference<>();
     private static final AtomicReference<EventStreamWriter<ScaleRequest>> SCALE_WRITER_REF = new AtomicReference<>();
     private static final AtomicReference<RequestReader<ScaleRequest, ScaleRequestHandler>> SCALE_REQUEST_READER_REF = new AtomicReference<>();
-    private static StreamManager streamManager;
+    private static ReaderGroupManager readerGroupManager;
     private static ClientFactory clientFactory;
+    private static URI uri;
 
     public static void bootstrapRequestHandlers(EmbeddedController controller, ScheduledExecutorService executor) {
 
-        clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, controller, new ConnectionFactoryImpl(false));
+        uri = URI.create("tcp://localhost:" + Config.SERVER_PORT);
 
-        streamManager = new StreamManagerImpl(Config.INTERNAL_SCOPE, controller, clientFactory);
+        clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, uri);
+
+        readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, uri);
 
         EmbeddedControllerImpl embeddedControllerImpl = (EmbeddedControllerImpl) controller;
 
         CompletableFuture<Void> createStream = new CompletableFuture<>();
         CompletableFuture<Void> createScaleReader = new CompletableFuture<>();
 
-        CompletableFuture.runAsync(() -> createStreams(embeddedControllerImpl, executor, createStream));
+        executor.execute(() -> createStreams(embeddedControllerImpl, executor, createStream));
 
         createStream.thenAccept(x -> startScaleReader(clientFactory, controller.getController().getStreamMetadataTasks(),
                 controller.getController().getStreamStore(), controller.getController().getStreamTransactionMetadataTasks(),
@@ -117,10 +117,9 @@ public class RequestHandlersInit {
 
     private static void startScaleReader(ClientFactory clientFactory, StreamMetadataTasks streamMetadataTasks, StreamMetadataStore streamStore, StreamTransactionMetadataTasks streamTransactionMetadataTasks, ScheduledExecutorService executor, CompletableFuture<Void> result) {
         retryIndefinitely(() -> {
-            // TODO: what should be starting position? we take checkpoint
             ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
 
-            streamManager.createReaderGroup(Config.SCALE_READER_GROUP, groupConfig, Lists.newArrayList(Config.SCALE_STREAM_NAME));
+            readerGroupManager.createReaderGroup(Config.SCALE_READER_GROUP, groupConfig, Lists.newArrayList(Config.SCALE_STREAM_NAME));
 
             if (SCALE_HANDLER_REF.get() == null) {
                 SCALE_HANDLER_REF.compareAndSet(null, new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor));

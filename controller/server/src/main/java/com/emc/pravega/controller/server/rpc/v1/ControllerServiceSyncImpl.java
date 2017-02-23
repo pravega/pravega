@@ -42,9 +42,11 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
                                      final HostControllerStore hostStore,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                                     final SegmentHelper segmentHelper,
                                      final Executor executor) {
         this.executor = executor;
-        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks, this.executor);
+        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, segmentHelper, this.executor);
     }
 
     /**

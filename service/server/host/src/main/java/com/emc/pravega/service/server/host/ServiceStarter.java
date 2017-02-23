@@ -15,6 +15,7 @@ import com.emc.pravega.common.metrics.StatsProvider;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.host.stat.SegmentStatsFactory;
+import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
@@ -24,6 +25,8 @@ import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
+
+import java.net.URI;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
@@ -103,9 +106,12 @@ public final class ServiceStarter {
         log.info("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        SegmentStatsFactory.createSegmentStatsRecorder(service, executor, scheduledExecutor);
+        SegmentStatsRecorder statsRecorder = SegmentStatsFactory.createSegmentStatsRecorder(service,
+                this.serviceConfig.getInternalScope(),
+                this.serviceConfig.getInternalRequestStream(),
+                URI.create(this.serviceConfig.getControllerUri()));
 
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningPort(), service);
+        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningPort(), service, statsRecorder);
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
         log.info("StreamSegmentService started.");

@@ -15,6 +15,7 @@ import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -210,7 +211,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private void startController() {
         String hostId;
         try {
-            //On each controller process restart, it gets a fresh hostId,
+            //On each controller report restart, it gets a fresh hostId,
             //which is a combination of hostname and random GUID.
             hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
         } catch (UnknownHostException e) {
@@ -246,11 +247,13 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
         //2. Start the RPC server.
         log.info("Starting RPC server");
+        SegmentHelper segmentHelper = new SegmentHelper();
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                controllerExecutor, hostId);
+                segmentHelper, controllerExecutor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, controllerExecutor, hostId);
-        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks, Executors.newFixedThreadPool(10));
+                hostStore, taskMetadataStore, segmentHelper, controllerExecutor, hostId);
+        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor);
         RPCServer.start(new ControllerServiceAsyncImpl(
                 controllerService));
 
@@ -260,13 +263,13 @@ public class LocalPravegaEmulator implements AutoCloseable {
         // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
         // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
         // are processed and deleted, that failed HostId is removed from FH folder.
-        // Moreover, on controller process startup, it detects any hostIds not in the currently active set of
+        // Moreover, on controller report startup, it detects any hostIds not in the currently active set of
         // controllers and starts sweeping tasks orphaned by those hostIds.
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
 
         EmbeddedController controllerWrapper = new EmbeddedControllerImpl(controllerService);
-        RequestHandlersInit.bootstrapRequestHandlers(controllerWrapper, Executors.newScheduledThreadPool(100));
+        RequestHandlersInit.bootstrapRequestHandlers(controllerWrapper, controllerExecutor);
 
     }
 

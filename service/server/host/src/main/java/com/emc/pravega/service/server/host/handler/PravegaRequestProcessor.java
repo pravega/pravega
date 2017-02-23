@@ -48,7 +48,8 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
-import com.emc.pravega.service.server.host.stat.SegmentStatsFactory;
+import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -60,6 +61,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
@@ -88,15 +90,23 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
+    @VisibleForTesting
     static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
 
     private final StreamSegmentStore segmentStore;
 
     private final ServerConnection connection;
 
+    private final SegmentStatsRecorder statsRecorder;
+
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
+        this(segmentStore, connection, null);
+    }
+
+    public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, SegmentStatsRecorder statsRecorder) {
         this.segmentStore = segmentStore;
         this.connection = connection;
+        this.statsRecorder = statsRecorder;
     }
 
     @Override
@@ -255,7 +265,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
         }).whenComplete((res, e) -> {
             if (e == null) {
-                SegmentStatsFactory.getSegmentStatsRecorder().ifPresent(recorder ->
+                Optional.ofNullable(statsRecorder).ifPresent(recorder ->
                         recorder.createSegment(createStreamsSegment.getSegment(),
                                 createStreamsSegment.getScaleType(), createStreamsSegment.getTargetRate()));
             } else {
@@ -313,19 +323,19 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             }).exceptionally((Throwable e) -> {
                 handleException(transactionName, "Commit transaction", e);
                 return null;
-            }).thenCompose(x -> segmentStore.getStreamSegmentInfo(commitTx.getSegment(), false, TIMEOUT)
-                    .thenAccept(prop -> {
-                        long creationTime = prop.getAttributes().getOrDefault(Attributes.CREATION_TIME, System.currentTimeMillis());
-                        int numOfEvents = prop.getAttributes().getOrDefault(Attributes.EVENT_COUNT, 0L).intValue();
-                        SegmentStatsFactory.getSegmentStatsRecorder().ifPresent(recorder ->
-                                recorder.merge(commitTx.getSegment(), prop.getLength(), numOfEvents, creationTime));
-                    })
-            );
+            });
             return null;
         }).exceptionally((Throwable e) -> {
             handleException(transactionName, "Commit transaction", e);
             return null;
-        });
+        }).thenCompose(x -> segmentStore.getStreamSegmentInfo(commitTx.getSegment(), false, TIMEOUT)
+                .thenAccept(prop -> {
+                    long creationTime = prop.getAttributes().getOrDefault(Attributes.CREATION_TIME, System.currentTimeMillis());
+                    int numOfEvents = prop.getAttributes().getOrDefault(Attributes.EVENT_COUNT, 0L).intValue();
+                    Optional.ofNullable(statsRecorder).ifPresent(recorder ->
+                            recorder.merge(commitTx.getSegment(), prop.getLength(), numOfEvents, creationTime));
+                })
+        );
     }
 
     @Override
@@ -354,7 +364,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             if (e != null) {
                 handleException(segment, "Seal segment", e);
             } else {
-                SegmentStatsFactory.getSegmentStatsRecorder().ifPresent(recorder ->
+                Optional.ofNullable(statsRecorder).ifPresent(recorder ->
                         recorder.sealSegment(sealSegment.getSegment()));
             }
         });
@@ -378,9 +388,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, (long) updateSegmentPolicy.getScaleType()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, (int) updateSegmentPolicy.getTargetRate()));
 
-        // TODO: persist in tier-2
-        // CompletableFuture<Void> future = segmentStore.updateStreamSegmentPolicy(updateSegmentPolicy.getSegment(), attributes, TIMEOUT);
-        CompletableFuture<Void> future = CompletableFuture.completedFuture(null);
+         CompletableFuture<Void> future = segmentStore.updateAttributes(updateSegmentPolicy.getSegment(), attributes, TIMEOUT);
         future.thenApply((Void v) -> {
             connection.send(new SegmentPolicyUpdated(updateSegmentPolicy.getSegment()));
             return null;
@@ -388,7 +396,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             if (e != null) {
                 handleException(updateSegmentPolicy.getSegment(), "Update segment", e);
             } else {
-                SegmentStatsFactory.getSegmentStatsRecorder().ifPresent(recorder ->
+                Optional.ofNullable(statsRecorder).ifPresent(recorder ->
                         recorder.policyUpdate(updateSegmentPolicy.getSegment(),
                                 updateSegmentPolicy.getScaleType(), updateSegmentPolicy.getTargetRate()));
             }

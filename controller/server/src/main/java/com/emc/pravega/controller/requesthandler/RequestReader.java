@@ -222,10 +222,14 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
 
     @Synchronized
     private void checkpoint() {
-        // Even if this fails, its ok. Next checkpoint periodic trigger will store the checkpoint.
-        // TODO: store it in persistent store
-        serializer.serialize(checkpoint.get().position);
-        // checkpoint(readerId, readerGroup, serialize);
+        try {
+            // TODO: store checkpoint in persistent store
+            serializer.serialize(checkpoint.get().position);
+            // checkpoint(readerId, readerGroup, serialize);
+        } catch (Exception e) {
+            // Even if this fails, its ok. Next checkpoint periodic trigger will store the checkpoint.
+            log.error("Request reader checkpointing failed {}", e);
+        }
     }
 
     @AllArgsConstructor

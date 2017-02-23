@@ -18,7 +18,6 @@ import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
-import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
@@ -37,7 +36,6 @@ import java.util.stream.IntStream;
 
 @Slf4j
 public abstract class PersistentStreamBase<T> implements Stream {
-    private static State defaultCreationState = State.CREATING;
 
     private final String scope;
     private final String name;
@@ -78,7 +76,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return checkStreamExists(create)
                 .thenCompose(x -> storeCreationTime(create))
                 .thenCompose(x -> createConfiguration(create))
-                .thenCompose(x -> createState(defaultCreationState))
+                .thenCompose(x -> createState(State.CREATING))
                 .thenCompose(x -> createSegmentTable(create))
                 .thenCompose(x -> createSegmentFile(create))
                 .thenCompose(x -> createHistoryTable(create))
@@ -606,7 +604,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenApply(segmentTableChunk -> new ImmutablePair<>(latestChunkNumber, segmentTableChunk));
     }
 
-
     abstract CompletableFuture<Void> checkStreamExists(final Create create) throws StreamAlreadyExistsException;
 
     abstract CompletableFuture<Void> storeCreationTime(final Create create);
@@ -676,11 +673,4 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Boolean> isBlocked();
 
     abstract CompletableFuture<Map<String, Data<T>>> getCurrentTxns();
-
-
-    // TODO: shivesh
-    @VisibleForTesting
-    public static void setCreationState(State state) {
-        defaultCreationState = state;
-    }
 }

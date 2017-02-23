@@ -1,29 +1,26 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.request;
 
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.requesthandler.ScaleRequestHandler;
 import com.emc.pravega.controller.requests.ScaleRequest;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelperMock;
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.ZKHostStore;
-import com.emc.pravega.controller.store.stream.PersistentStreamBase;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
-import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import com.emc.pravega.stream.StreamConfiguration;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -47,13 +44,14 @@ import static org.mockito.Mockito.spy;
 public class RequestTest {
     private final String scope = "scope";
     private final String stream = "stream";
+    StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+            new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 0, 2, 3)).build();
 
     private ScheduledExecutorService executor = Executors.newScheduledThreadPool(100);
     private StreamMetadataStore streamStore;
     private TaskMetadataStore taskMetadataStore;
     private HostControllerStore hostStore;
     private StreamMetadataTasks streamMetadataTasks;
-
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
     private TestingServer zkServer;
@@ -62,8 +60,6 @@ public class RequestTest {
 
     @Before
     public void createStream() throws Exception {
-        SegmentHelperMock.init();
-        PersistentStreamBase.setCreationState(State.ACTIVE);
         zkServer = new TestingServer();
         zkServer.start();
 
@@ -88,16 +84,18 @@ public class RequestTest {
         hostStore = spy(new ZKHostStore(zkClient, "test"));
         doReturn(new Host("", 0)).when(hostStore).getHostForSegment(anyString(), anyString(), anyInt());
 
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executor, hostId);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore,
+                segmentHelper, executor, hostId);
 
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId);
+        long createTimestamp = System.currentTimeMillis();
 
         // add a host in zk
         // mock pravega
         // create a stream
-        streamStore.createStream(scope, stream, new StreamConfigurationImpl(scope, stream, new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 0, 2, 3)), System.currentTimeMillis(), null, executor).get();
+        streamMetadataTasks.createStream(scope, stream, config, createTimestamp).get();
     }
 
     @Test

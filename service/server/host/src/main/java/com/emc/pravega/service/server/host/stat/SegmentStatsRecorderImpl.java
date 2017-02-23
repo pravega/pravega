@@ -8,7 +8,6 @@ import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
 import com.emc.pravega.service.contracts.Attributes;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
-import com.emc.pravega.service.monitor.SegmentTrafficMonitor;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
@@ -17,7 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -31,40 +29,57 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     private static final long TWO_MINUTES = Duration.ofMinutes(2).toMillis();
     private static final int INITIAL_CAPACITY = 1000;
     private static final int MAX_CACHE_SIZE = 100000; // 100k segment records in memory.
+    // At 100k * with each aggregate approximately ~80 bytes = 8 Mb of memory foot print.
+    // Assuming 32 bytes for streamSegmentName used as the key in the cache = 3Mb
+    // So this can handle 100k concurrently active stream segments with about 11-12 Mb footprint.
+    // If cache overflows beyond this, entries will be evicted in order of last accessed.
+    // So we will lose relevant traffic history if we have 100k active 'stream segments' across containers
+    // where traffic is flowing concurrently.
 
-    private final List<SegmentTrafficMonitor> monitors;
+    private static final Duration TIMEOUT = Duration.ofMinutes(1);
 
     private final Set<String> pendingCacheLoads;
     private final Cache<String, SegmentAggregates> cache;
     private final long reportingDuration;
+    private final AutoScaleProcessor reporter;
     private final StreamSegmentStore store;
     private final Executor executor;
 
-    SegmentStatsRecorderImpl(List<SegmentTrafficMonitor> monitors, StreamSegmentStore store,
+    SegmentStatsRecorderImpl(AutoScaleProcessor reporter, StreamSegmentStore store,
                              ExecutorService executor, ScheduledExecutorService maintenanceExecutor) {
-        this(monitors, store, TWO_MINUTES, executor, maintenanceExecutor);
+        this(reporter, store, TWO_MINUTES, executor, maintenanceExecutor);
     }
 
     @VisibleForTesting
-    SegmentStatsRecorderImpl(List<SegmentTrafficMonitor> monitors, StreamSegmentStore store,
+    SegmentStatsRecorderImpl(AutoScaleProcessor reporter, StreamSegmentStore store,
                              long reportingDuration, ExecutorService executor, ScheduledExecutorService maintenanceExecutor) {
-        Preconditions.checkNotNull(monitors);
         Preconditions.checkNotNull(executor);
         Preconditions.checkNotNull(maintenanceExecutor);
-        this.monitors = monitors;
         this.executor = executor;
         this.pendingCacheLoads = new HashSet<>();
 
         this.cache = CacheBuilder.newBuilder()
                 .initialCapacity(INITIAL_CAPACITY)
                 .maximumSize(MAX_CACHE_SIZE)
+                .expireAfterAccess(20, TimeUnit.MINUTES)
+                // We may want to store some traffic related information in attributes
+                // and reconstruct while loading from it for evicted segments.
+                // .removalListener((RemovalListener<String, SegmentAggregates>) notification -> {
+                //    if (notification.getCause().equals(RemovalCause.SIZE)) {
+                //        store.updateAttributes(notification.getKey(), Collections.emptyList(), TIMEOUT);
+                //    }
+                //notification.getCause().equals(RemovalCause.EXPIRED)
+                // expired will happen if there is no traffic for expiry duration
+                // so no need to update attributes in the store
+                //})
                 .build();
 
         // Dedicated thread for cache clean up scheduled periodically. This ensures that read and write
         // on cache are not used for cache maintenance activities.
-        maintenanceExecutor.scheduleAtFixedRate(cache::cleanUp, Duration.ofMinutes(5).toMillis(), 2, TimeUnit.MINUTES);
+        maintenanceExecutor.scheduleAtFixedRate(cache::cleanUp, Duration.ofMinutes(2).toMillis(), 2, TimeUnit.MINUTES);
         this.reportingDuration = reportingDuration;
         this.store = store;
+        this.reporter = reporter;
     }
 
     @VisibleForTesting
@@ -83,7 +98,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
         if (!pendingCacheLoads.contains(streamSegmentName)) {
             pendingCacheLoads.add(streamSegmentName);
-            Optional.ofNullable(store).ifPresent(s -> s.getStreamSegmentInfo(streamSegmentName, false, Duration.ofMinutes(1))
+            Optional.ofNullable(store).ifPresent(s -> s.getStreamSegmentInfo(streamSegmentName, false, TIMEOUT)
                     .thenAcceptAsync(prop -> {
                         if (prop != null &&
                                 prop.getAttributes().containsKey(Attributes.SCALE_POLICY_TYPE) &&
@@ -100,16 +115,14 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     @Override
     public void createSegment(String streamSegmentName, byte type, int targetRate) {
         cache.put(streamSegmentName, new SegmentAggregates(type, targetRate));
-        if (type != WireCommands.CreateSegment.NO_SCALE) {
-            monitors.forEach(x -> x.notify(streamSegmentName, SegmentTrafficMonitor.NotificationType.SegmentCreated));
-        }
+        reporter.notifyCreated(streamSegmentName, type, targetRate);
     }
 
     @Override
     public void sealSegment(String streamSegmentName) {
         if (getSegmentAggregate(streamSegmentName) != null) {
             cache.invalidate(streamSegmentName);
-            monitors.forEach(x -> x.notify(streamSegmentName, SegmentTrafficMonitor.NotificationType.SegmentSealed));
+            reporter.notifySealed(streamSegmentName);
         }
     }
 
@@ -147,10 +160,10 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
                     if (System.currentTimeMillis() - aggregates.getLastReportedTime() > reportingDuration) {
                         try {
-                            executor.execute(() -> monitors.forEach(monitor -> monitor.process(streamSegmentName,
+                            executor.execute(() -> reporter.report(streamSegmentName,
                                     aggregates.getTargetRate(), aggregates.getScaleType(), aggregates.getStartTime(),
                                     aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(),
-                                    aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate())));
+                                    aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate()));
                             aggregates.setLastReportedTime(System.currentTimeMillis());
                         } catch (RejectedExecutionException e) {
                             // We will not keep posting indefinitely and let the queue grow. We will only post optimistically

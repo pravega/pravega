@@ -7,7 +7,10 @@ package com.emc.pravega.demo;
 
 import com.emc.pravega.controller.embedded.EmbeddedControllerImpl;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
+import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
@@ -37,7 +40,7 @@ class ControllerWrapper extends EmbeddedControllerImpl {
     static ControllerWrapper getControllerWrapper(String connectionString) {
         String hostId;
         try {
-            // On each controller process restart, it gets a fresh hostId,
+            // On each controller report restart, it gets a fresh hostId,
             // which is a combination of hostname and random GUID.
             hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
         } catch (UnknownHostException e) {
@@ -60,15 +63,19 @@ class ControllerWrapper extends EmbeddedControllerImpl {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
         //2) start RPC server with v1 implementation. Enable other versions if required.
+        SegmentHelper segmentHelper = new SegmentHelper();
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                executor, hostId);
+                segmentHelper, executor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId);
+                hostStore, taskMetadataStore, segmentHelper, executor, hostId);
 
-        ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+        ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, new SegmentHelper(), executor);
 
         ControllerWrapper controllerWrapper = new ControllerWrapper(controller);
         RequestHandlersInit.bootstrapRequestHandlers(controllerWrapper, Executors.newScheduledThreadPool(100));
+
+        RPCServer.start(new ControllerServiceAsyncImpl(controller));
 
         return controllerWrapper;
     }

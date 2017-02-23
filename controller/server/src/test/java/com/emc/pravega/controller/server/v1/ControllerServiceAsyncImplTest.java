@@ -1,13 +1,12 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelperMock;
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -24,17 +23,16 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.apache.thrift.TException;
 import org.junit.Test;
+
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 
@@ -54,7 +52,6 @@ public class ControllerServiceAsyncImplTest {
         zkServer = new TestingServer();
         zkServer.start();
 
-        SegmentHelperMock.init();
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
@@ -71,13 +68,15 @@ public class ControllerServiceAsyncImplTest {
 
         final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
 
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                executor, "host");
+                segmentHelper, executor, "host");
+
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
+                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper, executor, "host");
 
         this.controllerService = new ControllerServiceAsyncImpl(new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, executor));
+                streamTransactionMetadataTasks, new SegmentHelper(), executor));
     }
 
     @Test

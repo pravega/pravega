@@ -9,7 +9,7 @@ import com.emc.pravega.common.netty.RequestProcessor;
 import com.emc.pravega.common.netty.WireCommand;
 
 /**
- * A connection object. Represents the TCP connection in the server process that is coming from the client.
+ * A connection object. Represents the TCP connection in the server report that is coming from the client.
  */
 public interface ServerConnection extends AutoCloseable {
 

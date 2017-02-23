@@ -46,7 +46,7 @@ import java.util.stream.IntStream;
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
 @Slf4j
-class ZKStream extends PersistentStreamBase<Integer> {
+public class ZKStream extends PersistentStreamBase<Integer> {
 
     private static final String STREAM_PATH = "/streams/%s";
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";

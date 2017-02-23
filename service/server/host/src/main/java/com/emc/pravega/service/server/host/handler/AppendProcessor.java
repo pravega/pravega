@@ -28,7 +28,7 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
 import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.service.server.host.stat.SegmentStatsFactory;
+import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -66,6 +66,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final ServerConnection connection;
     private final RequestProcessor next;
     private final Object lock = new Object();
+    private final SegmentStatsRecorder statsRecorder;
 
     @GuardedBy("lock")
     private final LinkedListMultimap<UUID, Append> waitingAppends = LinkedListMultimap.create(2);
@@ -75,9 +76,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private Append outstandingAppend = null;
 
     public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next) {
+        this(store, connection, next, null);
+    }
+
+    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder) {
         this.store = store;
         this.connection = connection;
         this.next = next;
+        this.statsRecorder = statsRecorder;
     }
 
     /**
@@ -211,7 +217,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     DYNAMIC_LOGGER.reportGaugeValue(nameFromSegment(SEGMENT_WRITE_LATENCY, toWrite.getSegment()), timer.getElapsedMillis());
                     connection.send(new DataAppended(toWrite.getConnectionId(), toWrite.getEventNumber()));
 
-                    SegmentStatsFactory.getSegmentStatsRecorder().ifPresent(x -> x.record(segment, bytes.length, (int) numOfEvents));
+                    Optional.ofNullable(statsRecorder).ifPresent(x -> x.record(segment, bytes.length, (int) numOfEvents));
                 }
 
                 pauseOrResumeReading();

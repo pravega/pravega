@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream;
 
@@ -11,6 +9,14 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.collect.Lists;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import java.util.AbstractMap;
 import java.util.Arrays;
@@ -24,24 +30,18 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Test;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.spy;
 
 public class ZkStreamTest {
     private static final String SCOPE = "scope";
     private TestingServer zkTestServer;
     private CuratorFramework cli;
+    private StreamMetadataStore storePartialMock;
+
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     @Before
@@ -49,7 +49,8 @@ public class ZkStreamTest {
         zkTestServer = new TestingServer();
         cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
-        PersistentStreamBase.setCreationState(State.ACTIVE);
+
+        storePartialMock = spy(new ZKStreamMetadataStore(cli, executor));
     }
 
     @After
@@ -62,12 +63,12 @@ public class ZkStreamTest {
     public void testZkConnectionLoss() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 5);
 
-        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testfail";
 
         final StreamConfiguration streamConfig = StreamConfiguration.builder().scope(streamName).streamName(streamName).scalingPolicy(policy).build();
 
-        CompletableFuture<Boolean> createStream = store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor);
+        CompletableFuture<Boolean> createStream = storePartialMock.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor);
+
         zkTestServer.stop();
 
         try {
@@ -91,16 +92,13 @@ public class ZkStreamTest {
                 .scalingPolicy(policy)
                 .build();
 
-        PersistentStreamBase.setCreationState(State.CREATING);
-
         store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
+
         try {
             store.getConfiguration(SCOPE, streamName, null, executor).get();
         } catch (Exception e) {
             assert e.getCause() != null && e.getCause() instanceof IllegalStateException;
         }
-
-        PersistentStreamBase.setCreationState(State.ACTIVE);
     }
 
     @Test
@@ -111,11 +109,13 @@ public class ZkStreamTest {
         final String streamName = "test";
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
-                                                              .scope(streamName)
-                                                              .streamName(streamName)
-                                                              .scalingPolicy(policy)
-                                                              .build();
+                .scope(streamName)
+                .streamName(streamName)
+                .scalingPolicy(policy)
+                .build();
+
         store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
+        store.setState(SCOPE, streamName, State.ACTIVE, null, executor).get();
         OperationContext context = store.createContext(SCOPE, streamName);
 
         List<Segment> segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
@@ -229,12 +229,13 @@ public class ZkStreamTest {
         final String streamName = "test2";
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
-                                                              .scope(streamName)
-                                                              .streamName(streamName)
-                                                              .scalingPolicy(policy)
-                                                              .build();
-        store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
+                .scope(streamName)
+                .streamName(streamName)
+                .scalingPolicy(policy)
+                .build();
 
+        store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
+        store.setState(SCOPE, streamName, State.ACTIVE, null, executor).get();
         OperationContext context = store.createContext(SCOPE, streamName);
 
         List<Segment> initial = store.getActiveSegments(SCOPE, streamName, context, executor).get();
@@ -280,11 +281,13 @@ public class ZkStreamTest {
         final String streamName = "testTx";
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
-                                                              .scope(streamName)
-                                                              .streamName(streamName)
-                                                              .scalingPolicy(policy)
-                                                              .build();
+                .scope(streamName)
+                .streamName(streamName)
+                .scalingPolicy(policy)
+                .build();
+
         store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
+        store.setState(SCOPE, streamName, State.ACTIVE, null, executor).get();
 
         OperationContext context = store.createContext(SCOPE, streamName);
 

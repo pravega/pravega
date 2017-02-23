@@ -5,10 +5,9 @@ package com.emc.pravega.demo;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
-import com.emc.pravega.service.monitor.AutoScalerConfig;
-import com.emc.pravega.service.monitor.MonitorFactory;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.host.stat.SegmentStatsFactory;
+import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.EventStreamWriter;
@@ -27,7 +26,6 @@ import org.apache.curator.test.TestingServer;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 
 @Slf4j
 public class EndToEndAutoScaleUpTest {
@@ -42,17 +40,16 @@ public class EndToEndAutoScaleUpTest {
 
             ControllerWrapper controller = ControllerWrapper.getControllerWrapper(zkTestServer.getConnectString());
             ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
-            MonitorFactory.setConfiguration(new AutoScalerConfig(Duration.ofMinutes(0),
-                    Duration.ofMinutes(0), Duration.ofMinutes(10), Duration.ofMinutes(10)));
-            MonitorFactory.setClientFactory(internalCF);
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-            SegmentStatsFactory.createSegmentStatsRecorder(store, Executors.newFixedThreadPool(2), Executors.newSingleThreadScheduledExecutor());
+            SegmentStatsRecorder statsRecorder = SegmentStatsFactory.createSegmentStatsRecorder(store, "pravega", "requeststream",
+                    internalCF, Duration.ofMinutes(0),
+                    Duration.ofMinutes(0), Duration.ofMinutes(10), Duration.ofMinutes(10));
 
             @Cleanup
-            PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
+            PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store, statsRecorder);
             server.startListening();
 
             controller.createStream(config).get();

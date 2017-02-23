@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
-package com.emc.pravega.service.monitor;
+package com.emc.pravega.service.server.host.stat;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.netty.WireCommands;
@@ -10,6 +10,7 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
+import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
@@ -25,7 +26,6 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -37,20 +37,14 @@ import java.util.concurrent.atomic.AtomicReference;
  * If a scale has to be triggered, then it puts a new scale request into the request stream.
  */
 @Slf4j
-public class AutoScaleMonitor implements SegmentTrafficMonitor {
+public class AutoScaleProcessor {
 
     private static final long TWO_MINUTES = Duration.ofMinutes(2).toMillis();
     private static final long FIVE_MINUTES = Duration.ofMinutes(5).toMillis();
     private static final long TEN_MINUTES = Duration.ofMinutes(10).toMillis();
     private static final long TWENTY_MINUTES = Duration.ofMinutes(20).toMillis();
-
-    // TODO: read from config
-    private static final String STREAM_NAME = "requeststream";
-
     private static final int MAX_CACHE_SIZE = 1000000;
     private static final int INITIAL_CAPACITY = 1000;
-
-    private static AtomicReference<AutoScaleMonitor> singletonMonitor = new AtomicReference<>();
 
     private final AtomicReference<ClientFactory> clientFactory = new AtomicReference<>();
     private final AtomicBoolean initialized = new AtomicBoolean(false);
@@ -62,8 +56,9 @@ public class AutoScaleMonitor implements SegmentTrafficMonitor {
     private final Executor executor;
     private final ScheduledExecutorService maintenanceExecutor;
 
-    private AutoScaleMonitor(AutoScalerConfig configuration, Executor executor,
-                             ScheduledExecutorService maintenanceExecutor) {
+    AutoScaleProcessor(AutoScalerConfig configuration,
+                       Executor executor,
+                       ScheduledExecutorService maintenanceExecutor) {
         this.configuration = configuration;
 
         cache = CacheBuilder.newBuilder()
@@ -79,31 +74,24 @@ public class AutoScaleMonitor implements SegmentTrafficMonitor {
         this.executor = executor;
         this.maintenanceExecutor = maintenanceExecutor;
         serializer = new JavaSerializer<>();
-        writerConfig = new EventWriterConfig(null);
+        writerConfig = EventWriterConfig.builder().build();
         writer = new AtomicReference<>();
-    }
-
-    private AutoScaleMonitor(ClientFactory clientFactory, AutoScalerConfig configuration, Executor executor, ScheduledExecutorService maintenanceExecutor) {
-        this(configuration, executor, maintenanceExecutor);
-
-        this.clientFactory.set(clientFactory);
         CompletableFuture.runAsync(this::bootstrapRequestWriters, maintenanceExecutor);
     }
 
     @VisibleForTesting
-    AutoScaleMonitor(EventStreamWriter<ScaleRequest> writer, AutoScalerConfig configuration, Executor executor, ScheduledExecutorService maintenanceExecutor) {
+    AutoScaleProcessor(EventStreamWriter<ScaleRequest> writer, AutoScalerConfig configuration, Executor executor, ScheduledExecutorService maintenanceExecutor) {
         this(configuration, executor, maintenanceExecutor);
         this.writer.set(writer);
         this.initialized.set(true);
     }
 
-    static AutoScaleMonitor getMonitor(ClientFactory clientFactory, AutoScalerConfig configuration,
-                                       ExecutorService executor, ScheduledExecutorService maintenanceExecutor) {
-        if (singletonMonitor.get() == null) {
-            singletonMonitor.compareAndSet(null, new AutoScaleMonitor(clientFactory, configuration,
-                    executor, maintenanceExecutor));
-        }
-        return singletonMonitor.get();
+    @VisibleForTesting
+    AutoScaleProcessor(AutoScalerConfig configuration, ClientFactory cf,
+                       Executor executor,
+                       ScheduledExecutorService maintenanceExecutor) {
+        this(configuration, executor, maintenanceExecutor);
+        clientFactory.set(cf);
     }
 
     @Synchronized
@@ -116,15 +104,19 @@ public class AutoScaleMonitor implements SegmentTrafficMonitor {
         // We are introducing a delay to avoid exceptions in the log in case creation of writer is attempted before
         // creation of requeststream.
         maintenanceExecutor.schedule(() -> retryIndefinitely(() -> {
-                this.writer.set(clientFactory.get().createEventWriter(STREAM_NAME,
-                        serializer,
-                        writerConfig));
+            if (clientFactory.get() == null) {
+                clientFactory.compareAndSet(null, new ClientFactoryImpl(configuration.getInternalScope(), configuration.getConrollerUri()));
+            }
+
+            this.writer.set(clientFactory.get().createEventWriter(configuration.getInternalStream(),
+                    serializer,
+                    writerConfig));
             initialized.set(true);
             // even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
             // caches do not perform clean up if there is no activity. This is because they do not maintain their
             // own background thread.
             maintenanceExecutor.scheduleAtFixedRate(cache::cleanUp, 0, configuration.getCacheCleanup().getSeconds(), TimeUnit.SECONDS);
-            log.debug("bootstrapping threshold monitor done");
+            log.debug("bootstrapping auto-scale reporter done");
         }, createWriter, maintenanceExecutor), 10, TimeUnit.SECONDS);
     }
 
@@ -193,8 +185,7 @@ public class AutoScaleMonitor implements SegmentTrafficMonitor {
         return result;
     }
 
-    @Override
-    public void process(String streamSegmentName, long targetRate, byte type, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
+    void report(String streamSegmentName, long targetRate, byte type, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
         log.info("received traffic for {} with twoMinute rate = {} and targetRate = {}", streamSegmentName, twoMinuteRate, targetRate);
         checkAndRun(() -> {
             // note: we are working on caller's thread. We should not do any blocking computation here and return as quickly as
@@ -205,7 +196,7 @@ public class AutoScaleMonitor implements SegmentTrafficMonitor {
                 if (currentTime - startTime > configuration.getCooldownPeriod().toMillis()) {
                     log.debug("cool down period elapsed for {}", streamSegmentName);
 
-                    // process to see if a scale operation needs to be performed.
+                    // report to see if a scale operation needs to be performed.
                     if ((twoMinuteRate > 5 * targetRate && currentTime - startTime > TWO_MINUTES) ||
                             (fiveMinuteRate > 2 * targetRate && currentTime - startTime > FIVE_MINUTES) ||
                             (tenMinuteRate > targetRate && currentTime - startTime > TEN_MINUTES)) {
@@ -229,13 +220,14 @@ public class AutoScaleMonitor implements SegmentTrafficMonitor {
         });
     }
 
-    @Override
-    public void notify(String segmentStreamName, NotificationType type) {
-        if (type.equals(NotificationType.SegmentCreated)) {
+    void notifyCreated(String segmentStreamName, byte type, long targetRate) {
+        if (type != WireCommands.CreateSegment.NO_SCALE) {
             cache.put(segmentStreamName, new ImmutablePair<>(System.currentTimeMillis(), System.currentTimeMillis()));
-        } else if (type.equals(NotificationType.SegmentSealed)) {
-            cache.invalidate(segmentStreamName);
         }
+    }
+
+    void notifySealed(String segmentStreamName) {
+        cache.invalidate(segmentStreamName);
     }
 
     @VisibleForTesting
@@ -256,7 +248,7 @@ public class AutoScaleMonitor implements SegmentTrafficMonitor {
                 promise.complete(null);
             }
         } catch (Exception e) {
-            log.error("threshold monitor writer creation failed {}", e);
+            log.error("autoscale reporter writer creation failed {}", e);
             // Until we are able to start these readers, keep retrying indefinitely by scheduling it back
             executor.schedule(() -> retryIndefinitely(supplier, promise, executor), 10, TimeUnit.SECONDS);
         }

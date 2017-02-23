@@ -19,8 +19,9 @@ import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
-import com.google.common.collect.Sets;
 import io.netty.buffer.Unpooled;
+
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
@@ -278,9 +279,10 @@ public class AppendProcessorTest {
     }
 
     private Collection<AttributeUpdate> updateEventNumber(UUID clientId, long newValue) {
-        return Sets.newHashSet(
+        return Arrays.asList(
                 new AttributeUpdate(clientId, AttributeUpdateType.ReplaceIfGreater, newValue),
-                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 1));    }
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 1));
+    }
 
     private void setupGetStreamSegmentInfo(String streamSegmentName, UUID clientId, StreamSegmentStore store) {
         setupGetStreamSegmentInfo(streamSegmentName, clientId, 0, store);

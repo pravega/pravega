@@ -59,23 +59,27 @@ public class StreamMetadataTasks extends TaskBase {
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactoryImpl connectionFactory;
+    private final SegmentHelper segmentHelper;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                final HostControllerStore hostControllerStore,
                                final TaskMetadataStore taskMetadataStore,
+                               final SegmentHelper segmentHelper,
                                final ScheduledExecutorService executor,
                                final String hostId) {
-        this(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, new Context(hostId));
+        this(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, new Context(hostId));
     }
 
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                 final HostControllerStore hostControllerStore,
                                 final TaskMetadataStore taskMetadataStore,
+                                final SegmentHelper segmentHelper,
                                 final ScheduledExecutorService executor,
                                 final Context context) {
         super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
+        this.segmentHelper = segmentHelper;
         connectionFactory = new ConnectionFactoryImpl(false);
     }
 
@@ -148,13 +152,14 @@ public class StreamMetadataTasks extends TaskBase {
                 () -> sealStreamBody(scope, stream, contextOpt));
     }
 
-    private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config,
+    @VisibleForTesting
+    public CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config,
                                                                    long timestamp) {
 
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
                 .thenComposeAsync(created -> {
                     log.debug("{}/{} created in metadata store", scope, stream);
-                    if (created != null) {
+                    if (created) {
                         List<Integer> newSegments = IntStream.range(0, config.getScalingPolicy().getMinNumSegments()).boxed().collect(Collectors.toList());
                         return notifyNewSegments(config.getScope(), stream, config, newSegments)
                                 .thenApply(y -> CreateStreamStatus.SUCCESS);
@@ -188,6 +193,7 @@ public class StreamMetadataTasks extends TaskBase {
                 });
     }
 
+    @VisibleForTesting
     public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream,
                                                                         StreamConfiguration config, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
@@ -220,6 +226,7 @@ public class StreamMetadataTasks extends TaskBase {
                 });
     }
 
+    @VisibleForTesting
     public CompletableFuture<UpdateStreamStatus> sealStreamBody(String scope, String stream, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
@@ -247,7 +254,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     @VisibleForTesting
-    CompletableFuture<ScaleResponse> scaleBody(final String scope, final String stream, final List<Integer> segmentsToSeal,
+    public CompletableFuture<ScaleResponse> scaleBody(final String scope, final String stream, final List<Integer> segmentsToSeal,
                                                final List<AbstractMap.SimpleEntry<Double, Double>> newRanges, final long scaleTimestamp,
                                                final OperationContext contextOpt) {
         // Abort scaling operation in the following error scenarios
@@ -336,8 +343,8 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     @VisibleForTesting
-    private CompletableFuture<Void> notifyNewSegment(String scope, String stream, int segmentNumber, ScalingPolicy policy) {
-        return FutureHelpers.toVoid(withRetries(() -> transformWithRetryable(SegmentHelper.getSegmentHelper().createSegment(scope,
+    public CompletableFuture<Void> notifyNewSegment(String scope, String stream, int segmentNumber, ScalingPolicy policy) {
+        return FutureHelpers.toVoid(withRetries(() -> transformWithRetryable(segmentHelper.createSegment(scope,
                 stream, segmentNumber, policy, hostControllerStore, this.connectionFactory)), executor));
     }
 
@@ -351,9 +358,9 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     @VisibleForTesting
-    private CompletableFuture<Void> notifySealedSegment(final String scope, final String stream, final int sealedSegment) {
+    public CompletableFuture<Void> notifySealedSegment(final String scope, final String stream, final int sealedSegment) {
 
-        return FutureHelpers.toVoid(withRetries(() -> transformWithRetryable(SegmentHelper.getSegmentHelper().sealSegment(
+        return FutureHelpers.toVoid(withRetries(() -> transformWithRetryable(segmentHelper.sealSegment(
                 scope,
                 stream,
                 sealedSegment,
@@ -371,9 +378,9 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     @VisibleForTesting
-    CompletableFuture<Void> notifyPolicyUpdate(String scope, String stream, ScalingPolicy policy, int segmentNumber) {
+    public CompletableFuture<Void> notifyPolicyUpdate(String scope, String stream, ScalingPolicy policy, int segmentNumber) {
 
-        return withRetries(() -> transformWithRetryable(SegmentHelper.getSegmentHelper().updatePolicy(
+        return withRetries(() -> transformWithRetryable(segmentHelper.updatePolicy(
                 scope,
                 stream,
                 policy,
@@ -399,6 +406,6 @@ public class StreamMetadataTasks extends TaskBase {
 
     @Override
     public TaskBase copyWithContext(Context context) {
-        return new StreamMetadataTasks(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, context);
+        return new StreamMetadataTasks(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, context);
     }
 }

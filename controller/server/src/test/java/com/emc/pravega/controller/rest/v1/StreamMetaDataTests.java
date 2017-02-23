@@ -101,7 +101,7 @@ public class StreamMetaDataTests extends JerseyTest {
 
     @Before
     public void initialize() {
-        scalingPolicyCommon.setType(ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS);
+        scalingPolicyCommon.setType(ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS_PER_SEC);
         scalingPolicyCommon.setTargetRate(100L);
         scalingPolicyCommon.setScaleFactor(2);
         scalingPolicyCommon.setMinNumSegments(2);

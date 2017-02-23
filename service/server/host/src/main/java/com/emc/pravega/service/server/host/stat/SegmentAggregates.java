@@ -20,13 +20,13 @@ class SegmentAggregates implements Serializable {
     private static final double M10_ALPHA = 1 - StrictMath.exp((double) -INTERVAL_IN_SECONDS / (double) SECONDS_PER_MINUTE / 10);
     private static final double M20_ALPHA = 1 - StrictMath.exp((double) -INTERVAL_IN_SECONDS / (double) SECONDS_PER_MINUTE / 20);
 
-    private static final long TICK_INTERVAL_IN_SECONDS = Duration.ofSeconds(5).getSeconds();
+    private static final long TICK_INTERVAL_IN_SECONDS = 5;
     private static final long TICK_INTERVAL = Duration.ofSeconds(5).toNanos();
 
-    // Amount of data stored in each aggregate = 74 bytes.
+    // Amount of data stored in each aggregate object in memory = 77 bytes + object overhead
 
     /**
-     * Policy = 10 bytes.
+     * Policy = 5 bytes.
      */
     @Setter
     @Getter

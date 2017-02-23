@@ -21,45 +21,28 @@ import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ClientConnection;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class SegmentHelper {
 
-    private final static AtomicReference<SegmentHelper> SINGLETON = new AtomicReference<>();
-
-    public static SegmentHelper getSegmentHelper() {
-        if (SINGLETON.get() == null) {
-            SINGLETON.compareAndSet(null, new SegmentHelper());
-        }
-        return SINGLETON.get();
-    }
-
-    // TODO: shivesh
-    @VisibleForTesting
-    static void setSingleton(SegmentHelper segmentHelper) {
-        SINGLETON.set(segmentHelper);
-    }
-
     public NodeUri getSegmentUri(final String scope,
-                                 final String stream,
-                                 final int segmentNumber,
-                                 final HostControllerStore hostStore) {
+                                        final String stream,
+                                        final int segmentNumber,
+                                        final HostControllerStore hostStore) {
         final Host host = hostStore.getHostForSegment(scope, stream, segmentNumber);
         return new NodeUri(host.getIpAddr(), host.getPort());
     }
 
     public CompletableFuture<Boolean> createSegment(final String scope,
-                                                    final String stream,
-                                                    final int segmentNumber,
-                                                    final ScalingPolicy policy,
-                                                    final HostControllerStore hostControllerStore,
-                                                    final ConnectionFactory clientCF) {
+                                                           final String stream,
+                                                           final int segmentNumber,
+                                                           final ScalingPolicy policy,
+                                                           final HostControllerStore hostControllerStore,
+                                                           final ConnectionFactory clientCF) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
@@ -112,10 +95,10 @@ public class SegmentHelper {
      * @return void
      */
     public CompletableFuture<Boolean> sealSegment(final String scope,
-                                                  final String stream,
-                                                  final int segmentNumber,
-                                                  final HostControllerStore hostControllerStore,
-                                                  final ConnectionFactory clientCF) {
+                                                         final String stream,
+                                                         final int segmentNumber,
+                                                         final HostControllerStore hostControllerStore,
+                                                         final ConnectionFactory clientCF) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
@@ -154,11 +137,11 @@ public class SegmentHelper {
     }
 
     public CompletableFuture<UUID> createTransaction(final String scope,
-                                                     final String stream,
-                                                     final int segmentNumber,
-                                                     final UUID txId,
-                                                     final HostControllerStore hostControllerStore,
-                                                     final ConnectionFactory clientCF) {
+                                                            final String stream,
+                                                            final int segmentNumber,
+                                                            final UUID txId,
+                                                            final HostControllerStore hostControllerStore,
+                                                            final ConnectionFactory clientCF) {
         final NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
         final CompletableFuture<UUID> result = new CompletableFuture<>();
@@ -190,11 +173,11 @@ public class SegmentHelper {
     }
 
     public CompletableFuture<TxnStatus> commitTransaction(final String scope,
-                                                          final String stream,
-                                                          final int segmentNumber,
-                                                          final UUID txId,
-                                                          final HostControllerStore hostControllerStore,
-                                                          final ConnectionFactory clientCF) {
+                                                                 final String stream,
+                                                                 final int segmentNumber,
+                                                                 final UUID txId,
+                                                                 final HostControllerStore hostControllerStore,
+                                                                 final ConnectionFactory clientCF) {
         final NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
@@ -234,11 +217,11 @@ public class SegmentHelper {
     }
 
     public CompletableFuture<TxnStatus> abortTransaction(final String scope,
-                                                         final String stream,
-                                                         final int segmentNumber,
-                                                         final UUID txId,
-                                                         final HostControllerStore hostControllerStore,
-                                                         final ConnectionFactory clientCF) {
+                                                                final String stream,
+                                                                final int segmentNumber,
+                                                                final UUID txId,
+                                                                final HostControllerStore hostControllerStore,
+                                                                final ConnectionFactory clientCF) {
         final NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.ABORT_TRANSACTION;
@@ -274,8 +257,8 @@ public class SegmentHelper {
     }
 
     public CompletableFuture<Void> updatePolicy(String scope, String stream, ScalingPolicy policy,
-                                                int segmentNumber, HostControllerStore hostControllerStore,
-                                                ConnectionFactoryImpl clientCF) {
+                                                       int segmentNumber, HostControllerStore hostControllerStore,
+                                                       ConnectionFactoryImpl clientCF) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         final NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
@@ -309,9 +292,9 @@ public class SegmentHelper {
     }
 
     private CompletableFuture<Void> sendRequestOverNewConnection(final WireCommand request,
-                                                                 final ReplyProcessor replyProcessor,
-                                                                 final ConnectionFactory connectionFactory,
-                                                                 final PravegaNodeUri uri) {
+                                                                        final ReplyProcessor replyProcessor,
+                                                                        final ConnectionFactory connectionFactory,
+                                                                        final PravegaNodeUri uri) {
         CompletableFuture<ClientConnection> connect = new CompletableFuture<>();
         CompletableFuture<Void> result = new CompletableFuture<>();
 

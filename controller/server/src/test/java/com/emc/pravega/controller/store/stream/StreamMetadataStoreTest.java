@@ -1,14 +1,10 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.AbstractMap.SimpleEntry;
@@ -39,13 +35,7 @@ public class StreamMetadataStoreTest {
     private final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream2).scalingPolicy(policy2).build();
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
-    private final StreamMetadataStore store =
-            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executor);
-
-    @Before
-    public void init() {
-        PersistentStreamBase.setCreationState(State.ACTIVE);
-    }
+    private final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executor);
 
     @Test
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {

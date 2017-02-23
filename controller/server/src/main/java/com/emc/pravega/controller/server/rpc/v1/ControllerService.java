@@ -45,19 +45,21 @@ public class ControllerService {
     private final HostControllerStore hostStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-
     private final Executor executor;
+    private final SegmentHelper segmentHelper;
 
     public ControllerService(final StreamMetadataStore streamStore,
                              final HostControllerStore hostStore,
                              final StreamMetadataTasks streamMetadataTasks,
                              final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                             final SegmentHelper segmentHelper,
                              final Executor executor) {
         this.streamStore = streamStore;
         this.hostStore = hostStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
         this.executor = executor;
+        this.segmentHelper = segmentHelper;
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig, final long createTimestamp) {
@@ -109,7 +111,7 @@ public class ControllerService {
 
     public CompletableFuture<NodeUri> getURI(final SegmentId segment) throws TException {
         return CompletableFuture.completedFuture(
-                SegmentHelper.getSegmentHelper().getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(), hostStore)
+                segmentHelper.getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(), hostStore)
         );
     }
 
