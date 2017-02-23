@@ -48,7 +48,7 @@ public class EndToEndAutoScaleDownTest {
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-            SegmentStatsFactory.createSegmentStatsRecorder(store);
+            SegmentStatsFactory.createSegmentStatsRecorder(store, executor, scheduledExecutor);
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);

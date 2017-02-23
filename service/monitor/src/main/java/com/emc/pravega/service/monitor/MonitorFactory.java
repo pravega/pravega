@@ -22,7 +22,7 @@ import static com.emc.pravega.service.monitor.AutoScalerConfig.DEFAULT;
  */
 public class MonitorFactory {
 
-    // TODO: read from config!!
+    // TODO: read from config!! shivesh: fix now
     // We need to clean the controller URI scheme for readers and writers - maybe read from zk
     private static final String SCOPE = "pravega";
     private static final String CONTROLLER_ADDR = "localhost";

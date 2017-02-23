@@ -30,10 +30,10 @@ import com.emc.pravega.service.contracts.WrongHostException;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.host.stat.SegmentStatsFactory;
 import com.google.common.collect.LinkedListMultimap;
-import com.google.common.collect.Sets;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -169,7 +169,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
 
-        val attributes = Sets.newHashSet(new AttributeUpdate(
+        val attributes = Arrays.asList(new AttributeUpdate(
                         toWrite.getConnectionId(),
                         AttributeUpdateType.ReplaceIfGreater,
                         toWrite.getEventNumber()),
@@ -182,10 +182,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else {
             future = store.append(segment, bytes, attributes, TIMEOUT);
         }
-        future.thenAccept(r -> {
-            SegmentStatsFactory.getSegmentStatsRecorder().ifPresent(x ->
-                    x.record(segment, bytes.length, (int) numOfEvents));
-        }).whenComplete((t, u) -> {
+        future.whenComplete((t, u) -> {
             try {
                 boolean conditionalFailed = u != null
                         && (u instanceof BadOffsetException || u.getCause() instanceof BadOffsetException);
@@ -213,6 +210,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, toWrite.getSegment()), bytes.length);
                     DYNAMIC_LOGGER.reportGaugeValue(nameFromSegment(SEGMENT_WRITE_LATENCY, toWrite.getSegment()), timer.getElapsedMillis());
                     connection.send(new DataAppended(toWrite.getConnectionId(), toWrite.getEventNumber()));
+
+                    SegmentStatsFactory.getSegmentStatsRecorder().ifPresent(x -> x.record(segment, bytes.length, (int) numOfEvents));
                 }
 
                 pauseOrResumeReading();

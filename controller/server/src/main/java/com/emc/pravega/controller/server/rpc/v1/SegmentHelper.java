@@ -40,6 +40,7 @@ public class SegmentHelper {
         return SINGLETON.get();
     }
 
+    // TODO: shivesh
     @VisibleForTesting
     static void setSingleton(SegmentHelper segmentHelper) {
         SINGLETON.set(segmentHelper);

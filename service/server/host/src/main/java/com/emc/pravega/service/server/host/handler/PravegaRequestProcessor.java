@@ -50,25 +50,26 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
 import com.emc.pravega.service.server.host.stat.SegmentStatsFactory;
 import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
-import com.google.common.collect.Lists;
-import lombok.extern.slf4j.Slf4j;
-
 import static com.emc.pravega.common.SegmentStoreMetricsNames.CREATE_SEGMENT;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_READ_BYTES;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_READ_LATENCY;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.nameFromSegment;
-import static com.emc.pravega.common.netty.WireCommands.*;
+import static com.emc.pravega.common.netty.WireCommands.SegmentPolicyUpdated;
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
+import static com.emc.pravega.common.netty.WireCommands.UpdateSegmentPolicy;
 import static com.emc.pravega.service.contracts.Attributes.CREATION_TIME;
 import static com.emc.pravega.service.contracts.Attributes.SCALE_POLICY_RATE;
 import static com.emc.pravega.service.contracts.Attributes.SCALE_POLICY_TYPE;
@@ -243,24 +244,24 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
-        Collection<AttributeUpdate> attributes = Lists.newArrayList(
+        Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamsSegment.getScaleType()).longValue()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamsSegment.getTargetRate()).longValue())
         );
 
         CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), attributes, TIMEOUT);
-        future.thenApply((Void v) -> {
+        future.thenAccept((Void v) -> {
             CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
             connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
-            return null;
-        }).thenAccept(x -> {
-            SegmentStatsFactory.getSegmentStatsRecorder().ifPresent(recorder ->
-                    recorder.createSegment(createStreamsSegment.getSegment(),
-                    createStreamsSegment.getScaleType(), createStreamsSegment.getTargetRate()));
-        }).exceptionally((Throwable e) -> {
-            CREATE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
-            handleException(createStreamsSegment.getSegment(), "Create segment", e);
-            return null;
+        }).whenComplete((res, e) -> {
+            if (e == null) {
+                SegmentStatsFactory.getSegmentStatsRecorder().ifPresent(recorder ->
+                        recorder.createSegment(createStreamsSegment.getSegment(),
+                                createStreamsSegment.getScaleType(), createStreamsSegment.getTargetRate()));
+            } else {
+                CREATE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
+                handleException(createStreamsSegment.getSegment(), "Create segment", e);
+            }
         });
     }
 
@@ -290,7 +291,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void createTransaction(CreateTransaction createTransaction) {
-        Collection<AttributeUpdate> attributes = Lists.newArrayList(
+        Collection<AttributeUpdate> attributes = Collections.singleton(
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()));
 
         CompletableFuture<String> future = segmentStore.createTransaction(createTransaction.getSegment(), createTransaction.getTxid(), attributes, TIMEOUT);
@@ -310,17 +311,17 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             segmentStore.mergeTransaction(transactionName, TIMEOUT).thenApply((Long offset) -> {
                 connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));
                 return null;
-            }).thenCompose(x -> segmentStore.getStreamSegmentInfo(commitTx.getSegment(), false, Duration.ofMinutes(1))
+            }).exceptionally((Throwable e) -> {
+                handleException(transactionName, "Commit transaction", e);
+                return null;
+            }).thenCompose(x -> segmentStore.getStreamSegmentInfo(commitTx.getSegment(), false, TIMEOUT)
                     .thenAccept(prop -> {
-                        long creationTime = prop.getAttributes().get(Attributes.CREATION_TIME);
-                        int numOfEvents = prop.getAttributes().get(Attributes.EVENT_COUNT).intValue();
+                        long creationTime = prop.getAttributes().getOrDefault(Attributes.CREATION_TIME, System.currentTimeMillis());
+                        int numOfEvents = prop.getAttributes().getOrDefault(Attributes.EVENT_COUNT, 0L).intValue();
                         SegmentStatsFactory.getSegmentStatsRecorder().ifPresent(recorder ->
                                 recorder.merge(commitTx.getSegment(), prop.getLength(), numOfEvents, creationTime));
                     })
-            ).exceptionally((Throwable e) -> {
-                handleException(transactionName, "Commit transaction", e);
-                return null;
-            });
+            );
             return null;
         }).exceptionally((Throwable e) -> {
             handleException(transactionName, "Commit transaction", e);
@@ -350,12 +351,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         CompletableFuture<Long> future = segmentStore.sealStreamSegment(segment, TIMEOUT);
         future.thenAccept(size -> {
             connection.send(new SegmentSealed(segment));
-        }).thenAccept(x -> {
-            SegmentStatsFactory.getSegmentStatsRecorder().ifPresent(recorder ->
-                    recorder.sealSegment(sealSegment.getSegment()));
-        }).exceptionally(e -> {
-            handleException(segment, "Seal segment", e);
-            return null;
+        }).whenComplete((r, e) -> {
+            if (e != null) {
+                handleException(segment, "Seal segment", e);
+            } else {
+                SegmentStatsFactory.getSegmentStatsRecorder().ifPresent(recorder ->
+                        recorder.sealSegment(sealSegment.getSegment()));
+            }
         });
     }
 
@@ -373,10 +375,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void updateSegmentPolicy(UpdateSegmentPolicy updateSegmentPolicy) {
-        Collection<AttributeUpdate> attributes = Lists.newArrayList(
-                new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) updateSegmentPolicy.getScaleType()).longValue()),
-                new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) updateSegmentPolicy.getTargetRate()).longValue())
-        );
+        Collection<AttributeUpdate> attributes = Arrays.asList(
+                new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, (long) updateSegmentPolicy.getScaleType()),
+                new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, (int) updateSegmentPolicy.getTargetRate()));
 
         // TODO: persist in tier-2
         // CompletableFuture<Void> future = segmentStore.updateStreamSegmentPolicy(updateSegmentPolicy.getSegment(), attributes, TIMEOUT);
@@ -384,13 +385,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         future.thenApply((Void v) -> {
             connection.send(new SegmentPolicyUpdated(updateSegmentPolicy.getSegment()));
             return null;
-        }).thenAccept(x -> {
-            SegmentStatsFactory.getSegmentStatsRecorder().ifPresent(recorder ->
-                    recorder.policyUpdate(updateSegmentPolicy.getSegment(),
-                    updateSegmentPolicy.getScaleType(), updateSegmentPolicy.getTargetRate()));
-        }).exceptionally((Throwable e) -> {
-            handleException(updateSegmentPolicy.getSegment(), "Update segment", e);
-            return null;
+        }).whenComplete((r, e) -> {
+            if (e != null) {
+                handleException(updateSegmentPolicy.getSegment(), "Update segment", e);
+            } else {
+                SegmentStatsFactory.getSegmentStatsRecorder().ifPresent(recorder ->
+                        recorder.policyUpdate(updateSegmentPolicy.getSegment(),
+                                updateSegmentPolicy.getScaleType(), updateSegmentPolicy.getTargetRate()));
+            }
         });
     }
 

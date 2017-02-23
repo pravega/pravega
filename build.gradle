@@ -274,7 +274,6 @@ project('service:server') {
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
-        compile project(':service:monitor')
         compile project(':service:storage')
         testCompile project(':testcommon')
     }

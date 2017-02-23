@@ -20,21 +20,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Maintain two levels of cache - one in-memory and another that is disk backed
- * We will use RocksDb for our disk backed cache.
- * The idea is as follows: segments writes are happening, we will keep writing their
- * data into the cache.
- * If an entry is evicted from the cache we move it to disk backed cache.
- * The idea is we only use one copy of data, either in in-memory cache or disk backed cache.
- */
 @Slf4j
 public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     private static final long TWO_MINUTES = Duration.ofMinutes(2).toMillis();
@@ -59,6 +50,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                              long reportingDuration, ExecutorService executor, ScheduledExecutorService maintenanceExecutor) {
         Preconditions.checkNotNull(monitors);
         Preconditions.checkNotNull(executor);
+        Preconditions.checkNotNull(maintenanceExecutor);
         this.monitors = monitors;
         this.executor = executor;
         this.pendingCacheLoads = new HashSet<>();
@@ -75,7 +67,8 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         this.store = store;
     }
 
-    private SegmentAggregates getSegmentAggregate(String streamSegmentName) {
+    @VisibleForTesting
+    SegmentAggregates getSegmentAggregate(String streamSegmentName) {
         SegmentAggregates aggregates = cache.getIfPresent(streamSegmentName);
 
         if (aggregates == null &&
@@ -91,14 +84,16 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         if (!pendingCacheLoads.contains(streamSegmentName)) {
             pendingCacheLoads.add(streamSegmentName);
             Optional.ofNullable(store).ifPresent(s -> s.getStreamSegmentInfo(streamSegmentName, false, Duration.ofMinutes(1))
-                    .thenAccept(prop -> {
-                        if (prop != null) {
-                            byte type = prop.getAttributes().get(Attributes.SCALE_POLICY_TYPE).byteValue();
+                    .thenAcceptAsync(prop -> {
+                        if (prop != null &&
+                                prop.getAttributes().containsKey(Attributes.SCALE_POLICY_TYPE) &&
+                                prop.getAttributes().containsKey(Attributes.SCALE_POLICY_RATE)) {
+                            byte type = prop.getAttributes().getOrDefault(Attributes.SCALE_POLICY_TYPE, 0L).byteValue();
                             int rate = prop.getAttributes().get(Attributes.SCALE_POLICY_TYPE).intValue();
                             cache.put(streamSegmentName, new SegmentAggregates(type, rate));
                         }
                         pendingCacheLoads.remove(streamSegmentName);
-                    }));
+                    }, executor));
         }
     }
 
@@ -152,15 +147,16 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
                     if (System.currentTimeMillis() - aggregates.getLastReportedTime() > reportingDuration) {
                         try {
-                            CompletableFuture.runAsync(() -> monitors.forEach(monitor -> monitor.process(streamSegmentName,
+                            executor.execute(() -> monitors.forEach(monitor -> monitor.process(streamSegmentName,
                                     aggregates.getTargetRate(), aggregates.getScaleType(), aggregates.getStartTime(),
                                     aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(),
-                                    aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate())), executor);
+                                    aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate())));
                             aggregates.setLastReportedTime(System.currentTimeMillis());
                         } catch (RejectedExecutionException e) {
                             // We will not keep posting indefinitely and let the queue grow. We will only post optimistically
                             // and ignore any rejected execution exceptions.
-                            log.error("Over 100k requests pending to monitor. We will report this when pending work clears up. StreamSegmentName: {}", streamSegmentName);
+                            log.error("Executor queue full. We will report this when pending work clears up. StreamSegmentName: {}",
+                                    streamSegmentName);
                         }
                     }
                 }
@@ -185,34 +181,6 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         // However, if a diskbacked cache is not present, this may be null as it may have been evicted from cache.
         if (aggregates != null) {
             aggregates.updateTx(dataLength, numOfEvents, txnCreationTime);
-        }
-    }
-
-    @VisibleForTesting
-    SegmentAggregates getSegmentAggregates(String streamSegmentName) {
-        return getSegmentAggregate(streamSegmentName);
-    }
-
-    private class Key extends com.emc.pravega.service.storage.Cache.Key {
-        private final String key;
-
-        private Key(String key) {
-            this.key = key;
-        }
-
-        @Override
-        public byte[] getSerialization() {
-            return key.getBytes();
-        }
-
-        @Override
-        public int hashCode() {
-            return key.hashCode();
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            return obj != null && obj instanceof Key && obj.equals(this);
         }
     }
 }

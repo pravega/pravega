@@ -12,32 +12,28 @@ import lombok.Synchronized;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Data
 public class SegmentStatsFactory {
 
     public static final AtomicReference<SegmentStatsRecorder> STAT_RECORDER = new AtomicReference<>();
-    private static final ScheduledExecutorService CACHE_MAINTENANCE_EXECUTOR = Executors.newSingleThreadScheduledExecutor();
-
-    private static final ExecutorService EXECUTOR = new ThreadPoolExecutor(1, // core size
-            10, // max size
-            60L, // idle timeout
-            TimeUnit.SECONDS,
-            new ArrayBlockingQueue<Runnable>(100000)); // queue with a size
+//    private static final ScheduledExecutorService CACHE_MAINTENANCE_EXECUTOR = Executors.newSingleThreadScheduledExecutor();
+//
+//    private static final ExecutorService EXECUTOR = new ThreadPoolExecutor(1, // core size
+//            10, // max size
+//            60L, // idle timeout
+//            TimeUnit.SECONDS,
+//            new ArrayBlockingQueue<Runnable>(100000)); // queue with a size
 
     @Synchronized
-    public static void createSegmentStatsRecorder(StreamSegmentStore store) {
+    public static void createSegmentStatsRecorder(StreamSegmentStore store, ExecutorService executor, ScheduledExecutorService scheduledExecutor) {
         if (STAT_RECORDER.get() == null) {
             List<SegmentTrafficMonitor> monitors = Lists.newArrayList(
-                    MonitorFactory.createMonitor(MonitorFactory.MonitorType.AutoScaleMonitor, EXECUTOR, CACHE_MAINTENANCE_EXECUTOR));
-            STAT_RECORDER.compareAndSet(null, new SegmentStatsRecorderImpl(monitors, store, EXECUTOR, CACHE_MAINTENANCE_EXECUTOR));
+                    MonitorFactory.createMonitor(MonitorFactory.MonitorType.AutoScaleMonitor, executor, scheduledExecutor));
+            STAT_RECORDER.compareAndSet(null, new SegmentStatsRecorderImpl(monitors, store, executor, scheduledExecutor));
         }
     }
 

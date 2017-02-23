@@ -35,8 +35,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
-import static com.emc.pravega.controller.retryable.RetryableHelper.transformWithRetryable;
 import static com.emc.pravega.controller.retryable.RetryableHelper.getRetryable;
+import static com.emc.pravega.controller.retryable.RetryableHelper.transformWithRetryable;
 
 /**
  * Request handler for scale requests in scale-request-stream.
@@ -86,28 +86,6 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
 
         final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
-        // Wrapping the processing in Retry.
-        // Upon trying a scale operation, if it fails with a retryable exception we will retry the operation.
-        // If the operation continues to fail after all retries have been exhausted, while we still are dealing with
-        // a retryable exception, we will put it back in the request Stream.
-        // Creating a duplicate entry in the request stream will have following drawbacks:
-        // a) it increases the traffic in request stream
-        // b) upon controller failover, means wasted compute cycles and affecting other requests.
-        // So we should be conservative in creating duplicate entries. We should only create it after having retried
-        // sufficient number of times.
-        // However, we should eventually create a duplicate entry if we are not able to process a scale task. This is because
-        // otherwise we will stall progression of checkpoint. Also, finishing this processing frees up compute resources which
-        // could be used to run other requests while this can be retried later.
-
-        // Any Retryable exception is typically because of intermittent network issues.
-        // While running a scale task we make network calls into metadata store and pravega hosts.
-        //
-        // Scale-task has retries built in for each of its steps. So if a scale task fails after exhausting its retries
-        // and throws an exception we change it to non-retryable.
-        //
-        // The following retry block is for retrying other steps involved in computing scale tasks's input (metadata store calls) and
-        // locking or conflict failures of scale-task.
-        // ProcessScaleUp and processScaleDown functions are responsible for creating input for scale tasks.
         return RETRY.runAsync(() -> {
             final CompletableFuture<ScalingPolicy> policyFuture = streamMetadataStore
                     .getConfiguration(request.getScope(), request.getStream(), context, executor)
@@ -133,93 +111,92 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
 
     private CompletableFuture<Void> processScaleUp(final ScaleRequest request, final ScalingPolicy policy, final OperationContext context) {
         log.debug("scale up request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
+        if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
+            return CompletableFuture.completedFuture(null);
+        }
         return streamMetadataStore.getSegment(request.getScope(), request.getStream(), request.getSegmentNumber(), context, executor)
                 .thenComposeAsync(segment -> {
-                    if (!policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
-                        // do not go above scale factor. Minimum scale factor is 2 though.
-                        int numOfSplits = Math.min(request.getNumOfSplits(), Math.max(2, policy.getScaleFactor()));
-                        double delta = (segment.getKeyEnd() - segment.getKeyStart()) / numOfSplits;
+                    // do not go above scale factor. Minimum scale factor is 2 though.
+                    int numOfSplits = Math.min(request.getNumOfSplits(), Math.max(2, policy.getScaleFactor()));
+                    double delta = (segment.getKeyEnd() - segment.getKeyStart()) / numOfSplits;
 
-                        final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
-                        for (int i = 0; i < numOfSplits; i++) {
-                            simpleEntries.add(new AbstractMap.SimpleEntry<>(segment.getKeyStart() + delta * i,
-                                    segment.getKeyStart() + (delta * (i + 1))));
-                        }
-                        return executeScaleTask(request, Lists.newArrayList(request.getSegmentNumber()), simpleEntries, context);
-                    } else {
-                        return CompletableFuture.completedFuture(null);
+                    final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
+                    for (int i = 0; i < numOfSplits; i++) {
+                        simpleEntries.add(new AbstractMap.SimpleEntry<>(segment.getKeyStart() + delta * i,
+                                segment.getKeyStart() + (delta * (i + 1))));
                     }
+                    return executeScaleTask(request, Lists.newArrayList(request.getSegmentNumber()), simpleEntries, context);
                 }, executor);
     }
 
     private CompletableFuture<Void> processScaleDown(final ScaleRequest request, final ScalingPolicy policy, final OperationContext context) {
         log.debug("scale down request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
-        if (!policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
-            return streamMetadataStore.setMarker(request.getScope(),
-                    request.getStream(),
-                    request.getSegmentNumber(),
-                    request.isSilent() ? Long.MAX_VALUE : request.getTimestamp() + REQUEST_VALIDITY_PERIOD,
-                    context, executor)
-                    .thenCompose(x -> streamMetadataStore.getActiveSegments(request.getScope(), request.getStream(), context, executor))
-                    .thenApply(activeSegments -> {
-                        assert activeSegments != null;
-                        final Optional<Segment> currentOpt = activeSegments.stream()
-                                .filter(y -> y.getNumber() == request.getSegmentNumber()).findAny();
-                        if (!currentOpt.isPresent() || activeSegments.size() == policy.getMinNumSegments()) {
-                            // if we are already at min-number of segments, we cant scale down, we have put the marker,
-                            // we should simply return and do nothing.
-                            return null;
-                        } else {
-                            final List<Segment> candidates = activeSegments.stream().filter(z -> z.getKeyEnd() == currentOpt.get().getKeyStart() ||
-                                    z.getKeyStart() == currentOpt.get().getKeyEnd() || z.getNumber() == request.getSegmentNumber())
-                                    .sorted(Comparator.comparingDouble(Segment::getKeyStart))
-                                    .collect(Collectors.toList());
-                            return new ImmutablePair<>(candidates, activeSegments.size() - policy.getMinNumSegments());
-                        }
-                    })
-                    .thenCompose(input -> {
-                        if (input != null && input.getLeft().size() > 1) {
-                            final List<Segment> candidates = input.getLeft();
-                            final int maxScaleDownFactor = input.getRight();
-
-                            // fetch their cold status for all candidates
-                            return FutureHelpers.filter(candidates,
-                                    candidate -> streamMetadataStore.getMarker(request.getScope(),
-                                            request.getStream(),
-                                            candidate.getNumber(),
-                                            context, executor).thenApply(x -> x.map(this::isValid).orElse(false)))
-                                    .thenApply(segments -> {
-                                        if (maxScaleDownFactor == 1 && segments.size() == 3) {
-                                            // Note: sorted by keystart so just pick first two.
-                                            return Lists.newArrayList(segments.get(0), segments.get(1));
-                                        } else {
-                                            return segments;
-                                        }
-                                    });
-                        } else {
-                            return CompletableFuture.completedFuture(null);
-                        }
-                    })
-                    .thenCompose(toMerge -> {
-                        if (toMerge != null && toMerge.size() > 1) {
-                            toMerge.forEach(x -> {
-                                log.debug("merging stream {}: segment {} ", request.getStream(), x.getNumber());
-                            });
-
-                            final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
-                            double min = toMerge.stream().mapToDouble(Segment::getKeyStart).min().getAsDouble();
-                            double max = toMerge.stream().mapToDouble(Segment::getKeyEnd).max().getAsDouble();
-                            simpleEntries.add(new AbstractMap.SimpleEntry<>(min, max));
-                            final ArrayList<Integer> segments = new ArrayList<>();
-                            toMerge.forEach(segment -> segments.add(segment.getNumber()));
-                            return executeScaleTask(request, segments, simpleEntries, context);
-                        } else {
-                            return CompletableFuture.completedFuture(null);
-                        }
-                    });
-        } else {
+        if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
+
+        return streamMetadataStore.setMarker(request.getScope(),
+                request.getStream(),
+                request.getSegmentNumber(),
+                request.isSilent() ? Long.MAX_VALUE : request.getTimestamp() + REQUEST_VALIDITY_PERIOD,
+                context, executor)
+                .thenCompose(x -> streamMetadataStore.getActiveSegments(request.getScope(), request.getStream(), context, executor))
+                .thenApply(activeSegments -> {
+                    assert activeSegments != null;
+                    final Optional<Segment> currentOpt = activeSegments.stream()
+                            .filter(y -> y.getNumber() == request.getSegmentNumber()).findAny();
+                    if (!currentOpt.isPresent() || activeSegments.size() == policy.getMinNumSegments()) {
+                        // if we are already at min-number of segments, we cant scale down, we have put the marker,
+                        // we should simply return and do nothing.
+                        return null;
+                    } else {
+                        final List<Segment> candidates = activeSegments.stream().filter(z -> z.getKeyEnd() == currentOpt.get().getKeyStart() ||
+                                z.getKeyStart() == currentOpt.get().getKeyEnd() || z.getNumber() == request.getSegmentNumber())
+                                .sorted(Comparator.comparingDouble(Segment::getKeyStart))
+                                .collect(Collectors.toList());
+                        return new ImmutablePair<>(candidates, activeSegments.size() - policy.getMinNumSegments());
+                    }
+                })
+                .thenCompose(input -> {
+                    if (input != null && input.getLeft().size() > 1) {
+                        final List<Segment> candidates = input.getLeft();
+                        final int maxScaleDownFactor = input.getRight();
+
+                        // fetch their cold status for all candidates
+                        return FutureHelpers.filter(candidates,
+                                candidate -> streamMetadataStore.getMarker(request.getScope(),
+                                        request.getStream(),
+                                        candidate.getNumber(),
+                                        context, executor).thenApply(x -> x.map(this::isValid).orElse(false)))
+                                .thenApply(segments -> {
+                                    if (maxScaleDownFactor == 1 && segments.size() == 3) {
+                                        // Note: sorted by keystart so just pick first two.
+                                        return Lists.newArrayList(segments.get(0), segments.get(1));
+                                    } else {
+                                        return segments;
+                                    }
+                                });
+                    } else {
+                        return CompletableFuture.completedFuture(null);
+                    }
+                })
+                .thenCompose(toMerge -> {
+                    if (toMerge != null && toMerge.size() > 1) {
+                        toMerge.forEach(x -> {
+                            log.debug("merging stream {}: segment {} ", request.getStream(), x.getNumber());
+                        });
+
+                        final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
+                        double min = toMerge.stream().mapToDouble(Segment::getKeyStart).min().getAsDouble();
+                        double max = toMerge.stream().mapToDouble(Segment::getKeyEnd).max().getAsDouble();
+                        simpleEntries.add(new AbstractMap.SimpleEntry<>(min, max));
+                        final ArrayList<Integer> segments = new ArrayList<>();
+                        toMerge.forEach(segment -> segments.add(segment.getNumber()));
+                        return executeScaleTask(request, segments, simpleEntries, context);
+                    } else {
+                        return CompletableFuture.completedFuture(null);
+                    }
+                });
     }
 
     /**
@@ -250,45 +227,6 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                                 if (cause instanceof LockFailedException) {
                                     throw (LockFailedException) cause;
                                 } else {
-                                    // We could be here because of two reasons:
-                                    // 1. Its a non-retryable Exception
-                                    // 2. Its a retryable Exception
-                                    //
-                                    // Non-retryable: We cant retry the task. We should just fail.
-                                    // Note: scale operation may have partially completed whereby we maybe in inconsistent state.
-                                    // If we are here scale task failed at some intermediate step with a RuntimeException or a known
-                                    // non-retryable exception.
-                                    // RuntimeExceptions are thrown when we dont understand the error that has occurred.
-                                    // Non-retryable Exceptions are thrown when we know definitely that the error will reoccur
-                                    // even if we retry the operation.
-
-                                    // Retryable:
-                                    //
-                                    // Scale operation is partially complete, but since this is a retryable, we would have
-                                    // retried the failing step prescribed number of times and all our retries would have exhausted.
-                                    // Note: with current defaults, we would have attempted operation about 100 times with up to 10 sec gaps
-                                    // This translates to approximately 10 minutes of retrying. No need to keep retrying.
-                                    //
-                                    // Ideally we would want to keep retrying indefinitely as eventually this should succeed.
-                                    // But that will lead to wasting compute cycles and stalling checkpoint for other requests.
-                                    // We could be hitting this error case because of complete cluster failure/ store failure/ network failure
-                                    // OR code bug leading to repeated failures or cascading failures.
-                                    // We should notify the administrator about the partial completion of scale and let them fix it.
-                                    // Ideally we want to complete a scale task once started and hence have large number of retries.
-                                    //
-                                    // We also DO NOT want scale task being retried by putting it back into Request stream as
-                                    // that will result in a new scale task being created while this one has not
-                                    // finished. Idempotency of steps, esp pre-condition check is based on the "scaleTimestamp".
-                                    // So new request will simply fail at precondition if in previous iteration metadata store
-                                    // had been updated.
-                                    // So as far as processing here is concerned, we will throw non-retryable exception and stop processing.
-                                    //
-                                    // Note: a stream's metadata may be in inconsistent state because we were not able to complete the scale task.
-                                    // An admin needs to be notified. Also, we need to prevent other scale operations on this stream until the
-                                    // inconsistency is resolved/fixed.
-                                    // TODO: have a mechanism to prevent any scale operations on this stream until potential inconsistency is taken care of.
-                                    // Ideally we should do the above before releasing the lock. So this mechanism should be built as part of task framework.
-                                    // As 'thing-do-on-task-failure-before-releasing-lock'
                                     throw new RuntimeException(e);
                                 }
                             } else if (res.getStatus().equals(ScaleStreamStatus.TXN_CONFLICT)) {
@@ -305,10 +243,6 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                 // lock failure, throw an exception here,
                 // and that will result in several retries exhausting which the request will be put back
                 // into request stream.
-                // Note: We do not want to put the request back in the request stream very quickly either as it
-                // can lead to flooding of request stream with duplicate messages for this request. This is
-                // particularly bad during controller instance failover recovery and can also impact other
-                // requests.
                 blockTxCreationAndSweepTimedout(request, context); // block and sweep returns a future, but we dont need any callbacks linked with it.
             } else {
                 streamMetadataStore.unblockTransactions(request.getScope(), request.getStream(), context, executor);

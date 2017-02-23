@@ -677,6 +677,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Map<String, Data<T>>> getCurrentTxns();
 
+
+    // TODO: shivesh
     @VisibleForTesting
     public static void setCreationState(State state) {
         defaultCreationState = state;

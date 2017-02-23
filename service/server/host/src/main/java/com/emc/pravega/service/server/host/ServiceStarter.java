@@ -103,7 +103,7 @@ public final class ServiceStarter {
         log.info("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        SegmentStatsFactory.createSegmentStatsRecorder(service);
+        SegmentStatsFactory.createSegmentStatsRecorder(service, executor, scheduledExecutor);
 
         this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningPort(), service);
         this.listener.startListening();
