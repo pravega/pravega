@@ -58,6 +58,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                                 entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
                     } else if (streamStatus == CreateStreamStatus.STREAM_EXISTS) {
                         return Response.status(Status.CONFLICT).build();
+                    } else if (streamStatus == CreateStreamStatus.SCOPE_NOT_FOUND) {
+                        return Response.status(Status.NOT_FOUND).build();
                     } else {
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }

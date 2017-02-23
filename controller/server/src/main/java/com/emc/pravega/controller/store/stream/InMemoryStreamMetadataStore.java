@@ -82,13 +82,15 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public synchronized CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName) {
         if (scopes.containsKey(scopeName)) {
-            if (scopes.get(scopeName).getStreamsInScope().isEmpty()) {
-                scopes.get(scopeName).deleteScope();
-                scopes.remove(scopeName);
-                return CompletableFuture.completedFuture(DeleteScopeStatus.SUCCESS);
-            } else {
-                return CompletableFuture.completedFuture(DeleteScopeStatus.SCOPE_NOT_EMPTY);
-            }
+            return scopes.get(scopeName).listStreamsInScope().thenApply((streams) -> {
+                if (streams.isEmpty()) {
+                    scopes.get(scopeName).deleteScope();
+                    scopes.remove(scopeName);
+                    return DeleteScopeStatus.SUCCESS;
+                } else {
+                    return DeleteScopeStatus.SCOPE_NOT_EMPTY;
+                }
+            });
         } else {
             return CompletableFuture.completedFuture(DeleteScopeStatus.SCOPE_NOT_FOUND);
         }
