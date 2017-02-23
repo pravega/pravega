@@ -22,7 +22,6 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -69,8 +68,19 @@ public class ControllerEventProcessors {
         // region Create commit and abort streams
 
         ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 5);
-        StreamConfiguration commitStreamConfig = new StreamConfigurationImpl(controllerScope, commitStream, policy);
-        StreamConfiguration abortStreamConfig = new StreamConfigurationImpl(controllerScope, abortStream, policy);
+        StreamConfiguration commitStreamConfig =
+                StreamConfiguration.builder()
+                        .scope(controllerScope)
+                        .streamName(commitStream)
+                        .scalingPolicy(policy)
+                        .build();
+
+        StreamConfiguration abortStreamConfig =
+                StreamConfiguration.builder()
+                        .scope(controllerScope)
+                        .streamName(abortStream)
+                        .scalingPolicy(policy)
+                        .build();
 
         CompletableFuture<CreateStreamStatus> createCommitStreamStatus = controller.createStream(commitStreamConfig);
         CompletableFuture<CreateStreamStatus> createAbortStreamStatus = controller.createStream(abortStreamConfig);

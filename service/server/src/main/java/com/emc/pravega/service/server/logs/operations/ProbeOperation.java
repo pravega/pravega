@@ -17,8 +17,6 @@ import java.io.IOException;
  * cannot be serialized or recovered.
  */
 public class ProbeOperation extends Operation {
-    public static final byte OPERATION_TYPE = 0;
-
     public ProbeOperation() {
         super();
     }
@@ -31,8 +29,8 @@ public class ProbeOperation extends Operation {
     }
 
     @Override
-    protected byte getOperationType() {
-        return OPERATION_TYPE;
+    protected OperationType getOperationType() {
+        return OperationType.Probe;
     }
 
     @Override

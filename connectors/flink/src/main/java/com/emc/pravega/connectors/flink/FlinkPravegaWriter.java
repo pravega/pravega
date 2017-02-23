@@ -124,7 +124,7 @@ public class FlinkPravegaWriter<T> extends RichSinkFunction<T> implements Checkp
         this.pravegaWriter = clientFactory.createEventWriter(
                 this.streamName,
                 this.eventSerializer,
-                new EventWriterConfig(null));
+                EventWriterConfig.builder().build());
         this.executorService = Executors.newFixedThreadPool(5);
         log.info("Initialized pravega writer for stream: {}/{} with controller URI: {}", this.scopeName,
                  this.streamName, this.controllerURI);

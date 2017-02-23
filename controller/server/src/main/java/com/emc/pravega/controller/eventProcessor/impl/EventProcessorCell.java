@@ -23,6 +23,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 /**
  * This is an internal class that embeds the following.
  * 1. Event processor instance.
@@ -52,16 +54,19 @@ class EventProcessorCell<T extends ControllerEvent> {
      */
     private final Service delegate;
 
-    private final CheckpointState state;
-
     private class Delegate extends AbstractExecutionThreadService {
 
         private final long defaultTimeout = 2000L;
         private final EventProcessorConfig<T> eventProcessorConfig;
         private EventRead<T> event;
+        private final CheckpointState state;
 
-        Delegate(EventProcessorConfig<T> eventProcessorConfig) {
+        Delegate(final String process, final String readerId, final EventProcessorConfig<T> eventProcessorConfig,
+                 final CheckpointStore checkpointStore) {
             this.eventProcessorConfig = eventProcessorConfig;
+            this.state = new CheckpointState(checkpointStore, process,
+                    eventProcessorConfig.getConfig().getReaderGroupName(), readerId,
+                    eventProcessorConfig.getConfig().getCheckpointConfig().getCheckpointPeriod());
         }
 
         @Override
@@ -154,6 +159,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         }
     }
 
+    @NotThreadSafe
     private class CheckpointState {
 
         private final CheckpointStore checkpointStore;
@@ -221,9 +227,7 @@ class EventProcessorCell<T extends ControllerEvent> {
 
         this.reader = reader;
         this.actor = createEventProcessor(eventProcessorConfig);
-        this.delegate = new Delegate(eventProcessorConfig);
-        this.state = new CheckpointState(checkpointStore, process, eventProcessorConfig.getConfig().getReaderGroupName(),
-                readerId, eventProcessorConfig.getConfig().getCheckpointConfig().getCheckpointPeriod());
+        this.delegate = new Delegate(process, readerId, eventProcessorConfig, checkpointStore);
     }
 
     final void startAsync() {

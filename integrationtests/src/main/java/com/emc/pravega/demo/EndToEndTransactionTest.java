@@ -17,8 +17,6 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
 import com.emc.pravega.stream.mock.MockClientFactory;
 
 import java.util.concurrent.CompletableFuture;
@@ -46,7 +44,12 @@ public class EndToEndTransactionTest {
         final String testStream = "testStream";
 
         ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 5);
-        StreamConfiguration streamConfig = new StreamConfigurationImpl(testScope, testStream, policy);
+        StreamConfiguration streamConfig =
+                StreamConfiguration.builder()
+                        .scope(testScope)
+                        .streamName(testStream)
+                        .scalingPolicy(policy)
+                        .build();
 
         CompletableFuture<CreateStreamStatus> futureStatus = controller.createStream(streamConfig);
         CreateStreamStatus status = futureStatus.join();
@@ -62,7 +65,7 @@ public class EndToEndTransactionTest {
         EventStreamWriter<String> producer = clientFactory.createEventWriter(
                 testStream,
                 new JavaSerializer<>(),
-                new EventWriterConfig(new SegmentOutputConfiguration()));
+                EventWriterConfig.builder().build());
 
         Transaction<String> transaction = producer.beginTxn(60000);
 

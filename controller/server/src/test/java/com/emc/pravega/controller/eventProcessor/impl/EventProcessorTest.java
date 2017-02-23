@@ -17,8 +17,8 @@ import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.google.common.base.Preconditions;
@@ -112,11 +112,6 @@ public class EventProcessorTest {
         }
 
         @Override
-        public Sequence getEventSequence() {
-            return null;
-        }
-
-        @Override
         public T getEvent() {
             return value;
         }
@@ -132,13 +127,18 @@ public class EventProcessorTest {
         }
 
         @Override
-        public boolean isRoutingRebalance() {
+        public boolean isCheckpoint() {
             return false;
+        }
+
+        @Override
+        public String getCheckpointName() {
+            return null;
         }
     }
 
     @Test
-    public void testEventProcessorCell() throws CheckpointStoreException {
+    public void testEventProcessorCell() throws CheckpointStoreException, ReinitializationRequiredException {
         CheckpointStore checkpointStore = new InMemoryCheckpointStore();
 
         CheckpointConfig.CheckpointPeriod period =

@@ -12,7 +12,7 @@ import java.io.DataInputStream;
 /**
  * Log Operation that deals with Storage Operations. This is generally the direct result of an external operation.
  */
-public abstract class StorageOperation extends Operation {
+public abstract class StorageOperation extends Operation implements SegmentOperation {
     //region Members
 
     private long streamSegmentId;
@@ -39,9 +39,7 @@ public abstract class StorageOperation extends Operation {
 
     //region StorageOperation Properties
 
-    /**
-     * Gets a value indicating the Id of the StreamSegment this operation relates to.
-     */
+    @Override
     public long getStreamSegmentId() {
         return this.streamSegmentId;
     }

@@ -29,6 +29,7 @@ public class EventProcessorGroupConfigImpl implements EventProcessorGroupConfig 
                                          final CheckpointConfig checkpointConfig) {
         Preconditions.checkNotNull(streamName);
         Preconditions.checkNotNull(readerGroupName);
+        Preconditions.checkArgument(!readerGroupName.contains("/"), "Invalid readerGroupName, '/' not allowed");
         Preconditions.checkArgument(eventProcessorCount > 0, "Event processor count should be positive integer");
         Preconditions.checkNotNull(checkpointConfig);
         this.streamName = streamName;
