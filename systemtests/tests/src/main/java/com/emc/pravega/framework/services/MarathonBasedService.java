@@ -15,10 +15,9 @@ import mesosphere.marathon.client.utils.MarathonException;
 import java.net.URI;
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static com.emc.pravega.framework.TestFrameworkException.Type.RequestFailed;
@@ -88,14 +87,9 @@ public abstract class MarathonBasedService implements Service {
         throw new TestFrameworkException(RequestFailed, "Marathon Exception while fetching details of service", e);
     }
 
-    void waitUntilServiceRunning() {
-        try {
-            FutureHelpers.loop(() -> !isRunning(), //condition
-                    () -> FutureHelpers.delayedFuture(Duration.ofSeconds(5), executorService),
-                    executorService).get();
-        } catch (InterruptedException | ExecutionException ex) {
-            throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Error while waiting for " +
-                    "service to start", ex);
-        }
+    CompletableFuture<Void> waitUntilServiceRunning() {
+        return FutureHelpers.loop(() -> !isRunning(), //condition
+                () -> FutureHelpers.delayedFuture(Duration.ofSeconds(5), executorService),
+                executorService);
     }
 }
