@@ -21,7 +21,19 @@ import java.util.concurrent.CompletableFuture;
  */
 interface Stream {
 
+    /**
+     * Get name of stream.
+     *
+     * @return Name of stream.
+     */
     String getName();
+
+    /**
+     * Get Scope Name.
+     *
+     * @return Name of scope.
+     */
+    String getScopeName();
 
     /**
      * Create the stream, by creating/modifying underlying data structures.
@@ -48,12 +60,14 @@ interface Stream {
 
     /**
      * Update the state of the stream.
+     *
      * @return boolean indicating whether the state of stream is updated.
      */
     CompletableFuture<Boolean> updateState(final State state);
 
     /**
-     *  Get the state of the stream.
+     * Get the state of the stream.
+     *
      * @return state othe given stream.
      */
     CompletableFuture<State> getState();
@@ -71,7 +85,7 @@ interface Stream {
      * @return successors of specified segment.
      */
     CompletableFuture<List<Integer>> getSuccessors(final int number);
-    
+
     /**
      * @param number segment number.
      * @return successors of specified segment mapped to the list of their predecessors
@@ -109,12 +123,14 @@ interface Stream {
 
     /**
      * Method to start new transaction creation
+     *
      * @return
      */
     CompletableFuture<UUID> createTransaction();
 
     /**
      * Seal given transaction
+     *
      * @param txId
      * @return
      */
@@ -122,6 +138,7 @@ interface Stream {
 
     /**
      * Returns transaction's status
+     *
      * @param txId
      * @return
      */
@@ -131,6 +148,7 @@ interface Stream {
      * Commits a transaction
      * If already committed, return TxnStatus.Committed
      * If aborted, throw OperationOnTxNotAllowedException
+     *
      * @param txId
      * @return
      */
@@ -140,6 +158,7 @@ interface Stream {
      * Commits a transaction
      * If already aborted, return TxnStatus.Aborted
      * If committed, throw OperationOnTxNotAllowedException
+     *
      * @param txId
      * @return
      */

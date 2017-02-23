@@ -138,7 +138,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private CompletableFuture<UUID> createTxBody(final String scope, final String stream) {
         return streamMetadataStore.createTransaction(scope, stream)
                 .thenCompose(txId ->
-                        streamMetadataStore.getActiveSegments(stream)
+                        streamMetadataStore.getActiveSegments(scope, stream)
                                 .thenCompose(activeSegments ->
                                         FutureHelpers.allOf(
                                                 activeSegments.stream()
@@ -173,37 +173,11 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> SegmentHelper.createTransaction(scope,
-                                stream,
-                                segmentNumber,
-                                txid,
-                                this.hostControllerStore,
-                                this.connectionFactory), executor);
-    }
-
-    private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-                    .retryingOn(WireCommandFailedException.class)
-                    .throwingOn(RuntimeException.class)
-                    .runAsync(() -> SegmentHelper.abortTransaction(scope,
-                                                                  stream,
-                                                                  segmentNumber,
-                                                                  txId,
-                                                                  this.hostControllerStore,
-                                                                  this.connectionFactory),
-                              executor);
-    }
-
-    private CompletableFuture<com.emc.pravega.controller.stream.api.v1.TxnStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-                    .retryingOn(WireCommandFailedException.class)
-                    .throwingOn(RuntimeException.class)
-                    .runAsync(() -> SegmentHelper.commitTransaction(scope,
-                                                                    stream,
-                                                                    segmentNumber,
-                                                                    txId,
-                                                                    this.hostControllerStore,
-                                                                    this.connectionFactory),
-                              executor);
+                        stream,
+                        segmentNumber,
+                        txid,
+                        this.hostControllerStore,
+                        this.connectionFactory), executor);
     }
 
     @Override

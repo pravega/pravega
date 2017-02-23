@@ -70,7 +70,6 @@ public class ControllerWrapper {
         ControllerEventProcessors.initialize(hostId, localController, client, streamStore, hostStore);
         //endregion
 
-        //2) start RPC server with v1 implementation. Enable other versions if required.
         return new LocalController(controllerService);
     }
 }

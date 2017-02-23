@@ -83,8 +83,7 @@ public class Main {
         if (Config.HOST_MONITOR_ENABLED) {
             //Start the Segment Container Monitor.
             log.info("Starting the segment container monitor");
-            SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore,
-                    ZKUtils.getCuratorClient(), Config.CLUSTER_NAME,
+            SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore, ZKUtils.getCuratorClient(),
                     new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL);
             monitor.startAsync();
         }

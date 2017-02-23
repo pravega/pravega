@@ -44,6 +44,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
         // Garbage collector for completed transactions
         ZKStream.initialize(client);
+        ZKScope.initialize(client);
 
         this.executor.scheduleAtFixedRate(() -> {
             // find completed transactions to be gc'd
@@ -72,8 +73,20 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    ZKStream newStream(final String name) {
-        return new ZKStream(name);
+    ZKStream newStream(final String scopedStreamName) {
+        final String scopeName = scopedStreamName.split("/")[0];
+        final String streamName = scopedStreamName.split("/")[1];
+        return new ZKStream(scopeName, streamName);
+    }
+
+    @Override
+    ZKScope newScope(final String scopeName) {
+        return new ZKScope(scopeName);
+    }
+
+    @Override
+    public CompletableFuture<List<String>> listScopes() {
+        return ZKScope.listScopes();
     }
 
     @Override

@@ -161,6 +161,7 @@ public class EventProcessorTest {
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());
         System.err.println("SUCCESS: received expected sum");
+
         producer.close();
         eventEventProcessorGroup.stopAll();
         server.close();

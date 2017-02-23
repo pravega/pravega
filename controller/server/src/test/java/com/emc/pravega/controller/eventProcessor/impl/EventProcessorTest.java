@@ -44,11 +44,11 @@ import static org.mockito.ArgumentMatchers.anyLong;
  */
 public class EventProcessorTest {
 
-    private static String scope = "scope";
-    private static String streamName = "stream";
-    private static String readerGroup = "readerGroup";
-    private static String readerId = "reader-1";
-    private static String process = "process";
+    private static final String SCOPE = "scope";
+    private static final String STREAM_NAME = "stream";
+    private static final String READER_GROUP = "readerGroup";
+    private static final String READER_ID = "reader-1";
+    private static final String PROCESS = "process";
 
     @Data
     @AllArgsConstructor
@@ -107,7 +107,7 @@ public class EventProcessorTest {
 
         MockEventRead(long position, T value) {
             this.value = value;
-            Segment segment = new Segment(scope, streamName, 0);
+            Segment segment = new Segment(SCOPE, STREAM_NAME, 0);
             this.position = new PositionImpl(Collections.singletonMap(segment, position));
         }
 
@@ -157,8 +157,8 @@ public class EventProcessorTest {
         EventProcessorGroupConfig config =
                 EventProcessorGroupConfigImpl.builder()
                         .eventProcessorCount(1)
-                        .readerGroupName(readerGroup)
-                        .streamName(streamName)
+                        .readerGroupName(READER_GROUP)
+                        .streamName(STREAM_NAME)
                         .checkpointConfig(checkpointConfig)
                         .build();
 
@@ -172,11 +172,11 @@ public class EventProcessorTest {
         inputEvents.add(new MockEventRead<>(input.length, null));
 
         EventProcessorSystem system = Mockito.mock(EventProcessorSystem.class);
-        Mockito.when(system.getProcess()).thenReturn(process);
+        Mockito.when(system.getProcess()).thenReturn(PROCESS);
 
         EventStreamReader<TestEvent> reader = Mockito.mock(EventStreamReader.class);
 
-        checkpointStore.addReaderGroup(process, readerGroup);
+        checkpointStore.addReaderGroup(PROCESS, READER_GROUP);
 
         // Test case 1. Actor does not throw any exception during normal operation.
         Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
@@ -187,7 +187,7 @@ public class EventProcessorTest {
                 .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(config)
                 .build();
-        testEventProcessor(system, eventProcessorConfig, reader, readerId, checkpointStore, expectedSum);
+        testEventProcessor(system, eventProcessorConfig, reader, READER_ID, checkpointStore, expectedSum);
 
         // Test case 2. Actor throws an error during normal operation, and Directive is to Resume on error.
         Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
@@ -199,7 +199,7 @@ public class EventProcessorTest {
                         (e instanceof IllegalArgumentException) ? ExceptionHandler.Directive.Resume : ExceptionHandler.Directive.Stop)
                 .config(config)
                 .build();
-        testEventProcessor(system, eventProcessorConfig, reader, readerId, checkpointStore, expectedSum);
+        testEventProcessor(system, eventProcessorConfig, reader, READER_ID, checkpointStore, expectedSum);
 
         // Test case 3. Actor throws an error during normal operation, and Directive is to Restart on error.
         Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
@@ -211,7 +211,7 @@ public class EventProcessorTest {
                         (e instanceof IllegalArgumentException) ? ExceptionHandler.Directive.Restart : ExceptionHandler.Directive.Stop)
                 .config(config)
                 .build();
-        testEventProcessor(system, eventProcessorConfig, reader, readerId, checkpointStore, 0);
+        testEventProcessor(system, eventProcessorConfig, reader, READER_ID, checkpointStore, 0);
     }
 
     private void testEventProcessor(final EventProcessorSystem system,
@@ -229,6 +229,6 @@ public class EventProcessorTest {
 
         TestEventProcessor actor = (TestEventProcessor) cell.getActor();
         assertEquals(expectedSum, actor.sum);
-        assertTrue(checkpointStore.getPositions(process, readerGroup).isEmpty());
+        assertTrue(checkpointStore.getPositions(PROCESS, READER_GROUP).isEmpty());
     }
 }

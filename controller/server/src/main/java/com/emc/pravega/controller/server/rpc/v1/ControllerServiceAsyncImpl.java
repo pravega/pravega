@@ -66,7 +66,7 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
         log.debug("getPositions called for stream " + scope + "/" + stream);
         processResult(controllerService.getPositions(scope, stream, timestamp, count), resultHandler);
     }
-    
+
     @Override
     public void getSegmentsImmediatlyFollowing(SegmentId segment, AsyncMethodCallback resultHandler) throws TException {
         log.debug("getSegmentsImmediatlyFollowing called for segment " + segment);
@@ -118,9 +118,9 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
 
     @Override
     public void abortTransaction(final String scope,
-                                final String stream,
-                                final TxnId txid,
-                                final AsyncMethodCallback resultHandler) throws TException {
+                                 final String stream,
+                                 final TxnId txid,
+                                 final AsyncMethodCallback resultHandler) throws TException {
         log.debug("abortTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
         processResult(controllerService.abortTransaction(scope, stream, txid), resultHandler);
     }
@@ -132,6 +132,32 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
                                        final AsyncMethodCallback resultHandler) throws TException {
         log.debug("checkTransactionStatus called for stream " + scope + "/" + stream + " txid=" + txid);
         processResult(controllerService.checkTransactionStatus(scope, stream, txid), resultHandler);
+    }
+
+    /**
+     * Controller Service Async API to create scope.
+     *
+     * @param scope         Name of scope to be created.
+     * @param resultHandler callback result handler
+     * @throws TException exception class for Thrift.
+     */
+    @Override
+    public void createScope(final String scope, final AsyncMethodCallback resultHandler) throws TException {
+        log.debug("createScope called for scope {}", scope);
+        processResult(controllerService.createScope(scope), resultHandler);
+    }
+
+    /**
+     * Controller Service Async API to delete scope.
+     *
+     * @param scope         Name of scope to be deleted.
+     * @param resultHandler callback result handler
+     * @throws TException exception class for Thrift.
+     */
+    @Override
+    public void deleteScope(final String scope, final AsyncMethodCallback resultHandler) throws TException {
+        log.debug("deleteScope called for scope {}", scope);
+        processResult(controllerService.deleteScope(scope), resultHandler);
     }
 
     private static <T> void processResult(final CompletableFuture<T> result, final AsyncMethodCallback resultHandler) {
