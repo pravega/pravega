@@ -49,7 +49,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
         String stream = event.getStream();
         UUID txId = event.getTxid();
 
-        streamMetadataStore.getActiveSegments(event.getStream())
+        streamMetadataStore.getActiveSegments(event.getScope(), event.getStream())
                 .thenCompose(segments ->
                         FutureHelpers.allOfWithResults(segments.stream()
                                 .parallel()
