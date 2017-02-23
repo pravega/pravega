@@ -35,12 +35,18 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     private final String scope;
     private final ClientFactory clientFactory;
-    private final ControllerImpl controller;
+    private final Controller controller;
 
     public ReaderGroupManagerImpl(String scope, URI controllerUri) {
         this.scope = scope;
         this.clientFactory = ClientFactory.withScope(scope, controllerUri);
         this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
+    }
+
+    public ReaderGroupManagerImpl(String scope, Controller controller) {
+        this.scope = scope;
+        this.clientFactory = ClientFactory.withScope(scope, controller);
+        this.controller = controller;
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {

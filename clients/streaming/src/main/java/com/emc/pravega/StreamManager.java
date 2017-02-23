@@ -25,7 +25,7 @@ public interface StreamManager extends AutoCloseable {
     public static StreamManager withScope(String scope, URI controllerUri) {
         return new StreamManagerImpl(scope, controllerUri);
     }
-  
+
     /**
      * Creates a new stream
      * <p>

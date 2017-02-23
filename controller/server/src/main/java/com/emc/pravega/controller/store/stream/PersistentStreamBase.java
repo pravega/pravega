@@ -35,15 +35,22 @@ import java.util.stream.IntStream;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
 public abstract class PersistentStreamBase<T> implements Stream {
-    private final String name;
+    private final String streamName;
+    private final String scopeName;
 
-    protected PersistentStreamBase(final String name) {
-        this.name = name;
+    protected PersistentStreamBase(final String scopeName, final String name) {
+        this.scopeName = scopeName;
+        this.streamName = name;
     }
 
     @Override
     public String getName() {
-        return this.name;
+        return this.streamName;
+    }
+
+    @Override
+    public String getScopeName() {
+        return this.scopeName;
     }
 
     /***
@@ -64,7 +71,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Boolean> create(final StreamConfiguration configuration, long createTimestamp) {
         final Create create = new Create(createTimestamp, configuration);
-        return checkStreamExists(create)
+
+        return checkScopeExists()
+                .thenCompose(x -> checkStreamExists(create))
                 .thenCompose(x -> storeCreationTime(create))
                 .thenCompose(x -> createConfiguration(create))
                 .thenCompose(x -> createState(State.ACTIVE))
@@ -84,7 +93,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Boolean> updateConfiguration(final StreamConfiguration configuration) {
         // replace the configurationPath with new configurationPath
-        return setConfigurationData(configuration).thenApply(x -> true);
+        return checkScopeExists()
+                .thenApply(x -> setConfigurationData(configuration))
+                .thenApply(x -> true);
     }
 
     /**
@@ -147,9 +158,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     private CompletableFuture<List<Segment>> findOverlapping(Segment segment, List<Integer> candidates) {
         return FutureHelpers.allOfWithResults(candidates.stream().map(this::getSegment).collect(Collectors.toList()))
-                            .thenApply(successorCandidates -> successorCandidates.stream()
-                                                                                 .filter(x -> x.overlaps(segment))
-                                                                                 .collect(Collectors.toList()));
+                .thenApply(successorCandidates -> successorCandidates.stream()
+                        .filter(x -> x.overlaps(segment))
+                        .collect(Collectors.toList()));
     }
 
     @Override
@@ -387,9 +398,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                        final int startingSegmentNumber) {
         final List<CompletableFuture<Segment>> segments = IntStream.range(startingSegmentNumber,
                 startingSegmentNumber + count)
-                                                                   .boxed()
-                                                                   .map(this::getSegment)
-                                                                   .collect(Collectors.<CompletableFuture<Segment>>toList());
+                .boxed()
+                .map(this::getSegment)
+                .collect(Collectors.<CompletableFuture<Segment>>toList());
         return FutureHelpers.allOfWithResults(segments);
     }
 
@@ -502,8 +513,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
         segments.addAll(
                 IntStream.range(startingSegmentNumber,
                         startingSegmentNumber + scale.getNewRanges().size())
-                         .boxed()
-                         .collect(Collectors.toList()));
+                        .boxed()
+                        .collect(Collectors.toList()));
         return segments;
     }
 
@@ -587,4 +598,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Void> removeActiveTxEntry(final UUID txId);
 
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp);
+
+    abstract CompletableFuture<Void> checkScopeExists() throws StoreException;
 }

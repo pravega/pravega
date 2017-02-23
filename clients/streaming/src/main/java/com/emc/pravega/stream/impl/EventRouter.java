@@ -8,13 +8,13 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
-import com.google.common.base.Preconditions;
 
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
-
 import lombok.RequiredArgsConstructor;
+
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 /**
  * A class that determines to which segment an event associated with a routing key will go.
@@ -26,7 +26,8 @@ import lombok.RequiredArgsConstructor;
 public class EventRouter {
 
     private static final HashHelper HASHER = HashHelper.seededWith("EventRouter");
-
+    
+    private final Random random = new Random();
     private final Stream stream;
     private final Controller controller;
     private final AtomicReference<StreamSegments> currentSegments = new AtomicReference<>();
@@ -38,11 +39,13 @@ public class EventRouter {
      * @return The Segment that has been selected.
      */
     public Segment getSegmentForEvent(String routingKey) {
-        Preconditions.checkNotNull(routingKey);
         StreamSegments streamSegments = currentSegments.get();
         if (streamSegments == null) {
             refreshSegmentList();
             streamSegments = currentSegments.get();
+        }
+        if (routingKey == null) {
+            return streamSegments.getSegmentForKey(random.nextDouble());
         }
         return streamSegments.getSegmentForKey(HASHER.hashToRange(routingKey));
     }

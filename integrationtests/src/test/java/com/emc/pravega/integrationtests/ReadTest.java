@@ -201,7 +201,7 @@ public class ReadTest {
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
 
-        producer.writeEvent("RoutingKey", testString);
+        producer.writeEvent(testString);
         producer.flush();
 
         @Cleanup
@@ -234,7 +234,7 @@ public class ReadTest {
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
 
         for (int i = 0; i < 100; i++) {
-            producer.writeEvent("RoutingKey", testString + i);
+            producer.writeEvent(testString + i);
         }
         producer.flush();
 
