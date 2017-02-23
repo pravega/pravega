@@ -15,6 +15,7 @@ import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamReques
 import com.emc.pravega.controller.server.rest.v1.ApiV1;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
+import com.emc.pravega.controller.store.stream.StoreException;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
@@ -230,7 +231,9 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     return Response.status(Status.OK).entity(streams).build();
                 }).exceptionally(exception -> {
                     if (exception.getCause() instanceof DataNotFoundException
-                            || exception instanceof DataNotFoundException) {
+                            || exception instanceof DataNotFoundException
+                            || exception.getCause() instanceof StoreException.NodeNotFoundException
+                            || exception instanceof StoreException.NodeNotFoundException) {
                         log.warn("Scope name: {} not found", scopeName);
                         return Response.status(Status.NOT_FOUND).build();
                     } else {

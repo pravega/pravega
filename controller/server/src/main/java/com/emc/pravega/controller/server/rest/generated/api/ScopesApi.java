@@ -60,6 +60,8 @@ public class ScopesApi  {
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 201, message = "Successful created the stream", response = StreamProperty.class),
         
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope not found", response = StreamProperty.class),
+        
         @io.swagger.annotations.ApiResponse(code = 409, message = "Stream already exists", response = StreamProperty.class),
         
         @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = StreamProperty.class) })
@@ -79,7 +81,7 @@ public class ScopesApi  {
         
         @io.swagger.annotations.ApiResponse(code = 404, message = "Scope not found", response = void.class),
         
-        @io.swagger.annotations.ApiResponse(code = 412, message = "Connot delete scope which has non-empty list of streams", response = void.class),
+        @io.swagger.annotations.ApiResponse(code = 412, message = "Cannot delete scope which has non-empty list of streams", response = void.class),
         
         @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = void.class) })
     public Response deleteScope(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
@@ -93,11 +95,7 @@ public class ScopesApi  {
     
     @io.swagger.annotations.ApiOperation(value = "", notes = "", response = void.class, tags={  })
     @io.swagger.annotations.ApiResponses(value = { 
-        @io.swagger.annotations.ApiResponse(code = 204, message = "Successfully deleted the stream", response = void.class),
-        
-        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope or stream not found", response = void.class),
-        
-        @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = void.class) })
+        @io.swagger.annotations.ApiResponse(code = 501, message = "Not Implemented", response = void.class) })
     public Response deleteStream(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
 ,@ApiParam(value = "Stream name",required=true) @PathParam("streamName") String streamName
 ,@Context SecurityContext securityContext)
