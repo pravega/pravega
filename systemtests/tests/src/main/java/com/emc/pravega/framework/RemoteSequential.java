@@ -1,13 +1,11 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.framework;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.framework.metronome.Metronome;
 import com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient;
+import com.emc.pravega.framework.metronome.Metronome;
 import com.emc.pravega.framework.metronome.MetronomeException;
 import com.emc.pravega.framework.metronome.model.v1.Artifact;
 import com.emc.pravega.framework.metronome.model.v1.Job;
@@ -25,7 +23,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.emc.pravega.framework.LoginClient.MESOS_MASTER;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
@@ -78,15 +75,9 @@ public class RemoteSequential implements TestExecutor {
     }
 
     private CompletableFuture<Void> waitForJobCompletion(final String jobId) {
-        AtomicBoolean mustWait = new AtomicBoolean(true);
-
-        return FutureHelpers.loop(mustWait::get, //condition
-                () -> CompletableFuture.runAsync(() -> {  //loop body
-                    mustWait.set(isTestRunning(jobId));
-                }).thenCompose(v ->
-                        FutureHelpers.delayedFuture(mustWait.get() ? Duration.ofSeconds(3) : Duration.ZERO,
-                                executorService)
-                ), executorService);
+        return FutureHelpers.loop(() -> isTestRunning(jobId),
+                () -> FutureHelpers.delayedFuture(Duration.ofSeconds(3), executorService),
+                executorService);
     }
 
     private Job newJob(String id, String className, String methodName) {
