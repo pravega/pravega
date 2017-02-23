@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.demo;
 
+import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.StoreClient;
@@ -32,7 +33,7 @@ import org.apache.curator.retry.RetryOneTime;
 
 public class ControllerWrapper {
 
-    public static Controller getController(String connectionString) {
+    public static Controller getController(String connectionString) throws Exception {
         String hostId;
         try {
             // On each controller process restart, it gets a fresh hostId,
@@ -57,13 +58,24 @@ public class ControllerWrapper {
 
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
-        //2) start RPC server with v1 implementation. Enable other versions if required.
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, executor, hostId);
+        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks);
 
-        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        //region Setup Event Processors
+        LocalController localController = new LocalController(controllerService);
+
+        streamTransactionMetadataTasks.initializeStreamWriters(localController);
+
+        ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
+                client, streamStore, hostStore);
+
+        controllerEventProcessors.initialize();
+        //endregion
+
         return new LocalController(controllerService);
     }
 }

@@ -31,7 +31,6 @@ public class StreamMetadataTest {
     public static void main(String[] args) throws Exception {
         @Cleanup
         TestingServer zkTestServer = new TestingServer();
-        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString());
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
@@ -39,6 +38,8 @@ public class StreamMetadataTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
+
+        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString());
 
         final String scope1 = "scope1";
         final String streamName1 = "stream1";

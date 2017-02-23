@@ -82,13 +82,14 @@ public class EventProcessorTest {
     @Test
     public static void main(String[] args) throws Exception {
         TestingServer zkTestServer = new TestingServer();
-        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString());
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
+
+        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString());
 
         // Create controller object for testing against a separate controller process.
         // ControllerImpl controller = new ControllerImpl("localhost", 9090);
@@ -159,6 +160,8 @@ public class EventProcessorTest {
 
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());
+        System.err.println("SUCCESS: received expected sum");
+
         producer.close();
         eventEventProcessorGroup.stopAll();
         server.close();
