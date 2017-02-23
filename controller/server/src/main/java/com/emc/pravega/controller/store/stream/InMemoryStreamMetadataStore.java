@@ -63,6 +63,18 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    public CompletableFuture<Boolean> updateConfiguration(final String scopeName,
+                                                          final String streamName,
+                                                          final StreamConfiguration configuration) {
+        if (scopes.containsKey(scopeName)) {
+            return streams.get(scopedStreamName(scopeName, streamName)).updateConfiguration(configuration);
+        } else {
+            return FutureHelpers.
+                    failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
+        }
+    }
+
+    @Override
     public synchronized CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
         if (!validateName(scopeName)) {
             log.error("Create scope failed due to invalid scope name {}", scopeName);

@@ -330,6 +330,8 @@ public class StreamMetadataTasks extends TaskBase {
         if (ex instanceof StreamNotFoundException ||
                 (ex instanceof CompletionException && ex.getCause() instanceof StreamNotFoundException)) {
             return UpdateStreamStatus.STREAM_NOT_FOUND;
+        } else if (ex instanceof StoreException && ( (StoreException) ex).getType() == NODE_NOT_FOUND) {
+            return UpdateStreamStatus.SCOPE_NOT_FOUND;
         } else {
             log.warn("Update stream failed due to ", ex);
             return UpdateStreamStatus.FAILURE;

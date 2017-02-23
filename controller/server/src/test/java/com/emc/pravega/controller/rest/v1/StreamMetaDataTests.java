@@ -88,6 +88,8 @@ public class StreamMetaDataTests extends JerseyTest {
             completedFuture(UpdateStreamStatus.STREAM_NOT_FOUND);
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus3 = CompletableFuture.
             completedFuture(UpdateStreamStatus.FAILURE);
+    private CompletableFuture<UpdateStreamStatus> updateStreamStatus4 = CompletableFuture.
+            completedFuture(UpdateStreamStatus.SCOPE_NOT_FOUND);
 
     @Before
     public void initialize() {
@@ -200,7 +202,14 @@ public class StreamMetaDataTests extends JerseyTest {
         // Test for validation of request object
         when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus3);
         response = target(resourceURI).request().async().put(Entity.json(updateStreamRequest3));
+        // TODO: Server should be returning 400 here, change this once issue
+        // https://github.com/pravega/pravega/issues/531 is fixed.
         assertEquals("Update Stream Status", 500, response.get().getStatus());
+
+        // Test to update stream for non-existent scope
+        when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus4);
+        response = target(resourceURI).request().async().put(Entity.json(updateStreamRequest));
+        assertEquals("Update Stream Status", 404, response.get().getStatus());
     }
 
     /**
