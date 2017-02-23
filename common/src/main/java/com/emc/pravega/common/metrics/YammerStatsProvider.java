@@ -48,7 +48,7 @@ public class YammerStatsProvider implements StatsProvider {
     @Override
     public void start() {
         init();
-        
+
         int metricsOutputFrequency = conf.getStatsOutputFrequency();
         String prefix = conf.getMetricsPrefix();
         String csvDir = conf.getCSVEndpoint();

@@ -74,8 +74,8 @@
     <module name="PackageName"/>
     <module name="ParameterName"/>
     <module name="StaticVariableName">
-           <property name="format" value="Static non-final variables are not allowed."/>
-	</module>
+        <property name="format" value="Static non-final variables are not allowed."/>
+    </module>
     <module name="TypeName"/>
     <module name="AvoidStarImport">
        <!--    <property name="excludes" value="java.io,java.net,java.lang.Math"/> -->
