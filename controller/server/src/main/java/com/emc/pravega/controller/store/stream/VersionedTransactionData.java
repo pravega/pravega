@@ -31,7 +31,7 @@ import java.util.UUID;
 public class VersionedTransactionData {
     private final UUID id;
     private final int version;
-    private TxnStatus status;
+    private final TxnStatus status;
     private final long creationTime;
     private final long maxExecutionExpiryTime;
     private final long scaleGracePeriod;

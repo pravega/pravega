@@ -238,17 +238,16 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
         return getActiveTx(txId)
                 .thenCompose(x -> {
-                    if (!version.isPresent() || version.get().intValue() == x.getVersion()) {
-                        ActiveTxRecord previous = ActiveTxRecord.parse(x.getData());
-                        ActiveTxRecord updated = new ActiveTxRecord(previous.getTxCreationTimestamp(),
-                                previous.getLeaseExpiryTime(),
-                                previous.getMaxExecutionExpiryTime(),
-                                previous.getScaleGracePeriod(),
-                                commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
-                        return setData(activePath, new Data<>(updated.toByteArray(), x.getVersion()));
-                    } else {
+                    if (version.isPresent() && version.get().intValue() != x.getVersion()) {
                         throw new WriteConflictException(txId.toString());
                     }
+                    ActiveTxRecord previous = ActiveTxRecord.parse(x.getData());
+                    ActiveTxRecord updated = new ActiveTxRecord(previous.getTxCreationTimestamp(),
+                            previous.getLeaseExpiryTime(),
+                            previous.getMaxExecutionExpiryTime(),
+                            previous.getScaleGracePeriod(),
+                            commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
+                    return setData(activePath, new Data<>(updated.toByteArray(), x.getVersion()));
                 })
                 .thenApply(x -> cache.invalidateCache(activePath));
     }

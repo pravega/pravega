@@ -21,6 +21,7 @@ import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.WriteConflictException;
 import com.emc.pravega.controller.stream.api.v1.PingStatus;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
@@ -29,11 +30,10 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -51,7 +51,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
 
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final HashedWheelTimer hashedWheelTimer;
-    private final Map<String, TxnData> map;
+    private final ConcurrentHashMap<String, TxnData> map;
 
     @AllArgsConstructor
     private class TxnTimeoutTask implements TimerTask {
@@ -78,28 +78,24 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
                         // ignore the timeout task.
                         // In other cases, esp. because lock attempt fails, we reschedule this task for execution
                         // at a later point of time.
-                        String message;
                         if (ex != null) {
                             Throwable error = getRealCause(ex);
                             if (error instanceof WriteConflictException || error instanceof DataNotFoundException) {
-                                message = String.format("Timeout task for tx %s failed because of %s. " +
-                                        "Ignoring timeout task.", key, error.getClass().getName());
-                                log.debug(message);
+                                log.debug("Timeout task for tx {} failed because of {}. Ignoring timeout task.",
+                                        key, error.getClass().getName());
                                 map.remove(key);
                             } else {
-                                message = String.format("Rescheduling timeout task for tx %s because " +
+                                String errorMsg = String.format("Rescheduling timeout task for tx %s because " +
                                         "of transient or unknown error", key);
-                                log.warn(message, ex);
+                                log.warn(errorMsg, ex);
                                 hashedWheelTimer.newTimeout(this, 2 * TICK_DURATION, TIME_UNIT);
                             }
                         } else {
-                            message = String.format("Successfully executed abort on tx %s ", key);
                             log.debug("Successfully executed abort on tx {} ", key);
                             map.remove(key);
                         }
                         return null;
-                    })
-                    .join();
+                    });
         }
     }
 
@@ -116,7 +112,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     public TimerWheelTimeoutService(StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
         this.hashedWheelTimer = new HashedWheelTimer();
-        map = new HashMap<>();
+        map = new ConcurrentHashMap<>();
         this.startAsync();
     }
 
@@ -163,27 +159,22 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
         }
 
         final String key = getKey(scope, stream, txnId);
+        Preconditions.checkState(map.containsKey(key), "Stream not found in the map");
 
-        if (map.containsKey(key)) {
+        final TxnData txnData = map.get(key);
+        final long current = System.currentTimeMillis();
+        if (current + lease > txnData.getMaxExecutionTimeExpiry()) {
 
-            final TxnData txnData = map.get(key);
-            final long current = System.currentTimeMillis();
-
-            if (current + lease > txnData.getMaxExecutionTimeExpiry()) {
-
-                return PingStatus.MAX_EXECUTION_TIME_EXCEEDED;
-
-            } else {
-
-                txnData.setExpiryTimestamp(current + lease);
-                hashedWheelTimer.newTimeout(txnData.getTask(), lease, TimeUnit.MILLISECONDS);
-                return PingStatus.OK;
-
-            }
+            return PingStatus.MAX_EXECUTION_TIME_EXCEEDED;
 
         } else {
-            throw new IllegalStateException(key);
+
+            txnData.setExpiryTimestamp(current + lease);
+            hashedWheelTimer.newTimeout(txnData.getTask(), lease, TimeUnit.MILLISECONDS);
+            return PingStatus.OK;
+
         }
+
     }
 
     @Override

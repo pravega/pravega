@@ -54,8 +54,8 @@ import java.util.concurrent.ScheduledExecutorService;
 @Slf4j
 public class TimeoutServiceTest {
 
-    private static String scope = "scope";
-    private static String stream = "stream";
+    private final static String SCOPE = "SCOPE";
+    private final static String STREAM = "STREAM";
 
     private static long lease = 4000;
     private static long maxExecutionTime = 10000;
@@ -70,7 +70,10 @@ public class TimeoutServiceTest {
 
         private final StreamMetadataStore streamMetadataStore;
 
-        public DummyStreamTransactionTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, TaskMetadataStore taskMetadataStore, ScheduledExecutorService executor, String hostId) {
+        public DummyStreamTransactionTasks(final StreamMetadataStore streamMetadataStore,
+                                           final HostControllerStore hostControllerStore,
+                                           final TaskMetadataStore taskMetadataStore,
+                                           final ScheduledExecutorService executor, String hostId) {
             super(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, hostId);
             this.streamMetadataStore = streamMetadataStore;
         }
@@ -132,7 +135,7 @@ public class TimeoutServiceTest {
         CuratorFramework client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
         client.start();
 
-        // Create stream store, host store, and task metadata store.
+        // Create STREAM store, host store, and task metadata store.
         StoreClient storeClient = new ZKStoreClient(client);
         streamStore = new ZKStreamMetadataStore(client, executor);
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
@@ -153,203 +156,203 @@ public class TimeoutServiceTest {
     @Test
     public void testTimeout() throws InterruptedException {
 
-        VersionedTransactionData txData = streamStore.createTransaction(scope, stream, lease, maxExecutionTime,
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, lease, maxExecutionTime,
                 scaleGracePeriod).join();
 
-        timeoutService.addTx(scope, stream, txData.getId(), txData.getVersion(), lease,
+        timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), lease,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
         Thread.sleep(5200);
 
-        TxnStatus status = streamStore.transactionStatus(scope, stream, txData.getId()).join();
+        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.ABORTING, status);
 
     }
 
     @Test
     public void testControllerTimeout() throws InterruptedException {
-        TxnId txnId = controllerService.createTransaction(scope, stream, lease, maxExecutionTime, scaleGracePeriod)
+        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod)
                 .join();
 
         Thread.sleep(5200);
 
-        TxnState txnState = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        TxnState txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.ABORTING, txnState);
     }
 
     @Test
     public void testPingSuccess() throws InterruptedException {
-        VersionedTransactionData txData = streamStore.createTransaction(scope, stream, lease, maxExecutionTime,
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, lease, maxExecutionTime,
                 scaleGracePeriod).join();
 
-        timeoutService.addTx(scope, stream, txData.getId(), txData.getVersion(), lease,
+        timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), lease,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
         Thread.sleep(3000);
 
-        TxnStatus status = streamStore.transactionStatus(scope, stream, txData.getId()).join();
+        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
-        PingStatus pingStatus = timeoutService.pingTx(scope, stream, txData.getId(), lease);
+        PingStatus pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), lease);
         Assert.assertEquals(PingStatus.OK, pingStatus);
 
         Thread.sleep(2000);
 
-        status = streamStore.transactionStatus(scope, stream, txData.getId()).join();
+        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
         Thread.sleep(3200);
 
-        status = streamStore.transactionStatus(scope, stream, txData.getId()).join();
+        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.ABORTING, status);
     }
 
     @Test
     public void testControllerPingSuccess() throws InterruptedException {
-        TxnId txnId = controllerService.createTransaction(scope, stream, lease, maxExecutionTime, scaleGracePeriod)
+        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod)
                 .join();
 
         Thread.sleep(3000);
 
-        TxnState txnState = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        TxnState txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.OPEN, txnState);
 
-        PingStatus pingStatus = controllerService.pingTransaction(scope, stream, txnId, lease).join();
+        PingStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, lease).join();
         Assert.assertEquals(PingStatus.OK, pingStatus);
 
         Thread.sleep(2000);
 
-        txnState = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.OPEN, txnState);
 
         Thread.sleep(3200);
 
-        txnState = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.ABORTING, txnState);
     }
 
     @Test
     public void testPingFailureMaxExecutionTimeExceeded() throws InterruptedException {
 
-        VersionedTransactionData txData = streamStore.createTransaction(scope, stream, lease, maxExecutionTime,
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, lease, maxExecutionTime,
                 scaleGracePeriod).join();
 
-        timeoutService.addTx(scope, stream, txData.getId(), txData.getVersion(), lease,
+        timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), lease,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
         Thread.sleep(3000);
 
-        TxnStatus status = streamStore.transactionStatus(scope, stream, txData.getId()).join();
+        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
-        PingStatus pingStatus = timeoutService.pingTx(scope, stream, txData.getId(), lease);
+        PingStatus pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), lease);
         Assert.assertEquals(PingStatus.OK, pingStatus);
 
         Thread.sleep(3000);
 
-        status = streamStore.transactionStatus(scope, stream, txData.getId()).join();
+        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
-        pingStatus = timeoutService.pingTx(scope, stream, txData.getId(), lease + 1);
+        pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), lease + 1);
         Assert.assertEquals(PingStatus.MAX_EXECUTION_TIME_EXCEEDED, pingStatus);
 
         Thread.sleep(2000);
 
-        status = streamStore.transactionStatus(scope, stream, txData.getId()).join();
+        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.ABORTING, status);
     }
 
     @Test
     public void testControllerPingFailureMaxExecutionTimeExceeded() throws InterruptedException {
-        TxnId txnId = controllerService.createTransaction(scope, stream, lease, maxExecutionTime, scaleGracePeriod)
+        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod)
                 .join();
 
         Thread.sleep(3000);
 
-        TxnState txnState = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        TxnState txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.OPEN, txnState);
 
-        PingStatus pingStatus = controllerService.pingTransaction(scope, stream, txnId, lease).join();
+        PingStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, lease).join();
         Assert.assertEquals(PingStatus.OK, pingStatus);
 
         Thread.sleep(3000);
 
-        txnState = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.OPEN, txnState);
 
-        pingStatus = controllerService.pingTransaction(scope, stream, txnId, lease + 1).join();
+        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, lease + 1).join();
         Assert.assertEquals(PingStatus.MAX_EXECUTION_TIME_EXCEEDED, pingStatus);
 
         Thread.sleep(2000);
 
-        txnState = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.ABORTING, txnState);
     }
 
     @Test
     public void testPingFailureDisconnected() throws InterruptedException {
 
-        VersionedTransactionData txData = streamStore.createTransaction(scope, stream, lease, maxExecutionTime,
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, lease, maxExecutionTime,
                 scaleGracePeriod).join();
 
-        timeoutService.addTx(scope, stream, txData.getId(), txData.getVersion(), lease,
+        timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), lease,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
         Thread.sleep(3 * lease / 4);
 
-        TxnStatus status = streamStore.transactionStatus(scope, stream, txData.getId()).join();
+        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
         // Stop timeoutService, and then try pinging the transaction.
         timeoutService.stopAsync();
 
-        PingStatus pingStatus = timeoutService.pingTx(scope, stream, txData.getId(), lease);
+        PingStatus pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), lease);
         Assert.assertEquals(PingStatus.DISCONNECTED, pingStatus);
 
         Thread.sleep(lease / 2);
 
         // Check that the transaction status is still open, since timeoutService has been stopped.
-        status = streamStore.transactionStatus(scope, stream, txData.getId()).join();
+        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
     }
 
     @Test
     public void testControllerPingFailureDisconnected() throws InterruptedException {
 
-        TxnId txnId = controllerService.createTransaction(scope, stream, lease, maxExecutionTime, scaleGracePeriod)
+        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod)
                 .join();
 
         Thread.sleep(3 * lease / 4);
 
-        TxnState status = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        TxnState status = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.OPEN, status);
 
         // Stop timeoutService, and then try pinging the transaction.
         timeoutService.stopAsync();
 
-        PingStatus pingStatus = controllerService.pingTransaction(scope, stream, txnId, lease).join();
+        PingStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, lease).join();
         Assert.assertEquals(PingStatus.DISCONNECTED, pingStatus);
 
         Thread.sleep(lease / 2);
 
         // Check that the transaction status is still open, since timeoutService has been stopped.
-        status = controllerService.checkTransactionStatus(scope, stream, txnId).join();
+        status = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.OPEN, status);
     }
 
     @Test
     public void testTimeoutTaskFailureInvalidVersion() throws InterruptedException {
 
-        VersionedTransactionData txData = streamStore.createTransaction(scope, stream, lease, maxExecutionTime,
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, lease, maxExecutionTime,
                 scaleGracePeriod).join();
 
         // Submit transaction to TimeoutService with incorrect tx version identifier.
-        timeoutService.addTx(scope, stream, txData.getId(), txData.getVersion() + 1, lease,
+        timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion() + 1, lease,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
         Thread.sleep(lease + lease / 4);
 
-        TxnStatus status = streamStore.transactionStatus(scope, stream, txData.getId()).join();
+        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
     }
