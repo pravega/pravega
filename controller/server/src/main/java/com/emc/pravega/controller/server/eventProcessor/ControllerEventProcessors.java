@@ -44,11 +44,11 @@ public class ControllerEventProcessors {
     private final HostControllerStore hostControllerStore;
     private final EventProcessorSystem system;
 
-    public ControllerEventProcessors (final String host,
-                                      final Controller controller,
-                                      final CuratorFramework client,
-                                      final StreamMetadataStore streamMetadataStore,
-                                      final HostControllerStore hostControllerStore) {
+    public ControllerEventProcessors(final String host,
+                                     final Controller controller,
+                                     final CuratorFramework client,
+                                     final StreamMetadataStore streamMetadataStore,
+                                     final HostControllerStore hostControllerStore) {
         this.controller = controller;
         this.client = client;
         this.streamMetadataStore = streamMetadataStore;

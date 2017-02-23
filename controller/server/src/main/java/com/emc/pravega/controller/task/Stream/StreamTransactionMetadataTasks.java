@@ -63,27 +63,6 @@ public class StreamTransactionMetadataTasks extends TaskBase {
         this(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, new Context(hostId));
     }
 
-    /**
-     * Initializes stream writers for commit and abort streams.
-     * This method should be called immediately after creating StreamTransactionMetadataTasks object.
-     *
-     * @param controller Local controller reference
-     */
-    public void initializeStreamWriters(Controller controller) {
-
-        ClientFactory clientFactory = new ClientFactoryImpl(ControllerEventProcessors.CONTROLLER_SCOPE, controller);
-
-        this.commitEventEventStreamWriter = clientFactory.createEventWriter(
-                ControllerEventProcessors.COMMIT_STREAM,
-                ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
-                EventWriterConfig.builder().build());
-
-        this.abortEventEventStreamWriter = clientFactory.createEventWriter(
-                ControllerEventProcessors.ABORT_STREAM,
-                ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
-                EventWriterConfig.builder().build());
-    }
-
     private StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
             final HostControllerStore hostControllerStore,
             final TaskMetadataStore taskMetadataStore,
@@ -115,6 +94,27 @@ public class StreamTransactionMetadataTasks extends TaskBase {
             // find completed transactions to be gc'd
         }, INITIAL_DELAY, PERIOD, TimeUnit.HOURS);
 
+    }
+
+    /**
+     * Initializes stream writers for commit and abort streams.
+     * This method should be called immediately after creating StreamTransactionMetadataTasks object.
+     *
+     * @param controller Local controller reference
+     */
+    public void initializeStreamWriters(Controller controller) {
+
+        ClientFactory clientFactory = new ClientFactoryImpl(ControllerEventProcessors.CONTROLLER_SCOPE, controller);
+
+        this.commitEventEventStreamWriter = clientFactory.createEventWriter(
+                ControllerEventProcessors.COMMIT_STREAM,
+                ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
+                EventWriterConfig.builder().build());
+
+        this.abortEventEventStreamWriter = clientFactory.createEventWriter(
+                ControllerEventProcessors.ABORT_STREAM,
+                ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
+                EventWriterConfig.builder().build());
     }
 
     /**
