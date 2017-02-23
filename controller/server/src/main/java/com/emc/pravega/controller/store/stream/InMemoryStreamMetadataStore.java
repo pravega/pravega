@@ -8,9 +8,11 @@ import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -23,11 +25,15 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
+    @GuardedBy("$lock")
     private final Map<String, InMemoryStream> streams = new HashMap<>();
+
+    @GuardedBy("$lock")
     private final Map<String, InMemoryScope> scopes = new HashMap<>();
 
     @Override
-    synchronized Stream newStream(final String streamName) {
+    @Synchronized
+    Stream newStream(final String streamName) {
         Stream stream = streams.get(streamName);
         if (stream != null) {
             return stream;
@@ -37,12 +43,14 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    synchronized Scope newScope(final String scopeName) {
+    @Synchronized
+    Scope newScope(final String scopeName) {
         return scopes.get(scopeName);
     }
 
     @Override
-    public synchronized CompletableFuture<Boolean> createStream(final String scopeName, final String streamName,
+    @Synchronized
+    public CompletableFuture<Boolean> createStream(final String scopeName, final String streamName,
                                                                 final StreamConfiguration configuration,
                                                                 final long timeStamp) {
         if (scopes.containsKey(scopeName)) {
@@ -63,6 +71,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<Boolean> updateConfiguration(final String scopeName,
                                                           final String streamName,
                                                           final StreamConfiguration configuration) {
@@ -75,7 +84,8 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public synchronized CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
+    @Synchronized
+    public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
         if (!validateName(scopeName)) {
             log.error("Create scope failed due to invalid scope name {}", scopeName);
             return CompletableFuture.completedFuture(CreateScopeStatus.INVALID_SCOPE_NAME);
@@ -92,7 +102,8 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public synchronized CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName) {
+    @Synchronized
+    public CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName) {
         if (scopes.containsKey(scopeName)) {
             return scopes.get(scopeName).listStreamsInScope().thenApply((streams) -> {
                 if (streams.isEmpty()) {
@@ -109,6 +120,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<List<String>> listScopes() {
         return CompletableFuture.completedFuture(new ArrayList<>(scopes.keySet()));
     }
@@ -120,6 +132,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
      * @return List of streams in scope
      */
     @Override
+    @Synchronized
     public CompletableFuture<List<String>> listStreamsInScope(final String scopeName) {
         InMemoryScope inMemoryScope = scopes.get(scopeName);
         if (inMemoryScope != null) {
