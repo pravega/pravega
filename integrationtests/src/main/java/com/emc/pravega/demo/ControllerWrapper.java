@@ -33,7 +33,7 @@ import org.apache.curator.retry.RetryOneTime;
 
 public class ControllerWrapper {
 
-    public static Controller getController(String connectionString) {
+    public static Controller getController(String connectionString) throws Exception {
         String hostId;
         try {
             // On each controller process restart, it gets a fresh hostId,

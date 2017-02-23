@@ -1,29 +1,19 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
-import com.emc.pravega.controller.eventProcessor.Decider;
+import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
+import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
+import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
-import com.emc.pravega.controller.eventProcessor.Props;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
@@ -51,22 +41,30 @@ public class ControllerEventProcessors {
                                   final Controller controller,
                                   final CuratorFramework client,
                                   final StreamMetadataStore streamMetadataStore,
-                                  final HostControllerStore hostControllerStore) {
+                                  final HostControllerStore hostControllerStore) throws Exception {
 
         final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
         final String controllerScope = "system";
         system = new EventProcessorSystemImpl("Controller", host, controllerScope, controller);
 
+        // Commit event processor configuration
         final String commitStream = "commitStream";
         final String commitStreamReaderGroup = "commitStreamReaders";
         final int commitReaderGroupSize = 5;
         final int commitPositionPersistenceFrequency = 10;
 
+        // Abort event processor configuration
         final String abortStream = "abortStream";
         final String abortStreamReaderGroup = "abortStreamReaders";
         final int abortReaderGroupSize = 5;
         final int abortPositionPersistenceFrequency = 10;
+
+        // Retry configuration
+        final long delay = 100;
+        final int multiplier = 10;
+        final int attempts = 5;
+        final long maxDelay = 10000;
 
         // region Create commit and abort streams
 
@@ -112,15 +110,21 @@ public class ControllerEventProcessors {
                         .checkpointConfig(commitEventCheckpointConfig)
                         .build();
 
-        Props<CommitEvent> commitProps =
-                Props.<CommitEvent>builder()
+        EventProcessorConfig<CommitEvent> commitConfig =
+                EventProcessorConfig.<CommitEvent>builder()
                         .config(commitReadersConfig)
-                        .decider(Decider.DEFAULT_DECIDER)
+                        .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(new JavaSerializer<>())
                         .supplier(() -> new CommitEventProcessor(streamMetadataStore, hostControllerStore, executor))
                         .build();
 
-        commitEventProcessors = system.createEventProcessorGroup(commitProps).getWriter();
+        Retry.withExpBackoff(delay, multiplier, attempts, maxDelay)
+                .retryingOn(CheckpointStoreException.class)
+                .throwingOn(Exception.class)
+                .run(() -> {
+                    commitEventProcessors = system.createEventProcessorGroup(commitConfig).getWriter();
+                    return null;
+                });
 
         // endregion
 
@@ -146,15 +150,21 @@ public class ControllerEventProcessors {
                         .checkpointConfig(abortEventCheckpointConfig)
                         .build();
 
-        Props<AbortEvent> abortProps =
-                Props.<AbortEvent>builder()
+        EventProcessorConfig<AbortEvent> abortConfig =
+                EventProcessorConfig.<AbortEvent>builder()
                         .config(abortReadersConfig)
-                        .decider(Decider.DEFAULT_DECIDER)
+                        .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(new JavaSerializer<>())
                         .supplier(() -> new AbortEventProcessor(streamMetadataStore, hostControllerStore, executor))
                         .build();
 
-        abortEventProcessors = system.createEventProcessorGroup(abortProps).getWriter();
+        Retry.withExpBackoff(delay, multiplier, attempts, maxDelay)
+                .retryingOn(CheckpointStoreException.class)
+                .throwingOn(Exception.class)
+                .run(() -> {
+                    abortEventProcessors = system.createEventProcessorGroup(abortConfig).getWriter();
+                    return null;
+                });
 
         // endregion
     }
