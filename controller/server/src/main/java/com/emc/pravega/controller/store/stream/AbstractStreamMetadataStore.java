@@ -266,16 +266,16 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                   final long scaleTimestamp) {
         return getStream(scopeName, streamName).scale(sealedSegments, newRanges, scaleTimestamp)
                 .thenApply(result -> {
-                    DYNAMIC_LOGGER.incCounterValue(nameFromStream(NUMBER_OF_SEGMENTS, "", name),
+                    DYNAMIC_LOGGER.incCounterValue(nameFromStream(NUMBER_OF_SEGMENTS, scopeName, streamName),
                             newRanges.size() - sealedSegments.size());
 
-                    getSealedRanges(name, sealedSegments)
+                    getSealedRanges(scopeName, streamName, sealedSegments)
                             .thenAccept(sealedRanges -> {
 
-                                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SPLITS, "", name),
+                                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SPLITS, scopeName, streamName),
                                         findSplits(sealedRanges, newRanges));
 
-                                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(MERGES, "", name),
+                                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(MERGES, scopeName, streamName),
                                         findSplits(newRanges, sealedRanges));
                             });
 
@@ -283,13 +283,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 });
     }
 
-    private CompletableFuture<List<AbstractMap.SimpleEntry<Double, Double>>> getSealedRanges(final String name,
+    private CompletableFuture<List<AbstractMap.SimpleEntry<Double, Double>>> getSealedRanges(final String scopeName,
+                                                                                             final String streamName,
                                                                                              final List<Integer>
                                                                                                      sealedSegments) {
         return FutureHelpers.allOfWithResults(
                 sealedSegments.stream()
                         .map(value ->
-                                getSegment(name, value).thenApply(segment ->
+                                getSegment(scopeName, streamName, value).thenApply(segment ->
                                         new AbstractMap.SimpleEntry<>(
                                                 segment.getKeyStart(),
                                                 segment.getKeyEnd())))
