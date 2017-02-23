@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
+import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.server.eventProcessor.AbortEvent;
@@ -18,6 +19,10 @@ import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.impl.ClientFactoryImpl;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import java.io.Serializable;
@@ -47,6 +52,9 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactoryImpl connectionFactory;
 
+    private EventStreamWriter<CommitEvent> commitEventEventStreamWriter;
+    private EventStreamWriter<AbortEvent> abortEventEventStreamWriter;
+
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final HostControllerStore hostControllerStore,
                                           final TaskMetadataStore taskMetadataStore,
@@ -54,7 +62,28 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                                           final String hostId) {
         this(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, new Context(hostId));
     }
-    
+
+    /**
+     * Initializes stream writers for commit and abort streams.
+     * This method should be called immediately after creating StreamTransactionMetadataTasks object.
+     *
+     * @param controller Local controller reference
+     */
+    public void initializeStreamWriters(Controller controller) {
+
+        ClientFactory clientFactory = new ClientFactoryImpl(ControllerEventProcessors.CONTROLLER_SCOPE, controller);
+
+        this.commitEventEventStreamWriter = clientFactory.createEventWriter(
+                ControllerEventProcessors.COMMIT_STREAM,
+                ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
+                EventWriterConfig.builder().build());
+
+        this.abortEventEventStreamWriter = clientFactory.createEventWriter(
+                ControllerEventProcessors.ABORT_STREAM,
+                ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
+                EventWriterConfig.builder().build());
+    }
+
     private StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
             final HostControllerStore hostControllerStore,
             final TaskMetadataStore taskMetadataStore,
@@ -151,8 +180,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private CompletableFuture<TxnStatus> abortTxBody(final String scope, final String stream, final UUID txid) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, false)
                 .thenApply(status -> {
-                    ControllerEventProcessors
-                            .getAbortEventProcessorsRef()
+                    this.abortEventEventStreamWriter
                             .writeEvent(txid.toString(), new AbortEvent(scope, stream, txid));
                     return status;
                 });
@@ -161,8 +189,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, true)
                 .thenApply(status -> {
-                    ControllerEventProcessors
-                            .getCommitEventProcessorsRef()
+                    this.commitEventEventStreamWriter
                             .writeEvent(scope + stream, new CommitEvent(scope, stream, txid));
                     return status;
                 });

@@ -17,8 +17,8 @@ import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
@@ -32,29 +32,40 @@ import java.util.concurrent.ScheduledExecutorService;
 @Slf4j
 public class ControllerEventProcessors {
 
-    private static EventProcessorSystem system;
-    private static EventStreamWriter<CommitEvent> commitEventProcessors;
-    private static EventStreamWriter<AbortEvent> abortEventProcessors;
+    public static final String CONTROLLER_SCOPE = "system";
+    public static final String COMMIT_STREAM = "commitStream";
+    public static final String ABORT_STREAM = "abortStream";
+    public static final Serializer<CommitEvent> COMMIT_EVENT_SERIALIZER = new JavaSerializer<>();
+    public static final Serializer<AbortEvent> ABORT_EVENT_SERIALIZER = new JavaSerializer<>();
 
-    public static void initialize(final String host,
-                                  final Controller controller,
-                                  final CuratorFramework client,
-                                  final StreamMetadataStore streamMetadataStore,
-                                  final HostControllerStore hostControllerStore) throws Exception {
+    private final Controller controller;
+    private final CuratorFramework client;
+    private final StreamMetadataStore streamMetadataStore;
+    private final HostControllerStore hostControllerStore;
+    private final EventProcessorSystem system;
+
+    public ControllerEventProcessors (final String host,
+                                      final Controller controller,
+                                      final CuratorFramework client,
+                                      final StreamMetadataStore streamMetadataStore,
+                                      final HostControllerStore hostControllerStore) {
+        this.controller = controller;
+        this.client = client;
+        this.streamMetadataStore = streamMetadataStore;
+        this.hostControllerStore = hostControllerStore;
+        this.system = new EventProcessorSystemImpl("Controller", host, CONTROLLER_SCOPE, controller);
+    }
+
+    public void initialize() throws Exception {
 
         final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
-        final String controllerScope = "system";
-        system = new EventProcessorSystemImpl("Controller", host, controllerScope, controller);
-
         // Commit event processor configuration
-        final String commitStream = "commitStream";
         final String commitStreamReaderGroup = "commitStreamReaders";
         final int commitReaderGroupSize = 5;
         final int commitPositionPersistenceFrequency = 10;
 
         // Abort event processor configuration
-        final String abortStream = "abortStream";
         final String abortStreamReaderGroup = "abortStreamReaders";
         final int abortReaderGroupSize = 5;
         final int abortPositionPersistenceFrequency = 10;
@@ -70,15 +81,15 @@ public class ControllerEventProcessors {
         ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 5);
         StreamConfiguration commitStreamConfig =
                 StreamConfiguration.builder()
-                        .scope(controllerScope)
-                        .streamName(commitStream)
+                        .scope(CONTROLLER_SCOPE)
+                        .streamName(COMMIT_STREAM)
                         .scalingPolicy(policy)
                         .build();
 
         StreamConfiguration abortStreamConfig =
                 StreamConfiguration.builder()
-                        .scope(controllerScope)
-                        .streamName(abortStream)
+                        .scope(CONTROLLER_SCOPE)
+                        .streamName(ABORT_STREAM)
                         .scalingPolicy(policy)
                         .build();
 
@@ -114,7 +125,7 @@ public class ControllerEventProcessors {
 
         EventProcessorGroupConfig commitReadersConfig =
                 EventProcessorGroupConfigImpl.builder()
-                        .streamName(commitStream)
+                        .streamName(COMMIT_STREAM)
                         .readerGroupName(commitStreamReaderGroup)
                         .eventProcessorCount(commitReaderGroupSize)
                         .checkpointConfig(commitEventCheckpointConfig)
@@ -124,7 +135,7 @@ public class ControllerEventProcessors {
                 EventProcessorConfig.<CommitEvent>builder()
                         .config(commitReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
-                        .serializer(new JavaSerializer<>())
+                        .serializer(COMMIT_EVENT_SERIALIZER)
                         .supplier(() -> new CommitEventProcessor(streamMetadataStore, hostControllerStore, executor))
                         .build();
 
@@ -132,7 +143,7 @@ public class ControllerEventProcessors {
                 .retryingOn(CheckpointStoreException.class)
                 .throwingOn(Exception.class)
                 .run(() -> {
-                    commitEventProcessors = system.createEventProcessorGroup(commitConfig).getWriter();
+                    system.createEventProcessorGroup(commitConfig).getWriter();
                     return null;
                 });
 
@@ -154,7 +165,7 @@ public class ControllerEventProcessors {
 
         EventProcessorGroupConfig abortReadersConfig =
                 EventProcessorGroupConfigImpl.builder()
-                        .streamName(abortStream)
+                        .streamName(ABORT_STREAM)
                         .readerGroupName(abortStreamReaderGroup)
                         .eventProcessorCount(abortReaderGroupSize)
                         .checkpointConfig(abortEventCheckpointConfig)
@@ -164,7 +175,7 @@ public class ControllerEventProcessors {
                 EventProcessorConfig.<AbortEvent>builder()
                         .config(abortReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
-                        .serializer(new JavaSerializer<>())
+                        .serializer(ABORT_EVENT_SERIALIZER)
                         .supplier(() -> new AbortEventProcessor(streamMetadataStore, hostControllerStore, executor))
                         .build();
 
@@ -172,18 +183,10 @@ public class ControllerEventProcessors {
                 .retryingOn(CheckpointStoreException.class)
                 .throwingOn(Exception.class)
                 .run(() -> {
-                    abortEventProcessors = system.createEventProcessorGroup(abortConfig).getWriter();
+                    system.createEventProcessorGroup(abortConfig).getWriter();
                     return null;
                 });
 
         // endregion
-    }
-
-    public static EventStreamWriter<CommitEvent> getCommitEventProcessorsRef() {
-        return commitEventProcessors;
-    }
-
-    public static EventStreamWriter<AbortEvent> getAbortEventProcessorsRef() {
-        return abortEventProcessors;
     }
 }

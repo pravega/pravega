@@ -100,8 +100,13 @@ public class Main {
 
         LocalController localController = new LocalController(controllerService);
 
+        streamTransactionMetadataTasks.initializeStreamWriters(localController);
+
+        ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
+                ZKUtils.getCuratorClient(), streamStore, hostStore);
+
         try {
-            ControllerEventProcessors.initialize(hostId, localController, ZKUtils.getCuratorClient(), streamStore, hostStore);
+            controllerEventProcessors.initialize();
         } catch (Exception e) {
             log.error("Error initializing event processors", e);
             throw new RuntimeException(e);
