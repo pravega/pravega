@@ -110,10 +110,13 @@ allprojects {
     }
 
     tasks.withType(Test) {
+        systemProperties 'logback.configurationFile' : new File(buildDir,'resources/test/logback.xml').absolutePath
+        testLogging.showStandardStreams = true
         testLogging.exceptionFormat = "FULL"
         testLogging.showCauses = true
         testLogging.showExceptions = true
         testLogging.showStackTraces = true
+        testLogging.events = ["PASSED", "FAILED"]
         maxParallelForks = 2
         minHeapSize = "128m"
         maxHeapSize = "512m"
@@ -368,6 +371,12 @@ project('integrationtests') {
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
+
+    task startEventProcessorTest(type: JavaExec) {
+        main = "com.emc.pravega.demo.EventProcessorTest"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+    }
 }
 
 project('controller') {
@@ -520,6 +529,68 @@ project('singlenode') {
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
         args = ["4000", "5000", "6000"]
+    }
+}
+
+
+project('systemtests:tests') {
+    dependencies {
+        // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
+        compile group: 'com.mesosphere', name: 'marathon-client', version: '0.3.0'
+        compile project(":clients:streaming")
+        compile 'junit:junit:4.12'
+    }
+    //disable the default test task.
+    test {
+        exclude 'com/emc/pravega/**'
+    }
+
+    jar { //create a fat jar
+        archiveName = "test-collection.jar"
+        from {
+            (configurations.runtime).collect {
+                it.isDirectory() ? it : zipTree(it)
+            }
+        }
+        from sourceSets.test.output
+    }
+
+    //This is  used to invoke systemTests
+    task startSystemTests(type: Test) {
+        description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
+        testClassesDir = sourceSets.test.output.classesDir
+        classpath = sourceSets.test.runtimeClasspath
+
+        systemProperty "test_collection_jar_path", "$jar.archivePath.path"
+        systemProperty "execType", System.getProperty("execType")
+        systemProperty "masterIP", System.getProperty("masterIP")
+
+        if (System.getProperty("execType") == null) {
+            systemProperty "execType", "REMOTE_SEQUENTIAL"
+        }
+        if (System.getProperty("masterIP") == null) {
+            systemProperty "masterIP", "INVALID_MASTER_IP"
+        }
+        systemProperty "testArtifactUrl", project.property('testArtifactUrl') + "/pravega/systemtests/0.1/systemtests-0.1.jar"
+    }
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                groupId 'pravega'
+                artifactId 'systemtests'
+                version = 0.1
+                from components.java
+            }
+        }
+        repositories {
+            maven {
+                credentials {
+                    username "$testFrameworkRepoUser"
+                    password "$testFrameworkRepoPass"
+                }
+                url "$testArtifactUrl"
+            }
+        }
     }
 }
 

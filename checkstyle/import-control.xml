@@ -38,5 +38,7 @@
     <allow pkg="io.swagger"/>
     <allow pkg="javax.validation"/>
     <allow pkg="com.fasterxml.jackson"/>
+    <allow pkg="mesosphere.marathon"/>
+    <allow pkg="feign"/>
 
 </import-control>
