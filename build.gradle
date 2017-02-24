@@ -175,6 +175,7 @@ project('clients') {
     }
     jar {
         from project(":clients:streaming").sourceSets.main.output
+        from project(":controller:contract").sourceSets.main.output
     }
     publishing {
         publications {
