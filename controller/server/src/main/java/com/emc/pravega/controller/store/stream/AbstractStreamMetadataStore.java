@@ -197,37 +197,32 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      */
     @Override
     public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
-        final Scope scope = getScope(scopeName);
-        if (scope != null) {
-            return scope.listStreamsInScope().
-                    thenCompose(streams -> {
-                        List<CompletableFuture<StreamConfiguration>> streamFutures = streams.stream()
-                                .map(s -> getStream(scopeName, s).getConfiguration())
-                                .collect(Collectors.toList());
+        return getScope(scopeName).listStreamsInScope()
+                .thenCompose(streams -> {
+                    List<CompletableFuture<StreamConfiguration>> streamFutures = streams.stream()
+                            .map(s -> getStream(scopeName, s).getConfiguration())
+                            .collect(Collectors.toList());
 
-                        // Aggregate each of the results into one CompleteableFuture.
-                        final CompletableFuture[] completableFutures =
-                                streamFutures.toArray(new CompletableFuture[streamFutures.size()]);
-                        final CompletableFuture<Void> futuresList = CompletableFuture.allOf(completableFutures);
+                    // Aggregate each of the results into one CompleteableFuture.
+                    final CompletableFuture[] completableFutures =
+                            streamFutures.toArray(new CompletableFuture[streamFutures.size()]);
+                    final CompletableFuture<Void> futuresList = CompletableFuture.allOf(completableFutures);
 
-                        // On completion contruct a single future holding the result.
-                        final CompletableFuture<List<StreamConfiguration>> result = futuresList.thenApply(v -> streamFutures
-                                .stream()
-                                .map(CompletableFuture::join)
-                                .collect(Collectors.toList()));
+                    // On completion contruct a single future holding the result.
+                    final CompletableFuture<List<StreamConfiguration>> result = futuresList.thenApply(v -> streamFutures
+                            .stream()
+                            .map(CompletableFuture::join)
+                            .collect(Collectors.toList()));
 
-                        // Complete the future on first error, so clients won't have to wait.
-                        streamFutures.forEach(stream -> stream.whenComplete((res, ex) -> {
-                            if (ex != null) {
-                                result.completeExceptionally(ex);
-                            }
-                        }));
+                    // Complete the future on first error, so clients won't have to wait.
+                    streamFutures.forEach(stream -> stream.whenComplete((res, ex) -> {
+                        if (ex != null) {
+                            result.completeExceptionally(ex);
+                        }
+                    }));
 
-                        return result;
-                    });
-        } else {
-            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND));
-        }
+                    return result;
+                });
     }
 
     @Override
