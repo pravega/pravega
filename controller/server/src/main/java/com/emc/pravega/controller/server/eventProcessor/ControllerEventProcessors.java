@@ -17,6 +17,7 @@ import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Serializer;
@@ -95,6 +96,13 @@ public class ControllerEventProcessors {
                         .streamName(ABORT_STREAM)
                         .scalingPolicy(policy)
                         .build();
+
+        CompletableFuture<CreateScopeStatus> createScopeStatus = controller.createScope(CONTROLLER_SCOPE);
+        CreateScopeStatus scopeStatus = createScopeStatus.join();
+
+        if (CreateScopeStatus.FAILURE == scopeStatus) {
+            throw new RuntimeException("Error creating scope");
+        }
 
         CompletableFuture<CreateStreamStatus> createCommitStreamStatus = controller.createStream(commitStreamConfig);
         CompletableFuture<CreateStreamStatus> createAbortStreamStatus = controller.createStream(abortStreamConfig);

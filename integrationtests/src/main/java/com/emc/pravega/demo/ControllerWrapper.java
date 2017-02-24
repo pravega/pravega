@@ -78,14 +78,16 @@ class ControllerWrapper {
         LocalController localController = new LocalController(controllerService);
 
         if (!disableEventProcessors) {
-            streamTransactionMetadataTasks.initializeStreamWriters(localController);
 
             ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
                     client, streamStore, hostStore, segmentHelper);
 
-            controllerEventProcessors.initialize();
-            //endregion
+        controllerEventProcessors.initialize();
+
+        streamTransactionMetadataTasks.initializeStreamWriters(localController);
         }
+
+        //endregion
 
         return new LocalController(controllerService);
     }

@@ -3,7 +3,6 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.metrics.MetricsConfig;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +17,7 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 @Slf4j
 public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
+    private final ZKStoreHelper storeHelper;
 
     public ZKStreamMetadataStore(ScheduledExecutorService executor) {
         this(ZKUtils.getCuratorClient(), executor);
@@ -25,30 +25,26 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @VisibleForTesting
     public ZKStreamMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
-        ZKStream.initialize(client, executor);
-        ZKScope.initialize(client);
-
-        initialize(ZKUtils.getMetricsConfig());
+        initialize();
+        storeHelper = new ZKStoreHelper(client, executor);
     }
 
-    private void initialize(MetricsConfig metricsConfig) {
-        if (metricsConfig != null) {
-            METRICS_PROVIDER.start(metricsConfig);
-        }
+    private void initialize() {
+        METRICS_PROVIDER.start();
     }
 
     @Override
     ZKStream newStream(final String scope, final String name) {
-        return new ZKStream(scope, name);
+        return new ZKStream(scope, name, storeHelper);
     }
 
     @Override
     ZKScope newScope(final String scopeName) {
-        return new ZKScope(scopeName);
+        return new ZKScope(scopeName, storeHelper);
     }
 
     @Override
     public CompletableFuture<List<String>> listScopes() {
-        return ZKScope.listScopes();
+        return storeHelper.listScopes();
     }
 }
