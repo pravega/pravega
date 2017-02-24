@@ -11,7 +11,7 @@ public class NullStatsProvider implements StatsProvider {
     private final DynamicLogger nullDynamicLogger = new NullDynamicLogger();
 
     @Override
-    public void start(MetricsConfig metricsConfig ) {
+    public void start() {
         // nop
     }
 
