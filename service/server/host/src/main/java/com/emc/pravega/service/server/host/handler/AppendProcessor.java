@@ -5,6 +5,8 @@
  */
 package com.emc.pravega.service.server.host.handler;
 
+import com.emc.pravega.common.ExceptionHelpers;
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
@@ -169,8 +171,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
         future.whenComplete((t, u) -> {
             try {
-                boolean conditionalFailed = u != null
-                        && (u instanceof BadOffsetException || u.getCause() instanceof BadOffsetException);
+                boolean conditionalFailed = u != null && (ExceptionHelpers.getRealException(u) instanceof BadOffsetException);
                 synchronized (lock) {
                     if (outstandingAppend != toWrite) {
                         throw new IllegalStateException(
