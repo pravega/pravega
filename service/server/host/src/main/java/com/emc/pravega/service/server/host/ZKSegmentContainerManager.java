@@ -78,28 +78,26 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
      *                                 cluster (i.e., number of containers).
      * @param zkClient                 ZooKeeper client.
      * @param pravegaServiceEndpoint   Pravega service endpoint details.
-     * @param clusterName              Cluster Name.
      * @throws NullPointerException If containerRegistry is null.
      * @throws NullPointerException If segmentToContainerMapper is null.
      * @throws NullPointerException If logger is null.
      */
     public ZKSegmentContainerManager(SegmentContainerRegistry containerRegistry,
                                      SegmentToContainerMapper segmentToContainerMapper,
-                                     CuratorFramework zkClient, Host pravegaServiceEndpoint, String clusterName) {
+                                     CuratorFramework zkClient, Host pravegaServiceEndpoint) {
         Preconditions.checkNotNull(containerRegistry, "containerRegistry");
         Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
         Preconditions.checkNotNull(zkClient, "zkClient");
         Preconditions.checkNotNull(pravegaServiceEndpoint, "pravegaServiceEndpoint");
-        Exceptions.checkNotNullOrEmpty(clusterName, "clusterName");
 
         this.registry = containerRegistry;
         this.segmentToContainerMapper = segmentToContainerMapper;
         this.handles = new HashMap<>();
 
         this.client = zkClient;
-        this.clusterPath = ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping");
+        this.clusterPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
         this.segContainerHostMapping = new NodeCache(zkClient, this.clusterPath);
-        this.cluster = new ClusterZKImpl(zkClient, clusterName);
+        this.cluster = new ClusterZKImpl(zkClient);
 
         this.host = pravegaServiceEndpoint;
     }

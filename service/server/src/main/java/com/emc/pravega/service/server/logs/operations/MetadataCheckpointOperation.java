@@ -8,7 +8,6 @@ package com.emc.pravega.service.server.logs.operations;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -19,7 +18,6 @@ import java.io.IOException;
 public class MetadataCheckpointOperation extends MetadataOperation {
     //region Members
 
-    public static final byte OPERATION_TYPE = 6;
     private static final byte CURRENT_VERSION = 0;
     private ByteArraySegment contents;
 
@@ -65,8 +63,8 @@ public class MetadataCheckpointOperation extends MetadataOperation {
     //region Operation Implementation
 
     @Override
-    protected byte getOperationType() {
-        return OPERATION_TYPE;
+    protected OperationType getOperationType() {
+        return OperationType.MetadataCheckpoint;
     }
 
     @Override

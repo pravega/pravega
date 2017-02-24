@@ -35,9 +35,6 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
     //The store for reading and writing the host to container mapping.
     private final HostControllerStore hostStore;
 
-    //The name of the cluster which has to be monitored.
-    private final String clusterName;
-
     //The host to containers balancer.
     private final ContainerBalancer segBalancer;
 
@@ -64,20 +61,16 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
     /**
      * The leader instance which monitors the data node cluster.
      *
-     * @param clusterName           The unique name for this cluster.
      * @param hostStore             The store for reading and writing the host to container mapping.
      * @param balancer              The host to segment container balancer implementation.
      * @param minRebalanceInterval  The minimum interval between any two rebalance operations in seconds.
      *                              0 indicates there can be no waits between retries.
      */
-    public SegmentMonitorLeader(String clusterName, HostControllerStore hostStore, ContainerBalancer balancer,
-            int minRebalanceInterval) {
-        Preconditions.checkNotNull(clusterName, "clusterName");
+    public SegmentMonitorLeader(HostControllerStore hostStore, ContainerBalancer balancer, int minRebalanceInterval) {
         Preconditions.checkNotNull(hostStore, "hostStore");
         Preconditions.checkNotNull(balancer, "balancer");
         Preconditions.checkArgument(minRebalanceInterval >= 0, "minRebalanceInterval should not be negative");
 
-        this.clusterName = clusterName;
         this.hostStore = hostStore;
         this.segBalancer = balancer;
         this.minRebalanceInterval = Duration.ofSeconds(minRebalanceInterval);
@@ -115,7 +108,7 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
         hostsChange.release();
 
         //Start cluster monitor.
-        pravegaServiceCluster = new ClusterZKImpl(client, clusterName);
+        pravegaServiceCluster = new ClusterZKImpl(client);
 
         //Add listener to track host changes on the monitored pravega cluster.
         pravegaServiceCluster.addListener((type, host) -> {

@@ -44,14 +44,12 @@ public class ZKHostStore implements HostControllerStore {
      * Zookeeper based host store implementation.
      *
      * @param client                    The curator client instance.
-     * @param clusterName               The name of the cluster.
      */
-    public ZKHostStore(CuratorFramework client, String clusterName) {
+    public ZKHostStore(CuratorFramework client) {
         Preconditions.checkNotNull(client, "client");
-        Preconditions.checkNotNull(clusterName, "clusterName");
 
         zkClient = client;
-        zkPath = ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping");
+        zkPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
         segmentMapper = new SegmentToContainerMapper(Config.HOST_STORE_CONTAINER_COUNT);
     }
 

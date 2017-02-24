@@ -3,13 +3,16 @@ namespace java com.emc.pravega.controller.stream.api.v1
 enum CreateStreamStatus {
     SUCCESS,
     FAILURE,
-    STREAM_EXISTS
+    STREAM_EXISTS,
+    SCOPE_NOT_FOUND,
+    INVALID_STREAM_NAME
 }
 
 enum UpdateStreamStatus {
     SUCCESS,
     FAILURE,
-    STREAM_NOT_FOUND
+    STREAM_NOT_FOUND,
+    SCOPE_NOT_FOUND
 }
 
 enum ScaleStreamStatus {
@@ -29,8 +32,9 @@ enum TxnStatus {
 enum TxnState {
 	UNKNOWN,
     OPEN,
-    SEALED,
+    COMMITTING,
     COMMITTED,
+    ABORTING,
     ABORTED
 }
 
@@ -38,6 +42,20 @@ enum ScalingPolicyType {
     FIXED_NUM_SEGMENTS,
     BY_RATE_IN_BYTES,
     BY_RATE_IN_EVENTS,
+}
+
+enum CreateScopeStatus {
+    SUCCESS,
+    FAILURE,
+    SCOPE_EXISTS,
+    INVALID_SCOPE_NAME
+}
+
+enum DeleteScopeStatus {
+    SUCCESS,
+    FAILURE,
+    SCOPE_NOT_FOUND,
+    SCOPE_NOT_EMPTY
 }
 
 struct ScalingPolicy {
@@ -101,5 +119,7 @@ service ControllerService {
     TxnStatus commitTransaction(1:string scope, 2:string stream, 3:TxnId txnid)
     TxnStatus abortTransaction(1:string scope, 2:string stream, 3:TxnId txnid)
     TxnState  checkTransactionStatus(1:string scope, 2:string stream, 3:TxnId txnid)
+    CreateScopeStatus createScope(1: string scope)
+    DeleteScopeStatus deleteScope(1: string scope)
 }
 //TODO: Placeholder for Pravega Host to Stream Controller APIs.

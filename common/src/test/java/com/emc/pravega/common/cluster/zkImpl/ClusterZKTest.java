@@ -7,17 +7,18 @@ package com.emc.pravega.common.cluster.zkImpl;
 
 import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
@@ -34,29 +35,34 @@ public class ClusterZKTest {
     private final static int RETRY_SLEEP_MS = 100;
     private final static int MAX_RETRY = 5;
 
-    private static TestingServer zkTestServer;
-    private static String zkUrl;
+    private TestingServer zkTestServer;
+    private String zkUrl;
 
-    @BeforeClass
-    public static void startZookeeper() throws Exception {
+    @Before
+    public void startZookeeper() throws Exception {
         zkTestServer = new TestingServer();
         zkUrl = zkTestServer.getConnectString();
     }
 
-    @AfterClass
-    public static void stopZookeeper() throws IOException {
+    @After
+    public void stopZookeeper() throws IOException {
         zkTestServer.close();
     }
 
     @Test(timeout = TEST_TIMEOUT)
     public void registerNode() throws Exception {
-        LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue();
-        LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue();
+        LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue<>();
 
         //ClusterListener for testing purposes
-        CuratorFramework client2 = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
-                RETRY_SLEEP_MS, MAX_RETRY));
-        Cluster clusterListener = new ClusterZKImpl(client2, CLUSTER_NAME);
+        CuratorFramework client2 = CuratorFrameworkFactory.builder()
+                .connectString(zkUrl)
+                .retryPolicy(new ExponentialBackoffRetry(
+                        RETRY_SLEEP_MS, MAX_RETRY))
+                .namespace(CLUSTER_NAME)
+                .build();
+
+        Cluster clusterListener = new ClusterZKImpl(client2);
         clusterListener.addListener((eventType, host) -> {
             switch (eventType) {
                 case HOST_ADDED:
@@ -68,16 +74,20 @@ public class ClusterZKTest {
             }
         });
 
-        CuratorFramework client = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
-                RETRY_SLEEP_MS, MAX_RETRY));
+        CuratorFramework client = CuratorFrameworkFactory.builder()
+                .connectString(zkUrl)
+                .retryPolicy(new ExponentialBackoffRetry(
+                        RETRY_SLEEP_MS, MAX_RETRY))
+                .namespace(CLUSTER_NAME)
+                .build();
 
         //Create Add a node to the cluster.
-        Cluster clusterZKInstance1 = new ClusterZKImpl(client, CLUSTER_NAME);
+        Cluster clusterZKInstance1 = new ClusterZKImpl(client);
         clusterZKInstance1.registerHost(new Host(HOST_1, PORT));
         assertEquals(HOST_1, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 
         //Create a separate instance of Cluster and add node to same Cluster
-        Cluster clusterZKInstance2 = new ClusterZKImpl(client, CLUSTER_NAME);
+        Cluster clusterZKInstance2 = new ClusterZKImpl(client);
         clusterZKInstance1.registerHost(new Host(HOST_2, PORT));
         assertEquals(HOST_2, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
         assertEquals(2, clusterListener.getClusterMembers().size());
@@ -90,12 +100,16 @@ public class ClusterZKTest {
 
     @Test(timeout = TEST_TIMEOUT)
     public void deregisterNode() throws Exception {
-        LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue();
-        LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue();
+        LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue<>();
 
-        CuratorFramework client2 = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
-                RETRY_SLEEP_MS, MAX_RETRY));
-        Cluster clusterListener = new ClusterZKImpl(client2, CLUSTER_NAME_2);
+        CuratorFramework client2 = CuratorFrameworkFactory.builder()
+                .connectString(zkUrl)
+                .retryPolicy(new ExponentialBackoffRetry(
+                        RETRY_SLEEP_MS, MAX_RETRY))
+                .namespace(CLUSTER_NAME_2)
+                .build();
+        Cluster clusterListener = new ClusterZKImpl(client2);
         clusterListener.addListener((eventType, host) -> {
             switch (eventType) {
                 case HOST_ADDED:
@@ -107,10 +121,14 @@ public class ClusterZKTest {
             }
         });
 
-        CuratorFramework client = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
-                RETRY_SLEEP_MS, MAX_RETRY));
+        CuratorFramework client = CuratorFrameworkFactory.builder()
+                .connectString(zkUrl)
+                .retryPolicy(new ExponentialBackoffRetry(
+                        RETRY_SLEEP_MS, MAX_RETRY))
+                .namespace(CLUSTER_NAME_2)
+                .build();
         //Create Add a node to the cluster.
-        Cluster clusterZKInstance1 = new ClusterZKImpl(client, CLUSTER_NAME_2);
+        Cluster clusterZKInstance1 = new ClusterZKImpl(client);
         clusterZKInstance1.registerHost(new Host(HOST_1, PORT));
         assertEquals(HOST_1, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 

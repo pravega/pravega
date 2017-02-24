@@ -5,19 +5,19 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.common.metrics.MetricsConfig;
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.curator.framework.CuratorFramework;
-
-import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import lombok.extern.slf4j.Slf4j;
+
+import org.apache.curator.framework.CuratorFramework;
 
 /**
  * ZK stream metadata store.
@@ -28,34 +28,33 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private static final long PERIOD = 1;
     private static final long TIMEOUT = 60 * 60 * 1000;
     private final ScheduledExecutorService executor;
+    private final ZKStoreHelper storeHelper;
 
     public ZKStreamMetadataStore(ScheduledExecutorService executor) {
         this.executor = executor;
-        initialize(ZKUtils.getCuratorClient(), ZKUtils.getMetricsConfig());
+        this.storeHelper = new ZKStoreHelper(ZKUtils.getCuratorClient());
+        initialize();
     }
 
     @VisibleForTesting
     public ZKStreamMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
         this.executor = executor;
-        initialize(client, ZKUtils.getMetricsConfig());
+        this.storeHelper = new ZKStoreHelper(client);
+        initialize();
     }
 
-    private void initialize(CuratorFramework client, MetricsConfig metricsConfig) {
-
-        // Garbage collector for completed transactions
-        ZKStream.initialize(client);
-
+    private void initialize() {
         this.executor.scheduleAtFixedRate(() -> {
             // find completed transactions to be gc'd
             try {
                 final long currentTime = System.currentTimeMillis();
 
-                ZKStream.getAllCompletedTx().get().entrySet().stream()
+                storeHelper.getAllCompletedTx().get().entrySet().stream()
                         .forEach(x -> {
                             CompletedTxRecord completedTxRecord = CompletedTxRecord.parse(x.getValue().getData());
                             if (currentTime - completedTxRecord.getCompleteTime() > TIMEOUT) {
                                 try {
-                                    ZKStream.deletePath(x.getKey(), true);
+                                    storeHelper.deletePath(x.getKey(), true);
                                 } catch (Exception e) {
                                     // TODO: log and ignore
                                 }
@@ -66,18 +65,28 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
             }
             // find completed transactions to be gc'd
         }, INITIAL_DELAY, PERIOD, TimeUnit.HOURS);
-        if (metricsConfig != null) {
-            METRICS_PROVIDER.start(metricsConfig);
-        }
+        METRICS_PROVIDER.start();
     }
 
     @Override
-    ZKStream newStream(final String name) {
-        return new ZKStream(name);
+    ZKStream newStream(final String scopedStreamName) {
+        final String scopeName = scopedStreamName.split("/")[0];
+        final String streamName = scopedStreamName.split("/")[1];
+        return new ZKStream(scopeName, streamName, storeHelper);
+    }
+
+    @Override
+    ZKScope newScope(final String scopeName) {
+        return new ZKScope(scopeName, storeHelper);
+    }
+
+    @Override
+    public CompletableFuture<List<String>> listScopes() {
+        return storeHelper.listScopes();
     }
 
     @Override
     public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
-        return ZKStream.getAllActiveTx();
+        return storeHelper.getAllActiveTx();
     }
 }

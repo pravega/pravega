@@ -23,7 +23,7 @@ public class DistributedLogConfig extends ComponentConfig {
 
     private static final String DEFAULT_HOSTNAME = "zk1";
     private static final int DEFAULT_PORT = 2181;
-    private static final String DEFAULT_NAMESPACE = "messaging/distributedlog/mynamespace";
+    private static final String DEFAULT_NAMESPACE = "pravega/segmentstore/containers";
 
     private String distributedLogHost;
     private int distributedLogPort;
