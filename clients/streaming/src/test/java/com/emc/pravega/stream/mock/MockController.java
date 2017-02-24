@@ -57,7 +57,7 @@ public class MockController implements Controller {
     private final ConnectionFactory connectionFactory;
 
     @Override
-    public CompletableFuture<CreateScopeStatus> createScope(String scopeName) {
+    public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
         throw new NotImplementedException();
     }
 
