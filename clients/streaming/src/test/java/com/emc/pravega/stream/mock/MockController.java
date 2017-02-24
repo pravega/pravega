@@ -21,6 +21,7 @@ import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -57,8 +58,14 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {
-        Segment segmentId = new Segment(streamConfig.getScope(), streamConfig.getStreamName(), 0);
-        createSegment(segmentId.getScopedName(), new PravegaNodeUri(endpoint, port));
+        ScalingPolicy scalingPolicy = streamConfig.getScalingPolicy();
+        if (scalingPolicy.getType() != ScalingPolicy.Type.FIXED_NUM_SEGMENTS) {
+            throw new IllegalArgumentException("Dynamic scaling not supported with a mock controller");
+        }
+        for (int i = 0; i < scalingPolicy.getMinNumSegments(); i++) {
+            Segment segmentId = new Segment(streamConfig.getScope(), streamConfig.getStreamName(), i);
+            createSegment(segmentId.getScopedName(), new PravegaNodeUri(endpoint, port));
+        }
         return CompletableFuture.completedFuture(CreateStreamStatus.SUCCESS);
     }
 
