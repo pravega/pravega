@@ -41,7 +41,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<CreateScopeStatus> createScope(String scopeName) {
+    public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
         return this.controller.createScope(scopeName);
     }
 

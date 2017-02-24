@@ -72,7 +72,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<CreateScopeStatus> createScope(String scopeName) {
+    public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
         log.trace("Invoke AdminService.Client.createScope() with name: {}", scopeName);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.createScope_call> callback = new ThriftAsyncCallback<>();
