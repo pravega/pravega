@@ -237,7 +237,7 @@ public class ControllerService {
      * @param scopeName Name of the scope.
      * @return List of streams in scope.
      */
-    public CompletableFuture<List<String>> listStreamsInScope(final String scopeName) {
+    public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
         Preconditions.checkNotNull(scopeName);
         return streamStore.listStreamsInScope(scopeName);
     }

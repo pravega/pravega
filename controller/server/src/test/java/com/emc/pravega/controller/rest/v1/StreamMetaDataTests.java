@@ -59,7 +59,7 @@ import static org.mockito.Mockito.when;
  */
 public class StreamMetaDataTests extends JerseyTest {
 
-    //Ensure each test completes within 30 seconds.
+    //Ensure each test completes within 5 seconds.
     @Rule
     public Timeout globalTimeout = new Timeout(5, TimeUnit.SECONDS);
 
@@ -354,9 +354,9 @@ public class StreamMetaDataTests extends JerseyTest {
         response = target(resourceURI).request().async().get();
         final ScopesList scopesList1 = response.get().readEntity(ScopesList.class);
         assertEquals("List Scopes response code", 200, response.get().getStatus());
-        assertEquals("List count", scopesList1.getScopeNames().size(), 2);
-        assertEquals("List element", scopesList1.getScopeNames().get(0), "scope1");
-        assertEquals("List element", scopesList1.getScopeNames().get(1), "scope2");
+        assertEquals("List count", scopesList1.getScopes().size(), 2);
+        assertEquals("List element", scopesList1.getScopes().get(0).getScopeName(), "scope1");
+        assertEquals("List element", scopesList1.getScopes().get(1).getScopeName(), "scope2");
 
         // Test for list scopes failure.
         final CompletableFuture<List<String>> completableFuture = new CompletableFuture<>();
@@ -376,25 +376,54 @@ public class StreamMetaDataTests extends JerseyTest {
     public void testListStreams() throws ExecutionException, InterruptedException {
         final String resourceURI = "v1/scopes/scope1/streams";
 
+        final StreamConfiguration streamConfiguration1 = StreamConfiguration.builder()
+                .scope(scope1)
+                .streamName(stream1)
+                .scalingPolicy(ScalingPolicy.builder()
+                                       .type(Type.BY_RATE_IN_EVENTS)
+                                       .targetRate(100)
+                                       .scaleFactor(2)
+                                       .minNumSegments(2)
+                                       .build())
+                .retentionPolicy(RetentionPolicy.builder()
+                                         .retentionTimeMillis(123L)
+                                         .build())
+                .build();
+
+        final StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
+                .scope(scope1)
+                .streamName(stream2)
+                .scalingPolicy(ScalingPolicy.builder()
+                                       .type(Type.BY_RATE_IN_EVENTS)
+                                       .targetRate(100)
+                                       .scaleFactor(2)
+                                       .minNumSegments(2)
+                                       .build())
+                .retentionPolicy(RetentionPolicy.builder()
+                                         .retentionTimeMillis(123L)
+                                         .build())
+                .build();
+
         // Test to list streams.
-        List<String> streamsList = Arrays.asList("stream1", "stream2");
+        List<StreamConfiguration> streamsList = Arrays.asList(streamConfiguration1, streamConfiguration2);
+
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(CompletableFuture.completedFuture(streamsList));
         response = target(resourceURI).request().async().get();
         final StreamsList streamsList1 = response.get().readEntity(StreamsList.class);
         assertEquals("List Streams response code", 200, response.get().getStatus());
-        assertEquals("List count", streamsList1.getStreamNames().size(), 2);
-        assertEquals("List element", streamsList1.getStreamNames().get(0), "stream1");
-        assertEquals("List element", streamsList1.getStreamNames().get(1), "stream2");
+        assertEquals("List count", streamsList1.getStreams().size(), 2);
+        assertEquals("List element", streamsList1.getStreams().get(0).getStreamName(), "stream1");
+        assertEquals("List element", streamsList1.getStreams().get(1).getStreamName(), "stream2");
 
         // Test for list streams for invalid scope.
-        final CompletableFuture<List<String>> completableFuture1 = new CompletableFuture<>();
+        final CompletableFuture<List<StreamConfiguration>> completableFuture1 = new CompletableFuture<>();
         completableFuture1.completeExceptionally(new DataNotFoundException(""));
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture1);
         response = target(resourceURI).request().async().get();
         assertEquals("List Streams response code", 404, response.get().getStatus());
 
         // Test for list streams failure.
-        final CompletableFuture<List<String>> completableFuture = new CompletableFuture<>();
+        final CompletableFuture<List<StreamConfiguration>> completableFuture = new CompletableFuture<>();
         completableFuture.completeExceptionally(new Exception());
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture);
         response = target(resourceURI).request().async().get();

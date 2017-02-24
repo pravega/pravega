@@ -9,6 +9,7 @@ import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.controller.server.rest.ModelHelper;
 import com.emc.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import com.emc.pravega.controller.server.rest.generated.model.ScopeProperty;
 import com.emc.pravega.controller.server.rest.generated.model.ScopesList;
 import com.emc.pravega.controller.server.rest.generated.model.StreamsList;
 import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
@@ -201,7 +202,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         controllerService.listScopes()
                 .thenApply(scopesList -> {
                     ScopesList scopes = new ScopesList();
-                    scopes.setScopeNames(scopesList);
+                    scopesList.forEach(scope -> scopes.addScopesItem(new ScopeProperty().scopeName(scope)));
                     return Response.status(Status.OK).entity(scopes).build();
                 }).exceptionally(exception -> {
                         log.warn("listScopes failed with exception: " + exception);
@@ -226,7 +227,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         controllerService.listStreamsInScope(scopeName)
                 .thenApply(streamsList -> {
                     StreamsList streams = new StreamsList();
-                    streams.setStreamNames(streamsList);
+                    streamsList.forEach(stream -> streams.addStreamsItem(ModelHelper.encodeStreamResponse(stream)));
                     log.info("Successfully fetched streams for scope: {}", scopeName);
                     return Response.status(Status.OK).entity(streams).build();
                 }).exceptionally(exception -> {

@@ -183,17 +183,22 @@ definitions:
   StreamsList:
     type: object
     properties:
-      streamNames:
+      streams:
         type: array
         items:
-          type: string
+          $ref: "#/definitions/StreamProperty"
   ScopesList:
     type: object
     properties:
-      scopeNames:
+      scopes:
         type: array
         items:
-          type: string
+          $ref: "#/definitions/ScopeProperty"
+  ScopeProperty:
+    type: object
+    properties:
+      scopeName:
+        type: string
   StreamProperty:
     type: object
     properties:

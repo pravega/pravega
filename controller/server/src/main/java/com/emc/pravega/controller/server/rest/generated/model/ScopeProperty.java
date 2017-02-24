@@ -1,45 +1,37 @@
 package com.emc.pravega.controller.server.rest.generated.model;
 
 import java.util.Objects;
-import com.emc.pravega.controller.server.rest.generated.model.StreamProperty;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
-import java.util.ArrayList;
-import java.util.List;
 
 
 
 
 /**
- * StreamsList
+ * ScopeProperty
  */
 
-public class StreamsList   {
-  private List<StreamProperty> streams = new ArrayList<StreamProperty>();
+public class ScopeProperty   {
+  private String scopeName = null;
 
-  public StreamsList streams(List<StreamProperty> streams) {
-    this.streams = streams;
-    return this;
-  }
-
-  public StreamsList addStreamsItem(StreamProperty streamsItem) {
-    this.streams.add(streamsItem);
+  public ScopeProperty scopeName(String scopeName) {
+    this.scopeName = scopeName;
     return this;
   }
 
    /**
-   * Get streams
-   * @return streams
+   * Get scopeName
+   * @return scopeName
   **/
   @ApiModelProperty(value = "")
-  public List<StreamProperty> getStreams() {
-    return streams;
+  public String getScopeName() {
+    return scopeName;
   }
 
-  public void setStreams(List<StreamProperty> streams) {
-    this.streams = streams;
+  public void setScopeName(String scopeName) {
+    this.scopeName = scopeName;
   }
 
 
@@ -51,21 +43,21 @@ public class StreamsList   {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    StreamsList streamsList = (StreamsList) o;
-    return Objects.equals(this.streams, streamsList.streams);
+    ScopeProperty scopeProperty = (ScopeProperty) o;
+    return Objects.equals(this.scopeName, scopeProperty.scopeName);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(streams);
+    return Objects.hash(scopeName);
   }
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class StreamsList {\n");
+    sb.append("class ScopeProperty {\n");
     
-    sb.append("    streams: ").append(toIndentedString(streams)).append("\n");
+    sb.append("    scopeName: ").append(toIndentedString(scopeName)).append("\n");
     sb.append("}");
     return sb.toString();
   }

@@ -1,6 +1,7 @@
 package com.emc.pravega.controller.server.rest.generated.model;
 
 import java.util.Objects;
+import com.emc.pravega.controller.server.rest.generated.model.ScopeProperty;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import io.swagger.annotations.ApiModel;
@@ -16,29 +17,29 @@ import java.util.List;
  */
 
 public class ScopesList   {
-  private List<String> scopeNames = new ArrayList<String>();
+  private List<ScopeProperty> scopes = new ArrayList<ScopeProperty>();
 
-  public ScopesList scopeNames(List<String> scopeNames) {
-    this.scopeNames = scopeNames;
+  public ScopesList scopes(List<ScopeProperty> scopes) {
+    this.scopes = scopes;
     return this;
   }
 
-  public ScopesList addScopeNamesItem(String scopeNamesItem) {
-    this.scopeNames.add(scopeNamesItem);
+  public ScopesList addScopesItem(ScopeProperty scopesItem) {
+    this.scopes.add(scopesItem);
     return this;
   }
 
    /**
-   * Get scopeNames
-   * @return scopeNames
+   * Get scopes
+   * @return scopes
   **/
   @ApiModelProperty(value = "")
-  public List<String> getScopeNames() {
-    return scopeNames;
+  public List<ScopeProperty> getScopes() {
+    return scopes;
   }
 
-  public void setScopeNames(List<String> scopeNames) {
-    this.scopeNames = scopeNames;
+  public void setScopes(List<ScopeProperty> scopes) {
+    this.scopes = scopes;
   }
 
 
@@ -51,12 +52,12 @@ public class ScopesList   {
       return false;
     }
     ScopesList scopesList = (ScopesList) o;
-    return Objects.equals(this.scopeNames, scopesList.scopeNames);
+    return Objects.equals(this.scopes, scopesList.scopes);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(scopeNames);
+    return Objects.hash(scopes);
   }
 
   @Override
@@ -64,7 +65,7 @@ public class ScopesList   {
     StringBuilder sb = new StringBuilder();
     sb.append("class ScopesList {\n");
     
-    sb.append("    scopeNames: ").append(toIndentedString(scopeNames)).append("\n");
+    sb.append("    scopes: ").append(toIndentedString(scopes)).append("\n");
     sb.append("}");
     return sb.toString();
   }
