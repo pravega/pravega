@@ -106,7 +106,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
                         FileUtils.deleteDirectory(zkDir);
                         System.out.println("ByeBye!");
                     } catch (Exception e) {
-                        log.warn("Caught an exception shutting down", e);
+                        // do nothing
+                        log.warn("Exception running local pravega emulator: " + e.getMessage());
                     }
                 }
             });
