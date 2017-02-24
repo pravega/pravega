@@ -31,7 +31,7 @@ public class ServiceConfig extends ComponentConfig {
     private static final int DEFAULT_LISTENING_PORT = 12345;
     private static final int DEFAULT_THREAD_POOL_SIZE = 50;
 
-    private static final String DEFAULT_ZK_URL = "zk1:2181";
+    private static final String DEFAULT_ZK_URL = "localhost:2181";
     private static final int DEFAULT_ZK_RETRY_SLEEP_MS = 5000;
 
     private static final int DEFAULT_ZK_RETRY_COUNT = 5;
