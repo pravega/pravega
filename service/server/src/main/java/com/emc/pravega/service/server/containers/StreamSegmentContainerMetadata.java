@@ -5,6 +5,7 @@ package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.EvictableMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
@@ -32,7 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @VisibleForTesting
 @ThreadSafe
-public class StreamSegmentContainerMetadata implements UpdateableContainerMetadata {
+public class StreamSegmentContainerMetadata implements UpdateableContainerMetadata, EvictableMetadata {
     //region Members
 
     private final String traceObjectId;
@@ -203,6 +204,10 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         Exceptions.checkArgument(value >= this.sequenceNumber.get(), "value", "Invalid SequenceNumber. Expecting greater than %d.", this.sequenceNumber.get());
         this.sequenceNumber.set(value);
     }
+
+    //endregion
+
+    //region EvictableMetadata Implementation
 
     @Override
     public Collection<SegmentMetadata> getEvictionCandidates(long sequenceNumberCutoff) {

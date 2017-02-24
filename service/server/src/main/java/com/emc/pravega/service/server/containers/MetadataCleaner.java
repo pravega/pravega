@@ -9,8 +9,8 @@ import com.emc.pravega.common.concurrent.AbstractThreadPoolService;
 import com.emc.pravega.common.concurrent.CancellationToken;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.AsyncMap;
+import com.emc.pravega.service.server.EvictableMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.time.Duration;
@@ -31,7 +31,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
     //region Private
 
     private final ContainerConfig config;
-    private final UpdateableContainerMetadata metadata;
+    private final EvictableMetadata metadata;
     private final AsyncMap<String, SegmentState> stateStore;
     private final Consumer<Collection<SegmentMetadata>> cleanupCallback;
     private final AtomicLong lastIterationSequenceNumber;
@@ -44,11 +44,15 @@ class MetadataCleaner extends AbstractThreadPoolService {
     /**
      * Creates a new instance of the MetadataCleaner class.
      *
-     * @param traceObjectId An identifier to use for logging purposes. This will be included at the beginning of all
-     *                      log calls initiated by this Service.
-     * @param executor      The Executor to use for async callbacks and operations.
+     * @param config          Container Configuration to use.
+     * @param metadata        An EvictableMetadata to operate on.
+     * @param stateStore      SegmentStateStore to serialize SegmentState in.
+     * @param cleanupCallback A callback to invoke every time cleanup happened.
+     * @param traceObjectId   An identifier to use for logging purposes. This will be included at the beginning of all
+     *                        log calls initiated by this Service.
+     * @param executor        The Executor to use for async callbacks and operations.
      */
-    MetadataCleaner(ContainerConfig config, UpdateableContainerMetadata metadata, AsyncMap<String, SegmentState> stateStore,
+    MetadataCleaner(ContainerConfig config, EvictableMetadata metadata, AsyncMap<String, SegmentState> stateStore,
                     Consumer<Collection<SegmentMetadata>> cleanupCallback, ScheduledExecutorService executor, String traceObjectId) {
         super(traceObjectId, executor);
         Preconditions.checkNotNull(metadata, "metadata");

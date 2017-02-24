@@ -13,7 +13,6 @@ import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.TestStorage;
-import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
@@ -718,7 +717,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     // region TestContext
 
     private class TestContext implements AutoCloseable {
-        final UpdateableContainerMetadata metadata;
+        final StreamSegmentContainerMetadata metadata;
         final TestWriterDataSource dataSource;
         final InMemoryStorage baseStorage;
         final TestStorage storage;

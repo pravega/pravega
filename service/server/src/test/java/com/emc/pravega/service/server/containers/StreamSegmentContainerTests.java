@@ -23,12 +23,12 @@ import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ConfigHelpers;
+import com.emc.pravega.service.server.EvictableMetadata;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.SegmentMetadataComparer;
-import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
@@ -62,6 +62,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -982,7 +983,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     //region MetadataCleanupContainer
 
     private static class MetadataCleanupContainer extends StreamSegmentContainer {
-        private TestMetadataCleaner metadataCleaner;
+        final AtomicReference<Consumer<Boolean>> metadataCleanupFinishedCallback;
         private final ScheduledExecutorService executor;
 
         MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
@@ -990,14 +991,22 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                                  ScheduledExecutorService executor) {
             super(streamSegmentContainerId, config, durableLogFactory, readIndexFactory, writerFactory, storageFactory, executor);
             this.executor = executor;
+            metadataCleanupFinishedCallback = new AtomicReference<>();
         }
 
         @Override
-        protected MetadataCleaner createMetadataCleaner(ContainerConfig config, UpdateableContainerMetadata metadata,
+        protected MetadataCleaner createMetadataCleaner(ContainerConfig config, EvictableMetadata metadata,
                                                         AsyncMap<String, SegmentState> stateStore, Consumer<Collection<SegmentMetadata>> cleanupCallback,
                                                         ScheduledExecutorService executor, String traceObjectId) {
-            this.metadataCleaner = new TestMetadataCleaner(config, metadata, stateStore, cleanupCallback, executor, traceObjectId);
-            return this.metadataCleaner;
+            Consumer<Collection<SegmentMetadata>> internalCleanupCallback = evictedMetadatas -> {
+                cleanupCallback.accept(evictedMetadatas);
+                Consumer<Boolean> c = this.metadataCleanupFinishedCallback.get();
+                if (c != null) {
+                    c.accept(evictedMetadatas.size() != 0);
+                }
+            };
+
+            return new MetadataCleaner(config, metadata, stateStore, internalCleanupCallback, executor, null);
         }
 
         /**
@@ -1005,12 +1014,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
          */
         CompletableFuture<Void> waitForMetadataCleanup() {
             val metadataCleanupCompleted = FutureHelpers.<Void>futureWithTimeout(TIMEOUT, this.executor);
-            this.metadataCleaner.metadataCleanupFinishedCallback = evicted -> {
-                // We hook into the metadataCleanup() method and only complete this if an eviction was reported.
+
+            // Inject this callback into the MetadataCleaner callback, which was setup for us in createMetadataCleaner().
+            this.metadataCleanupFinishedCallback.set(evicted -> {
                 if (evicted) {
                     metadataCleanupCompleted.complete(null);
                 }
-            };
+            });
             return metadataCleanupCompleted;
         }
 
@@ -1049,36 +1059,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     //endregion
 
-    //region TestMetadataCleaner
-
-    private static class TestMetadataCleaner extends MetadataCleaner {
-        Consumer<Boolean> metadataCleanupFinishedCallback;
-        private final UpdateableContainerMetadata metadata;
-
-        TestMetadataCleaner(ContainerConfig config, UpdateableContainerMetadata metadata, AsyncMap<String, SegmentState> stateStore, Consumer<Collection<SegmentMetadata>> cleanupCallback, ScheduledExecutorService executor, String traceObjectId) {
-            super(config, metadata, stateStore, cleanupCallback, executor, traceObjectId);
-            this.metadata = metadata;
-        }
-
-        @Override
-        protected CompletableFuture<Void> runOnce(Void ignored) {
-            final HashSet<Long> beforeSegmentIds = new HashSet<>(this.metadata.getAllStreamSegmentIds());
-            CompletableFuture<Void> result = super.runOnce(ignored);
-            Consumer<Boolean> callback = this.metadataCleanupFinishedCallback;
-            if (callback != null) {
-                result.thenRun(() -> {
-                    // Determine if any segments were evicted.
-                    final HashSet<Long> afterSegmentIds = new HashSet<>(this.metadata.getAllStreamSegmentIds());
-                    callback.accept(!afterSegmentIds.containsAll(beforeSegmentIds));
-                });
-            }
-
-            return result;
-        }
-    }
-
-    //endregion
-
     //region TestContainerConfig
 
     private static class TestContainerConfig extends ContainerConfig {
@@ -1090,7 +1070,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             super(properties);
         }
     }
-
 
     //endregion
 }

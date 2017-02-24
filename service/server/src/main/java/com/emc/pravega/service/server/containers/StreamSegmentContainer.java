@@ -13,6 +13,7 @@ import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.server.EvictableMetadata;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.OperationLogFactory;
@@ -20,7 +21,6 @@ import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.Writer;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
@@ -56,7 +56,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //region Members
     private final String traceObjectId;
     private final ContainerConfig config;
-    private final UpdateableContainerMetadata metadata;
+    private final StreamSegmentContainerMetadata metadata;
     private final OperationLog durableLog;
     private final ReadIndex readIndex;
     private final Writer writer;
@@ -108,7 +108,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @VisibleForTesting
-    protected MetadataCleaner createMetadataCleaner(ContainerConfig config, UpdateableContainerMetadata metadata, AsyncMap<String, SegmentState> stateStore,
+    protected MetadataCleaner createMetadataCleaner(ContainerConfig config, EvictableMetadata metadata, AsyncMap<String, SegmentState> stateStore,
                                                     Consumer<Collection<SegmentMetadata>> cleanupCallback, ScheduledExecutorService executor, String traceObjectId) {
         return new MetadataCleaner(config, metadata, stateStore, cleanupCallback, executor, traceObjectId);
     }
