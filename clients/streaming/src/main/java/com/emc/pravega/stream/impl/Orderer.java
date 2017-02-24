@@ -5,6 +5,8 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.stream.impl.segment.SegmentInputStream;
+
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -23,7 +25,7 @@ public class Orderer {
      * @param segments The logs to get the next reader for.
      * @return A segment that this reader should read from next.
      */
-    SegmentEventReader nextSegment(List<SegmentEventReader> segments) {
+    SegmentInputStream nextSegment(List<SegmentInputStream> segments) {
         if (segments.isEmpty()) {
             return null;
         }

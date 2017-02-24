@@ -6,6 +6,7 @@
 package com.emc.pravega.stream.mock;
 
 import com.emc.pravega.common.netty.WireCommands;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
@@ -17,10 +18,13 @@ import java.util.concurrent.CompletableFuture;
 
 import javax.annotation.concurrent.GuardedBy;
 
+import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
+@RequiredArgsConstructor
 public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputStream {
 
+    private final Segment segment;
     @GuardedBy("$lock")
     private int readIndex; 
     @GuardedBy("$lock")
@@ -104,6 +108,11 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     public boolean canReadWithoutBlocking() {
         return true;
+    }
+
+    @Override
+    public Segment getSegmentId() {
+        return segment;
     }
 
 }

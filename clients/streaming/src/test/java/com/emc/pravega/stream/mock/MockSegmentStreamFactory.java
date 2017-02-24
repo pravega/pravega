@@ -30,7 +30,7 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     @Override
     public SegmentOutputStream createOutputStreamForSegment(Segment segment, SegmentOutputConfiguration config)
             throws SegmentSealedException {
-        MockSegmentIoStreams streams = new MockSegmentIoStreams();
+        MockSegmentIoStreams streams = new MockSegmentIoStreams(segment);
         segments.putIfAbsent(segment, streams);
         return segments.get(segment);
     }
@@ -42,7 +42,7 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
 
     @Override
     public SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config) {
-        MockSegmentIoStreams streams = new MockSegmentIoStreams();
+        MockSegmentIoStreams streams = new MockSegmentIoStreams(segment);
         segments.putIfAbsent(segment, streams);
         return segments.get(segment);
     }

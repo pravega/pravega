@@ -40,7 +40,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private final Orderer orderer;
     private final ReaderConfig config;
     @GuardedBy("readers")
-    private final List<SegmentEventReader> readers = new ArrayList<>();
+    private final List<SegmentInputStream> readers = new ArrayList<>();
     @GuardedBy("readers")
     private Sequence lastRead;
     private final ReaderGroupStateManager groupState;
@@ -66,7 +66,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             do { // Loop handles retry on end of segment
                 rebalance |= releaseSegmentsIfNeeded();
                 rebalance |= acquireSegmentsIfNeeded();
-                SegmentEventReader segmentReader = orderer.nextSegment(readers);
+                SegmentInputStream segmentReader = orderer.nextSegment(readers);
                 if (segmentReader == null) {
                     Exceptions.handleInterrupted(()->Thread.sleep(ReaderGroupStateManager.TIME_UNIT.toMillis()));
                     buffer = null;
@@ -74,7 +74,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     segment = segmentReader.getSegmentId();
                     offset = segmentReader.getOffset();
                     try {
-                        buffer = segmentReader.getNextEvent(timeout);
+                        buffer = segmentReader.read();
                     } catch (EndOfSegmentException e) {
                         handleEndOfSegment(segmentReader);
                         buffer = null;
@@ -98,7 +98,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private boolean releaseSegmentsIfNeeded() {
         Segment segment = groupState.findSegmentToReleaseIfRequired();
         if (segment != null) {
-            SegmentEventReader reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
+            SegmentInputStream reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
             if (reader != null) {
                 groupState.releaseSegment(segment, reader.getOffset(), getLag());
                 readers.remove(reader);
@@ -116,7 +116,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         for (Entry<Segment, Long> newSegment : newSegments.entrySet()) {
             SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(newSegment.getKey(), config.getSegmentConfig());
             in.setOffset(newSegment.getValue());
-            readers.add(new SegmentEventReaderImpl(newSegment.getKey(), in));
+            readers.add(in);
         }
         return true;
     }
@@ -129,7 +129,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         return clock.get() - lastRead.getHighOrder();
     }
     
-    private void handleEndOfSegment(SegmentEventReader oldSegment) {
+    private void handleEndOfSegment(SegmentInputStream oldSegment) {
         readers.remove(oldSegment);
         groupState.handleEndOfSegment(oldSegment.getSegmentId());
     }
@@ -142,7 +142,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @Override
     public void close() {
         synchronized (readers) {
-            for (SegmentEventReader reader : readers) {
+            for (SegmentInputStream reader : readers) {
                 reader.close();
             }
         }
@@ -156,12 +156,10 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         SegmentInputStream inputStream = inputStreamFactory.createInputStreamForSegment(pointer.asImpl().getSegment(),
                                                                                         config.getSegmentConfig(),
                                                                                         pointer.asImpl().getEventLength());
-        // Create SegmentEventReader and set start offset
-        SegmentEventReader segmentReader = new SegmentEventReaderImpl(pointer.asImpl().getSegment(), inputStream);
-        segmentReader.setOffset(pointer.asImpl().getEventStartOffset());
+        inputStream.setOffset(pointer.asImpl().getEventStartOffset());
         // Read event
         try {
-            ByteBuffer buffer = segmentReader.getNextEvent(0);
+            ByteBuffer buffer = inputStream.read();
             Type result = deserializer.deserialize(buffer);
             return result;
         } catch (EndOfSegmentException e) {

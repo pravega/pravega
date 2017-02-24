@@ -18,6 +18,7 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.InvalidMessageException;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.util.CircularBuffer;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.segment.AsyncSegmentInputStream.ReadFuture;
 import com.google.common.base.Preconditions;
 
@@ -177,6 +178,11 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             handleRequest();
         }
         return buffer.dataAvailable() > 0;
+    }
+
+    @Override
+    public Segment getSegmentId() {
+        return asyncInput.getSegmentId();
     }
 
 }
