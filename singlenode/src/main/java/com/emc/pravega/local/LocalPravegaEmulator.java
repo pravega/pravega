@@ -38,6 +38,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Properties;
@@ -70,6 +71,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private final LocalHDFSEmulator localHdfs;
         
     private final ScheduledExecutorService controllerExecutor;
+    private final InProcPravegaCluster cluster;
 
     @Builder
     private LocalPravegaEmulator(int zkPort, int controllerPort, int hostPort, LocalHDFSEmulator localHdfs) {
@@ -80,6 +82,20 @@ public class LocalPravegaEmulator implements AutoCloseable {
         this.controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
                                                                    new ThreadFactoryBuilder().setNameFormat("taskpool-%d")
                                                                                              .build());
+        cluster = InProcPravegaCluster.builder().
+                isInProcZK(true).
+                zkPort(zkPort).
+                isInprocController(true).
+                controllerCount(1).
+                controllerPorts(new int[]{controllerPort}).
+                isInprocHost(true).
+                hostCount(1).
+                hostPorts(new int[] {hostPort}).
+                isInProcHDFS(true).
+                isInProcDL(true).
+                bookieCount(NUM_BOOKIES).build();
+
+
     }
 
     public static void main(String[] args) {
@@ -160,7 +176,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
     /**
      * Start controller and host.
      */
-    private void start() {
+    private void start() throws Exception {
+        cluster.start();
         startController();
         try {
             Thread.sleep(10000);
