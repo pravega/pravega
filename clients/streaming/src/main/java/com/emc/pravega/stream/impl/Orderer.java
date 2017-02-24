@@ -6,21 +6,28 @@
 package com.emc.pravega.stream.impl;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Used to select which event should go next when consuming from multiple segments.
  *
  */
-public interface Orderer {
+public class Orderer {
+    private final AtomicInteger counter = new AtomicInteger(0);
 
     /**
-     * Given a list of segments this reader owns, (which contain their positions) returns the one that
-     * should be read from next. This is done in a consistent way. i.e. Calling this method with the
-     * same readers at the same positions, should yield the same result. (The passed collection is
-     * not modified)
+     * Given a list of segments this reader owns, (which contain their positions) returns the one that should
+     * be read from next. This is done in a consistent way. i.e. Calling this method with the same readers at
+     * the same positions, should yield the same result. (The passed collection is not modified)
      *
      * @param segments The logs to get the next reader for.
      * @return A segment that this reader should read from next.
      */
-    SegmentEventReader nextSegment(List<SegmentEventReader> segments);
+    SegmentEventReader nextSegment(List<SegmentEventReader> segments) {
+        if (segments.isEmpty()) {
+            return null;
+        }
+        int count = counter.incrementAndGet();
+        return segments.get(count % segments.size());
+    }
 }

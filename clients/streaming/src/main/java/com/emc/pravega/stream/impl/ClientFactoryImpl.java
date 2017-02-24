@@ -37,13 +37,9 @@ import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
-import java.net.URI;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
+import lombok.val;
 
 import org.apache.commons.lang.NotImplementedException;
-
-import lombok.val;
 
 public class ClientFactoryImpl implements ClientFactory {
 
@@ -52,22 +48,6 @@ public class ClientFactoryImpl implements ClientFactory {
     private final SegmentInputStreamFactory inFactory;
     private final SegmentOutputStreamFactory outFactory;
     private final ConnectionFactory connectionFactory;
-
-    /**
-     * Creates a new instance of ClientFactory class.
-     *
-     * @param scope         The scope string.
-     * @param controllerUri The Controller URI.
-     */
-    public ClientFactoryImpl(String scope, URI controllerUri) {
-        Preconditions.checkNotNull(scope);
-        Preconditions.checkNotNull(controllerUri);
-        this.scope = scope;
-        this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
-        connectionFactory = new ConnectionFactoryImpl(false);
-        this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
-        this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
-    }
 
     /**
      * Creates a new instance of ClientFactory class.
@@ -148,19 +128,9 @@ public class ClientFactoryImpl implements ClientFactory {
         return new EventStreamReaderImpl<T>(inFactory,
                                       s,
                                       stateManager,
-                                      new RoundRobinOrderer(),
+                                      new Orderer(),
                                       System::currentTimeMillis,
                                       config);
-    }
-
-    private static class RoundRobinOrderer implements Orderer {
-        private final AtomicInteger counter = new AtomicInteger(0);
-
-        @Override
-        public SegmentEventReader nextSegment(List<SegmentEventReader> segments) {
-            int count = counter.incrementAndGet();
-            return segments.get(count % segments.size());
-        }
     }
 
     @Override

@@ -25,26 +25,16 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
 public class MockClientFactory implements ClientFactory, AutoCloseable {
 
-    private final String scope;
     private final ClientFactory impl;
     private final ConnectionFactoryImpl connectionFactory;
 
-    public MockClientFactory(String scope, String endpoint, int port) {
-        this.scope = scope;
-        this.connectionFactory = new ConnectionFactoryImpl(false);
-        MockController controller = new MockController(endpoint, port, connectionFactory);
-        this.impl = new ClientFactoryImpl(scope, controller, connectionFactory);
-    }
-
     public MockClientFactory(String scope, MockSegmentStreamFactory ioFactory) {
-        this.scope = scope;
         this.connectionFactory = new ConnectionFactoryImpl(false);
         MockController controller = new MockController("localhost", 0, connectionFactory);
         this.impl = new ClientFactoryImpl(scope, controller, connectionFactory, ioFactory, ioFactory);
     }
     
     public MockClientFactory(String scope, Controller controller) {
-        this.scope = scope;
         this.connectionFactory = new ConnectionFactoryImpl(false);
         this.impl = new ClientFactoryImpl(scope, controller, connectionFactory);
     }
