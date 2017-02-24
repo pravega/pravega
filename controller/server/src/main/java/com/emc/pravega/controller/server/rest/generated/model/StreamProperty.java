@@ -16,48 +16,48 @@ import io.swagger.annotations.ApiModelProperty;
  */
 
 public class StreamProperty   {
-  private String scope = null;
+  private String scopeName = null;
 
-  private String name = null;
+  private String streamName = null;
 
   private ScalingConfig scalingPolicy = null;
 
   private RetentionConfig retentionPolicy = null;
 
-  public StreamProperty scope(String scope) {
-    this.scope = scope;
+  public StreamProperty scopeName(String scopeName) {
+    this.scopeName = scopeName;
     return this;
   }
 
    /**
-   * Get scope
-   * @return scope
+   * Get scopeName
+   * @return scopeName
   **/
   @ApiModelProperty(value = "")
-  public String getScope() {
-    return scope;
+  public String getScopeName() {
+    return scopeName;
   }
 
-  public void setScope(String scope) {
-    this.scope = scope;
+  public void setScopeName(String scopeName) {
+    this.scopeName = scopeName;
   }
 
-  public StreamProperty name(String name) {
-    this.name = name;
+  public StreamProperty streamName(String streamName) {
+    this.streamName = streamName;
     return this;
   }
 
    /**
-   * Get name
-   * @return name
+   * Get streamName
+   * @return streamName
   **/
   @ApiModelProperty(value = "")
-  public String getName() {
-    return name;
+  public String getStreamName() {
+    return streamName;
   }
 
-  public void setName(String name) {
-    this.name = name;
+  public void setStreamName(String streamName) {
+    this.streamName = streamName;
   }
 
   public StreamProperty scalingPolicy(ScalingConfig scalingPolicy) {
@@ -106,15 +106,15 @@ public class StreamProperty   {
       return false;
     }
     StreamProperty streamProperty = (StreamProperty) o;
-    return Objects.equals(this.scope, streamProperty.scope) &&
-        Objects.equals(this.name, streamProperty.name) &&
+    return Objects.equals(this.scopeName, streamProperty.scopeName) &&
+        Objects.equals(this.streamName, streamProperty.streamName) &&
         Objects.equals(this.scalingPolicy, streamProperty.scalingPolicy) &&
         Objects.equals(this.retentionPolicy, streamProperty.retentionPolicy);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(scope, name, scalingPolicy, retentionPolicy);
+    return Objects.hash(scopeName, streamName, scalingPolicy, retentionPolicy);
   }
 
   @Override
@@ -122,8 +122,8 @@ public class StreamProperty   {
     StringBuilder sb = new StringBuilder();
     sb.append("class StreamProperty {\n");
     
-    sb.append("    scope: ").append(toIndentedString(scope)).append("\n");
-    sb.append("    name: ").append(toIndentedString(name)).append("\n");
+    sb.append("    scopeName: ").append(toIndentedString(scopeName)).append("\n");
+    sb.append("    streamName: ").append(toIndentedString(streamName)).append("\n");
     sb.append("    scalingPolicy: ").append(toIndentedString(scalingPolicy)).append("\n");
     sb.append("    retentionPolicy: ").append(toIndentedString(retentionPolicy)).append("\n");
     sb.append("}");
