@@ -243,6 +243,7 @@ public class ReaderGroupStateManager {
         sync.updateState(state -> {
             int toAcquire = calculateNumSegmentsToAcquire(state);
             if (toAcquire == 0) {
+                result.set(Collections.emptyMap());
                 return null;
             }
             Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
