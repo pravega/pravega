@@ -53,19 +53,11 @@ public interface UpdateableContainerMetadata extends ContainerMetadata, Recovera
     long nextOperationSequenceNumber();
 
     /**
-     * Sets the current Operation Sequence Number.
-     *
-     * @param value The new Operation Sequence Number.
-     * @throws IllegalStateException    If the Metadata is not in Recovery Mode.
-     * @throws IllegalArgumentException If the new Sequence Number is not greater than the previous one.
-     */
-    void setOperationSequenceNumber(long value);
-
-    /**
      * Gets the StreamSegmentMetadata mapped to the given StreamSegment Id.
      *
      * @param streamSegmentId The Id of the StreamSegment to query for.
      * @return The mapped StreamSegmentMetadata, or null if none is.
      */
+    @Override
     UpdateableSegmentMetadata getStreamSegmentMetadata(long streamSegmentId);
 }

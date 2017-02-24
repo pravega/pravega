@@ -7,7 +7,6 @@ import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
-import com.emc.pravega.common.util.AsyncMap;
 import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AttributeUpdate;
@@ -23,7 +22,6 @@ import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ConfigHelpers;
-import com.emc.pravega.service.server.EvictableMetadata;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
@@ -61,8 +59,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -684,7 +680,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after append.", expectedAttributes, sp);
 
         // Wait until the segment is forgotten.
-        localContainer.triggerMetadataCleanup(1).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        localContainer.triggerMetadataCleanup(Collections.singleton(segmentName)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Now get attributes again and verify them.
         sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -713,9 +709,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // force a Metadata Truncation in order to facilitate that; this is the purpose of segment2).
         localContainer.deleteStreamSegment(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        // We want to wait for two cleanups here; to be absolutely sure that the deleted segment was properly cleaned up
-        // from the metadata (if we do just one, it may be that the segment just didn't make the cut).
-        localContainer.triggerMetadataCleanup(2).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        // Wait for the segment to be forgotten again.
+        localContainer.triggerMetadataCleanup(Collections.singleton(segmentName)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Now Create the Segment again and verify the old attributes were not "remembered".
         val newAttributes = createAttributeUpdates(attributes);
@@ -983,7 +978,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     //region MetadataCleanupContainer
 
     private static class MetadataCleanupContainer extends StreamSegmentContainer {
-        final AtomicReference<Consumer<Boolean>> metadataCleanupFinishedCallback;
+        private Consumer<Collection<String>> metadataCleanupFinishedCallback;
         private final ScheduledExecutorService executor;
 
         MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
@@ -991,55 +986,37 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                                  ScheduledExecutorService executor) {
             super(streamSegmentContainerId, config, durableLogFactory, readIndexFactory, writerFactory, storageFactory, executor);
             this.executor = executor;
-            metadataCleanupFinishedCallback = new AtomicReference<>();
         }
 
         @Override
-        protected MetadataCleaner createMetadataCleaner(ContainerConfig config, EvictableMetadata metadata,
-                                                        AsyncMap<String, SegmentState> stateStore, Consumer<Collection<SegmentMetadata>> cleanupCallback,
-                                                        ScheduledExecutorService executor, String traceObjectId) {
-            Consumer<Collection<SegmentMetadata>> internalCleanupCallback = evictedMetadatas -> {
-                cleanupCallback.accept(evictedMetadatas);
-                Consumer<Boolean> c = this.metadataCleanupFinishedCallback.get();
-                if (c != null) {
-                    c.accept(evictedMetadatas.size() != 0);
-                }
-            };
+        protected void notifyMetadataRemoved(Collection<SegmentMetadata> metadatas) {
+            super.notifyMetadataRemoved(metadatas);
 
-            return new MetadataCleaner(config, metadata, stateStore, internalCleanupCallback, executor, null);
-        }
-
-        /**
-         * Returns a CompletableFuture that completes when a MetadataCleanup has occurred.
-         */
-        CompletableFuture<Void> waitForMetadataCleanup() {
-            val metadataCleanupCompleted = FutureHelpers.<Void>futureWithTimeout(TIMEOUT, this.executor);
-
-            // Inject this callback into the MetadataCleaner callback, which was setup for us in createMetadataCleaner().
-            this.metadataCleanupFinishedCallback.set(evicted -> {
-                if (evicted) {
-                    metadataCleanupCompleted.complete(null);
-                }
-            });
-            return metadataCleanupCompleted;
+            Consumer<Collection<String>> c = this.metadataCleanupFinishedCallback;
+            if (c != null) {
+                c.accept(metadatas.stream().map(SegmentMetadata::getName).collect(Collectors.toList()));
+            }
         }
 
         /**
          * Triggers a number of metadata cleanups by repeatedly appending to a random new segment until a cleanup task is detected.
          *
-         * @param cleanupCount Number of cleanups to trigger.
+         * @param expectedSegmentNames The segments that we are expecting to evict.
          */
-        CompletableFuture<Void> triggerMetadataCleanup(int cleanupCount) {
-            AtomicInteger remaining = new AtomicInteger(cleanupCount);
+        CompletableFuture<Void> triggerMetadataCleanup(Collection<String> expectedSegmentNames) {
+            HashSet<String> remainingSegments = new HashSet<>(expectedSegmentNames);
+            CompletableFuture<Void> cleanupTask = FutureHelpers.futureWithTimeout(TIMEOUT, this.executor);
 
-            return FutureHelpers.loop(
-                    () -> remaining.decrementAndGet() >= 0,
-                    () -> {
-                        CompletableFuture<Void> cleanupTask = waitForMetadataCleanup();
-                        appendRandomly(() -> !cleanupTask.isDone());
-                        return cleanupTask;
-                    },
-                    this.executor);
+            // Inject this callback into the MetadataCleaner callback, which was setup for us in createMetadataCleaner().
+            this.metadataCleanupFinishedCallback = evictedSegmentNames -> {
+                remainingSegments.removeAll(evictedSegmentNames);
+                if (remainingSegments.size() == 0) {
+                    cleanupTask.complete(null);
+                }
+            };
+
+            appendRandomly(() -> !cleanupTask.isDone());
+            return cleanupTask;
         }
 
         /**

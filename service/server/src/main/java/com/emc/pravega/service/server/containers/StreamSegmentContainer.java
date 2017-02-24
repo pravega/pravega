@@ -13,7 +13,6 @@ import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
-import com.emc.pravega.service.server.EvictableMetadata;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.OperationLogFactory;
@@ -30,9 +29,9 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation
 import com.emc.pravega.service.server.logs.operations.UpdateAttributesOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.Service;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -98,19 +97,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.readIndex = readIndexFactory.createReadIndex(this.metadata);
         this.executor = executor;
         this.durableLog = durableLogFactory.createDurableLog(this.metadata, this.readIndex);
-        this.durableLog.addListener(new ServiceShutdownListener(createComponentStoppedHandler("DurableLog"), createComponentFailedHandler("DurableLog")), this.executor);
+        shutdownWhenStopped(this.durableLog, "DurableLog");
         this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex);
-        this.writer.addListener(new ServiceShutdownListener(createComponentStoppedHandler("Writer"), createComponentFailedHandler("Writer")), this.executor);
+        shutdownWhenStopped(this.writer, "Writer");
         this.stateStore = new SegmentStateStore(this.storage, this.executor);
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.stateStore, this.storage, this.executor);
-        this.metadataCleaner = createMetadataCleaner(this.config, this.metadata, this.stateStore, this::removeFromReadIndex,
+        this.metadataCleaner = new MetadataCleaner(this.config, this.metadata, this.stateStore, this::notifyMetadataRemoved,
                 this.executor, this.traceObjectId);
-    }
-
-    @VisibleForTesting
-    protected MetadataCleaner createMetadataCleaner(ContainerConfig config, EvictableMetadata metadata, AsyncMap<String, SegmentState> stateStore,
-                                                    Consumer<Collection<SegmentMetadata>> cleanupCallback, ScheduledExecutorService executor, String traceObjectId) {
-        return new MetadataCleaner(config, metadata, stateStore, cleanupCallback, executor, traceObjectId);
     }
 
     //endregion
@@ -295,7 +288,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                         .delete(s.getName(), timer.getRemaining())
                         .thenComposeAsync(v -> this.stateStore.remove(s.getName(), timer.getRemaining()), this.executor));
 
-        removeFromReadIndex(deletedSegments);
+        notifyMetadataRemoved(deletedSegments);
         return CompletableFuture.allOf(deletionFutures);
     }
 
@@ -358,7 +351,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     //region Helpers
 
-    private void removeFromReadIndex(Collection<SegmentMetadata> segments) {
+    /**
+     * Callback that notifies eligible components that the given Segments' metadatas has been removed from the metadata,
+     * regardless of the trigger (eviction or deletion).
+     *
+     * @param segments A Collection of SegmentMetadatas for those segments which were removed.
+     */
+    protected void notifyMetadataRemoved(Collection<SegmentMetadata> segments) {
         if (segments.size() > 0) {
             this.readIndex.cleanup(segments.stream().map(SegmentMetadata::getId).iterator());
         }
@@ -375,8 +374,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         log.info("{}: {} {}", this.traceObjectId, requestName, args);
     }
 
-    private Consumer<Throwable> createComponentFailedHandler(String componentName) {
-        return cause -> {
+    private void shutdownWhenStopped(Service component, String componentName) {
+        Consumer<Throwable> failedHandler = cause -> {
             log.warn("{}: {} failed with exception {}.", this.traceObjectId, componentName, cause);
             if (state() != State.STARTING) {
                 // We cannot stop the service while we're starting it.
@@ -385,18 +384,16 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
             notifyFailed(cause);
         };
-    }
-
-    private Runnable createComponentStoppedHandler(String componentName) {
-        return () -> {
+        Runnable stoppedHandler = () -> {
             if (state() != State.STOPPING) {
-                // The Queue Processor stopped but we are not in a stopping phase. We need to shut down right away.
+                // The Component stopped but we are not in a stopping phase. We need to shut down right away.
                 log.warn("{}: {} stopped unexpectedly (no error) but StreamSegmentContainer was not currently stopping. Shutting down StreamSegmentContainer.",
                         this.traceObjectId,
                         componentName);
                 stopAsync().awaitTerminated();
             }
         };
+        component.addListener(new ServiceShutdownListener(stoppedHandler, failedHandler), this.executor);
     }
 
     private <T> CompletableFuture[] mapToFutureArray(Collection<T> source, Function<T, CompletableFuture> transformer) {
