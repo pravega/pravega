@@ -142,7 +142,7 @@ public interface StreamMetadataStore {
      * @param segmentNumber the segment number
      * @return segments that immediately follow the specified segment and the segments they follow.
      */
-    public CompletableFuture<Map<Integer, List<Integer>>> getSuccessors(final String scopeName,
+    CompletableFuture<Map<Integer, List<Integer>>> getSuccessors(final String scopeName,
                                                                         final String streamName,
                                                                         final int segmentNumber);
 
@@ -178,7 +178,7 @@ public interface StreamMetadataStore {
      * @param scopeName  scope
      * @param streamName stream
      * @param txId       transaction id
-     * @return
+     * @return           Transaction status.
      */
     CompletableFuture<TxnStatus> transactionStatus(final String scopeName, final String streamName, final UUID txId);
 
@@ -188,19 +188,20 @@ public interface StreamMetadataStore {
      * @param scopeName  scope
      * @param streamName stream
      * @param txId       transaction id
-     * @return
+     * @return           Transaction status.
      */
     CompletableFuture<TxnStatus> commitTransaction(final String scopeName, final String streamName, final UUID txId);
 
     /**
      * Update stream store to mark transaction as sealed.
      *
-     * @param scopeName  scope
-     * @param streamName stream
-     * @param txId       transaction id
-     * @return
+     * @param scope  scope
+     * @param stream stream
+     * @param txId   transaction id
+     * @param commit Whether to change txn state to committing or aborting.
+     * @return       Transaction status.
      */
-    CompletableFuture<TxnStatus> sealTransaction(final String scopeName, final String streamName, final UUID txId);
+    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId, final boolean commit);
 
     /**
      * Update stream store to mark the transaction as aborted.
@@ -208,7 +209,7 @@ public interface StreamMetadataStore {
      * @param scopeName  scope
      * @param streamName stream
      * @param txId       transaction id
-     * @return
+     * @return           Transaction status.
      */
     CompletableFuture<TxnStatus> abortTransaction(final String scopeName, final String streamName, final UUID txId);
 
@@ -225,7 +226,7 @@ public interface StreamMetadataStore {
      * Returns all active transactions for all streams.
      * This is used for periodically identifying timedout transactions which can be aborted
      *
-     * @return
+     * @return List of active transactions.
      */
     CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx();
 }

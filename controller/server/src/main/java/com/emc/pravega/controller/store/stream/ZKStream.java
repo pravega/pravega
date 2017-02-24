@@ -216,13 +216,14 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> sealActiveTx(final UUID txId) {
+    CompletableFuture<Void> sealActiveTx(final UUID txId, final boolean commit) {
         final String activePath = getActiveTxPath(txId.toString());
 
         return getActiveTx(txId)
                 .thenCompose(x -> {
                     ActiveTxRecord previous = ActiveTxRecord.parse(x.getData());
-                    ActiveTxRecord updated = new ActiveTxRecord(previous.getTxCreationTimestamp(), TxnStatus.SEALED);
+                    ActiveTxRecord updated = new ActiveTxRecord(previous.getTxCreationTimestamp(),
+                            commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
                     return store.setData(activePath, new Data<>(updated.toByteArray(), x.getVersion()));
                 })
                 .thenApply(x -> cache.invalidateCache(activePath));

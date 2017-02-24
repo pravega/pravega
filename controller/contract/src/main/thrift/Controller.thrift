@@ -32,8 +32,9 @@ enum TxnStatus {
 enum TxnState {
 	UNKNOWN,
     OPEN,
-    SEALED,
+    COMMITTING,
     COMMITTED,
+    ABORTING,
     ABORTED
 }
 

@@ -331,11 +331,15 @@ public class ZkStreamTest {
 
         assert y.size() == 2;
 
-        store.sealTransaction(scopeName, streamName, tx).get();
-        assert store.transactionStatus(scopeName, streamName, tx).get().equals(TxnStatus.SEALED);
+        store.sealTransaction(streamName, streamName, tx, true).get();
+        assert store.transactionStatus(streamName, streamName, tx).get().equals(TxnStatus.COMMITTING);
 
-        CompletableFuture<TxnStatus> f1 = store.commitTransaction(scopeName, streamName, tx);
-        CompletableFuture<TxnStatus> f2 = store.abortTransaction(scopeName, streamName, tx2);
+        CompletableFuture<TxnStatus> f1 = store.commitTransaction(streamName, streamName, tx);
+
+        store.sealTransaction(streamName, streamName, tx2, false).get();
+        assert store.transactionStatus(streamName, streamName, tx2).get().equals(TxnStatus.ABORTING);
+
+        CompletableFuture<TxnStatus> f2 = store.abortTransaction(streamName, streamName, tx2);
 
         CompletableFuture.allOf(f1, f2).get();
 

@@ -12,6 +12,7 @@ import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
+import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
@@ -94,8 +95,23 @@ public class Main {
                 streamTransactionMetadataTasks);
 
         //2. set up Event Processors
+
         //region Setup Event Processors
+
         LocalController localController = new LocalController(controllerService);
+
+        streamTransactionMetadataTasks.initializeStreamWriters(localController);
+
+        ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
+                ZKUtils.getCuratorClient(), streamStore, hostStore);
+
+        try {
+            controllerEventProcessors.initialize();
+        } catch (Exception e) {
+            log.error("Error initializing event processors", e);
+            throw new RuntimeException(e);
+        }
+
         //endregion
 
         //3. Start the RPC server.
