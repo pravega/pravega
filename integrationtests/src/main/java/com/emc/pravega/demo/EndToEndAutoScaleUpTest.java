@@ -15,6 +15,7 @@ import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamSegments;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
@@ -38,7 +39,9 @@ public class EndToEndAutoScaleUpTest {
             @Cleanup
             TestingServer zkTestServer = new TestingServer();
 
-            ControllerWrapper controller = new ControllerWrapper(zkTestServer.getConnectString());
+            Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString(), true);
+            ControllerWrapper.controllerService.createScope("pravega").get();
+
             ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -51,6 +54,8 @@ public class EndToEndAutoScaleUpTest {
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store, statsRecorder);
             server.startListening();
+
+            ControllerWrapper.controllerService.createScope("test").get();
 
             controller.createStream(config).get();
             MockClientFactory clientFactory = new MockClientFactory("test", controller);

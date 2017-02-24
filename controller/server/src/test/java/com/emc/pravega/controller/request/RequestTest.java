@@ -3,7 +3,6 @@
  */
 package com.emc.pravega.controller.request;
 
-import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.requesthandler.ScaleRequestHandler;
@@ -11,7 +10,7 @@ import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.host.ZKHostStore;
+import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
@@ -35,11 +34,6 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.spy;
 
 public class RequestTest {
     private final String scope = "scope";
@@ -81,8 +75,7 @@ public class RequestTest {
 
         taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(zkClient), executor);
 
-        hostStore = spy(new ZKHostStore(zkClient, "test"));
-        doReturn(new Host("", 0)).when(hostStore).getHostForSegment(anyString(), anyString(), anyInt());
+        hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
@@ -95,6 +88,7 @@ public class RequestTest {
         // add a host in zk
         // mock pravega
         // create a stream
+        streamStore.createScope(scope);
         streamMetadataTasks.createStream(scope, stream, config, createTimestamp).get();
     }
 

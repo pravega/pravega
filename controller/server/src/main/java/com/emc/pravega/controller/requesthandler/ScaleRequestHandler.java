@@ -220,7 +220,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                         context)
                         .whenCompleteAsync((res, e) -> {
                             if (e != null) {
-                                log.warn("Scale failed for request {}/{}/{} with exception", request.getScope(), request.getStream(), request.getSegmentNumber(), e.getMessage());
+                                log.warn("Scale failed for request {}/{}/{} with exception {}", request.getScope(), request.getStream(), request.getSegmentNumber(), e);
                                 Throwable cause = ExceptionHelpers.getRealException(e);
                                 if (cause instanceof LockFailedException) {
                                     throw (LockFailedException) cause;

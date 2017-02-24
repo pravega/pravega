@@ -105,7 +105,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
                         FileUtils.deleteDirectory(zkDir);
                         System.out.println("ByeBye!");
                     } catch (Exception e) {
-                        log.warn("Caught an exception shutting down", e);
+                        // do nothing
+                        log.warn("Exception running local pravega emulator: " + e.getMessage());
                     }
                 }
             });
@@ -238,8 +239,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
         //Start the Segment Container Monitor.
         log.info("Starting the segment container monitor");
-        SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore,
-                ZKUtils.getCuratorClient(), Config.CLUSTER_NAME,
+        SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore, ZKUtils.getCuratorClient(),
                 new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL);
         monitor.startAsync();
 

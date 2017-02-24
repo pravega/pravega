@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream;
 
@@ -11,6 +9,8 @@ import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -21,16 +21,17 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     public ZKStreamMetadataStore(ScheduledExecutorService executor) {
         this(ZKUtils.getCuratorClient(), executor);
-        initialize(ZKUtils.getCuratorClient(), ZKUtils.getMetricsConfig());
     }
 
     @VisibleForTesting
     public ZKStreamMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
         ZKStream.initialize(client, executor);
-        initialize(client, ZKUtils.getMetricsConfig());
+        ZKScope.initialize(client);
+
+        initialize(ZKUtils.getMetricsConfig());
     }
 
-    private void initialize(CuratorFramework client, MetricsConfig metricsConfig) {
+    private void initialize(MetricsConfig metricsConfig) {
         if (metricsConfig != null) {
             METRICS_PROVIDER.start(metricsConfig);
         }
@@ -39,5 +40,15 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     ZKStream newStream(final String scope, final String name) {
         return new ZKStream(scope, name);
+    }
+
+    @Override
+    ZKScope newScope(final String scopeName) {
+        return new ZKScope(scopeName);
+    }
+
+    @Override
+    public CompletableFuture<List<String>> listScopes() {
+        return ZKScope.listScopes();
     }
 }

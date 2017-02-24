@@ -8,7 +8,8 @@ package com.emc.pravega.stream.impl;
 public enum TxnStatus {
     UNKNOWN,
     OPEN,
-    SEALED,
+    COMMITTING,
     COMMITTED,
-    ABORTED;
+    ABORTING,
+    ABORTED
 }

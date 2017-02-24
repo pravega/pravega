@@ -10,7 +10,7 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
 import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.Segment;
-import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
+import com.emc.pravega.controller.store.stream.StoreException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.controller.store.task.Resource;
@@ -26,7 +26,6 @@ import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -43,6 +42,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
 import static com.emc.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
 
 /**
@@ -99,6 +100,7 @@ public class StreamMetadataTasks extends TaskBase {
                 () -> createStreamBody(scope, stream, config, createTimestamp));
     }
 
+
     /**
      * Update stream's configuration.
      *
@@ -114,6 +116,22 @@ public class StreamMetadataTasks extends TaskBase {
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream, config, null},
                 () -> updateStreamConfigBody(scope, stream, config, contextOpt));
+    }
+
+    /**
+     * Seal a stream.
+     *
+     * @param scope      scope.
+     * @param stream     stream name.
+     * @param contextOpt optional context
+     * @return update status.
+     */
+    @Task(name = "sealStream", version = "1.0", resource = "{scope}/{stream}")
+    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String stream, OperationContext contextOpt) {
+        return execute(
+                new Resource(scope, stream),
+                new Serializable[]{scope, stream, null},
+                () -> sealStreamBody(scope, stream, contextOpt));
     }
 
     /**
@@ -135,61 +153,54 @@ public class StreamMetadataTasks extends TaskBase {
                 () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp, contextOpt));
     }
 
-    /**
-     * Seal a stream.
-     *
-     * @param scope      scope.
-     * @param stream     stream name.
-     * @param contextOpt optional context
-     * @return update status.
-     */
-    @Task(name = "sealStream", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String stream, OperationContext contextOpt) {
-        return execute(
-                new Resource(scope, stream),
-                new Serializable[]{scope, stream, null},
-                () -> sealStreamBody(scope, stream, contextOpt));
-    }
-
-    @VisibleForTesting
     private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config,
                                                                    long timestamp) {
-
-        return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
-                .thenComposeAsync(created -> {
-                    log.debug("{}/{} created in metadata store", scope, stream);
-                    if (created) {
-                        List<Integer> newSegments = IntStream.range(0, config.getScalingPolicy().getMinNumSegments()).boxed().collect(Collectors.toList());
-                        return notifyNewSegments(config.getScope(), stream, config, newSegments)
-                                .thenApply(y -> CreateStreamStatus.SUCCESS);
-                    } else {
-                        return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
-                    }
-                }, executor)
-                .thenCompose(status -> {
-                    if (status.equals(CreateStreamStatus.FAILURE)) {
-                        return CompletableFuture.completedFuture(status);
-                    } else {
-                        final OperationContext context = streamMetadataStore.createContext(scope, stream);
-
-                        return withRetries(() -> streamMetadataStore.setState(scope,
-                                stream, State.ACTIVE, context, executor), executor)
-                                .thenApply(v -> status);
-                    }
-                })
-                .handle((result, ex) -> {
-                    if (ex != null) {
-                        Throwable cause = ExceptionHelpers.getRealException(ex);
-                        if (cause instanceof StreamAlreadyExistsException) {
-                            return CreateStreamStatus.STREAM_EXISTS;
+        if (!validateName(stream)) {
+            log.debug("Create stream failed due to invalid stream name {}", stream);
+            return CompletableFuture.completedFuture(CreateStreamStatus.INVALID_STREAM_NAME);
+        } else {
+            return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
+                    .thenComposeAsync(created -> {
+                        log.debug("{}/{} created in metadata store", scope, stream);
+                        if (created) {
+                            List<Integer> newSegments = IntStream.range(0, config.getScalingPolicy().getMinNumSegments()).boxed().collect(Collectors.toList());
+                            return notifyNewSegments(config.getScope(), stream, config, newSegments)
+                                    .thenApply(y -> CreateStreamStatus.SUCCESS);
                         } else {
-                            log.warn("Create stream failed due to {}", ex);
-                            return CreateStreamStatus.FAILURE;
+                            return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
                         }
-                    } else {
-                        return result;
-                    }
-                });
+                    }, executor)
+                    .thenCompose(status -> {
+                        if (status.equals(CreateStreamStatus.FAILURE)) {
+                            return CompletableFuture.completedFuture(status);
+                        } else {
+                            final OperationContext context = streamMetadataStore.createContext(scope, stream);
+
+                            return withRetries(() -> streamMetadataStore.setState(scope,
+                                    stream, State.ACTIVE, context, executor), executor)
+                                    .thenApply(v -> status);
+                        }
+                    })
+                    .handle((result, ex) -> {
+                        if (ex != null) {
+                            Throwable cause = ExceptionHelpers.getRealException(ex);
+                            if (cause instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
+                                return CreateStreamStatus.STREAM_EXISTS;
+                            } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) {
+                                return CreateStreamStatus.SCOPE_NOT_FOUND;
+                            } else {
+                                log.warn("Create stream failed due to ", ex);
+                                return CreateStreamStatus.FAILURE;
+                            }
+                        } else {
+                            return result;
+                        }
+                    });
+        }
+    }
+
+    private static boolean validateName(final String path) {
+        return (path.indexOf('\\') >= 0 || path.indexOf('/') >= 0) ? false : true;
     }
 
     private CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream,
@@ -371,7 +382,6 @@ public class StreamMetadataTasks extends TaskBase {
                 .collect(Collectors.toList())));
     }
 
-    @VisibleForTesting
     private CompletableFuture<Void> notifyPolicyUpdate(String scope, String stream, ScalingPolicy policy, int segmentNumber) {
 
         return withRetries(() -> segmentHelper.updatePolicy(
@@ -392,6 +402,8 @@ public class StreamMetadataTasks extends TaskBase {
         Throwable cause = ExceptionHelpers.getRealException(ex);
         if (cause instanceof DataNotFoundException) {
             return UpdateStreamStatus.STREAM_NOT_FOUND;
+        } else if (ex instanceof StoreException && ((StoreException) ex).getType() == NODE_NOT_FOUND) {
+            return UpdateStreamStatus.SCOPE_NOT_FOUND;
         } else {
             log.warn("Update stream failed due to ", ex);
             return UpdateStreamStatus.FAILURE;

@@ -85,6 +85,8 @@ public class StreamMetadataTasksTest {
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        streamStorePartialMock.createScope(SCOPE);
+
         streamStorePartialMock.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null, executor);
 
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);

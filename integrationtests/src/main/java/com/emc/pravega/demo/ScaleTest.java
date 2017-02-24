@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.demo;
 
@@ -15,7 +13,10 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamImpl;
+import lombok.Cleanup;
+import org.apache.curator.test.TestingServer;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -24,10 +25,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import lombok.Cleanup;
-
-import org.apache.curator.test.TestingServer;
-
 /**
  * End to end scale tests.
  */
@@ -35,7 +32,6 @@ public class ScaleTest {
     @SuppressWarnings("checkstyle:ReturnCount")
     public static void main(String[] args) throws Exception {
         TestingServer zkTestServer = new TestingServer();
-        ControllerWrapper controller = new ControllerWrapper(zkTestServer.getConnectString());
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
@@ -45,9 +41,11 @@ public class ScaleTest {
         server.startListening();
 
         // Create controller object for testing against a separate controller report.
-        // ControllerImpl controller = new ControllerImpl("localhost", 9090);
+        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString(), true);
 
         final String scope = "scope";
+        ControllerWrapper.controllerService.createScope(scope).get();
+
         final String streamName = "stream1";
         final StreamConfiguration config =
                 StreamConfiguration.builder().scope(scope).streamName(streamName).scalingPolicy(

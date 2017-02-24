@@ -17,7 +17,8 @@ public class SegmentAggregatesTest {
         SegmentAggregates aggregates = new SegmentAggregates(WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 100);
 
         write(aggregates);
-        assert aggregates.getTwoMinuteRate() > 0.4;
+        assert aggregates.getTwoMinuteRate() > 0 && aggregates.getFiveMinuteRate() > 0 &&
+                aggregates.getTenMinuteRate() > 0 && aggregates.getTwentyMinuteRate() > 0;
 
         // add transaction. Approximately 10 events per second.
         aggregates.updateTx(0, 1100, System.currentTimeMillis() - Duration.ofSeconds(100).toMillis());
@@ -48,9 +49,9 @@ public class SegmentAggregatesTest {
                 CompletableFuture.runAsync(() -> write(aggregates)),
                 CompletableFuture.runAsync(() -> write(aggregates))).get();
         // 3 writers in parallel would write about 300 events in 10 seconds.
-        // 2 minute rate = 300/120 = 2.5.. with exponential weighing it will be slightly less
-        // with some approximations because of inaccuracy in measurment, we can potentially get even less
-        // So will check against 1.5
-        assert aggregates.getTwoMinuteRate() > 1.5;
+        // 2 minute rate = 300/120 = 2.5.. with exponential weighing it will be slightly less than 2
+        // with some approximations because of inaccuracy in measurement, we can potentially get even less.
+        // So will check against 1
+        assert aggregates.getTwoMinuteRate() > 1.0;
     }
 }

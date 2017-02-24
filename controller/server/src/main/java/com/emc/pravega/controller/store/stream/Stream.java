@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream;
 
@@ -25,7 +23,19 @@ interface Stream {
 
     String getScope();
 
+    /**
+     * Get name of stream.
+     *
+     * @return Name of stream.
+     */
     String getName();
+
+    /**
+     * Get Scope Name.
+     *
+     * @return Name of scope.
+     */
+    String getScopeName();
 
     /**
      * Create the stream, by creating/modifying underlying data structures.
@@ -137,7 +147,7 @@ interface Stream {
      * @param txId
      * @return
      */
-    CompletableFuture<TxnStatus> sealTransaction(final UUID txId);
+    CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit);
 
     /**
      * Returns transaction's status

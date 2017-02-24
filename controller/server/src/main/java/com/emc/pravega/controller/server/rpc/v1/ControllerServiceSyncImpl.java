@@ -19,6 +19,8 @@ import com.emc.pravega.controller.stream.api.v1.TxnId;
 import com.emc.pravega.controller.stream.api.v1.TxnState;
 import com.emc.pravega.controller.stream.api.v1.TxnStatus;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.ModelHelper;
@@ -122,4 +124,27 @@ public class ControllerServiceSyncImpl implements com.emc.pravega.controller.str
         return FutureHelpers.getAndHandleExceptions(controllerService.checkTransactionStatus(scope, stream, txnid), RuntimeException::new);
     }
 
+    /**
+     * Controller Service Sync API to create scope.
+     *
+     * @param scope Name of scope to be created.
+     * @return Status of create scope.
+     * @throws TException exception class for Thrift.
+     */
+    @Override
+    public CreateScopeStatus createScope(String scope) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.createScope(scope), RuntimeException::new);
+    }
+
+    /**
+     * Controller Service Async API to delete scope.
+     *
+     * @param scope Name of scope to be deleted.
+     * @return Status of delete scope.
+     * @throws TException exception class for Thrift.
+     */
+    @Override
+    public DeleteScopeStatus deleteScope(String scope) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.deleteScope(scope), RuntimeException::new);
+    }
 }

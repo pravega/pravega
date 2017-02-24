@@ -5,7 +5,6 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
-
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxnId;
@@ -130,6 +129,32 @@ public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.st
                                        final AsyncMethodCallback resultHandler) throws TException {
         log.debug("checkTransactionStatus called for stream " + scope + "/" + stream + " txid=" + txid);
         processResult(controllerService.checkTransactionStatus(scope, stream, txid), resultHandler);
+    }
+
+    /**
+     * Controller Service Async API to create scope.
+     *
+     * @param scope         Name of scope to be created.
+     * @param resultHandler callback result handler
+     * @throws TException exception class for Thrift.
+     */
+    @Override
+    public void createScope(final String scope, final AsyncMethodCallback resultHandler) throws TException {
+        log.debug("createScope called for scope {}", scope);
+        processResult(controllerService.createScope(scope), resultHandler);
+    }
+
+    /**
+     * Controller Service Async API to delete scope.
+     *
+     * @param scope         Name of scope to be deleted.
+     * @param resultHandler callback result handler
+     * @throws TException exception class for Thrift.
+     */
+    @Override
+    public void deleteScope(final String scope, final AsyncMethodCallback resultHandler) throws TException {
+        log.debug("deleteScope called for scope {}", scope);
+        processResult(controllerService.deleteScope(scope), resultHandler);
     }
 
     private static <T> void processResult(final CompletableFuture<T> result, final AsyncMethodCallback resultHandler) {

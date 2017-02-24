@@ -22,6 +22,10 @@ public final class SegmentStoreMetricsNames {
     public static final String HDFS_READ_BYTES = "HDFSReadBytes";
     public static final String HDFS_WRITE_BYTES = "HDFSWriteBytes";
 
+    //DurableLog stats
+    public static final String DURABLE_DATALOG_WRITE_LATENCY = "DurableDataLogWriteLatency";
+    public static final String DURABLE_DATALOG_WRITE_BYTES = "DurableDataLogWriteBytes";
+
     public static String nameFromSegment(String metric, String segmentName) {
         return metric + "." + segmentName.replace('/', '_');
     }

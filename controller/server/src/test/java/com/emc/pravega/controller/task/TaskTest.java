@@ -97,6 +97,7 @@ public class TaskTest {
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy2).build();
 
         // region createStream
+        streamStore.createScope(SCOPE);
         streamStore.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null, executor);
         streamStore.createStream(SCOPE, stream2, configuration2, System.currentTimeMillis(), null, executor);
         // endregion
@@ -128,6 +129,7 @@ public class TaskTest {
             assertTrue(e.getCause() instanceof StreamAlreadyExistsException);
         }
 
+        streamStore.createScope(SCOPE);
         CreateStreamStatus result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
                 System.currentTimeMillis()).join();
         assertEquals(result, CreateStreamStatus.SUCCESS);

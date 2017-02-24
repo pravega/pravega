@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream;
 
@@ -10,6 +8,7 @@ import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.base.Preconditions;
+import org.apache.commons.lang.NotImplementedException;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
@@ -22,17 +21,14 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
-import org.apache.commons.lang.NotImplementedException;
-
 /**
  * Stream properties
  *
  * This class is no longer consistent and mostly not Implemented. Deprecating it.
  */
 class InMemoryStream implements Stream {
-
-    private final String name;
-    private final String scope;
+    private final String streamName;
+    private final String scopeName;
     private StreamConfiguration configuration;
     private State state;
 
@@ -49,9 +45,9 @@ class InMemoryStream implements Stream {
      */
     private final List<Integer> currentSegments = new ArrayList<>();
 
-    InMemoryStream(String name, String scope) {
-        this.name = name;
-        this.scope = scope;
+    InMemoryStream(final String scopeName, final String streamName) {
+        this.scopeName = scopeName;
+        this.streamName = streamName;
     }
 
     @Override
@@ -73,12 +69,17 @@ class InMemoryStream implements Stream {
 
     @Override
     public String getScope() {
-        return this.scope;
+        return this.scopeName;
     }
 
     @Override
     public String getName() {
-        return this.name;
+        return this.streamName;
+    }
+
+    @Override
+    public String getScopeName() {
+        return this.scopeName;
     }
 
     @Override
@@ -239,7 +240,7 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(UUID txId) {
+    public CompletableFuture<TxnStatus> sealTransaction(UUID txId, boolean commit) {
         throw new NotImplementedException();
     }
 

@@ -41,8 +41,10 @@ public class StreamMetadataStoreTest {
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
 
         // region createStream
-        store.createStream(scope, stream1, configuration1, System.currentTimeMillis(), null, executor);
-        store.createStream(scope, stream2, configuration2, System.currentTimeMillis(), null, executor);
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream1, configuration1, System.currentTimeMillis(), null, executor).get();
+        store.createStream(scope, stream2, configuration2, System.currentTimeMillis(), null, executor).get();
 
         assertEquals(stream1, store.getConfiguration(scope, stream1, null, executor).get().getStreamName());
         // endregion
@@ -67,7 +69,7 @@ public class StreamMetadataStoreTest {
         // region scaleSegments
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
-        store.scale(scope, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20, null, executor);
+        store.scale(scope, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20, null, executor).get();
 
         segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(3, segments.size());
@@ -83,7 +85,7 @@ public class StreamMetadataStoreTest {
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
-        store.scale(scope, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20, null, executor);
+        store.scale(scope, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20, null, executor).get();
 
         segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(3, segments.size());
@@ -118,4 +120,44 @@ public class StreamMetadataStoreTest {
         // endregion
     }
 
+
+    @Test
+    public void listStreamsInScope() throws Exception {
+        // list stream in scope
+        store.createScope("Scope").get();
+        store.createStream("Scope", stream1, configuration1, System.currentTimeMillis(), null, executor);
+        store.createStream("Scope", stream2, configuration2, System.currentTimeMillis(), null, executor);
+        List<String> streamInScope = store.listStreamsInScope("Scope").get();
+        assertEquals("List streams in scope", 2, streamInScope.size());
+        assertEquals("List streams in scope", stream1, streamInScope.get(0));
+        assertEquals("List streams in scope", stream2, streamInScope.get(1));
+
+        // List streams in non-existent scope 'Scope1'
+        try {
+            store.listStreamsInScope("Scope1").get();
+        } catch (StoreException se) {
+            assertTrue("List streams in non-existent scope Scope1",
+                    se.getType() == StoreException.Type.NODE_NOT_FOUND);
+        }
+    }
+
+    @Test
+    public void listScopes() throws Exception {
+        // list scopes test
+        List<String> list = store.listScopes().get();
+        assertEquals("List Scopes size", 0, list.size());
+
+        store.createScope("Scope1").get();
+        store.createScope("Scope2").get();
+        store.createScope("Scope3").get();
+        store.createScope("Scope4").get();
+
+        list = store.listScopes().get();
+        assertEquals("List Scopes size", 4, list.size());
+
+        store.deleteScope("Scope1").get();
+        store.deleteScope("Scope2").get();
+        list = store.listScopes().get();
+        assertEquals("List Scopes size", 2, list.size());
+    }
 }

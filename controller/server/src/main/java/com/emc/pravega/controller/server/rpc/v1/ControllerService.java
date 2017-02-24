@@ -1,14 +1,14 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
@@ -22,6 +22,7 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
+import com.google.common.base.Preconditions;
 import lombok.Getter;
 import org.apache.thrift.TException;
 
@@ -215,5 +216,27 @@ public class ControllerService {
 
     public CompletionStage<StreamConfiguration> getStreamConfiguration(final String scope, final String stream) {
         return streamStore.getConfiguration(scope, stream, null, executor);
+    }
+
+    /**
+     * Controller Service API to create scope.
+     *
+     * @param scope Name of scope to be created.
+     * @return Status of create scope.
+     */
+    public CompletableFuture<CreateScopeStatus> createScope(final String scope) {
+        Preconditions.checkNotNull(scope);
+        return streamStore.createScope(scope);
+    }
+
+    /**
+     * Controller Service API to delete scope.
+     *
+     * @param scope Name of scope to be deleted.
+     * @return Status of delete scope.
+     */
+    public CompletableFuture<DeleteScopeStatus> deleteScope(final String scope) {
+        Preconditions.checkNotNull(scope);
+        return streamStore.deleteScope(scope);
     }
 }

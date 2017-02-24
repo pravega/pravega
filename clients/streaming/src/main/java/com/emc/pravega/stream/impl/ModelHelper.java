@@ -130,20 +130,29 @@ public final class ModelHelper {
      * @return Transaction.Status
      */
     public static Transaction.Status encode(TxnState status, String logString) {
+        Transaction.Status result;
         switch (status) {
             case COMMITTED:
-                return Transaction.Status.COMMITTED;
+                result = Transaction.Status.COMMITTED;
+                break;
             case ABORTED:
-                return Transaction.Status.ABORTED;
+                result = Transaction.Status.ABORTED;
+                break;
             case OPEN:
-                return Transaction.Status.OPEN;
-            case SEALED:
-                return Transaction.Status.SEALED;
+                result = Transaction.Status.OPEN;
+                break;
+            case ABORTING:
+                result = Transaction.Status.ABORTING;
+                break;
+            case COMMITTING:
+                result = Transaction.Status.COMMITTING;
+                break;
             case UNKNOWN:
                 throw new RuntimeException("Unknown transaction: " + logString);
             default:
                 throw new IllegalStateException("Unknown status: " + status);
         }
+        return result;
     }
 
     /**

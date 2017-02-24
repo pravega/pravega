@@ -80,6 +80,7 @@ public class StreamMetaDataTests extends JerseyTest {
 
     private final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
     private final CreateStreamRequest createStreamRequest2 = new CreateStreamRequest();
+    private final CreateStreamRequest createStreamRequest3 = new CreateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest2 = new UpdateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest3 = new UpdateStreamRequest();
@@ -92,12 +93,16 @@ public class StreamMetaDataTests extends JerseyTest {
             completedFuture(CreateStreamStatus.STREAM_EXISTS);
     private final CompletableFuture<CreateStreamStatus> createStreamStatus3 = CompletableFuture.
             completedFuture(CreateStreamStatus.FAILURE);
+    private final CompletableFuture<CreateStreamStatus> createStreamStatus4 = CompletableFuture.
+            completedFuture(CreateStreamStatus.SCOPE_NOT_FOUND);
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus = CompletableFuture.
             completedFuture(UpdateStreamStatus.SUCCESS);
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus2 = CompletableFuture.
             completedFuture(UpdateStreamStatus.STREAM_NOT_FOUND);
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus3 = CompletableFuture.
             completedFuture(UpdateStreamStatus.FAILURE);
+    private CompletableFuture<UpdateStreamStatus> updateStreamStatus4 = CompletableFuture.
+            completedFuture(UpdateStreamStatus.SCOPE_NOT_FOUND);
 
     @Before
     public void initialize() {
@@ -119,6 +124,10 @@ public class StreamMetaDataTests extends JerseyTest {
         createStreamRequest2.setStreamName(stream1);
         createStreamRequest2.setScalingPolicy(scalingPolicyCommon);
         createStreamRequest2.setRetentionPolicy(retentionPolicyCommon2);
+
+        createStreamRequest3.setStreamName(stream1);
+        createStreamRequest3.setScalingPolicy(scalingPolicyCommon);
+        createStreamRequest3.setRetentionPolicy(retentionPolicyCommon);
 
         updateStreamRequest.setScalingPolicy(scalingPolicyCommon);
         updateStreamRequest.setRetentionPolicy(retentionPolicyCommon);
@@ -176,6 +185,11 @@ public class StreamMetaDataTests extends JerseyTest {
         // TODO: Server should be returning 400 here, change this once issue
         // https://github.com/pravega/pravega/issues/531 is fixed.
         assertEquals("Create Stream Status", 500, response.get().getStatus());
+
+        // Test create stream for non-existent scope
+        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus4);
+        response = target(streamResourceURI).request().async().post(Entity.json(createStreamRequest3));
+        assertEquals("Create Stream Status for non-existent scope", 404, response.get().getStatus());
     }
 
     /**
@@ -201,7 +215,14 @@ public class StreamMetaDataTests extends JerseyTest {
         // Test for validation of request object
         when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus3);
         response = target(resourceURI).request().async().put(Entity.json(updateStreamRequest3));
+        // TODO: Server should be returning 400 here, change this once issue
+        // https://github.com/pravega/pravega/issues/531 is fixed.
         assertEquals("Update Stream Status", 500, response.get().getStatus());
+
+        // Test to update stream for non-existent scope
+        when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus4);
+        response = target(resourceURI).request().async().put(Entity.json(updateStreamRequest));
+        assertEquals("Update Stream Status", 404, response.get().getStatus());
     }
 
     /**

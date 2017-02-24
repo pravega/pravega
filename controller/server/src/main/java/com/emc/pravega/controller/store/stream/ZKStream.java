@@ -46,9 +46,9 @@ import java.util.stream.IntStream;
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
 @Slf4j
-public class ZKStream extends PersistentStreamBase<Integer> {
-
-    private static final String STREAM_PATH = "/streams/%s";
+class ZKStream extends PersistentStreamBase<Integer> {
+    private static final String SCOPE_PATH = "/store/%s";
+    private static final String STREAM_PATH = SCOPE_PATH + "/%s";
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";
     private static final String CONFIGURATION_PATH = STREAM_PATH + "/configuration";
     private static final String STATE_PATH = STREAM_PATH + "/state";
@@ -80,23 +80,27 @@ public class ZKStream extends PersistentStreamBase<Integer> {
     private final String completedTxPath;
     private final String markerPath;
     private final String blockerPath;
+    private final String scopePath;
 
     private final Cache<Integer> cache;
 
-    ZKStream(final String scope, final String name) {
-        super(scope, name);
+    ZKStream(final String scopeName, final String streamName) {
+        super(scopeName, streamName);
 
-        creationPath = String.format(CREATION_TIME_PATH, name);
-        configurationPath = String.format(CONFIGURATION_PATH, name);
-        statePath = String.format(STATE_PATH, name);
-        segmentPath = String.format(SEGMENT_PATH, name);
+        scopePath = String.format(SCOPE_PATH, scopeName);
+        creationPath = String.format(CREATION_TIME_PATH, scopeName, streamName);
+        configurationPath = String.format(CONFIGURATION_PATH, scopeName, streamName);
+        statePath = String.format(STATE_PATH, scopeName, streamName);
+        segmentPath = String.format(SEGMENT_PATH, scopeName, streamName);
         segmentChunkPathTemplate = segmentPath + "/%s";
-        historyPath = String.format(HISTORY_PATH, name);
-        indexPath = String.format(INDEX_PATH, name);
-        activeTxPath = String.format(ACTIVE_TX_PATH, name);
-        completedTxPath = String.format(COMPLETED_TX_PATH, name);
-        markerPath = String.format(MARKER_PATH, name);
-        blockerPath = String.format(BLOCKER_PATH, name);
+        historyPath = String.format(HISTORY_PATH, scopeName, streamName);
+        indexPath = String.format(INDEX_PATH, scopeName, streamName);
+        activeTxPath = String.format(ACTIVE_TX_PATH, streamName);
+        completedTxPath = String.format(COMPLETED_TX_PATH, streamName);
+
+        markerPath = String.format(MARKER_PATH, scopeName, streamName);
+        blockerPath = String.format(BLOCKER_PATH, scopeName, streamName);
+
         cache = new Cache<>(ZKStream::getData);
     }
 
@@ -127,7 +131,23 @@ public class ZKStream extends PersistentStreamBase<Integer> {
                 })
                 .thenAccept(x -> {
                     if (x) {
-                        throw new StreamAlreadyExistsException(getName());
+                        StoreException.create(StoreException.Type.NODE_EXISTS, creationPath);
+                    }
+                });
+    }
+
+    /**
+     * Method to check whether a scope exists before creating a stream under that scope.
+     *
+     * @return A future either returning a result or an exception.
+     */
+    public CompletableFuture<Void> checkScopeExists() {
+        return checkExists(scopePath)
+                .thenAccept(x -> {
+                    if (x) {
+                        return;
+                    } else {
+                        StoreException.create(StoreException.Type.NODE_NOT_FOUND);
                     }
                 });
     }
@@ -321,13 +341,14 @@ public class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> sealActiveTx(final UUID txId) {
+    CompletableFuture<Void> sealActiveTx(final UUID txId, final boolean commit) {
         final String activePath = getActiveTxPath(txId.toString());
 
         return getActiveTx(txId)
                 .thenCompose(x -> {
                     ActiveTxRecord previous = ActiveTxRecord.parse(x.getData());
-                    ActiveTxRecord updated = new ActiveTxRecord(previous.getTxCreationTimestamp(), TxnStatus.SEALED);
+                    ActiveTxRecord updated = new ActiveTxRecord(previous.getTxCreationTimestamp(),
+                            commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
                     return setData(activePath, new Data<>(updated.toByteArray(), x.getVersion()));
                 })
                 .thenApply(x -> cache.invalidateCache(activePath));

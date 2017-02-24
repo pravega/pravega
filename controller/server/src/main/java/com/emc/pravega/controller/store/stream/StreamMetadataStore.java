@@ -1,12 +1,12 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
 import com.emc.pravega.controller.store.stream.tables.State;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 
@@ -38,15 +38,16 @@ public interface StreamMetadataStore {
     /**
      * Creates a new stream with the given name and configuration.
      *
-     * @param name            stream name.
-     * @param configuration   stream configuration.
-     * @param createTimestamp stream creation timestamp.
-     * @param scope           stream scope
+     * @param scopeName       scope name
+     * @param streamName      stream name
+     * @param configuration   stream configuration
+     * @param createTimestamp stream creation timestamp
      * @param context         operation context
      * @param executor        callers executor
      * @return boolean indicating whether the stream was created
      */
-    CompletableFuture<Boolean> createStream(final String scope, final String name,
+    CompletableFuture<Boolean> createStream(final String scopeName,
+                                            final String streamName,
                                             final StreamConfiguration configuration,
                                             final long createTimestamp,
                                             final OperationContext context,
@@ -57,12 +58,43 @@ public interface StreamMetadataStore {
                                         Executor executor);
 
     /**
+     * Creates a new scope with the given name.
+     *
+     * @param scopeName Scope name
+     * @return null on success and exception on failure.
+     */
+    CompletableFuture<CreateScopeStatus> createScope(final String scopeName);
+
+    /**
+     * Deletes a Scope if contains no streams.
+     *
+     * @param scopeName Name of scope to be deleted
+     * @return null on success and exception on failure.
+     */
+    CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName);
+
+    /**
+     * List existing streams in scopes.
+     *
+     * @param scopeName Name of the scope
+     * @return List of streams in scope
+     */
+    CompletableFuture<List<String>> listStreamsInScope(final String scopeName);
+
+    /**
+     * List Scopes in cluster.
+     *
+     * @return List of scopes
+     */
+    CompletableFuture<List<String>> listScopes();
+
+    /**
      * Updates the configuration of an existing stream.
      *
      * @param scope         stream scope
-     * @param context       operation context
      * @param name          stream name.
      * @param configuration new stream configuration.
+     * @param context       operation context
      * @param executor      callers executor
      * @return boolean indicating whether the stream was updated
      */
@@ -213,11 +245,12 @@ public interface StreamMetadataStore {
      * @param scope    scope
      * @param stream   stream
      * @param txId     transaction id
+     * @param commit   commit
      * @param context  operation context
      * @param executor callers executor
      * @return
      */
-    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
+    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId, final boolean commit, final OperationContext context, final Executor executor);
 
     /**
      * Update stream store to mark the transaction as aborted.
@@ -272,7 +305,7 @@ public interface StreamMetadataStore {
      * @param stream   name.
      * @param context  context.
      * @param executor callers executor
-     * @return
+     * @return List of active transactions.
      */
     CompletableFuture<Void> unblockTransactions(final String scope, final String stream, final OperationContext context, final Executor executor);
 

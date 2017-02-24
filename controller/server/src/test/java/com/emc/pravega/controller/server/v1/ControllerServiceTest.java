@@ -74,28 +74,31 @@ public class ControllerServiceTest {
     }
 
     @Before
-    public void prepareStreamStore() {
+    public void prepareStreamStore() throws ExecutionException, InterruptedException {
 
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 2);
         final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 3);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy2).build();
 
+        // createScope
+        streamStore.createScope(SCOPE).get();
+
         // region createStream
-        streamStore.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null, executor);
-        streamStore.createStream(SCOPE, stream2, configuration2, System.currentTimeMillis(), null, executor);
+        streamStore.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), null, executor).get();
+        streamStore.createStream(SCOPE, stream2, configuration2, System.currentTimeMillis(), null, executor).get();
         // endregion
 
         // region scaleSegments
 
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20, null, executor);
+        streamStore.scale(SCOPE, stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20, null, executor).get();
 
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
-        streamStore.scale(SCOPE, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20, null, executor);
+        streamStore.scale(SCOPE, stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20, null, executor).get();
         // endregion
     }
 

@@ -6,6 +6,8 @@ package com.emc.pravega.controller.server;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
+import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
+import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.rest.RESTServer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
@@ -88,8 +90,7 @@ public class Main {
         if (Config.HOST_MONITOR_ENABLED) {
             //Start the Segment Container Monitor.
             log.info("Starting the segment container monitor");
-            SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore,
-                    ZKUtils.getCuratorClient(), Config.CLUSTER_NAME,
+            SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore, ZKUtils.getCuratorClient(),
                     new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL);
             monitor.startAsync();
         }
@@ -102,7 +103,27 @@ public class Main {
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, new SegmentHelper(), controllerServiceExecutor);
 
-        //2. Start the RPC server.
+        //2. set up Event Processors
+
+        //region Setup Event Processors
+
+        LocalController localController = new LocalController(controllerService);
+
+        streamTransactionMetadataTasks.initializeStreamWriters(localController);
+
+        ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
+                ZKUtils.getCuratorClient(), streamStore, hostStore, segmentHelper);
+
+        try {
+            controllerEventProcessors.initialize();
+        } catch (Exception e) {
+            log.error("Error initializing event processors", e);
+            throw new RuntimeException(e);
+        }
+
+        //endregion
+
+        //3. Start the RPC server.
         log.info("Starting RPC server");
         RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
 

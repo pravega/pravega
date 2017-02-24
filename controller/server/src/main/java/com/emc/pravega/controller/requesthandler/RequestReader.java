@@ -225,7 +225,9 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
     private void checkpoint() {
         try {
             // TODO: store checkpoint in persistent store
-            serializer.serialize(checkpoint.get().position);
+            if (checkpoint.get() != null) {
+                serializer.serialize(checkpoint.get().position);
+            }
             // checkpoint(readerId, readerGroup, serialize);
         } catch (Exception e) {
             // Even if this fails, its ok. Next checkpoint periodic trigger will store the checkpoint.

@@ -10,6 +10,7 @@ import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -56,10 +57,29 @@ public class RequestHandlersInit {
 
         readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, uri);
 
-        CompletableFuture<Void> createStream = createStreams(controller, executor)
-                .thenCompose(x -> startScaleReader(clientFactory, controller.getStreamMetadataTasks(),
-                controller.getStreamStore(), controller.getStreamTransactionMetadataTasks(),
-                executor));
+        createScope(controller, executor).thenCompose(x ->
+                createStreams(controller, executor)
+                        .thenCompose(y -> startScaleReader(clientFactory, controller.getStreamMetadataTasks(),
+                                controller.getStreamStore(), controller.getStreamTransactionMetadataTasks(),
+                                executor)));
+    }
+
+    private static CompletableFuture<Void> createScope(ControllerService controller, ScheduledExecutorService executor) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        Retry.indefinitelyWithExpBackoff(10, 10, 10000,
+                e -> log.error("Exception while creating request stream {}", e))
+                .runAsync(() -> controller.createScope(Config.INTERNAL_SCOPE)
+                        .whenComplete((res, ex) -> {
+                            if (ex != null) {
+                                // fail and exit
+                                throw new CompletionException(ex);
+                            }
+                            if (res != null && res.equals(CreateScopeStatus.FAILURE)) {
+                                throw new RuntimeException("Failed to create scope while starting controller");
+                            }
+                            result.complete(null);
+                        }), executor);
+        return result;
     }
 
     private static CompletableFuture<Void> createStreams(ControllerService controller, ScheduledExecutorService executor) {
