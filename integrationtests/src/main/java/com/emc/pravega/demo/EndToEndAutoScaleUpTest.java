@@ -30,7 +30,7 @@ import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 public class EndToEndAutoScaleUpTest {
-    static StreamConfiguration config =
+    static final StreamConfiguration CONFIG =
             StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(
                     new ScalingPolicy(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, 10, 2, 3)).build();
 
@@ -39,8 +39,9 @@ public class EndToEndAutoScaleUpTest {
             @Cleanup
             TestingServer zkTestServer = new TestingServer();
 
-            Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString(), true);
-            ControllerWrapper.controllerService.createScope("pravega").get();
+            ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), true);
+            Controller controller = controllerWrapper.getController();
+            controllerWrapper.getControllerService().createScope("pravega").get();
 
             ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
 
@@ -55,9 +56,9 @@ public class EndToEndAutoScaleUpTest {
             PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store, statsRecorder);
             server.startListening();
 
-            ControllerWrapper.controllerService.createScope("test").get();
+            controllerWrapper.getControllerService().createScope("test").get();
 
-            controller.createStream(config).get();
+            controller.createStream(CONFIG).get();
             MockClientFactory clientFactory = new MockClientFactory("test", controller);
 
             // Mocking pravega service by putting scale up and scale down requests for the stream

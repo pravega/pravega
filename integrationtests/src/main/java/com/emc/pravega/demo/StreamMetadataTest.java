@@ -38,10 +38,11 @@ public class StreamMetadataTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
-        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString(), true);
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), true);
+        Controller controller = controllerWrapper.getController();
 
         final String scope1 = "scope1";
-        ControllerWrapper.controllerService.createScope("scope1").get();
+        controllerWrapper.getControllerService().createScope("scope1").get();
 
         final String streamName1 = "stream1";
         final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(2);
@@ -66,7 +67,7 @@ public class StreamMetadataTest {
 
         //Seal a stream given a streamName and scope.
         final String scopeSeal = "scopeSeal";
-        ControllerWrapper.controllerService.createScope("scopeSeal").get();
+        controllerWrapper.getControllerService().createScope("scopeSeal").get();
 
         final String streamNameSeal = "streamSeal";
         final StreamConfiguration configSeal = StreamConfiguration.builder()
@@ -126,7 +127,7 @@ public class StreamMetadataTest {
 
         //CS3:create a stream with same stream name in different scopes
         final String scope2 = "scope2";
-        ControllerWrapper.controllerService.createScope("scope2").get();
+        controllerWrapper.getControllerService().createScope("scope2").get();
 
         final StreamConfiguration config2 = StreamConfiguration.builder()
                 .scope(scope2)

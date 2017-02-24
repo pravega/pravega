@@ -28,16 +28,14 @@ import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.google.common.base.Preconditions;
-
-import java.io.Serializable;
-import java.util.concurrent.CompletableFuture;
-
 import lombok.AllArgsConstructor;
 import lombok.Data;
-
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
+
+import java.io.Serializable;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * End-to-end tests for event processor.
@@ -81,7 +79,7 @@ public class EventProcessorTest {
     public static void main(String[] args) throws Exception {
         new EventProcessorTest().testEventProcessor();
     }
-    
+
     @Test
     public void testEventProcessor() throws Exception {
         TestingServer zkTestServer = new TestingServer();
@@ -92,7 +90,8 @@ public class EventProcessorTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
-        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString(), false);
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), true);
+        Controller controller = controllerWrapper.getController();
 
         // Create controller object for testing against a separate controller process.
         // ControllerImpl controller = new ControllerImpl("localhost", 9090);

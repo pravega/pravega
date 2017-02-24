@@ -41,10 +41,11 @@ public class ScaleTest {
         server.startListening();
 
         // Create controller object for testing against a separate controller report.
-        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString(), true);
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), true);
+        Controller controller = controllerWrapper.getController();
 
         final String scope = "scope";
-        ControllerWrapper.controllerService.createScope(scope).get();
+        controllerWrapper.getControllerService().createScope(scope).get();
 
         final String streamName = "stream1";
         final StreamConfiguration config =

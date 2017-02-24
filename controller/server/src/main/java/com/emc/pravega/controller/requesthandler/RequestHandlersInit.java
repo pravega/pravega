@@ -46,20 +46,16 @@ public class RequestHandlersInit {
     private static final AtomicReference<EventStreamReader<ScaleRequest>> SCALE_READER_REF = new AtomicReference<>();
     private static final AtomicReference<EventStreamWriter<ScaleRequest>> SCALE_WRITER_REF = new AtomicReference<>();
     private static final AtomicReference<RequestReader<ScaleRequest, ScaleRequestHandler>> SCALE_REQUEST_READER_REF = new AtomicReference<>();
-    private static ReaderGroupManager readerGroupManager;
-    private static ClientFactory clientFactory;
-    private static URI uri;
 
     public static void bootstrapRequestHandlers(ControllerService controller, ScheduledExecutorService executor) {
-        uri = URI.create("tcp://localhost:" + Config.SERVER_PORT);
+        URI uri = URI.create("tcp://localhost:" + Config.SERVER_PORT);
+        ClientFactory clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, uri);
 
-        clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, uri);
-
-        readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, uri);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, uri);
 
         createScope(controller, executor).thenCompose(x ->
                 createStreams(controller, executor)
-                        .thenCompose(y -> startScaleReader(clientFactory, controller.getStreamMetadataTasks(),
+                        .thenCompose(y -> startScaleReader(clientFactory, readerGroupManager, controller.getStreamMetadataTasks(),
                                 controller.getStreamStore(), controller.getStreamTransactionMetadataTasks(),
                                 executor)));
     }
@@ -100,7 +96,7 @@ public class RequestHandlersInit {
         return result;
     }
 
-    private static CompletableFuture<Void> startScaleReader(ClientFactory clientFactory, StreamMetadataTasks streamMetadataTasks, StreamMetadataStore streamStore, StreamTransactionMetadataTasks streamTransactionMetadataTasks, ScheduledExecutorService executor) {
+    private static CompletableFuture<Void> startScaleReader(ClientFactory clientFactory, ReaderGroupManager readerGroupManager, StreamMetadataTasks streamMetadataTasks, StreamMetadataStore streamStore, StreamTransactionMetadataTasks streamTransactionMetadataTasks, ScheduledExecutorService executor) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         Retry.indefinitelyWithExpBackoff(10, 10, 10000,
                 e -> log.error("Exception while starting reader {}", e))

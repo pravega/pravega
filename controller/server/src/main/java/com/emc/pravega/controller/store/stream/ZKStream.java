@@ -16,30 +16,18 @@ import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.api.BackgroundCallback;
-import org.apache.curator.framework.api.CuratorEvent;
 import org.apache.curator.utils.ZKPaths;
-import org.apache.zookeeper.KeeperException;
 
 import java.time.Duration;
 import java.util.AbstractMap;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import org.apache.commons.lang.SerializationUtils;
-import org.apache.curator.utils.ZKPaths;
 
 /**
  * ZK Stream. It understands the following.
@@ -63,9 +51,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String BLOCKER_PATH = STREAM_PATH + "/blocker";
 
     private static final long BLOCK_VALIDITY_PERIOD = Duration.ofSeconds(10).toMillis();
-    private static Executor executor;
-
-    private static CuratorFramework client;
 
     private final ZKStoreHelper store;
     private final String creationPath;

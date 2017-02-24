@@ -35,10 +35,12 @@ public class EndToEndTransactionTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
-        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString(), false);
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), true);
+        Controller controller = controllerWrapper.getController();
+
         final String testScope = "testScope";
         final String testStream = "testStream";
-        ControllerWrapper.controllerService.createScope("testScope").get();
+        controllerWrapper.getControllerService().createScope("testScope").get();
 
         ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 5);
         StreamConfiguration streamConfig =

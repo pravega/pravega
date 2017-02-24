@@ -21,6 +21,7 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.Controller;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import lombok.Getter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -33,9 +34,12 @@ import java.util.concurrent.ScheduledExecutorService;
 
 class ControllerWrapper {
 
-    static ControllerService controllerService;
+    @Getter
+    private final ControllerService controllerService;
+    @Getter
+    private final Controller controller;
 
-    static Controller getController(String connectionString, boolean disableEventProcessors) throws Exception {
+    ControllerWrapper(String connectionString, boolean disableEventProcessors) throws Exception {
         String hostId;
         try {
             // On each controller process restart, it gets a fresh hostId,
@@ -82,14 +86,14 @@ class ControllerWrapper {
             ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
                     client, streamStore, hostStore, segmentHelper);
 
-        controllerEventProcessors.initialize();
+            controllerEventProcessors.initialize();
 
-        streamTransactionMetadataTasks.initializeStreamWriters(localController);
+            streamTransactionMetadataTasks.initializeStreamWriters(localController);
         }
 
         //endregion
 
-        return new LocalController(controllerService);
+        controller = new LocalController(controllerService);
     }
 }
 
