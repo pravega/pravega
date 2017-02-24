@@ -1,7 +1,6 @@
 package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.ClientFactory;
-import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -28,8 +27,8 @@ import org.junit.Test;
 
 public class ReaderGroupTest {
 
-    private static final String SCOPE = "ReadGroupScope";
-    private static final String STREAM_NAME = "StreamReadGroup";
+    private static final String SCOPE = "scope";
+    private static final String STREAM_NAME = "streamName";
     private static final String READER_GROUP = "ExampleReaderGroup";
 
     @Data
@@ -43,12 +42,10 @@ public class ReaderGroupTest {
                                                                                new JavaSerializer<>(),
                                                                                EventWriterConfig.builder().build());
             for (int i = 0; i < eventsToWrite; i++) {
-                String event = "\n Non-transactional Publish \n";
-                System.err.println("Writing event: " + event + i);
-                writer.writeEvent(Integer.toString(i), event + i);
-                writer.flush();
-                Exceptions.handleInterrupted(() -> Thread.sleep(0));
+                System.err.println("Writing event: " + i);
+                writer.writeEvent(Integer.toString(i), " Event " + i);
             }
+            writer.flush();
         }
     }
 
@@ -66,17 +63,12 @@ public class ReaderGroupTest {
                                                                               READER_GROUP,
                                                                               new JavaSerializer<>(),
                                                                               ReaderConfig.builder().build());
-                int i = 0;
-                for (; i < eventsToRead; i++) {
-                    String event = reader.readNextEvent(READ_TIMEOUT).getEvent();
-                    try {
-                        Thread.sleep(10);
-                    } catch (InterruptedException e) {
-                        System.err.println("Sleep exception " + e);
-                    }
-                    System.err.println("Reader" + readerId + " Read event: " + i + event);
+                String event = null;
+                for (int i=0; i < eventsToRead; i++) {
+                    event = reader.readNextEvent(READ_TIMEOUT).getEvent();
+                    System.err.println("Reader " + readerId +" Iteration "+ i + " Read event: " + event);
                 }
-                System.err.println("Reader" + readerId + " Read Done, event Number: " + i);
+                System.err.println("Reader" + readerId + " Read Done, event: " + event);
             } catch (ReinitializationRequiredException e1) {
                 // TODO Auto-generated catch block
                 e1.printStackTrace();
@@ -84,7 +76,7 @@ public class ReaderGroupTest {
         }
     }
 
-    @Test
+    @Test(timeout = 20000)
     public void testEventHandoff() throws Exception {
         String endpoint = "localhost";
         int port = TestUtils.randomPort();
@@ -108,10 +100,9 @@ public class ReaderGroupTest {
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
         streamManager.createReaderGroup(READER_GROUP, groupConfig, Lists.newArrayList(STREAM_NAME));
 
-        Thread writerThread = new Thread(new WriterThread(800, clientFactory));
+        new WriterThread(800, clientFactory).run();
         Thread reader1Thread = new Thread(new ReaderThread(200, "Reader1", clientFactory));
         Thread reader2Thread = new Thread(new ReaderThread(600, "Reader2", clientFactory));
-        writerThread.start();
         reader1Thread.start();
         reader2Thread.start();
         reader1Thread.join();
