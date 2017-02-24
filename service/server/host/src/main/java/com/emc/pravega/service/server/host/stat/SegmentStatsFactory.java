@@ -8,41 +8,53 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.Data;
+import lombok.Synchronized;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Data
-public class SegmentStatsFactory {
+public class SegmentStatsFactory implements AutoCloseable {
 
     private static final int CORE_POOL_SIZE = 1;
     private static final int MAXIMUM_POOL_SIZE = 10;
     private static final int TASK_QUEUE_CAPACITY = 100000;
     private static final long KEEP_ALIVE_TIME_IN_SECONDS = 10L;
+    private static final AtomicReference<SegmentStatsFactory> SINGLETON = new AtomicReference<>();
 
-    private static final ScheduledExecutorService CACHE_MAINTENANCE_EXECUTOR = Executors.newSingleThreadScheduledExecutor(
+    private final ScheduledExecutorService maintenanceExecutor = Executors.newSingleThreadScheduledExecutor(
             new ThreadFactoryBuilder().setNameFormat("cache-maintenance-%d").build());
 
-    private static final ExecutorService EXECUTOR = new ThreadPoolExecutor(CORE_POOL_SIZE, // core size
+    private final ExecutorService executor = new ThreadPoolExecutor(CORE_POOL_SIZE, // core size
             MAXIMUM_POOL_SIZE, // max size
             KEEP_ALIVE_TIME_IN_SECONDS, // idle timeout
             TimeUnit.SECONDS,
             new ArrayBlockingQueue<Runnable>(TASK_QUEUE_CAPACITY),
             new ThreadFactoryBuilder().setNameFormat("stat-background-%d").build()); // queue with a size
 
-    public static SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store,
-                                                                  String scope,
-                                                                  String requestStream,
-                                                                  URI controllerUri) {
-        AutoScalerConfig configuration = new AutoScalerConfig(scope, requestStream, controllerUri);
-        AutoScaleProcessor monitor = new AutoScaleProcessor(configuration, EXECUTOR, CACHE_MAINTENANCE_EXECUTOR);
-        return new SegmentStatsRecorderImpl(monitor, store, EXECUTOR, CACHE_MAINTENANCE_EXECUTOR);
+    @Synchronized
+    public static SegmentStatsFactory getSegmentStatsFactory() {
+        if (SINGLETON.get() == null) {
+            SINGLETON.set(new SegmentStatsFactory());
+        }
+
+        return SINGLETON.get();
+    }
+
+    @Synchronized
+    public static void shutdown() {
+        SINGLETON.updateAndGet(segmentStatsFactory -> {
+            Optional.ofNullable(segmentStatsFactory).ifPresent(SegmentStatsFactory::close);
+            return null;
+        });
     }
 
     @VisibleForTesting
@@ -57,8 +69,24 @@ public class SegmentStatsFactory {
         AutoScalerConfig configuration = new AutoScalerConfig(cooldown, mute, cacheCleanup, cacheExpiry,
                 scope, requestStream, null);
         AutoScaleProcessor monitor = new AutoScaleProcessor(configuration, clientFactory,
-                EXECUTOR, CACHE_MAINTENANCE_EXECUTOR);
+                getSegmentStatsFactory().executor, getSegmentStatsFactory().maintenanceExecutor);
         return new SegmentStatsRecorderImpl(monitor, store,
-                EXECUTOR, CACHE_MAINTENANCE_EXECUTOR);
+                getSegmentStatsFactory().executor, getSegmentStatsFactory().maintenanceExecutor);
+    }
+
+    public SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store,
+                                                           String scope,
+                                                           String requestStream,
+                                                           URI controllerUri) {
+        AutoScalerConfig configuration = new AutoScalerConfig(scope, requestStream, controllerUri);
+        AutoScaleProcessor monitor = new AutoScaleProcessor(configuration, executor, maintenanceExecutor);
+        return new SegmentStatsRecorderImpl(monitor, store, executor, maintenanceExecutor);
+    }
+
+    @Override
+    public void close() {
+        executor.shutdown();
+        maintenanceExecutor.shutdown();
+        SINGLETON.set(null);
     }
 }

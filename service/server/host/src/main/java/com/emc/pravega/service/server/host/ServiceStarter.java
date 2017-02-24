@@ -106,7 +106,8 @@ public final class ServiceStarter {
         log.info("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        SegmentStatsRecorder statsRecorder = SegmentStatsFactory.createSegmentStatsRecorder(service,
+        SegmentStatsRecorder statsRecorder = SegmentStatsFactory.getSegmentStatsFactory()
+                .createSegmentStatsRecorder(service,
                 this.serviceConfig.getInternalScope(),
                 this.serviceConfig.getInternalRequestStream(),
                 URI.create(this.serviceConfig.getControllerUri()));
@@ -133,6 +134,7 @@ public final class ServiceStarter {
                 log.info("Metrics statsProvider is now closed.");
             }
 
+            SegmentStatsFactory.shutdown();
             this.closed = true;
         }
     }
