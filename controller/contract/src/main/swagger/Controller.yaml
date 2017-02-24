@@ -33,7 +33,7 @@ paths:
           schema:
             type: object
             properties:
-              scope_name:
+              scopeName:
                 type: string
       produces:
         - application/json
@@ -43,7 +43,7 @@ paths:
           schema:
             type: object
             properties:
-              scope_name:
+              scopeName:
                 type: string
         409:
           description: Scope already exists
@@ -101,11 +101,11 @@ paths:
           schema:
             type: object
             properties:
-              stream_name:
+              streamName:
                 type: string
-              scaling_policy:
+              scalingPolicy:
                   $ref: "#/definitions/ScalingConfig"
-              retention_policy:
+              retentionPolicy:
                   $ref: "#/definitions/RetentionConfig"
       produces:
         - application/json
@@ -158,9 +158,9 @@ paths:
           schema:
             type: object
             properties:
-              scaling_policy:
+              scalingPolicy:
                   $ref: "#/definitions/ScalingConfig"
-              retention_policy:
+              retentionPolicy:
                   $ref: "#/definitions/RetentionConfig"
       produces:
         - application/json
@@ -183,27 +183,27 @@ definitions:
   StreamsList:
     type: object
     properties:
-      stream_names:
+      streamNames:
         type: array
         items:
           type: string
   ScopesList:
     type: object
     properties:
-      scope_names:
+      scopeNames:
         type: array
         items:
           type: string
   StreamProperty:
     type: object
     properties:
-      scope_name:
+      scopeName:
         type: string
-      stream_name:
+      streamName:
         type: string
-      scaling_policy:
+      scalingPolicy:
           $ref: "#/definitions/ScalingConfig"
-      retention_policy:
+      retentionPolicy:
           $ref: "#/definitions/RetentionConfig"
   ScalingConfig:
     type: object
@@ -214,18 +214,18 @@ definitions:
         - FIXED_NUM_SEGMENTS
         - BY_RATE_IN_BYTES
         - BY_RATE_IN_EVENTS
-      target_rate:
+      targetRate:
         type: integer
         format: int64
-      scale_factor:
+      scaleFactor:
         type: integer
         format: int32
-      min_segments:
+      minSegments:
         type: integer
         format: int32
   RetentionConfig:
     type: object
     properties:
-      retention_time_millis:
+      retentionTimeMillis:
         type: integer
         format: int64

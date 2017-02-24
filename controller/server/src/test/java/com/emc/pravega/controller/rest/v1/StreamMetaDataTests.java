@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.rest.v1;
 
+import com.emc.pravega.controller.server.rest.CustomObjectMapperProvider;
 import com.emc.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import com.emc.pravega.controller.server.rest.generated.model.RetentionConfig;
@@ -164,14 +165,15 @@ public class StreamMetaDataTests extends JerseyTest {
         mockControllerService = mock(ControllerService.class);
         streamMetadataResource = new StreamMetadataResourceImpl(mockControllerService);
 
-        return new ResourceConfig()
-                .register(streamMetadataResource)
+        final ResourceConfig resourceConfig = new ResourceConfig().register(streamMetadataResource)
                 .register(new AbstractBinder() {
                     @Override
                     protected void configure() {
                         bind(mockControllerService).to(ControllerService.class);
                     }
                 });
+        resourceConfig.register(new CustomObjectMapperProvider());
+        return resourceConfig;
     }
 
     /**
@@ -218,8 +220,14 @@ public class StreamMetaDataTests extends JerseyTest {
         // Test to update an existing stream
         when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus);
         response = target(resourceURI).request().async().put(Entity.json(updateStreamRequest));
-        streamResponseActual = response.get().readEntity(StreamProperty.class);
         assertEquals("Update Stream Status", 200, response.get().getStatus());
+        streamResponseActual = response.get().readEntity(StreamProperty.class);
+        testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
+
+        // Test sending extra fields in the request object to check if json parser can handle it.
+        response = target(resourceURI).request().async().put(Entity.json(createStreamRequest));
+        assertEquals("Update Stream Status", 200, response.get().getStatus());
+        streamResponseActual = response.get().readEntity(StreamProperty.class);
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
 
         // Test to update an non-existing stream
