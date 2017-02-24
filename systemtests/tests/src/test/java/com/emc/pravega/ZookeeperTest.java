@@ -1,56 +1,45 @@
 /**
- * Copyright (c) 2016 Dell Inc. or its subsidiaries. All Rights Reserved
- * <p>
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 
-package  com.emc.pravega;
+package com.emc.pravega;
 
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
-import com.emc.pravega.framework.metronome.MetronomeClientNautilus;
-
+import com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient;
 import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.framework.services.ZookeeperService;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.BeforeClass;
-
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import java.net.URI;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
+import static com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient.getClient;
 
-import static com.emc.pravega.framework.metronome.MetronomeClientNautilus.getClient;
 
 @RunWith(SystemTestRunner.class)
 public class ZookeeperTest {
 
-    private static Service zk = new ZookeeperService("zookeeper");
+
 
     /*
         This is used to setup the various services required by the system test framework.
      */
     @Environment
     public static void setup() throws MarathonException {
-        MetronomeClientNautilus.deleteAllJobs(getClient());
+        AuthEnabledMetronomeClient.deleteAllJobs(getClient());
+        Service zk = new ZookeeperService("zookeeper");
         if (!zk.isRunning()) {
             zk.start(true);
         }
-
     }
 
     @BeforeClass
-    public static void beforeClass() {
+    public static void beforeClass() throws InterruptedException, ExecutionException, TimeoutException {
         // This is the placeholder to perform any operation on the services before executing the system tests
     }
 
@@ -62,10 +51,11 @@ public class ZookeeperTest {
     @Test
     public void zkPingTest() {
         System.out.println("Start execution of zkPingTest");
-        //Fetch the service details
+        Service zk = new ZookeeperService("zookeeper");
         URI  zkUri = zk.getServiceDetails().get(0);
+        //TODO: validate zkuri
         System.out.println("zk Service URI: " + zkUri);
-        System.out.println("Test execution completed");
+        System.out.println("zkPingTest  execution completed");
     }
 
 }

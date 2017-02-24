@@ -5,22 +5,16 @@
  */
 package com.emc.pravega.framework.services;
 
-import com.emc.pravega.framework.marathon.AuthEnabledMarathonClient;
+
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.utils.MarathonException;
-
-import java.net.URI;
-
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
-import mesosphere.marathon.client.model.v2.GetAppsResponse;
-
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.UpgradeStrategy;
 import mesosphere.marathon.client.model.v2.Volume;
-
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -49,10 +43,8 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
             if (wait) {
                 try {
                     waitUntilServiceRunning().get();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                } catch (ExecutionException e) {
-                    e.printStackTrace();
+                } catch (InterruptedException | ExecutionException e) {
+                    log.error("Error in wait until pravega segmentstore service is running {}", e);
                 }
             }
         } catch (MarathonException e) {
@@ -69,13 +61,14 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
     public void stop() {
         log.info("Stopping Pravega SegmentStore Service : {}", getID());
         try {
-            marathonClient.deleteApp("pravegasegmentstoreservice");
+            marathonClient.deleteApp("segmentstore");
         } catch (MarathonException e) {
             handleMarathonException(e);
         }
     }
 
     private App createPravegaSegmentStoreApp() {
+
         App app = new App();
         app.setId(this.id);
         app.setBackoffSeconds(7200);
@@ -101,6 +94,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         volumeCollection.add(volume);
         app.getContainer().setVolumes(volumeCollection);
         //set the image and network
+        //TODO: tag change to latest
         app.getContainer().getDocker().setImage("asdrepo.isus.emc.com:8103/nautilus/pravega-host:0.0-1111.2b562cb");
         app.getContainer().getDocker().setNetwork("HOST");
         app.getContainer().getDocker().setForcePullImage(true);
@@ -129,16 +123,9 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         map.put("ZK_URL", zk);
         map.put("pravegaservice_zkHostName", zkUri.getHost());
         map.put("dlog_hostname", zkUri.getHost());
-        map.put("pravegaservice_zkRetrySleepMs", "5000");
         map.put("hdfs_fs_default_name", "namenode-0.hdfs.mesos:9001");
         app.setEnv(map);
         return app;
     }
 
-    public static void main(String[] args) throws MarathonException {
-
-        Marathon m = AuthEnabledMarathonClient.getClient();
-        GetAppsResponse list = m.getApps();
-        System.out.println(list);
-    }
 }
