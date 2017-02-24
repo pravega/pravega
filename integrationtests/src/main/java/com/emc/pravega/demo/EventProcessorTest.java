@@ -16,6 +16,7 @@ import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessor;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -102,6 +103,13 @@ public class EventProcessorTest {
         final String scope = "controllerScope";
         final String streamName = "stream1";
         final String readerGroup = "readerGroup";
+
+        final CompletableFuture<CreateScopeStatus> createScopeStatus = controller.createScope(scope);
+        final CreateScopeStatus scopeStatus = createScopeStatus.join();
+
+        if (CreateScopeStatus.SUCCESS != scopeStatus) {
+            throw new RuntimeException("Error creating scope");
+        }
 
         final StreamConfiguration config = StreamConfiguration.builder()
                 .scope(scope)
