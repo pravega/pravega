@@ -68,12 +68,12 @@ public class ControllerWrapper {
         //region Setup Event Processors
         LocalController localController = new LocalController(controllerService);
 
-        streamTransactionMetadataTasks.initializeStreamWriters(localController);
-
         ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
                 client, streamStore, hostStore);
 
         controllerEventProcessors.initialize();
+
+        streamTransactionMetadataTasks.initializeStreamWriters(localController);
         //endregion
 
         return new LocalController(controllerService);

@@ -6,6 +6,7 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
@@ -27,6 +28,14 @@ import java.util.concurrent.CompletableFuture;
 public interface Controller {
 
     // Controller Apis for administrative action for streams
+
+    /**
+     * Api to create scope.
+     *
+     * @param scopeName Scope name.
+     * @return Status of create stream operation.
+     */
+    CompletableFuture<CreateScopeStatus> createScope(final String scopeName);
 
     /**
      * Api to create stream.
