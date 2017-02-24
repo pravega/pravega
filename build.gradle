@@ -175,6 +175,7 @@ project('clients') {
     }
     jar {
         from project(":clients:streaming").sourceSets.main.output
+        from project(":controller:contract").sourceSets.main.output
     }
     publishing {
         publications {
@@ -455,7 +456,6 @@ project('controller:server') {
         compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.3.2'
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-netty-http', version: '2.25'
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: '2.25'
-        compile group: 'org.glassfish.jersey.ext', name: 'jersey-bean-validation', version: '2.25.1'
         testCompile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-netty', version: '2.25'
         testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
     }

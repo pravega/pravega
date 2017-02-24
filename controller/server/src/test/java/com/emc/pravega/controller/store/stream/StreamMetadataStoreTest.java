@@ -127,10 +127,10 @@ public class StreamMetadataStoreTest {
         store.createScope("Scope").get();
         store.createStream("Scope", stream1, configuration1, System.currentTimeMillis(), null, executor);
         store.createStream("Scope", stream2, configuration2, System.currentTimeMillis(), null, executor);
-        List<String> streamInScope = store.listStreamsInScope("Scope").get();
+        List<StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
         assertEquals("List streams in scope", 2, streamInScope.size());
-        assertEquals("List streams in scope", stream1, streamInScope.get(0));
-        assertEquals("List streams in scope", stream2, streamInScope.get(1));
+        assertEquals("List streams in scope", stream1, streamInScope.get(0).getStreamName());
+        assertEquals("List streams in scope", stream2, streamInScope.get(1).getStreamName());
 
         // List streams in non-existent scope 'Scope1'
         try {

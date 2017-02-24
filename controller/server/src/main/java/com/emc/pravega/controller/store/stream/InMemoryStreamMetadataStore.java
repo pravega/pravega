@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 /**
  * In-memory stream store.
@@ -29,6 +30,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @GuardedBy("$lock")
     private final Map<String, InMemoryScope> scopes = new HashMap<>();
+    private final Executor executor;
+
+    InMemoryStreamMetadataStore(Executor executor) {
+        this.executor = executor;
+    }
 
     @Override
     @Synchronized
@@ -136,10 +142,12 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
      */
     @Override
     @Synchronized
-    public CompletableFuture<List<String>> listStreamsInScope(final String scopeName) {
+    public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
         InMemoryScope inMemoryScope = scopes.get(scopeName);
         if (inMemoryScope != null) {
-            return inMemoryScope.listStreamsInScope();
+            return inMemoryScope.listStreamsInScope()
+                    .thenApply(streams -> streams.stream().map(
+                            stream -> this.getConfiguration(scopeName, stream, null, executor).join()).collect(Collectors.toList()));
         } else {
             return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND));
         }

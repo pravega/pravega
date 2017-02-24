@@ -79,7 +79,7 @@ public interface StreamMetadataStore {
      * @param scopeName Name of the scope
      * @return List of streams in scope
      */
-    CompletableFuture<List<String>> listStreamsInScope(final String scopeName);
+    CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName);
 
     /**
      * List Scopes in cluster.

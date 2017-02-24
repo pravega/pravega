@@ -129,12 +129,14 @@ public class ZkStreamTest {
                 StreamConfiguration.builder().scope(scopeName).streamName(streamName2).scalingPolicy(policy).build();
 
         store.createStream(scopeName, streamName1, streamConfig, System.currentTimeMillis(), null, executor).get();
+        store.setState(scopeName, streamName1, State.ACTIVE, null, executor).get();
         store.createStream(scopeName, streamName2, streamConfig2, System.currentTimeMillis(), null, executor).get();
+        store.setState(scopeName, streamName2, State.ACTIVE, null, executor).get();
 
-        List<String> listOfStreams = store.listStreamsInScope(scopeName).get();
+        List<StreamConfiguration> listOfStreams = store.listStreamsInScope(scopeName).get();
         assertEquals("Size of list", 2, listOfStreams.size());
-        assertEquals("Name of stream at index zero", "Stream1", listOfStreams.get(0));
-        assertEquals("Name of stream at index one", "Stream2", listOfStreams.get(1));
+        assertEquals("Name of stream at index zero", "Stream1", listOfStreams.get(0).getStreamName());
+        assertEquals("Name of stream at index one", "Stream2", listOfStreams.get(1).getStreamName());
     }
 
     @Test
@@ -159,6 +161,8 @@ public class ZkStreamTest {
                 StreamConfiguration.builder().scope("Scope3").streamName("Stream3").scalingPolicy(policy).build();
 
         store.createStream("Scope3", "Stream3", streamConfig, System.currentTimeMillis(), null, executor).get();
+        store.setState("Scope3", "Stream3", State.ACTIVE, null, executor).get();
+
         CompletableFuture<DeleteScopeStatus> deleteScopeStatus3 = store.deleteScope("Scope3");
         assertEquals("Delete non-empty Scope", DeleteScopeStatus.SCOPE_NOT_EMPTY, deleteScopeStatus3.get());
     }
