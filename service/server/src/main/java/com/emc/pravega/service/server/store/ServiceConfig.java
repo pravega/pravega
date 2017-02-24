@@ -42,7 +42,6 @@ public class ServiceConfig extends ComponentConfig {
     private int listeningPort;
     private String listeningIPAddress;
     private String zkURL;
-    private int zkPort;
     private int zkRetrySleepMs;
     private int zkRetryCount;
     private String clusterName;
@@ -103,13 +102,6 @@ public class ServiceConfig extends ComponentConfig {
      */
     public String getZkURL() {
         return zkURL;
-    }
-
-    /**
-     * Gets a value indicating the Zookeeper port.
-     */
-    public int getZkPort() {
-        return zkPort;
     }
 
     /**
