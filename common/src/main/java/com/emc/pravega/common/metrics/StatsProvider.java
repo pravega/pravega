@@ -11,11 +11,9 @@ package com.emc.pravega.common.metrics;
  */
 public interface StatsProvider extends AutoCloseable {
     /**
-     * Initialize the stats provider by loading the given configuration <i>conf</i>.
-     *
-     * @param conf Configuration to configure the stats provider.
+     * Initialize the stats provider.
      */
-    void start(MetricsConfig conf);
+    void start();
 
     /**
      * Close the stats provider.

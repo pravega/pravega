@@ -7,6 +7,7 @@ package com.emc.pravega.controller.server.eventProcessor;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
@@ -37,6 +38,11 @@ public class LocalController implements Controller {
 
     public LocalController(ControllerService controller) {
         this.controller = controller;
+    }
+
+    @Override
+    public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
+        return this.controller.createScope(scopeName);
     }
 
     @Override
