@@ -3,10 +3,12 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.retryable.RetryableException;
+
 /**
  * Exception thrown when you are attempting to update a stale value.
  */
-public class WriteConflictException extends RuntimeException {
+public class WriteConflictException extends RuntimeException implements RetryableException {
 
     private static final long serialVersionUID = 1L;
     private static final String FORMAT_STRING = "concurrency error for path %s.";

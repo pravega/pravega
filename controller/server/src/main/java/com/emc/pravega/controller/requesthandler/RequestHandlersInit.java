@@ -5,6 +5,7 @@ package com.emc.pravega.controller.requesthandler;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
@@ -32,9 +33,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 @Slf4j
 public class RequestHandlersInit {
@@ -51,103 +50,77 @@ public class RequestHandlersInit {
     private static URI uri;
 
     public static void bootstrapRequestHandlers(ControllerService controller, ScheduledExecutorService executor) {
-
         uri = URI.create("tcp://localhost:" + Config.SERVER_PORT);
 
         clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, uri);
 
         readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, uri);
 
-        CompletableFuture<Void> createStream = new CompletableFuture<>();
-        CompletableFuture<Void> createScaleReader = new CompletableFuture<>();
-
-        executor.execute(() -> createStreams(controller, executor, createStream));
-
-        createStream.thenAccept(x -> startScaleReader(clientFactory, controller.getStreamMetadataTasks(),
+        CompletableFuture<Void> createStream = createStreams(controller, executor)
+                .thenCompose(x -> startScaleReader(clientFactory, controller.getStreamMetadataTasks(),
                 controller.getStreamStore(), controller.getStreamTransactionMetadataTasks(),
-                executor, createScaleReader));
+                executor));
     }
 
-    private static void retryIndefinitely(Runnable supplier, ScheduledExecutorService executor, CompletableFuture<Void> result) {
-        try {
-            supplier.run();
-            result.complete(null);
-        } catch (Exception e) {
-            // Until we are able to start these readers, keep retrying indefinitely by scheduling it back
-            executor.schedule(() -> retryIndefinitely(supplier, executor, result), 10, TimeUnit.SECONDS);
-        } catch (Throwable t) {
-            log.error("While executing the runnable a throwable was thrown. Stopping retries. {} ", t);
-            result.completeExceptionally(t);
-        }
+    private static CompletableFuture<Void> createStreams(ControllerService controller, ScheduledExecutorService executor) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        Retry.indefinitelyWithExpBackoff(10, 10, 10000,
+                e -> log.error("Exception while creating request stream {}", e))
+                .runAsync(() -> controller.createStream(REQUEST_STREAM_CONFIG, System.currentTimeMillis())
+                        .whenComplete((res, ex) -> {
+                            if (ex != null && !(ex instanceof StreamAlreadyExistsException)) {
+                                // fail and exit
+                                throw new CompletionException(ex);
+                            }
+                            if (res != null && res.equals(CreateStreamStatus.FAILURE)) {
+                                throw new RuntimeException("Failed to create stream while starting controller");
+                            }
+                            result.complete(null);
+                        }), executor);
+        return result;
     }
 
-    private static <T> void retryIndefinitely(Supplier<CompletableFuture<T>> supplier, ScheduledExecutorService executor, CompletableFuture<Void> result) {
-        try {
-            supplier.get().whenComplete((r, e) -> {
-                if (e != null) {
-                    executor.schedule(() -> retryIndefinitely(supplier, executor, result), 10, TimeUnit.SECONDS);
-                } else {
+    private static CompletableFuture<Void> startScaleReader(ClientFactory clientFactory, StreamMetadataTasks streamMetadataTasks, StreamMetadataStore streamStore, StreamTransactionMetadataTasks streamTransactionMetadataTasks, ScheduledExecutorService executor) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        Retry.indefinitelyWithExpBackoff(10, 10, 10000,
+                e -> log.error("Exception while starting reader {}", e))
+                .runAsync(() -> {
+                    ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+
+                    readerGroupManager.createReaderGroup(Config.SCALE_READER_GROUP, groupConfig, Lists.newArrayList(Config.SCALE_STREAM_NAME));
+
+                    if (SCALE_HANDLER_REF.get() == null) {
+                        SCALE_HANDLER_REF.compareAndSet(null, new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor));
+                    }
+
+                    if (SCALE_READER_REF.get() == null) {
+                        SCALE_READER_REF.compareAndSet(null, clientFactory.createReader(Config.SCALE_READER_ID,
+                                Config.SCALE_READER_GROUP,
+                                new JavaSerializer<>(),
+                                ReaderConfig.builder().build()));
+                    }
+
+                    if (SCALE_WRITER_REF.get() == null) {
+                        SCALE_WRITER_REF.compareAndSet(null, clientFactory.createEventWriter(Config.SCALE_STREAM_NAME,
+                                new JavaSerializer<>(),
+                                EventWriterConfig.builder().build()));
+                    }
+
+                    if (SCALE_REQUEST_READER_REF.get() == null) {
+                        SCALE_REQUEST_READER_REF.compareAndSet(null, new RequestReader<>(
+                                Config.SCALE_READER_ID,
+                                Config.SCALE_READER_GROUP,
+                                SCALE_WRITER_REF.get(),
+                                SCALE_READER_REF.get(),
+                                SCALE_HANDLER_REF.get(),
+                                executor));
+                    }
+
+                    CompletableFuture.runAsync(SCALE_REQUEST_READER_REF.get(), Executors.newSingleThreadExecutor());
+                    log.debug("bootstrapping request handlers done");
                     result.complete(null);
-                }
-            });
-        } catch (Exception e) {
-            // Until we are able to start these readers, keep retrying indefinitely by scheduling it back
-            executor.schedule(() -> retryIndefinitely(supplier, executor, result), 10, TimeUnit.SECONDS);
-        } catch (Throwable t) {
-            log.error("While executing the supplier, a throwable was thrown. Stopping retries. {} ", t);
-            result.completeExceptionally(t);
-        }
-    }
-
-    private static void createStreams(ControllerService controller, ScheduledExecutorService executor, CompletableFuture<Void> result) {
-        retryIndefinitely(() -> controller.createStream(REQUEST_STREAM_CONFIG, System.currentTimeMillis())
-                .whenComplete((res, ex) -> {
-                    if (ex != null && !(ex instanceof StreamAlreadyExistsException)) {
-                        // fail and exit
-                        throw new CompletionException(ex);
-                    }
-                    if (res != null && res.equals(CreateStreamStatus.FAILURE)) {
-                        throw new RuntimeException("Failed to create stream while starting controller");
-                    }
-                }), executor, result);
-    }
-
-    private static void startScaleReader(ClientFactory clientFactory, StreamMetadataTasks streamMetadataTasks, StreamMetadataStore streamStore, StreamTransactionMetadataTasks streamTransactionMetadataTasks, ScheduledExecutorService executor, CompletableFuture<Void> result) {
-        retryIndefinitely(() -> {
-            ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
-
-            readerGroupManager.createReaderGroup(Config.SCALE_READER_GROUP, groupConfig, Lists.newArrayList(Config.SCALE_STREAM_NAME));
-
-            if (SCALE_HANDLER_REF.get() == null) {
-                SCALE_HANDLER_REF.compareAndSet(null, new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor));
-            }
-
-            if (SCALE_READER_REF.get() == null) {
-                SCALE_READER_REF.compareAndSet(null, clientFactory.createReader(Config.SCALE_READER_ID,
-                        Config.SCALE_READER_GROUP,
-                        new JavaSerializer<>(),
-                        ReaderConfig.builder().build()));
-            }
-
-            if (SCALE_WRITER_REF.get() == null) {
-                SCALE_WRITER_REF.compareAndSet(null, clientFactory.createEventWriter(Config.SCALE_STREAM_NAME,
-                        new JavaSerializer<>(),
-                        EventWriterConfig.builder().build()));
-            }
-
-            if (SCALE_REQUEST_READER_REF.get() == null) {
-                SCALE_REQUEST_READER_REF.compareAndSet(null, new RequestReader<>(
-                        Config.SCALE_READER_ID,
-                        Config.SCALE_READER_GROUP,
-                        SCALE_WRITER_REF.get(),
-                        SCALE_READER_REF.get(),
-                        SCALE_HANDLER_REF.get(),
-                        executor));
-            }
-
-            CompletableFuture.runAsync(SCALE_REQUEST_READER_REF.get(), Executors.newSingleThreadExecutor());
-            log.debug("bootstrapping request handlers done");
-
-        }, executor, result);
+                    return result;
+                }, executor);
+        return result;
     }
 }

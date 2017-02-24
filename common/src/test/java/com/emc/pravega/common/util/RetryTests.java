@@ -12,6 +12,7 @@ import org.junit.Test;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -153,6 +154,34 @@ public class RetryTests {
             assertTrue(e.getCause().getCause().getCause() instanceof RetryableException);
         }
     }
+
+    @Test
+    public void retryPredicateTest() {
+        AtomicInteger i = new AtomicInteger(0);
+        try {
+            Retry.withExpBackoff(10, 10, 10)
+                    .retryingOn(e -> i.getAndIncrement() != 1)
+                    .throwingOn(RuntimeException.class)
+                    .run(() -> {
+                        throw new Exception("test");
+                    });
+        } catch (Exception e) {
+            assert i.get() == 2;
+        }
+    }
+
+    @Test
+    public void retryIndefiniteTest() throws ExecutionException, InterruptedException {
+        AtomicInteger i = new AtomicInteger(0);
+        Retry.indefinitelyWithExpBackoff(10, 10, 10, e -> i.getAndIncrement())
+                .runAsync(() -> CompletableFuture.runAsync(() -> {
+                    if (i.get() < 10) {
+                        throw new RuntimeException("test");
+                    }
+                }), Executors.newSingleThreadScheduledExecutor()).get();
+        assert i.get() == 10;
+    }
+
 
     private int retry(long delay,
                       int multiplier,

@@ -3,10 +3,12 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.retryable.RetryableException;
+
 /**
  * StoreConnectionException exception.
  */
-public class StoreConnectionException extends RuntimeException {
+public class StoreConnectionException extends RuntimeException implements RetryableException {
     private static final long serialVersionUID = 1L;
 
     /**

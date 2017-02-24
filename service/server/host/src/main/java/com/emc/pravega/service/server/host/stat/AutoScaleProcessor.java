@@ -5,6 +5,7 @@ package com.emc.pravega.service.server.host.stat;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.netty.WireCommands;
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.requests.ScaleRequest;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
@@ -100,24 +101,28 @@ public class AutoScaleProcessor {
         CompletableFuture<Void> createWriter = new CompletableFuture<>();
 
         // Starting with initial delay, in case request stream has not been created, to give it time to start
-        // However, we have this wrapped in retryIndefinitely which means the creation of writer will be retried.
+        // However, we have this wrapped in consumeFailure which means the creation of writer will be retried.
         // We are introducing a delay to avoid exceptions in the log in case creation of writer is attempted before
         // creation of requeststream.
-        maintenanceExecutor.schedule(() -> retryIndefinitely(() -> {
-            if (clientFactory.get() == null) {
-                clientFactory.compareAndSet(null, new ClientFactoryImpl(configuration.getInternalScope(), configuration.getConrollerUri()));
-            }
+        maintenanceExecutor.schedule(() -> Retry.indefinitelyWithExpBackoff(100, 10, 10000,
+                e -> log.error("error while creating writer for requeststream {}", e))
+                .runAsync(() -> {
+                    if (clientFactory.get() == null) {
+                        clientFactory.compareAndSet(null, new ClientFactoryImpl(configuration.getInternalScope(), configuration.getConrollerUri()));
+                    }
 
-            this.writer.set(clientFactory.get().createEventWriter(configuration.getInternalStream(),
-                    serializer,
-                    writerConfig));
-            initialized.set(true);
-            // even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
-            // caches do not perform clean up if there is no activity. This is because they do not maintain their
-            // own background thread.
-            maintenanceExecutor.scheduleAtFixedRate(cache::cleanUp, 0, configuration.getCacheCleanup().getSeconds(), TimeUnit.SECONDS);
-            log.debug("bootstrapping auto-scale reporter done");
-        }, createWriter, maintenanceExecutor), 10, TimeUnit.SECONDS);
+                    this.writer.set(clientFactory.get().createEventWriter(configuration.getInternalStream(),
+                            serializer,
+                            writerConfig));
+                    initialized.set(true);
+                    // even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
+                    // caches do not perform clean up if there is no activity. This is because they do not maintain their
+                    // own background thread.
+                    maintenanceExecutor.scheduleAtFixedRate(cache::cleanUp, 0, configuration.getCacheCleanup().getSeconds(), TimeUnit.SECONDS);
+                    log.debug("bootstrapping auto-scale reporter done");
+                    createWriter.complete(null);
+                    return createWriter;
+                }, maintenanceExecutor), 10, TimeUnit.SECONDS);
     }
 
     private void triggerScaleUp(String streamSegmentName, int numOfSplits) {
@@ -238,19 +243,6 @@ public class AutoScaleProcessor {
     private void checkAndRun(Runnable supplier) {
         if (initialized.get()) {
             supplier.run();
-        }
-    }
-
-    private static void retryIndefinitely(Runnable supplier, CompletableFuture<Void> promise, ScheduledExecutorService executor) {
-        try {
-            if (!promise.isDone()) {
-                supplier.run();
-                promise.complete(null);
-            }
-        } catch (Exception e) {
-            log.error("autoscale reporter writer creation failed {}", e);
-            // Until we are able to start these readers, keep retrying indefinitely by scheduling it back
-            executor.schedule(() -> retryIndefinitely(supplier, promise, executor), 10, TimeUnit.SECONDS);
         }
     }
 }

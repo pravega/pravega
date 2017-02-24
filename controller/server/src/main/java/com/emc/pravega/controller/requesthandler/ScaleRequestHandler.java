@@ -35,9 +35,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
-import static com.emc.pravega.controller.retryable.RetryableHelper.getRetryable;
-import static com.emc.pravega.controller.retryable.RetryableHelper.transformWithRetryable;
-
 /**
  * Request handler for scale requests in scale-request-stream.
  */
@@ -48,10 +45,11 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
     private static final int RETRY_MULTIPLIER = 2;
     private static final int RETRY_MAX_ATTEMPTS = 100;
     private static final long RETRY_MAX_DELAY = Duration.ofSeconds(10).toMillis();
-    private static final Retry.RetryAndThrowExceptionally<RetryableException, RuntimeException> RETRY = Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-            .retryingOn(RetryableException.class)
-            .throwingOn(RuntimeException.class);
+
     private static final long REQUEST_VALIDITY_PERIOD = Duration.ofMinutes(10).toMillis();
+    private static final Retry.RetryAndThrowConditionally<RuntimeException> RETRY = Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
+            .retryingOn(RetryableException::isRetryable)
+            .throwingOn(RuntimeException.class);
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
@@ -92,9 +90,9 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                     .thenApply(StreamConfiguration::getScalingPolicy);
 
             if (request.getDirection() == ScaleRequest.UP) {
-                return transformWithRetryable(policyFuture.thenComposeAsync(policy -> processScaleUp(request, policy, context), executor));
+                return policyFuture.thenComposeAsync(policy -> processScaleUp(request, policy, context), executor);
             } else {
-                return transformWithRetryable(policyFuture.thenComposeAsync(policy -> processScaleDown(request, policy, context), executor));
+                return policyFuture.thenComposeAsync(policy -> processScaleDown(request, policy, context), executor);
             }
         }, executor);
     }
@@ -255,13 +253,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
             // creation of transactions.
             if (ex != null) {
                 log.error("scale failed for request {}/{}/{} with exception", request.getScope(), request.getStream(), request.getSegmentNumber(), ex.getMessage());
-
-                Optional<RetryableException> retryable = getRetryable(ex);
-                if (retryable.isPresent()) {
-                    result.completeExceptionally(retryable.get());
-                } else {
-                    result.completeExceptionally(ex);
-                }
+                result.completeExceptionally(ex);
             } else {
                 log.error("scale done for {}/{}/{}", request.getScope(), request.getStream(), request.getSegmentNumber());
                 result.complete(null);

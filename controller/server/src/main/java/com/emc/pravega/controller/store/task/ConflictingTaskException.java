@@ -3,10 +3,12 @@
  */
 package com.emc.pravega.controller.store.task;
 
+import com.emc.pravega.controller.retryable.RetryableException;
+
 /**
  * Conflict exception.
  */
-public class ConflictingTaskException extends RuntimeException {
+public class ConflictingTaskException extends RuntimeException implements RetryableException {
     private static final long serialVersionUID = 1L;
     private static final String FORMAT_STRING = "Conflicting task exception for resource %s.";
 

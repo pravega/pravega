@@ -4,11 +4,12 @@
 package com.emc.pravega.controller.server.rpc.v1;
 
 import com.emc.pravega.common.netty.WireCommandType;
+import com.emc.pravega.controller.retryable.RetryableException;
 
 /**
  * Wire command failed exception.
  */
-public class WireCommandFailedException extends RuntimeException {
+public class WireCommandFailedException extends RuntimeException implements RetryableException {
 
     public enum Reason {
         ConnectionDropped,
