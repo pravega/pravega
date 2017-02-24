@@ -1,14 +1,12 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.contracts;
 
 /**
  * An exception that is related to a particular Container.
  */
-abstract class ContainerException extends StreamingException {
+public abstract class ContainerException extends StreamingException {
     /**
      *
      */
@@ -21,7 +19,7 @@ abstract class ContainerException extends StreamingException {
      * @param containerId The Id of the ContainerException.
      * @param message     The message for this exception.
      */
-    ContainerException(int containerId, String message) {
+    public ContainerException(int containerId, String message) {
         this(containerId, message, null);
     }
 
@@ -32,8 +30,8 @@ abstract class ContainerException extends StreamingException {
      * @param message     The message for this exception.
      * @param cause       The causing exception.
      */
-    private ContainerException(int containerId, String message, Throwable cause) {
-        super(String.format("%s (%d).", message, containerId), cause);
+    public ContainerException(int containerId, String message, Throwable cause) {
+        super(String.format("[Container %d] %s.", containerId, message), cause);
         this.containerId = containerId;
     }
 
