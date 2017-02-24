@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
@@ -58,22 +59,27 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @Override
     public EventRead<Type> readNextEvent(long timeout) {
         synchronized (readers) {
-            Segment segment;
-            long offset;
+            Segment segment = null;
+            long offset = -1;
             ByteBuffer buffer;
             boolean rebalance = false;
             do { // Loop handles retry on end of segment
                 rebalance |= releaseSegmentsIfNeeded();
                 rebalance |= acquireSegmentsIfNeeded();
                 SegmentEventReader segmentReader = orderer.nextSegment(readers);
-                segment = segmentReader.getSegmentId();
-                offset = segmentReader.getOffset();
-                try {
-                    buffer = segmentReader.getNextEvent(timeout);
-                } catch (EndOfSegmentException e) {
-                    handleEndOfSegment(segmentReader);
+                if (segmentReader == null) {
+                    Exceptions.handleInterrupted(()->Thread.sleep(ReaderGroupStateManager.TIME_UNIT.toMillis()));
                     buffer = null;
-                    rebalance = true;
+                } else {
+                    segment = segmentReader.getSegmentId();
+                    offset = segmentReader.getOffset();
+                    try {
+                        buffer = segmentReader.getNextEvent(timeout);
+                    } catch (EndOfSegmentException e) {
+                        handleEndOfSegment(segmentReader);
+                        buffer = null;
+                        rebalance = true;
+                    }
                 }
             } while (buffer == null);
             Map<Segment, Long> positions = readers.stream()
