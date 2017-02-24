@@ -130,8 +130,12 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     public void policyUpdate(String streamSegmentName, byte type, int targetRate) {
         SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
         if (aggregates != null) {
-            aggregates.setTargetRate(targetRate);
-            aggregates.setScaleType(type);
+            // if there is a scale type change, discard the old object and create a new object
+            if (aggregates.getScaleType() != type) {
+                cache.put(streamSegmentName, new SegmentAggregates(type, targetRate));
+            } else {
+                aggregates.setTargetRate(targetRate);
+            }
         }
     }
 

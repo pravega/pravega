@@ -20,16 +20,11 @@ import org.apache.commons.lang.NotImplementedException;
 public class StreamManagerImpl implements StreamManager {
 
     private final String scope;
-    private final Controller controller;
+    private final ControllerImpl controller;
 
     public StreamManagerImpl(String scope, URI controllerUri) {
         this.scope = scope;
         this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
-    }
-
-    public StreamManagerImpl(String scope, Controller controller) {
-        this.scope = scope;
-        this.controller = controller;
     }
 
     @Override

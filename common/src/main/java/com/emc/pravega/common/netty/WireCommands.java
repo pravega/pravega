@@ -654,7 +654,7 @@ public final class WireCommands {
     @Data
     public static final class CreateSegment implements Request, WireCommand {
         public static final byte NO_SCALE = (byte) 0;
-        public static final byte IN_KBPS = (byte) 1;
+        public static final byte IN_KBYTES_PER_SEC = (byte) 1;
         public static final byte IN_EVENTS_PER_SEC = (byte) 2;
 
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;

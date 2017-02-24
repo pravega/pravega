@@ -355,7 +355,7 @@ public class SegmentHelper {
         } else {
             desiredRate = Math.toIntExact(policy.getTargetRate());
             if (policy.getType().equals(ScalingPolicy.Type.BY_RATE_IN_KBYTES_PER_SEC)) {
-                rateType = WireCommands.CreateSegment.IN_KBPS;
+                rateType = WireCommands.CreateSegment.IN_KBYTES_PER_SEC;
             } else {
                 rateType = WireCommands.CreateSegment.IN_EVENTS_PER_SEC;
             }

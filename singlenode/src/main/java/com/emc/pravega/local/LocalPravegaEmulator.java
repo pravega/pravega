@@ -7,8 +7,6 @@ package com.emc.pravega.local;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-import com.emc.pravega.controller.embedded.EmbeddedController;
-import com.emc.pravega.controller.embedded.EmbeddedControllerImpl;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
@@ -268,9 +266,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
 
-        EmbeddedController controllerWrapper = new EmbeddedControllerImpl(controllerService);
-        RequestHandlersInit.bootstrapRequestHandlers(controllerWrapper, controllerExecutor);
-
+        RequestHandlersInit.bootstrapRequestHandlers(controllerService, controllerExecutor);
     }
 
 

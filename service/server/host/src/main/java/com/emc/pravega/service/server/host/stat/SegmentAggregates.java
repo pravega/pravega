@@ -9,26 +9,28 @@ import lombok.Setter;
 
 import java.io.Serializable;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicLong;
 
 class SegmentAggregates implements Serializable {
-    private static final int INTERVAL_IN_SECONDS = 5;
 
     private static final int SECONDS_PER_MINUTE = 60;
 
+    private static final int INTERVAL_IN_SECONDS = 5;
+    private static final long TICK_INTERVAL = Duration.ofSeconds(5).toNanos();
+
+    /**
+     * Exponential weights.
+     */
     private static final double M2_ALPHA = 1 - StrictMath.exp((double) -INTERVAL_IN_SECONDS / (double) SECONDS_PER_MINUTE / 2);
     private static final double M5_ALPHA = 1 - StrictMath.exp((double) -INTERVAL_IN_SECONDS / (double) SECONDS_PER_MINUTE / 5);
     private static final double M10_ALPHA = 1 - StrictMath.exp((double) -INTERVAL_IN_SECONDS / (double) SECONDS_PER_MINUTE / 10);
     private static final double M20_ALPHA = 1 - StrictMath.exp((double) -INTERVAL_IN_SECONDS / (double) SECONDS_PER_MINUTE / 20);
-
-    private static final long TICK_INTERVAL_IN_SECONDS = 5;
-    private static final long TICK_INTERVAL = Duration.ofSeconds(5).toNanos();
 
     // Amount of data stored in each aggregate object in memory = 77 bytes + object overhead
 
     /**
      * Policy = 5 bytes.
      */
-    @Setter
     @Getter
     private byte scaleType;
 
@@ -57,7 +59,7 @@ class SegmentAggregates implements Serializable {
      */
     @Getter
     @Setter
-    private volatile long lastReportedTime;
+    private long lastReportedTime;
 
     /**
      * Start time and last ticked time.
@@ -66,73 +68,67 @@ class SegmentAggregates implements Serializable {
     @Getter
     private long startTime;
 
-    private volatile long lastTick;
+    private AtomicLong lastTick;
 
     /**
      * 8 bytes.
      */
     // Note: we are not concurrency protecting this variable for performance reasons
-    private volatile long currentCount;
+    private AtomicLong currentCount;
 
     SegmentAggregates(byte scaleType, int targetRate) {
         this.targetRate = targetRate;
         this.scaleType = scaleType;
         startTime = System.currentTimeMillis();
         lastReportedTime = System.currentTimeMillis();
-        lastTick = System.nanoTime();
+        this.lastTick = new AtomicLong(System.nanoTime());
+        this.currentCount = new AtomicLong(0);
     }
 
     void update(long dataLength, int numOfEvents) {
-        if (scaleType == WireCommands.CreateSegment.IN_KBPS) {
-            currentCount += dataLength / 1024; // convert to kbps
+        if (scaleType == WireCommands.CreateSegment.IN_KBYTES_PER_SEC) {
+            currentCount.addAndGet(dataLength / 1024); // convert to kbps
         } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS_PER_SEC) {
-            currentCount += numOfEvents;
+            currentCount.addAndGet(numOfEvents);
         } else {
             return;
         }
 
         final long newTick = System.nanoTime();
-        final long age = newTick - lastTick;
+        final long age = newTick - lastTick.get();
         if (age > TICK_INTERVAL) {
-            lastTick = newTick;
-
-            final long count = currentCount;
-            currentCount = 0;
-
-            computeDecay(count, age);
+            lastTick.set(newTick);
+            final long count = currentCount.getAndSet(0);
+            computeDecay(count, Duration.ofNanos(age).toMillis() / 1000);
         }
     }
 
     void updateTx(long dataSize, int numOfEvents, long txnCreationTime) {
-        if (scaleType == WireCommands.CreateSegment.IN_KBPS) {
-            computeDecay(dataSize, (System.currentTimeMillis() - txnCreationTime) * 1000000);
+
+        long amortizedPerTick = 0;
+        long durationInSeconds = (System.currentTimeMillis() - txnCreationTime) / 1000;
+        long numOfTicks = (int) durationInSeconds / INTERVAL_IN_SECONDS;
+
+        if (scaleType == WireCommands.CreateSegment.IN_KBYTES_PER_SEC) {
+            amortizedPerTick = dataSize / numOfTicks;
         } else if (scaleType == WireCommands.CreateSegment.IN_EVENTS_PER_SEC) {
-            computeDecay(numOfEvents, (System.currentTimeMillis() - txnCreationTime) * 1000000);
+            amortizedPerTick = numOfEvents / numOfTicks;
+        }
+
+        for (int i = 0; i < numOfEvents; i++) {
+            computeDecay(amortizedPerTick, INTERVAL_IN_SECONDS);
         }
     }
 
     private void computeDecay(long count, long duration) {
-        // We have two options here --
-        // currentCount data can be assumed to be evenly distributed over the tick period.
-        // Or assume this was received in this instant and every other tick gets 0.
-        // We will go with evenly distributed count as we are also dealing with txns in these updates
-        // and they supply their durations whereas regular writes are more expensive.
-
-        final long requiredTicks = Math.max(duration / TICK_INTERVAL, 1);
-
-        final long perTickCount = count / requiredTicks;
-
-        for (long i = 0; i < requiredTicks; i++) {
-            twoMinuteRate = decayingRate(perTickCount, twoMinuteRate, M2_ALPHA, TICK_INTERVAL_IN_SECONDS);
-            fiveMinuteRate = decayingRate(perTickCount, fiveMinuteRate, M5_ALPHA, TICK_INTERVAL_IN_SECONDS);
-            tenMinuteRate = decayingRate(perTickCount, tenMinuteRate, M10_ALPHA, TICK_INTERVAL_IN_SECONDS);
-            twentyMinuteRate = decayingRate(perTickCount, twentyMinuteRate, M20_ALPHA, TICK_INTERVAL_IN_SECONDS);
-        }
+        twoMinuteRate = decayingRate(count, twoMinuteRate, M2_ALPHA, duration);
+        fiveMinuteRate = decayingRate(count, fiveMinuteRate, M5_ALPHA, duration);
+        tenMinuteRate = decayingRate(count, tenMinuteRate, M10_ALPHA, duration);
+        twentyMinuteRate = decayingRate(count, twentyMinuteRate, M20_ALPHA, duration);
     }
 
     private double decayingRate(long count, double rate, double alpha, long interval) {
         final double instantRate = (double) count / (double) interval;
         return rate + (alpha * (instantRate - rate));
     }
-
 }

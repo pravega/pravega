@@ -5,9 +5,8 @@ package com.emc.pravega.controller.requesthandler;
 
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
-import com.emc.pravega.controller.embedded.EmbeddedController;
-import com.emc.pravega.controller.embedded.EmbeddedControllerImpl;
 import com.emc.pravega.controller.requests.ScaleRequest;
+import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
@@ -51,7 +50,7 @@ public class RequestHandlersInit {
     private static ClientFactory clientFactory;
     private static URI uri;
 
-    public static void bootstrapRequestHandlers(EmbeddedController controller, ScheduledExecutorService executor) {
+    public static void bootstrapRequestHandlers(ControllerService controller, ScheduledExecutorService executor) {
 
         uri = URI.create("tcp://localhost:" + Config.SERVER_PORT);
 
@@ -59,15 +58,13 @@ public class RequestHandlersInit {
 
         readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, uri);
 
-        EmbeddedControllerImpl embeddedControllerImpl = (EmbeddedControllerImpl) controller;
-
         CompletableFuture<Void> createStream = new CompletableFuture<>();
         CompletableFuture<Void> createScaleReader = new CompletableFuture<>();
 
-        executor.execute(() -> createStreams(embeddedControllerImpl, executor, createStream));
+        executor.execute(() -> createStreams(controller, executor, createStream));
 
-        createStream.thenAccept(x -> startScaleReader(clientFactory, controller.getController().getStreamMetadataTasks(),
-                controller.getController().getStreamStore(), controller.getController().getStreamTransactionMetadataTasks(),
+        createStream.thenAccept(x -> startScaleReader(clientFactory, controller.getStreamMetadataTasks(),
+                controller.getStreamStore(), controller.getStreamTransactionMetadataTasks(),
                 executor, createScaleReader));
     }
 
@@ -102,8 +99,8 @@ public class RequestHandlersInit {
         }
     }
 
-    private static void createStreams(EmbeddedControllerImpl controller, ScheduledExecutorService executor, CompletableFuture<Void> result) {
-        retryIndefinitely(() -> controller.getController().createStream(REQUEST_STREAM_CONFIG, System.currentTimeMillis())
+    private static void createStreams(ControllerService controller, ScheduledExecutorService executor, CompletableFuture<Void> result) {
+        retryIndefinitely(() -> controller.createStream(REQUEST_STREAM_CONFIG, System.currentTimeMillis())
                 .whenComplete((res, ex) -> {
                     if (ex != null && !(ex instanceof StreamAlreadyExistsException)) {
                         // fail and exit

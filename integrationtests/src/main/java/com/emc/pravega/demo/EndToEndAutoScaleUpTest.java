@@ -38,7 +38,7 @@ public class EndToEndAutoScaleUpTest {
             @Cleanup
             TestingServer zkTestServer = new TestingServer();
 
-            ControllerWrapper controller = ControllerWrapper.getControllerWrapper(zkTestServer.getConnectString());
+            ControllerWrapper controller = new ControllerWrapper(zkTestServer.getConnectString());
             ClientFactory internalCF = new ClientFactoryImpl("pravega", controller, new ConnectionFactoryImpl(false));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());

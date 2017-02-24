@@ -25,7 +25,7 @@ public class EndToEndTransactionTest {
     public static void main(String[] args) throws Exception {
         @Cleanup
         TestingServer zkTestServer = new TestingServer();
-        ControllerWrapper controller = ControllerWrapper.getControllerWrapper(zkTestServer.getConnectString());
+        ControllerWrapper controller = new ControllerWrapper(zkTestServer.getConnectString());
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();

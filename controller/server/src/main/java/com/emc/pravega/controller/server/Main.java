@@ -3,8 +3,6 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.controller.embedded.EmbeddedController;
-import com.emc.pravega.controller.embedded.EmbeddedControllerImpl;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
@@ -119,8 +117,7 @@ public class Main {
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
 
-        final EmbeddedController controller = new EmbeddedControllerImpl(controllerService);
-        RequestHandlersInit.bootstrapRequestHandlers(controller, requestExecutor);
+        RequestHandlersInit.bootstrapRequestHandlers(controllerService, requestExecutor);
 
         // 4. Start the REST server.
         log.info("Starting Pravega REST Service");
