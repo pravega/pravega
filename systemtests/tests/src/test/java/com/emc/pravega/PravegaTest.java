@@ -1,17 +1,5 @@
 /**
- * Copyright (c) 2016 Dell Inc. or its subsidiaries. All Rights Reserved
- * <p>
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
 package com.emc.pravega;
@@ -37,6 +25,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ControllerImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -54,10 +43,9 @@ import java.util.concurrent.TimeoutException;
 
 import static com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient.getClient;
 
-
+@Slf4j
 @RunWith(SystemTestRunner.class)
 public class PravegaTest {
-
 
     private final static String STREAM_NAME = "testStreamSample";
     private final static String STREAM_SCOPE = "testScopeSample";
@@ -65,9 +53,11 @@ public class PravegaTest {
     private final ScalingPolicy scalingPolicy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 2L, 2, 2);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(STREAM_SCOPE).streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
 
-
-    /*
-        This is used to setup the various services required by the system test framework.
+    /**
+     *  This is used to setup the various services required by the system test framework.
+     *  @throws InterruptedException If interrupted
+     *  @throws MarathonException when error in setup
+     *  @throws URISyntaxException If URI is invalid
      */
     @Environment
     public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
@@ -79,7 +69,7 @@ public class PravegaTest {
         }
 
         List<URI> zkUris = zookeeperService.getServiceDetails();
-        System.out.println("zookeeper service details:" + zkUris);
+        log.debug("zookeeper service details: {}", zkUris);
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
 
@@ -90,7 +80,7 @@ public class PravegaTest {
         }
 
         List<URI> bkUris = bookkeeperService.getServiceDetails();
-        System.out.println("bookkeeper service details:" + bkUris);
+        log.debug("bookkeeper service details: {}", bkUris);
 
         //4.start host
         Service segmentService = new PravegaSegmentStoreService("host", zkUri);
@@ -100,7 +90,7 @@ public class PravegaTest {
         }
 
         List<URI> segUris = segmentService.getServiceDetails();
-        System.out.println("pravega host service details:" + segUris);
+        log.debug("pravega host service details: {}", segUris);
         URI segUri = segUris.get(0);
 
         //3. start controller
@@ -110,8 +100,7 @@ public class PravegaTest {
         }
 
         List<URI> conUris = controllerService.getServiceDetails();
-        System.out.println("Pravega Controller service details:" + conUris);
-        URI controllerUri = conUris.get(0);
+        log.debug("Pravega Controller service details: {}", conUris);
 
     }
 
@@ -120,10 +109,12 @@ public class PravegaTest {
         // This is the placeholder to perform any operation on the services before executing the system tests
     }
 
-    /*
-          * Invoke the producer test, ensure we are able to produce 100 messages to the stream.z
-          * The test fails incase of exceptions while writing to the stream.
-          */
+    /**
+     * Invoke the producer test, ensure we are able to produce 100 messages to the stream.z
+     * The test fails incase of exceptions while writing to the stream.
+     * @throws InterruptedException if interrupted
+     * @throws URISyntaxException If URI is invalid
+     */
 
     @Test
     public void producerTest() throws InterruptedException, URISyntaxException {
@@ -132,21 +123,22 @@ public class PravegaTest {
         List<URI> ctlURIs = controllerService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
 
-        System.out.println("Invoking producer test.");
+        log.debug("Invoking producer test.");
 
-        System.out.println("Controller URI: " + controllerUri);
+        log.debug("Controller URI: {} ", controllerUri);
 
         ControllerImpl controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
 
         //create a stream.
         try {
             CompletableFuture<CreateScopeStatus> scopeStatus = controller.createScope(STREAM_SCOPE);
-            System.out.println("create scope status" + scopeStatus.get());
+            log.debug("create scope status {}", scopeStatus.get());
+
             CompletableFuture<CreateStreamStatus> status = controller.createStream(config);
-            System.out.println("create stream status" + status.get());
+            log.debug("create stream status {}", status.get());
         } catch (ExecutionException e) {
-            System.out.println("error in doing a get on create stream status," + e);
-            e.printStackTrace();
+            log.error("error in doing a get on create stream status {}", e);
+            System.exit(0);
         }
 
         Thread.sleep(30000);
@@ -160,7 +152,7 @@ public class PravegaTest {
 
         for (int i = 0; i < 5; i++) {
             String event = "\n Transactional Publish \n";
-            System.err.println("Producing event: " + event);
+            log.debug("Producing event: {} ", event);
             producer.writeEvent("", event);
             producer.flush();
             Thread.sleep(2000);
@@ -168,9 +160,10 @@ public class PravegaTest {
         Thread.sleep(10000);
     }
 
-    /*
+    /**
      * Invoke consumer test, ensure we are able to read 100 messages from the stream.
      * The test fails incase of exceptions/ timeout.
+     * @throws  URISyntaxException If URI is invalid
      */
     @Test
     public void consumerTest() throws URISyntaxException {
@@ -181,8 +174,8 @@ public class PravegaTest {
         String string = "http://" + controllerUri.getHost() + ":9090";
         controllerUri = new URI(string);
 
-        System.out.println("Invoking consumer test.");
-        System.out.println("Controller URI: " + controllerUri);
+        log.debug("Invoking consumer test.");
+        log.debug("Controller URI: " + controllerUri);
 
         ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri);
 
@@ -193,7 +186,7 @@ public class PravegaTest {
         try {
             Thread.sleep(10000);
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            log.error(" error in thread sleep {}", e);
         }
 
         @Cleanup
@@ -206,17 +199,12 @@ public class PravegaTest {
             try {
                 event = reader.readNextEvent(6000).getEvent();
             } catch (ReinitializationRequiredException e) {
-                e.printStackTrace();
+                log.error(" error in reading next event with a given timeout{}", e);
             }
-            System.err.println("Read event: " + event);
+            log.debug("Read event: {} ", event);
         }
         reader.close();
         System.exit(0);
 
     }
-
 }
-
-
-
-

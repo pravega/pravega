@@ -5,7 +5,6 @@
  */
 package com.emc.pravega.framework.services;
 
-
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import mesosphere.marathon.client.model.v2.App;
@@ -27,10 +26,9 @@ import java.util.concurrent.ExecutionException;
 @Slf4j
 public class PravegaSegmentStoreService extends MarathonBasedService {
 
-    private URI zkUri;
+    private final URI zkUri;
 
-    public PravegaSegmentStoreService(final String id, URI zkUri) {
-
+    public PravegaSegmentStoreService(final String id, final URI zkUri) {
         super(id);
         this.zkUri = zkUri;
     }
@@ -61,7 +59,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
     public void stop() {
         log.info("Stopping Pravega SegmentStore Service : {}", getID());
         try {
-            marathonClient.deleteApp("segmentstore");
+            marathonClient.deleteApp(getID());
         } catch (MarathonException e) {
             handleMarathonException(e);
         }

@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.framework.services;
 
@@ -14,6 +12,7 @@ import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.UpgradeStrategy;
 import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.utils.MarathonException;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,19 +23,18 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 @Slf4j
-public class BookkeeperService extends  MarathonBasedService {
+public class BookkeeperService extends MarathonBasedService {
 
-    private  URI zkUri;
-    public BookkeeperService(final String id, URI zkUri) {
+    private final URI zkUri;
 
+    public BookkeeperService(final String id, final URI zkUri) {
         super(id);
         this.zkUri = zkUri;
-
     }
 
 
     @Override
-    public void start(final boolean wait)  {
+    public void start(final boolean wait) {
         log.info("Starting Bookkeeper Service: {}", getID());
         try {
             marathonClient.createApp(createBookieApp());
@@ -62,7 +60,7 @@ public class BookkeeperService extends  MarathonBasedService {
     public void stop() {
         log.info("Stopping Bookkeeper Service : {}", getID());
         try {
-            marathonClient.deleteApp("bookkeeper");
+            marathonClient.deleteApp(getID());
         } catch (MarathonException e) {
             handleMarathonException(e);
         }
@@ -75,7 +73,7 @@ public class BookkeeperService extends  MarathonBasedService {
         app.setCpus(0.5);
         app.setMem(512.0);
         app.setInstances(3);
-        List<List<String>> listString =  new ArrayList<>();
+        List<List<String>> listString = new ArrayList<>();
         List<String> list = new ArrayList<>();
         list.add("hostname");
         list.add("UNIQUE");
@@ -97,17 +95,17 @@ public class BookkeeperService extends  MarathonBasedService {
         Volume volume2 = new Volume();
         volume2.setContainerPath("/bk/index");
         volume2.setHostPath("/mnt/index");
-        volume2.setMode( "RW");
+        volume2.setMode("RW");
         //ledgers
         Volume volume3 = new Volume();
         volume3.setContainerPath("/bk/ledgers");
         volume3.setHostPath("/mnt/ledgers");
-        volume3.setMode( "RW");
+        volume3.setMode("RW");
         //dl logs
         Volume volume4 = new Volume();
         volume4.setContainerPath("/opt/dl_all/distributedlog-service/logs/");
         volume4.setHostPath("/mnt/logs");
-        volume4.setMode( "RW");
+        volume4.setMode("RW");
         //TODO: set persistent volume size
         volumeCollection.add(volume1);
         volumeCollection.add(volume2);
@@ -122,8 +120,8 @@ public class BookkeeperService extends  MarathonBasedService {
         app.setPorts(Arrays.asList(3181));
         app.setRequirePorts(true);
         //set env
-        String zk = zkUri.getHost()+ ":2181";
-        Map<String, String> map = new  HashMap<>();
+        String zk = zkUri.getHost() + ":2181";
+        Map<String, String> map = new HashMap<>();
         map.put("ZK_URL", zk);
         map.put("ZK", zk);
         map.put("bookiePort", "3181");
@@ -144,7 +142,7 @@ public class BookkeeperService extends  MarathonBasedService {
         upgradeStrategy.setMaximumOverCapacity(0.0);
         upgradeStrategy.setMinimumHealthCapacity(0.0);
         app.setUpgradeStrategy(upgradeStrategy);
-        return  app;
+        return app;
     }
 
 }

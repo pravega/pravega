@@ -22,9 +22,7 @@ import java.util.concurrent.ExecutionException;
 public class ZookeeperService extends MarathonBasedService {
 
     public ZookeeperService(final String id) {
-
         super(id);
-
     }
 
     @Override
@@ -53,7 +51,7 @@ public class ZookeeperService extends MarathonBasedService {
     public void stop() {
         log.info("Stopping Zookeeper Service : {}", getID());
         try {
-            marathonClient.deleteApp("zookeeper");
+            marathonClient.deleteApp(getID());
         } catch (MarathonException e) {
             handleMarathonException(e);
         }

@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.framework.services;
 
@@ -13,6 +11,7 @@ import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.UpgradeStrategy;
 import mesosphere.marathon.client.utils.MarathonException;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,10 +26,10 @@ import java.util.concurrent.ExecutionException;
 @Slf4j
 public class PravegaControllerService extends MarathonBasedService {
 
-    private  URI zkUri;
-    private  URI segUri;
+    private final URI zkUri;
+    private final URI segUri;
 
-    public PravegaControllerService(final String id, URI zkUri, URI segUri) {
+    public PravegaControllerService(final String id, final URI zkUri, final URI segUri) {
         super(id);
         this.zkUri = zkUri;
         this.segUri = segUri;
@@ -42,7 +41,7 @@ public class PravegaControllerService extends MarathonBasedService {
      * @param wait boolean to wait until service is running
      */
     @Override
-    public void start(final boolean wait)  {
+    public void start(final boolean wait) {
         log.debug("Starting service: {}", getID());
         try {
 
@@ -66,7 +65,7 @@ public class PravegaControllerService extends MarathonBasedService {
     public void stop() {
         log.debug("Stopping  pravega controller service: {}", getID());
         try {
-            marathonClient.deleteApp("controller");
+            marathonClient.deleteApp(getID());
         } catch (MarathonException e) {
             handleMarathonException(e);
         }
@@ -92,7 +91,7 @@ public class PravegaControllerService extends MarathonBasedService {
         app.setCpus(0.1);
         app.setMem(256.0);
         app.setInstances(1);
-        List<List<String>> listString =  new ArrayList<>();
+        List<List<String>> listString = new ArrayList<>();
         List<String> list = new ArrayList<>();
         list.add("hostname");
         list.add("UNIQUE");
@@ -106,9 +105,9 @@ public class PravegaControllerService extends MarathonBasedService {
         app.getContainer().getDocker().setNetwork("HOST");
         app.getContainer().getDocker().setForcePullImage(true);
         //set docker container parameters
-        String zk = zkUri.getHost()+ ":2181";
+        String zk = zkUri.getHost() + ":2181";
         List<Parameter> parameterList = new ArrayList<>();
-        Parameter element1 = new Parameter("env",  "SERVER_OPTS=\"-DZK_URL="+zk+"\\");
+        Parameter element1 = new Parameter("env", "SERVER_OPTS=\"-DZK_URL=" + zk + "\\");
         parameterList.add(element1);
         app.getContainer().getDocker().setParameters(parameterList);
         //set port
@@ -135,6 +134,6 @@ public class PravegaControllerService extends MarathonBasedService {
         upgradeStrategy.setMaximumOverCapacity(0.0);
         upgradeStrategy.setMinimumHealthCapacity(0.0);
         app.setUpgradeStrategy(upgradeStrategy);
-        return  app;
+        return app;
     }
 }
