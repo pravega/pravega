@@ -13,7 +13,7 @@ import org.apache.thrift.TEnum;
 
 public enum ScalingPolicyType implements org.apache.thrift.TEnum {
   FIXED_NUM_SEGMENTS(0),
-  BY_RATE_IN_KBPS(1),
+  BY_RATE_IN_KBYTES_PER_SEC(1),
   BY_RATE_IN_EVENTS_PER_SEC(2);
 
   private final int value;
@@ -38,7 +38,7 @@ public enum ScalingPolicyType implements org.apache.thrift.TEnum {
       case 0:
         return FIXED_NUM_SEGMENTS;
       case 1:
-        return BY_RATE_IN_KBPS;
+        return BY_RATE_IN_KBYTES_PER_SEC;
       case 2:
         return BY_RATE_IN_EVENTS_PER_SEC;
       default:

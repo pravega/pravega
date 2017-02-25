@@ -29,13 +29,12 @@ public class Cache<T> {
                 .build(new CacheLoader<String, CompletableFuture<Data<T>>>() {
                     @ParametersAreNonnullByDefault
                     public CompletableFuture<Data<T>> load(final String key) {
-                        return loader.get(key)
-                                .whenComplete((res, ex) -> {
-                                    if (ex != null) {
-                                        invalidateCache(key);
-                                        throw new CompletionException(ex);
-                                    }
-                                });
+                        CompletableFuture<Data<T>> result = loader.get(key);
+                        result.exceptionally(ex -> {
+                            invalidateCache(key);
+                            return null;
+                        });
+                        return result;
                     }
                 });
     }
