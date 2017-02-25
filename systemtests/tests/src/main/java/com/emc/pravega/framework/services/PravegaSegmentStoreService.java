@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.framework.services;
 
@@ -13,6 +11,7 @@ import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.UpgradeStrategy;
 import mesosphere.marathon.client.model.v2.Volume;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,14 +26,20 @@ import java.util.concurrent.ExecutionException;
 public class PravegaSegmentStoreService extends MarathonBasedService {
 
     private final URI zkUri;
+    private int instances = 1;
+    private double cpu = 1.0;
+    private double mem = 512.0;
 
-    public PravegaSegmentStoreService(final String id, final URI zkUri) {
+    public PravegaSegmentStoreService(final String id, final URI zkUri, int instances, double cpu, double mem) {
         super(id);
         this.zkUri = zkUri;
+        this.instances = instances;
+        this.cpu = cpu;
+        this.mem = mem;
     }
 
     @Override
-    public void start(final boolean wait)  {
+    public void start(final boolean wait) {
         log.info("Starting Pravega SegmentStore Service: {}", getID());
         try {
             marathonClient.createApp(createPravegaSegmentStoreApp());
@@ -70,9 +75,9 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         App app = new App();
         app.setId(this.id);
         app.setBackoffSeconds(7200);
-        app.setCpus(1.0);
-        app.setMem(500.0);
-        app.setInstances(1);
+        app.setCpus(cpu);
+        app.setMem(mem);
+        app.setInstances(instances);
         //set constraints
         List<List<String>> listString = new ArrayList<>();
         List<String> list = new ArrayList<>();
@@ -116,7 +121,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         upgradeStrategy.setMinimumHealthCapacity(0.0);
         app.setUpgradeStrategy(upgradeStrategy);
         //set env
-        String zk = zkUri.getHost()+ ":2181";
+        String zk = zkUri.getHost() + ":2181";
         Map<String, String> map = new HashMap<>();
         map.put("ZK_URL", zk);
         map.put("pravegaservice_zkHostName", zkUri.getHost());

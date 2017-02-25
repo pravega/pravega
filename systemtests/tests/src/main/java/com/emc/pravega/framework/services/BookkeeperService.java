@@ -26,10 +26,16 @@ import java.util.concurrent.ExecutionException;
 public class BookkeeperService extends MarathonBasedService {
 
     private final URI zkUri;
+    private int instances = 3;
+    private double cpu = 0.5;
+    private double mem = 512.0;
 
-    public BookkeeperService(final String id, final URI zkUri) {
+    public BookkeeperService(final String id, final URI zkUri, int instances, double cpu, double mem) {
         super(id);
         this.zkUri = zkUri;
+        this.instances = instances;
+        this.cpu = cpu;
+        this.mem = mem;
     }
 
 
@@ -70,9 +76,9 @@ public class BookkeeperService extends MarathonBasedService {
 
         App app = new App();
         app.setId(this.id);
-        app.setCpus(0.5);
-        app.setMem(512.0);
-        app.setInstances(3);
+        app.setCpus(cpu);
+        app.setMem(mem);
+        app.setInstances(instances);
         List<List<String>> listString = new ArrayList<>();
         List<String> list = new ArrayList<>();
         list.add("hostname");

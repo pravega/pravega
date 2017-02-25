@@ -54,10 +54,11 @@ public class PravegaTest {
     private final StreamConfiguration config = StreamConfiguration.builder().scope(STREAM_SCOPE).streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
 
     /**
-     *  This is used to setup the various services required by the system test framework.
-     *  @throws InterruptedException If interrupted
-     *  @throws MarathonException when error in setup
-     *  @throws URISyntaxException If URI is invalid
+     * This is used to setup the various services required by the system test framework.
+     *
+     * @throws InterruptedException If interrupted
+     * @throws MarathonException    when error in setup
+     * @throws URISyntaxException   If URI is invalid
      */
     @Environment
     public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
@@ -74,7 +75,7 @@ public class PravegaTest {
         URI zkUri = zkUris.get(0);
 
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bookkeeperService = new BookkeeperService("bookkeeper", zkUri);
+        Service bookkeeperService = new BookkeeperService("bookkeeper", zkUri, 3, 0.5, 512.0);
         if (!bookkeeperService.isRunning()) {
             bookkeeperService.start(true);
         }
@@ -83,7 +84,7 @@ public class PravegaTest {
         log.debug("bookkeeper service details: {}", bkUris);
 
         //4.start host
-        Service segmentService = new PravegaSegmentStoreService("host", zkUri);
+        Service segmentService = new PravegaSegmentStoreService("host", zkUri, 1, 1, 512.0);
 
         if (!segmentService.isRunning()) {
             segmentService.start(true);
@@ -94,7 +95,7 @@ public class PravegaTest {
         URI segUri = segUris.get(0);
 
         //3. start controller
-        Service controllerService = new PravegaControllerService("controller", zkUri, segUri);
+        Service controllerService = new PravegaControllerService("controller", zkUri, segUri, 1, 0.1, 256);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -112,14 +113,15 @@ public class PravegaTest {
     /**
      * Invoke the producer test, ensure we are able to produce 100 messages to the stream.z
      * The test fails incase of exceptions while writing to the stream.
+     *
      * @throws InterruptedException if interrupted
-     * @throws URISyntaxException If URI is invalid
+     * @throws URISyntaxException   If URI is invalid
      */
 
     @Test
     public void producerTest() throws InterruptedException, URISyntaxException {
 
-        Service controllerService = new PravegaControllerService("controller", null, null);
+        Service controllerService = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
         List<URI> ctlURIs = controllerService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
 
@@ -163,12 +165,13 @@ public class PravegaTest {
     /**
      * Invoke consumer test, ensure we are able to read 100 messages from the stream.
      * The test fails incase of exceptions/ timeout.
-     * @throws  URISyntaxException If URI is invalid
+     *
+     * @throws URISyntaxException If URI is invalid
      */
     @Test
     public void consumerTest() throws URISyntaxException {
 
-        Service controllerService = new PravegaControllerService("controller", null, null);
+        Service controllerService = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
         List<URI> ctlURIs = controllerService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
         String string = "http://" + controllerUri.getHost() + ":9090";

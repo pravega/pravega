@@ -28,11 +28,17 @@ public class PravegaControllerService extends MarathonBasedService {
 
     private final URI zkUri;
     private final URI segUri;
+    private int instances = 1;
+    private double cpu = 0.1;
+    private double mem = 256;
 
-    public PravegaControllerService(final String id, final URI zkUri, final URI segUri) {
+    public PravegaControllerService(final String id, final URI zkUri, final URI segUri, int instances, double cpu, double mem) {
         super(id);
         this.zkUri = zkUri;
         this.segUri = segUri;
+        this.instances = instances;
+        this.cpu = cpu;
+        this.mem = mem;
     }
 
     /**
@@ -88,9 +94,9 @@ public class PravegaControllerService extends MarathonBasedService {
 
         App app = new App();
         app.setId(this.id);
-        app.setCpus(0.1);
-        app.setMem(256.0);
-        app.setInstances(1);
+        app.setCpus(cpu);
+        app.setMem(mem);
+        app.setInstances(instances);
         List<List<String>> listString = new ArrayList<>();
         List<String> list = new ArrayList<>();
         list.add("hostname");

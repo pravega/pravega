@@ -29,7 +29,8 @@ public class BookkeeperTest {
 
     /**
      * This is used to setup the various services required by the system test framework.
-     * @throws MarathonException  if error in setup
+     *
+     * @throws MarathonException if error in setup
      */
     @Environment
     public static void setup() throws MarathonException {
@@ -39,7 +40,7 @@ public class BookkeeperTest {
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        Service bk = new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0));
+        Service bk = new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0), 3, 0.5, 512.0);
         if (!bk.isRunning()) {
             bk.start(true);
         }
@@ -59,7 +60,7 @@ public class BookkeeperTest {
     @Test
     public void bkPingTest() {
         log.debug("Start execution of bkPingTest");
-        Service bk = new BookkeeperService("bookkeeper", null);
+        Service bk = new BookkeeperService("bookkeeper", null, 0, 0.0, 0.0);
         List<URI> bkUri = bk.getServiceDetails();
         //TODO: validate bk uri details
         log.debug("bk Service URI details: {} ", bkUri);
