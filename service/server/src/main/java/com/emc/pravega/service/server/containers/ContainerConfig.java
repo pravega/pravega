@@ -19,16 +19,24 @@ public class ContainerConfig extends ComponentConfig {
     //region Members
 
     public static final String COMPONENT_CODE = "containers";
+    public static final String PROPERTY_MAX_ACTIVE_SEGMENT_COUNT = "maxActiveSegmentCount";
     public static final String PROPERTY_SEGMENT_METADATA_EXPIRATION_SECONDS = "segmentMetadataExpirationSeconds";
 
     public static final int MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS = 60; // Minimum possible value for segmentExpiration
     private static final int DEFAULT_SEGMENT_METADATA_EXPIRATION_SECONDS = 5 * 60; // 5 Minutes.
+    private static final int DEFAULT_MAX_ACTIVE_SEGMENT_COUNT = 10000;
 
     /**
      * The amount of time after which Segments are eligible for eviction from the metadata.
      */
     @Getter
     private Duration segmentMetadataExpiration;
+
+    /**
+     * The maximum number of segments that can be active at any given time in a container.
+     */
+    @Getter
+    private int maxActiveSegmentCount;
 
     //endregion
 
@@ -55,10 +63,13 @@ public class ContainerConfig extends ComponentConfig {
     @Override
     protected void refresh() throws ConfigurationException {
         int segmentMetadataExpirationSeconds = getInt32Property(PROPERTY_SEGMENT_METADATA_EXPIRATION_SECONDS, DEFAULT_SEGMENT_METADATA_EXPIRATION_SECONDS);
-        if (segmentMetadataExpirationSeconds < MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS) {
-            throw new ConfigurationException(String.format("Property '%s' must be at least %s.", PROPERTY_SEGMENT_METADATA_EXPIRATION_SECONDS, MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS));
-        }
+        checkCondition(segmentMetadataExpirationSeconds >= MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS,
+                PROPERTY_SEGMENT_METADATA_EXPIRATION_SECONDS, "must be at least %s", MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS);
         this.segmentMetadataExpiration = Duration.ofSeconds(segmentMetadataExpirationSeconds);
+
+        int maxActiveSegments = getInt32Property(PROPERTY_MAX_ACTIVE_SEGMENT_COUNT, DEFAULT_MAX_ACTIVE_SEGMENT_COUNT);
+        checkCondition(maxActiveSegments > 0, PROPERTY_MAX_ACTIVE_SEGMENT_COUNT, "must a positive integer");
+        this.maxActiveSegmentCount = maxActiveSegments;
     }
 
     //endregion

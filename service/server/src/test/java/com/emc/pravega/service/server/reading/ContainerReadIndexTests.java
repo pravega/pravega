@@ -17,10 +17,10 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ConfigHelpers;
+import com.emc.pravega.service.server.MetadataBuilder;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
-import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.CacheFactory;
@@ -1175,7 +1175,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         TestContext(ReadIndexConfig readIndexConfig, CachePolicy cachePolicy) {
             this.cacheFactory = new TestCacheFactory();
-            this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+            this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.storage = new InMemoryStorage();
             this.cacheManager = new TestCacheManager(cachePolicy, executorService());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cacheFactory, this.storage, this.cacheManager, executorService());

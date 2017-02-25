@@ -237,12 +237,21 @@ public abstract class ComponentConfig {
         return this.keyPrefix + name;
     }
 
+    protected void checkCondition(boolean isValid, String propertyName, String messageFormat, Object... messageArgs) {
+        if (!isValid) {
+            throw new ConfigurationException(String.format("Property '%s': %s.",
+                    propertyName,
+                    String.format(messageFormat, messageArgs)));
+        }
+    }
+
     //endregion
 
     //region Configuration Refresh
 
     /**
      * Refreshes the configuration based on the latest Property values.
+     *
      * @throws ConfigurationException When a configuration issue has been detected.
      */
     protected abstract void refresh() throws ConfigurationException;

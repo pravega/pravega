@@ -12,8 +12,9 @@ import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
+import com.emc.pravega.service.server.MetadataBuilder;
 import com.emc.pravega.service.server.ReadIndex;
-import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
+import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
@@ -105,7 +106,7 @@ public class MemoryStateUpdaterTests {
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
         MemoryStateUpdater updater = new MemoryStateUpdater(opLog, readIndex);
 
-        StreamSegmentContainerMetadata metadata1 = new StreamSegmentContainerMetadata(1);
+        UpdateableContainerMetadata metadata1 = new MetadataBuilder(1).build();
         updater.enterRecoveryMode(metadata1);
         updater.exitRecoveryMode(true);
 

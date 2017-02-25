@@ -15,11 +15,11 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
+import com.emc.pravega.service.server.MetadataBuilder;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.service.server.TruncationMarkerRepository;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
-import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.OperationComparer;
 import com.emc.pravega.service.server.logs.operations.OperationFactory;
@@ -516,7 +516,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestContext() {
             this.cacheFactory = new InMemoryCacheFactory();
             this.storage = new InMemoryStorage(executorService());
-            this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+            this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             ReadIndexConfig readIndexConfig = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
                     PropertyBag.create().with(ReadIndexConfig.PROPERTY_STORAGE_READ_ALIGNMENT, 1024));
             this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), executorService());

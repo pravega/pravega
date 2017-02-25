@@ -10,6 +10,13 @@ import java.util.Collection;
  */
 public interface UpdateableContainerMetadata extends ContainerMetadata, RecoverableMetadata, TruncationMarkerRepository {
     /**
+     * Gets a value indicating the maximum number of segments that can be registered in this metadata at any given time.
+     *
+     * @return The maximum number of segments.
+     */
+    int getMaximumActiveSegmentCount();
+
+    /**
      * Maps a new StreamSegment Name to the given Id.
      *
      * @param streamSegmentName The case-sensitive name of the StreamSegment to map.

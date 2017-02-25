@@ -4,6 +4,7 @@
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.MetadataBuilder;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
@@ -35,7 +36,7 @@ public class StreamSegmentContainerMetadataTests {
      */
     @Test
     public void testSequenceNumber() {
-        StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID).build();
         for (long expectedSeqNo = 1; expectedSeqNo < 100; expectedSeqNo++) {
             long actualSeqNo = m.nextOperationSequenceNumber();
             Assert.assertEquals("Unexpected result from nextOperationSequenceNumber.", expectedSeqNo, actualSeqNo);
@@ -70,7 +71,7 @@ public class StreamSegmentContainerMetadataTests {
      */
     @Test
     public void testMapStreamSegment() {
-        final StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID).build();
         final HashMap<Long, Long> segmentIds = new HashMap<>();
         for (long i = 0; i < SEGMENT_COUNT; i++) {
             final long segmentId = segmentIds.size();
@@ -146,7 +147,7 @@ public class StreamSegmentContainerMetadataTests {
     @Test
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testDeleteStreamSegment() {
-        StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID).build();
         ArrayList<Long> segmentIds = new ArrayList<>();
         for (long i = 0; i < SEGMENT_COUNT; i++) {
             final long segmentId = segmentIds.size();
@@ -226,7 +227,7 @@ public class StreamSegmentContainerMetadataTests {
     @Test
     public void testReset() {
         // Segments, Sequence Number + Truncation markers
-        StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID).build();
 
         // Set a high Sequence Number
         m.enterRecoveryMode();
@@ -281,7 +282,7 @@ public class StreamSegmentContainerMetadataTests {
         final long maxSeqNo = 1000;
         final int markerFrequency = 13;
         Function<Long, LogAddress> getFrameAddress = seqNo -> new TestLogAddress(Integer.MAX_VALUE + seqNo * seqNo);
-        StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID).build();
 
         // Record some truncation markers, starting a few steps after initial.
         for (long seqNo = markerFrequency; seqNo <= maxSeqNo; seqNo += markerFrequency) {
@@ -329,7 +330,7 @@ public class StreamSegmentContainerMetadataTests {
      */
     @Test
     public void testValidTruncationPoints() {
-        StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID).build();
         for (int i = 0; i < 100; i += 2) {
             m.setValidTruncationPoint(i);
         }
@@ -359,7 +360,7 @@ public class StreamSegmentContainerMetadataTests {
         // Each segment has a 'LastKnownSequenceNumber' set in incremental order.
         final ArrayList<Long> segments = new ArrayList<>();
         final HashMap<Long, Long> transactions = new HashMap<>();
-        final StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final StreamSegmentContainerMetadata m = new MetadataBuilder(CONTAINER_ID).buildAs();
         populateSegmentsForEviction(segments, transactions, m);
 
         for (int i = 0; i < segments.size(); i++) {
@@ -411,7 +412,7 @@ public class StreamSegmentContainerMetadataTests {
     @Test
     public void testCleanup() {
         // Expire each Segment at a different stage.
-        final StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        final StreamSegmentContainerMetadata m = new MetadataBuilder(CONTAINER_ID).buildAs();
 
         // Create a number of segments, out of which every 4th one has a transaction (25%).
         // Each segment has a 'LastUsed' set in incremental order.

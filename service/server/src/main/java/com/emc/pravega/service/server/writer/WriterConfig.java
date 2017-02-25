@@ -151,29 +151,20 @@ public class WriterConfig extends ComponentConfig {
     @Override
     protected void refresh() throws ConfigurationException {
         this.flushThresholdBytes = getInt32Property(PROPERTY_FLUSH_THRESHOLD_BYTES, DEFAULT_FLUSH_THRESHOLD_BYTES);
-        if (this.flushThresholdBytes < 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a non-negative integer.", PROPERTY_FLUSH_THRESHOLD_BYTES));
-        }
+        checkCondition(this.flushThresholdBytes >= 0, PROPERTY_FLUSH_THRESHOLD_BYTES, "must be a non-negative integer");
 
         long flushThresholdMillis = getInt64Property(PROPERTY_FLUSH_THRESHOLD_MILLIS, DEFAULT_FLUSH_THRESHOLD_MILLIS);
         this.flushThresholdTime = Duration.ofMillis(flushThresholdMillis);
 
         this.maxFlushSizeBytes = getInt32Property(PROPERTY_MAX_FLUSH_SIZE_BYTES, DEFAULT_MAX_FLUSH_SIZE_BYTES);
-
         this.maxItemsToReadAtOnce = getInt32Property(PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE, DEFAULT_MAX_ITEMS_TO_READ_AT_ONCE);
-        if (this.maxItemsToReadAtOnce <= 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE));
-        }
+        checkCondition(this.maxItemsToReadAtOnce > 0, PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE, "must be a positive integer");
 
         long minReadTimeoutMillis = getInt64Property(PROPERTY_MIN_READ_TIMEOUT_MILLIS, DEFAULT_MIN_READ_TIMEOUT_MILLIS);
         long maxReadTimeoutMillis = getInt64Property(PROPERTY_MAX_READ_TIMEOUT_MILLIS, DEFAULT_MAX_READ_TIMEOUT_MILLIS);
-        if (minReadTimeoutMillis < 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", PROPERTY_MIN_READ_TIMEOUT_MILLIS));
-        }
-
-        if (minReadTimeoutMillis > maxReadTimeoutMillis) {
-            throw new ConfigurationException(String.format("Property '%s' must be smaller than or equal to '%s'.", PROPERTY_MIN_READ_TIMEOUT_MILLIS, PROPERTY_MAX_READ_TIMEOUT_MILLIS));
-        }
+        checkCondition(minReadTimeoutMillis >= 0, PROPERTY_MIN_READ_TIMEOUT_MILLIS, "must be a positive integer");
+        checkCondition(minReadTimeoutMillis <= maxReadTimeoutMillis, PROPERTY_MIN_READ_TIMEOUT_MILLIS,
+                "must be smaller than or equal to '%s'", PROPERTY_MAX_READ_TIMEOUT_MILLIS);
 
         this.minReadTimeout = Duration.ofMillis(minReadTimeoutMillis);
         this.maxReadTimeout = Duration.ofMillis(maxReadTimeoutMillis);

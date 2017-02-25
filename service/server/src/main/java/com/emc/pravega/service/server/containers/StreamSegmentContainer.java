@@ -93,7 +93,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
         this.config = config;
         this.storage = storageFactory.getStorageAdapter();
-        this.metadata = new StreamSegmentContainerMetadata(streamSegmentContainerId);
+        this.metadata = new StreamSegmentContainerMetadata(streamSegmentContainerId, config.getMaxActiveSegmentCount());
         this.readIndex = readIndexFactory.createReadIndex(this.metadata);
         this.executor = executor;
         this.durableLog = durableLogFactory.createDurableLog(this.metadata, this.readIndex);

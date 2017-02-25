@@ -15,11 +15,11 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.ManualTimer;
+import com.emc.pravega.service.server.MetadataBuilder;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.SegmentMetadataComparer;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
-import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
@@ -978,7 +978,7 @@ public class OperationMetadataUpdaterTests {
     //region Helpers
 
     private UpdateableContainerMetadata createBlankMetadata() {
-        return new StreamSegmentContainerMetadata(CONTAINER_ID);
+        return new MetadataBuilder(CONTAINER_ID).build();
     }
 
     private UpdateableContainerMetadata createMetadata() {

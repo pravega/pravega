@@ -16,6 +16,7 @@ import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.MetadataBuilder;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.SegmentMetadataComparer;
@@ -504,7 +505,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         TestContext() {
             this.storage = new TestStorage();
             this.operationLog = new TestOperationLog();
-            this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+            this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.stateStore = new InMemoryStateStore();
             this.mapper = new StreamSegmentMapper(this.metadata, this.operationLog, this.stateStore, this.storage, executorService());
         }

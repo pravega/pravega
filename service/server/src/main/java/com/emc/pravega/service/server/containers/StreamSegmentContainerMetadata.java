@@ -45,6 +45,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private final HashMap<Long, StreamSegmentMetadata> metadataById;
     private final AtomicBoolean recoveryMode;
     private final int streamSegmentContainerId;
+    private final int maxActiveSegmentCount;
     @GuardedBy("truncationMarkers")
     private final TreeMap<Long, LogAddress> truncationMarkers;
     @GuardedBy("truncationMarkers")
@@ -59,10 +60,13 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
      * Creates a new instance of the StreamSegmentContainerMetadata.
      *
      * @param streamSegmentContainerId The Id of the StreamSegmentContainer.
+     * @param maxActiveSegmentCount    The maximum number of segments that can be registered in this metadata at any given time.
      */
-    public StreamSegmentContainerMetadata(int streamSegmentContainerId) {
+    public StreamSegmentContainerMetadata(int streamSegmentContainerId, int maxActiveSegmentCount) {
+        Preconditions.checkArgument(maxActiveSegmentCount > 0, "maxActiveSegmentCount must be a positive integer.");
         this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
         this.streamSegmentContainerId = streamSegmentContainerId;
+        this.maxActiveSegmentCount = maxActiveSegmentCount;
         this.sequenceNumber = new AtomicLong();
         this.metadataByName = new HashMap<>();
         this.metadataById = new HashMap<>();
@@ -118,12 +122,15 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     //region UpdateableContainerMetadata
 
     @Override
+    public int getMaximumActiveSegmentCount() {
+        return this.maxActiveSegmentCount;
+    }
+
+    @Override
     public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
         StreamSegmentMetadata segmentMetadata;
         synchronized (this.lock) {
-            Exceptions.checkArgument(!this.metadataByName.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
-            Exceptions.checkArgument(!this.metadataById.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
-
+            validateNewMapping(streamSegmentName, streamSegmentId);
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId());
             this.metadataByName.put(streamSegmentName, segmentMetadata);
             this.metadataById.put(streamSegmentId, segmentMetadata);
@@ -138,12 +145,11 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
         StreamSegmentMetadata segmentMetadata;
         synchronized (this.lock) {
-            Exceptions.checkArgument(!this.metadataByName.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
-            Exceptions.checkArgument(!this.metadataById.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
-
+            validateNewMapping(streamSegmentName, streamSegmentId);
             StreamSegmentMetadata parentMetadata = this.metadataById.getOrDefault(parentStreamSegmentId, null);
             Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
-            Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a transaction StreamSegment for another transaction StreamSegment.");
+            Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID,
+                    "parentStreamSegmentId", "Cannot create a transaction StreamSegment for another transaction StreamSegment.");
 
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
             this.metadataByName.put(streamSegmentName, segmentMetadata);
@@ -153,6 +159,17 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         segmentMetadata.setLastUsed(getOperationSequenceNumber());
         log.info("{}: MapTransactionStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
         return segmentMetadata;
+    }
+
+    @GuardedBy("lock")
+    private void validateNewMapping(String streamSegmentName, long streamSegmentId) {
+        Exceptions.checkArgument(!this.metadataByName.containsKey(streamSegmentName), "streamSegmentName",
+                "StreamSegment '%s' is already mapped.", streamSegmentName);
+        Exceptions.checkArgument(!this.metadataById.containsKey(streamSegmentId), "streamSegmentId",
+                "StreamSegment Id %d is already mapped.", streamSegmentId);
+        Preconditions.checkState(this.metadataById.size() < this.maxActiveSegmentCount,
+                "StreamSegment '%s' cannot be mapped because the maximum allowed number of mapped segments (%s)has been reached.",
+                streamSegmentName, this.maxActiveSegmentCount);
     }
 
     @Override

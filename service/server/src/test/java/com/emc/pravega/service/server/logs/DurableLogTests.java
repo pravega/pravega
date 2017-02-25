@@ -24,7 +24,8 @@ import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.service.server.TestDurableDataLogFactory;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
-import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
+import com.emc.pravega.service.server.UpdateableContainerMetadata;
+import com.emc.pravega.service.server.MetadataBuilder;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.OperationComparer;
@@ -659,7 +660,7 @@ public class DurableLogTests extends OperationLogTestBase {
         List<Operation> originalOperations;
 
         // First DurableLog. We use this for generating data.
-        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
         InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
         @Cleanup
@@ -687,7 +688,7 @@ public class DurableLogTests extends OperationLogTestBase {
         }
 
         // Second DurableLog. We use this for recovery.
-        metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        metadata = new MetadataBuilder(CONTAINER_ID).build();
         try (
                 ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
@@ -724,7 +725,7 @@ public class DurableLogTests extends OperationLogTestBase {
         List<OperationWithCompletion> completionFutures;
 
         // First DurableLog. We use this for generating data.
-        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
         InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
         @Cleanup
@@ -748,7 +749,7 @@ public class DurableLogTests extends OperationLogTestBase {
         }
 
         //Recovery failure due to DataLog Failures.
-        metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
         try (
                 ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
@@ -776,7 +777,7 @@ public class DurableLogTests extends OperationLogTestBase {
         }
 
         // Recovery failure due to DataCorruption
-        metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
         try (
                 ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
@@ -836,7 +837,7 @@ public class DurableLogTests extends OperationLogTestBase {
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
-        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
         InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
@@ -948,7 +949,7 @@ public class DurableLogTests extends OperationLogTestBase {
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
-        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
         InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
@@ -1103,7 +1104,7 @@ public class DurableLogTests extends OperationLogTestBase {
         final ScheduledExecutorService executorService;
         final TestDurableDataLogFactory dataLogFactory;
         final AtomicReference<TestDurableDataLog> dataLog;
-        final StreamSegmentContainerMetadata metadata;
+        final UpdateableContainerMetadata metadata;
         final ReadIndex readIndex;
         final CacheManager cacheManager;
         final Storage storage;
@@ -1114,7 +1115,7 @@ public class DurableLogTests extends OperationLogTestBase {
             this.dataLog = new AtomicReference<>();
             this.executorService = executorService;
             this.dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, this.executorService), this.dataLog::set);
-            this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+            this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.cacheFactory = new InMemoryCacheFactory();
             this.storage = new InMemoryStorage(this.executorService);
             this.cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), this.executorService);
