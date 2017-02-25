@@ -93,10 +93,14 @@ class SegmentInputStreamImpl implements SegmentInputStream {
      */
     @Override
     @Synchronized
-    public ByteBuffer read() throws EndOfSegmentException {
-        issueRequestIfNeeded();
-        while (dataWaitingToGoInBuffer() || (buffer.dataAvailable() < TYPE_PLUS_LENGTH_SIZE)) {
-            handleRequest();
+    public ByteBuffer read(long timeout) throws EndOfSegmentException {
+        fillBuffer();
+        if (buffer.dataAvailable() < TYPE_PLUS_LENGTH_SIZE) {
+            if (outstandingRequest.await(timeout)) {
+                handleRequest();
+            } else {
+                return null;
+            }
         }
         if (buffer.dataAvailable() <= 0 && receivedEndOfSegment) {
             throw new EndOfSegmentException();

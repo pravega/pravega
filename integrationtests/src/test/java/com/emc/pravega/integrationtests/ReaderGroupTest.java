@@ -1,3 +1,8 @@
+/**
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ */
 package com.emc.pravega.integrationtests;
 
 import com.emc.pravega.ClientFactory;
@@ -20,6 +25,8 @@ import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.TestUtils;
 import com.google.common.collect.Lists;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import lombok.Cleanup;
 import lombok.Data;
 
@@ -32,29 +39,12 @@ public class ReaderGroupTest {
     private static final String READER_GROUP = "ExampleReaderGroup";
 
     @Data
-    private class WriterThread implements Runnable {
-        private final int eventsToWrite;
-        private final ClientFactory clientFactory;
-
-        public void run() {
-            @Cleanup
-            EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM_NAME,
-                                                                               new JavaSerializer<>(),
-                                                                               EventWriterConfig.builder().build());
-            for (int i = 0; i < eventsToWrite; i++) {
-                System.err.println("Writing event: " + i);
-                writer.writeEvent(Integer.toString(i), " Event " + i);
-            }
-            writer.flush();
-        }
-    }
-
-    @Data
-    private class ReaderThread implements Runnable {
+    private static class ReaderThread implements Runnable {
         private static final int READ_TIMEOUT = 60000;
         private final int eventsToRead;
         private final String readerId;
         private final ClientFactory clientFactory;
+        private final AtomicReference<Exception> exception = new AtomicReference<>(null);
 
         public void run() {
             try {
@@ -64,14 +54,14 @@ public class ReaderGroupTest {
                                                                               new JavaSerializer<>(),
                                                                               ReaderConfig.builder().build());
                 String event = null;
-                for (int i=0; i < eventsToRead; i++) {
+                for (int i = 0; i < eventsToRead; i++) {
                     event = reader.readNextEvent(READ_TIMEOUT).getEvent();
-                    System.err.println("Reader " + readerId +" Iteration "+ i + " Read event: " + event);
+                    if (event == null) {
+                        exception.set(new IllegalStateException("Read timedOut unexpectedly"));
+                    }
                 }
-                System.err.println("Reader" + readerId + " Read Done, event: " + event);
-            } catch (ReinitializationRequiredException e1) {
-                // TODO Auto-generated catch block
-                e1.printStackTrace();
+            } catch (Exception e) {
+                exception.set(e);
             }
         }
     }
@@ -100,13 +90,32 @@ public class ReaderGroupTest {
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
         streamManager.createReaderGroup(READER_GROUP, groupConfig, Lists.newArrayList(STREAM_NAME));
 
-        new WriterThread(800, clientFactory).run();
-        Thread reader1Thread = new Thread(new ReaderThread(200, "Reader1", clientFactory));
-        Thread reader2Thread = new Thread(new ReaderThread(600, "Reader2", clientFactory));
+        writeEvents(800, clientFactory);
+        ReaderThread r1 = new ReaderThread(200, "Reader1", clientFactory);
+        ReaderThread r2 = new ReaderThread(600, "Reader2", clientFactory);
+        Thread reader1Thread = new Thread(r1);
+        Thread reader2Thread = new Thread(r2);
         reader1Thread.start();
         reader2Thread.start();
         reader1Thread.join();
         reader2Thread.join();
-
+        if (r1.exception.get() != null) {
+            throw r1.exception.get();
+        }
+        if (r2.exception.get() != null) {
+            throw r2.exception.get();
+        }
+    }
+    
+    public void writeEvents(int eventsToWrite, ClientFactory clientFactory) {
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM_NAME,
+                                                                           new JavaSerializer<>(),
+                                                                           EventWriterConfig.builder().build());
+        for (int i = 0; i < eventsToWrite; i++) {
+            System.err.println("Writing event: " + i);
+            writer.writeEvent(Integer.toString(i), " Event " + i);
+        }
+        writer.flush();
     }
 }

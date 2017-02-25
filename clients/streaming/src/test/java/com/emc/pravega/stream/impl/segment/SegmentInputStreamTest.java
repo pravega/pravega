@@ -58,6 +58,11 @@ public class SegmentInputStreamTest {
             public boolean isSuccess() {
                 return FutureHelpers.isSuccessful(readResults.get(num + attempt));
             }
+
+            @Override
+            public boolean await(long timeout) {
+                return FutureHelpers.await(readResults.get(num + attempt), timeout);
+            }
         }
 
         @Override

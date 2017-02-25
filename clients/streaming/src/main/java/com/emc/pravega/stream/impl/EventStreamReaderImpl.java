@@ -40,6 +40,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private final Orderer orderer;
     private final ReaderConfig config;
     @GuardedBy("readers")
+    private boolean closed;
+    @GuardedBy("readers")
     private final List<SegmentInputStream> readers = new ArrayList<>();
     @GuardedBy("readers")
     private Sequence lastRead;
@@ -54,11 +56,14 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         this.orderer = orderer;
         this.clock = clock;
         this.config = config;
+        this.closed = false;
     }
 
     @Override
     public EventRead<Type> readNextEvent(long timeout) {
         synchronized (readers) {
+            Preconditions.checkState(!closed, "Reader is closed");
+            long startTime = System.currentTimeMillis();
             Segment segment = null;
             long offset = -1;
             ByteBuffer buffer;
@@ -74,25 +79,35 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     segment = segmentReader.getSegmentId();
                     offset = segmentReader.getOffset();
                     try {
-                        buffer = segmentReader.read();
+                        buffer = segmentReader.read(ReaderGroupStateManager.TIME_UNIT.toMillis());
                     } catch (EndOfSegmentException e) {
                         handleEndOfSegment(segmentReader);
                         buffer = null;
                         rebalance = true;
                     }
                 }
-            } while (buffer == null);
-            Map<Segment, Long> positions = readers.stream()
-                    .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
-            Position position = new PositionImpl(positions);
-            lastRead = Sequence.create(segment.getSegmentNumber(), offset);
-            int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
-            return new EventReadImpl<>(lastRead,
-                                        deserializer.deserialize(buffer),
-                                        position,
-                                        new EventPointerImpl(segment, offset, length),
-                                        rebalance, null);
+            } while (buffer == null && System.currentTimeMillis() < startTime + timeout);
+            
+            Position position = getPosition();
+            if (buffer == null) {
+                return new EventReadImpl<>(lastRead, null, position, null, rebalance, null);
+            } else {
+                lastRead = Sequence.create(segment.getSegmentNumber(), offset);
+                int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
+                return new EventReadImpl<>(lastRead,
+                        deserializer.deserialize(buffer),
+                        position,
+                        new EventPointerImpl(segment, offset, length),
+                        rebalance,
+                        null);
+            }
         }
+    }
+
+    private PositionInternal getPosition() {
+        Map<Segment, Long> positions = readers.stream()
+                .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
+        return new PositionImpl(positions);
     }
 
     private boolean releaseSegmentsIfNeeded() {
@@ -142,15 +157,18 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @Override
     public void close() {
         synchronized (readers) {
-            for (SegmentInputStream reader : readers) {
-                reader.close();
+            if (!closed) {
+                closed = true;
+                groupState.readerShutdown(getPosition());
+                for (SegmentInputStream reader : readers) {
+                    reader.close();
+                }
             }
         }
     }
 
     @Override
-    public Type read(EventPointer pointer)
-    throws NoSuchEventException {
+    public Type read(EventPointer pointer) throws NoSuchEventException {
         Preconditions.checkNotNull(pointer);
         // Create SegmentInputBuffer
         SegmentInputStream inputStream = inputStreamFactory.createInputStreamForSegment(pointer.asImpl().getSegment(),

@@ -102,8 +102,9 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             this.result = new AtomicReference<>(new CompletableFuture<>());
         }
 
-        private boolean await() {
-            return FutureHelpers.await(result.get());
+        @Override
+        public boolean await(long timeout) {
+            return FutureHelpers.await(result.get(), timeout);
         }
 
         private SegmentRead get() throws ExecutionException {
@@ -151,6 +152,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     public ReadFuture read(long offset, int length) {
         Exceptions.checkNotClosed(closed.get(), this);
         ReadSegment request = new ReadSegment(segmentId.getScopedName(), offset, length);
+        
         ReadFutureImpl read = new ReadFutureImpl(request);
         outstandingRequests.put(read.request.getOffset(), read);
         getConnection().thenApply((ClientConnection c) -> {
@@ -212,7 +214,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             if (closed.get()) {
                 throw new ObjectClosedException(this);
             }
-            if (!read.await()) {
+            if (!read.await(Long.MAX_VALUE)) {
                 log.debug("Retransmitting a read request {}", read.request);
                 read.reset();
                 ClientConnection c = handleInterrupted(() -> getConnection().get());
