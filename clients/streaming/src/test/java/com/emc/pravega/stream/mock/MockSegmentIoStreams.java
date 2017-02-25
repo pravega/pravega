@@ -115,4 +115,9 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         return segment;
     }
 
+    @Override
+    public void fillBuffer() {
+        //Noting to do.
+    }
+
 }

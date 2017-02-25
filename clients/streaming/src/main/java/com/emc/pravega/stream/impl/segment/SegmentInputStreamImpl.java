@@ -5,15 +5,6 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import static com.emc.pravega.common.netty.WireCommandType.EVENT;
-import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
-import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
-import static com.emc.pravega.stream.impl.segment.SegmentOutputStream.MAX_WRITE_SIZE;
-
-import java.nio.ByteBuffer;
-
-import javax.annotation.concurrent.GuardedBy;
-
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.InvalidMessageException;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
@@ -22,7 +13,15 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.segment.AsyncSegmentInputStream.ReadFuture;
 import com.google.common.base.Preconditions;
 
+import java.nio.ByteBuffer;
+
+import javax.annotation.concurrent.GuardedBy;
+
 import lombok.Synchronized;
+
+import static com.emc.pravega.common.netty.WireCommandType.EVENT;
+import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 
 /**
  * Manages buffering and provides a synchronus to {@link AsyncSegmentInputStream}
@@ -30,7 +29,7 @@ import lombok.Synchronized;
  * @see SegmentInputStream
  */
 class SegmentInputStreamImpl implements SegmentInputStream {
-    private static final int DEFAULT_READ_LENGTH = MAX_WRITE_SIZE;
+    private static final int DEFAULT_READ_LENGTH = 64 * 1024;
     static final int DEFAULT_BUFFER_SIZE = 2 * SegmentInputStreamImpl.DEFAULT_READ_LENGTH;
 
     private final AsyncSegmentInputStream asyncInput;
@@ -172,12 +171,19 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         asyncInput.close();
     }
 
+    @Override
     @Synchronized
-    public boolean canReadWithoutBlocking() {
+    public void fillBuffer() {
+        issueRequestIfNeeded();
         while (dataWaitingToGoInBuffer()) {
             handleRequest();
         }
-        return buffer.dataAvailable() > 0;
+    }
+    
+    @Synchronized
+    public boolean canReadWithoutBlocking() {
+        return buffer.dataAvailable() > 0 || (outstandingRequest != null && outstandingRequest.isSuccess()
+                && asyncInput.getResult(outstandingRequest).getData().hasRemaining());
     }
 
     @Override

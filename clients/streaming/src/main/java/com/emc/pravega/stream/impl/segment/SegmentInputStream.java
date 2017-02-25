@@ -55,6 +55,12 @@ public interface SegmentInputStream extends AutoCloseable {
     public abstract ByteBuffer read() throws EndOfSegmentException;
     
     /**
+     * Issue a request to asynchronously fill the buffer. To hopefully prevent future {@link #read()} calls from blocking.
+     * Calling this multiple times is harmless.
+     */
+    public abstract void fillBuffer();
+    
+    /**
      * Closes this InputStream. No further methods may be called after close.
      * This will free any resources associated with the InputStream.
      */

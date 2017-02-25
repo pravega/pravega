@@ -19,8 +19,7 @@ public class Orderer {
 
     /**
      * Given a list of segments this reader owns, (which contain their positions) returns the one that should
-     * be read from next. This is done in a consistent way. i.e. Calling this method with the same readers at
-     * the same positions, should yield the same result. (The passed collection is not modified)
+     * be read from next. This is done in way to minimize blocking and ensure fairness.
      *
      * @param segments The logs to get the next reader for.
      * @return A segment that this reader should read from next.
@@ -29,7 +28,14 @@ public class Orderer {
         if (segments.isEmpty()) {
             return null;
         }
-        int count = counter.incrementAndGet();
-        return segments.get(count % segments.size());
+        for (int i = 0; i < segments.size(); i++) {
+            SegmentInputStream inputStream = segments.get(counter.incrementAndGet() % segments.size());
+            if (inputStream.canReadWithoutBlocking()) {
+                return inputStream;
+            } else {
+                inputStream.fillBuffer();
+            }
+        }
+        return segments.get(counter.incrementAndGet() % segments.size());
     }
 }
