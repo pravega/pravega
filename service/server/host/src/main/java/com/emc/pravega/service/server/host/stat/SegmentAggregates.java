@@ -7,11 +7,24 @@ import com.emc.pravega.common.netty.WireCommands;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.io.Serializable;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 
-class SegmentAggregates implements Serializable {
+/**
+ * This class is meant to compute and store aggregates per segment.
+ * It have two entry points to receive traffic information - 1. upadte 2. updateTx.
+ * Update method is called whenever normal traffic for a segment is received.
+ * The method takes incoming traffic volume and adjusts four different rates over varied durations
+ * using the new input.
+ * The rates are Exponential Weighted moving averages. These averages include new values into the calculated rate
+ * by applying an exponential weight. Each of four rates are over different durations and have different alpha factor
+ * for exponential weighing.
+ *
+ * This class is not synchronization protected, so any computation is not thread safe.
+ * This is done intentionally to not put performance overheads while doing these computations.
+ * However, it has a drawback in loss of accuracy and we may compute rates with erring on lower side.
+ */
+class SegmentAggregates {
 
     private static final int SECONDS_PER_MINUTE = 60;
 

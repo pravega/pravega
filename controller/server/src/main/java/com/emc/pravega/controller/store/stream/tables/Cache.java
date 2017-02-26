@@ -10,7 +10,6 @@ import com.google.common.cache.LoadingCache;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 
 public class Cache<T> {
@@ -24,7 +23,7 @@ public class Cache<T> {
 
     public Cache(final Loader<T> loader) {
         cache = CacheBuilder.newBuilder()
-                .maximumSize(1000)
+                .maximumSize(10000)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .build(new CacheLoader<String, CompletableFuture<Data<T>>>() {
                     @ParametersAreNonnullByDefault
