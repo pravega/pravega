@@ -1,25 +1,11 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.service.server.host.handler;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.common.metrics.Counter;
-import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.OpStatsData;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
@@ -31,7 +17,6 @@ import com.emc.pravega.common.netty.WireCommands.SegmentDeleted;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
-import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -49,7 +34,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import lombok.Cleanup;
@@ -59,11 +43,9 @@ import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -152,27 +134,6 @@ public class PravegaRequestProcessorTest {
         entry2.complete(new ReadResultEntryContents(new ByteArrayInputStream(data), data.length));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
-
-        // Have readSegment once, so here readSegmentStats and readBytesStats both succeeded once.
-        OpStatsData readSegmentStats = PravegaRequestProcessor.Metrics.READ_STREAM_SEGMENT.toOpStatsData();
-        assertEquals(1, readSegmentStats.getNumSuccessfulEvents());
-        assertEquals(0, readSegmentStats.getNumFailedEvents());
-
-        OpStatsData readBytesStats = PravegaRequestProcessor.Metrics.READ_BYTES_STATS.toOpStatsData();
-        assertEquals(1, readBytesStats.getNumSuccessfulEvents());
-        assertEquals(0, readBytesStats.getNumFailedEvents());
-
-        // Have read all the bytes in data[], so readBytes count equals to data.length.
-        Counter readBytes = PravegaRequestProcessor.Metrics.READ_BYTES;
-        assertEquals(data.length, readBytes.get());
-
-        // Test dynamic counter in readSegment, it should be with name "DYNAMIC.testReadSegment.Counter"
-        com.codahale.metrics.Counter dynamicCounter = MetricsProvider.YAMMERMETRICS.
-                getCounters().get("DYNAMIC.readSegment.testReadSegment.Counter");
-        assertNotEquals(0, dynamicCounter.getCount());
-
-        // Test dynamic gauge in readSegment, it should be with name "DYNAMIC.testReadSegment.Gauge"
-        assertNotNull(MetricsProvider.YAMMERMETRICS.getGauges().get("DYNAMIC.readSegment.testReadSegment.Gauge"));
     }
 
     @Test(timeout = 20000)
@@ -197,7 +158,7 @@ public class PravegaRequestProcessorTest {
 
         // TestCreateSealDelete may executed before this test case,
         // so createSegmentStats may record 1 or 2 createSegment operation here.
-        OpStatsData createSegmentStats = PravegaRequestProcessor.Metrics.CREATE_STREAM_SEGMENT.toOpStatsData();
+        OpStatsData createSegmentStats = PravegaRequestProcessor.CREATE_STREAM_SEGMENT.toOpStatsData();
         assertNotEquals(0, createSegmentStats.getNumSuccessfulEvents());
         assertEquals(0, createSegmentStats.getNumFailedEvents());
     }
@@ -231,7 +192,7 @@ public class PravegaRequestProcessorTest {
     private boolean append(String streamSegmentName, int number, StreamSegmentStore store) {
         return FutureHelpers.await(store.append(streamSegmentName,
                 new byte[]{(byte) number},
-                new AppendContext(UUID.randomUUID(), number),
+                null,
                 PravegaRequestProcessor.TIMEOUT));
     }
 

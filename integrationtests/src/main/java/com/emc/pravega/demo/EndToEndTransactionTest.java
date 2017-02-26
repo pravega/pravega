@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.demo;
 
@@ -30,12 +18,11 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
 import com.emc.pravega.stream.mock.MockClientFactory;
 
 import java.util.concurrent.CompletableFuture;
 
+import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
@@ -52,7 +39,7 @@ public class EndToEndTransactionTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        //@Cleanup
+        @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
@@ -61,12 +48,13 @@ public class EndToEndTransactionTest {
         final String testScope = "testScope";
         final String testStream = "testStream";
 
-        final long lease = 4000;
-        final long maxExecutionTime = 10000;
-        final long scaleGracePeriod = 30000;
-
         ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 5);
-        StreamConfiguration streamConfig = new StreamConfigurationImpl(testScope, testStream, policy);
+        StreamConfiguration streamConfig =
+                StreamConfiguration.builder()
+                        .scope(testScope)
+                        .streamName(testStream)
+                        .scalingPolicy(policy)
+                        .build();
 
         CompletableFuture<CreateStreamStatus> futureStatus = controller.createStream(streamConfig);
         CreateStreamStatus status = futureStatus.join();
@@ -76,13 +64,17 @@ public class EndToEndTransactionTest {
             return;
         }
 
+        final long lease = 4000;
+        final long maxExecutionTime = 10000;
+        final long scaleGracePeriod = 30000;
+
         MockClientFactory clientFactory = new MockClientFactory(testScope, controller);
 
         //@Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(
                 testStream,
                 new JavaSerializer<>(),
-                new EventWriterConfig(new SegmentOutputConfiguration()));
+                EventWriterConfig.builder().build());
 
         // region Successful commit tests
         Transaction<String> transaction = producer.beginTxn(60000, 60000, 60000);
@@ -237,8 +229,22 @@ public class EndToEndTransactionTest {
 
         // region
 
-        producer.close();
-        server.close();
-        zkTestServer.close();
+        txnStatus = transaction.checkStatus();
+        assertTrue(txnStatus == Transaction.Status.COMMITTING || txnStatus == Transaction.Status.COMMITTED);
+        System.err.println("SUCCESS: successful in committing transaction. Transaction status=" + txnStatus);
+
+        txn2Status = transaction2.checkStatus();
+        assertTrue(txn2Status == Transaction.Status.ABORTING || txn2Status == Transaction.Status.ABORTED);
+        System.err.println("SUCCESS: successful in dropping transaction. Transaction status=" + txn2Status);
+
+        Thread.sleep(2000);
+
+        txnStatus = transaction.checkStatus();
+        assertTrue(txnStatus == Transaction.Status.COMMITTED);
+        System.err.println("SUCCESS: successfully committed transaction. Transaction status=" + txnStatus);
+
+        txn2Status = transaction2.checkStatus();
+        assertTrue(txn2Status == Transaction.Status.ABORTED);
+        System.err.println("SUCCESS: successfully aborted transaction. Transaction status=" + txn2Status);
     }
 }

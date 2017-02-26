@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.common.util;
 
@@ -91,28 +79,28 @@ public final class Retry {
             this.maxDelay = maxDelay;
         }
 
-        public <RetryT extends Exception> RetryingOnException<RetryT> retryingOn(Class<RetryT> retryType) {
+        public <RetryT extends Exception> RetryExceptionally<RetryT> retryingOn(Class<RetryT> retryType) {
             Preconditions.checkNotNull(retryType);
-            return new RetryingOnException<>(retryType, this);
+            return new RetryExceptionally<>(retryType, this);
         }
     }
 
     /**
      * Returned by {@link RetryWithBackoff#retryingOn(Class)} to add the type of exception that should result in a retry.
-     * Any subtype of this exception will be retried unless the subtype is passed to {@link RetryingOnException#throwingOn(Class)}.
+     * Any subtype of this exception will be retried unless the subtype is passed to {@link RetryExceptionally#throwingOn(Class)}.
      */
-    public static final class RetryingOnException<RetryT extends Exception> {
+    public static final class RetryExceptionally<RetryT extends Exception> {
         private final Class<RetryT> retryType;
         private final RetryWithBackoff params;
 
-        private RetryingOnException(Class<RetryT> retryType, RetryWithBackoff params) {
+        private RetryExceptionally(Class<RetryT> retryType, RetryWithBackoff params) {
             this.retryType = retryType;
             this.params = params;
         }
-
-        public <ThrowsT extends Exception> ThrowingOnException<RetryT, ThrowsT> throwingOn(Class<ThrowsT> throwType) {
+        
+        public <ThrowsT extends Exception> RetryAndThrowExceptionally<RetryT, ThrowsT> throwingOn(Class<ThrowsT> throwType) {
             Preconditions.checkNotNull(throwType);
-            return new ThrowingOnException<>(retryType, throwType, params);
+            return new RetryAndThrowExceptionally<>(retryType, throwType, params);
         }
     }
 
@@ -122,16 +110,16 @@ public final class Retry {
     }
 
     /**
-     * Returned by {@link RetryingOnException#throwingOn(Class)} to add the type of exception that should cause the
+     * Returned by {@link RetryExceptionally#throwingOn(Class)} to add the type of exception that should cause the
      * method to throw right away. If any subtype of this exception occurs the method will throw it right away unless
      * that subtype was passed as the RetryType to {@link RetryWithBackoff#retryingOn(Class)}
      */
-    public static final class ThrowingOnException<RetryT extends Exception, ThrowsT extends Exception> {
+    public static final class RetryAndThrowExceptionally<RetryT extends Exception, ThrowsT extends Exception> {
         private final Class<RetryT> retryType;
         private final Class<ThrowsT> throwType;
         private final RetryWithBackoff params;
-
-        private ThrowingOnException(Class<RetryT> retryType, Class<ThrowsT> throwType, RetryWithBackoff params) {
+        
+        private RetryAndThrowExceptionally(Class<RetryT> retryType, Class<ThrowsT> throwType, RetryWithBackoff params) {
             this.retryType = retryType;
             this.throwType = throwType;
             this.params = params;

@@ -1,24 +1,11 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.stream;
 
 import java.util.UUID;
-import java.util.concurrent.Future;
 
 /**
  * A writer can write events to a stream.
@@ -30,27 +17,42 @@ import java.util.concurrent.Future;
 public interface EventStreamWriter<Type> extends AutoCloseable {
     
     /**
-     * Send an event to the stream. Events that are written should appear in the stream exactly once
-     * in the order they were written. (If there are multiple writers they may be interleaved but
-     * any event written after the future of another writeEvent call has completed, will come after the fir)
+     * Send an event to the stream. Events that are written should appear in the stream exactly once.
      * 
+     * Note that the implementation provides retry logic to handle connection failures and service host
+     * failures. Internal retries will not violate the exactly once semantic so it is better to rely on them
+     * than to wrap this with custom retry logic.
      * 
+     * @param event The event to be written to the stream
+     * @return A future that will complete when the event has been durably stored on the configured number of
+     *         replicas, and is available for readers to see. This future may complete exceptionally if this
+     *         cannot happen, however these exceptions are not transient failures. Failures that occur as a
+     *         result of connection drops or host death are handled internally with multiple retires and
+     *         exponential backoff. So there is no need to attempt to retry in the event of an exception.
+     */
+    AckFuture writeEvent(Type event);
+    
+    
+    /**
+     * Write an event to the stream. Similar to {@link #writeEvent(Object)} but provides a routingKey which is
+     * used to specify ordering. Events written with the same routing key will be read by readers in exactly
+     * the same order they were written.  
+     *
      * Note that the implementation provides retry logic to handle connection failures and service
      * host failures. Internal retries will not violate the exactly once semantic so it is better to
-     * rely on them than to wrap this with custom retry logic.
+     * rely on this than to wrap this method with custom retry logic.
      * 
-     * @param routingKey A free form string that is used to route messages to readers. Two events
-     *        written with the same routingKey are guaranteed to be read in order. Two events with
-     *        different routing keys may be read in parallel.
+     * @param routingKey A free form string that is used to route messages to readers. Two events written with
+     *        the same routingKey are guaranteed to be read in order. Two events with different routing keys
+     *        may be read in parallel. 
      * @param event The event to be written to the stream
-     * @return A future that will complete when the event has been durably stored on the configured
-     *         number of replicas, and is available for readers to see. This future may complete
-     *         exceptionally if this cannot happen, however these exceptions are not transient
-     *         failures. Failures that occur as a result of connection drops or host death are
-     *         handled internally with multiple retires and exponential backoff. So there is no need
-     *         to attempt to retry in the event of an exception.
+     * @return A future that will complete when the event has been durably stored on the configured number of
+     *         replicas, and is available for readers to see. This future may complete exceptionally if this
+     *         cannot happen, however these exceptions are not transient failures. Failures that occur as a
+     *         result of connection drops or host death are handled internally with multiple retires and
+     *         exponential backoff. So there is no need to attempt to retry in the event of an exception.
      */
-    Future<Void> writeEvent(String routingKey, Type event);
+    AckFuture writeEvent(String routingKey, Type event);
 
     /**
      * Start a new transaction on this stream.
@@ -71,11 +73,14 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * Returns a previously created transaction.
      * 
      * @param transactionId The result retained from calling {@link Transaction#getTxnId()}
+     * @return Transaction object with given UUID
      */
     Transaction<Type> getTxn(UUID transactionId);
 
     /**
      * Returns the configuration that this writer was create with.
+     *
+     * @return Writer configuration
      */
     EventWriterConfig getConfig();
 

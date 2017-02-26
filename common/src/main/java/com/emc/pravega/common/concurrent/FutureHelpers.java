@@ -1,21 +1,8 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.common.concurrent;
 
 import com.emc.pravega.common.Exceptions;
@@ -26,6 +13,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -51,7 +39,6 @@ import lombok.val;
  * Extensions to Future and CompletableFuture.
  */
 public final class FutureHelpers {
-    //region Completion
 
     /**
      * Waits for the provided future to be complete, and returns if it was successful, false otherwise.
@@ -386,17 +373,30 @@ public final class FutureHelpers {
                                                        final Duration delay,
                                                        final ScheduledExecutorService executorService) {
         CompletableFuture<T> result = new CompletableFuture<>();
-        executorService.schedule(
-                () -> {
-                    try {
-                        result.complete(task.get());
-                    } catch (Throwable ex) {
-                        result.completeExceptionally(ex);
-                    }
-                },
-                delay.toMillis(),
-                TimeUnit.MILLISECONDS);
+        executorService.schedule(() -> result.complete(runOrFail(() -> task.get(), result)),
+                                 delay.toMillis(),
+                                 TimeUnit.MILLISECONDS);
         return result;
+    }
+    
+    /**
+     * Runs the provided Callable in the current thread (synchronously) if it throws any Exception or
+     * Throwable the exception is propagated, but the supplied future is also failed.
+     * 
+     * @param <T>      The type of the future.
+     * @param <R>      The return type of the callable.
+     * @param callable The function to invoke.
+     * @param future   The future to fail if the fuction fails.
+     * @return         The return value of the function.
+     */
+    @SneakyThrows(Exception.class)
+    public static <T, R> R runOrFail(Callable<R> callable, CompletableFuture<T> future) {
+        try {
+            return callable.call();
+        } catch (Throwable t) {
+            future.completeExceptionally(t);
+            throw t;
+        }
     }
 
     //endregion
@@ -480,7 +480,7 @@ public final class FutureHelpers {
      * Implements an asynchronous While Loop using CompletableFutures.
      */
     @Data
-    private static class Loop<T> implements Runnable {
+    private static class Loop<T> implements Runnable, Callable<Void> {
         /**
          * The condition to evaluate at the beginning of each loop iteration.
          */
@@ -507,22 +507,23 @@ public final class FutureHelpers {
         final Executor executor;
 
         @Override
-        public void run() {
-            try {
-                if (this.condition.get()) {
-                    // Execute another iteration of the loop.
-                    this.loopBody.get()
-                                 .thenAccept(this::acceptIterationResult)
-                                 .exceptionally(this::handleException)
-                                 .thenRunAsync(this, this.executor);
-                } else {
-                    // We are done; set the result and don't loop again.
-                    this.result.complete(null);
-                }
-            } catch (Throwable ex) {
-                // Synchronous exception caught. Fail the result.
-                this.result.completeExceptionally(ex);
+        public Void call() throws Exception {
+            if (this.condition.get()) {
+                // Execute another iteration of the loop.
+                this.loopBody.get()
+                .thenAccept(this::acceptIterationResult)
+                .exceptionally(this::handleException)
+                .thenRunAsync(this, this.executor);
+            } else {
+                // We are done; set the result and don't loop again.
+                this.result.complete(null);
             }
+            return null;
+        }
+        
+        @Override
+        public void run() {
+            runOrFail(this, this.result);
         }
 
         private Void handleException(Throwable ex) {

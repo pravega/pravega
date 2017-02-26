@@ -1,21 +1,8 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.demo;
 
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -33,7 +20,6 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
-import com.emc.pravega.controller.util.ZKUtils;
 import com.emc.pravega.stream.impl.Controller;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -49,48 +35,52 @@ import org.apache.curator.retry.RetryOneTime;
 
 public class ControllerWrapper {
 
-    public static Controller getController(String connectionString) {
-        String hostId;
-        try {
-            // On each controller process restart, it gets a fresh hostId,
-            // which is a combination of hostname and random GUID.
-            hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
-        } catch (UnknownHostException e) {
-            hostId = UUID.randomUUID().toString();
-        }
+    public static Controller getController(String connectionString) throws Exception {
+            String hostId;
+            try {
+                    // On each controller process restart, it gets a fresh hostId,
+                    // which is a combination of hostname and random GUID.
+                    hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
+            } catch (UnknownHostException e) {
+                    hostId = UUID.randomUUID().toString();
+            }
 
-        // initialize the executor service
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(20,
-                new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
+            // initialize the executor service
+            ScheduledExecutorService executor = Executors.newScheduledThreadPool(20,
+                    new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
-        CuratorFramework client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
-        client.start();
+            CuratorFramework client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
+            client.start();
 
-        StoreClient storeClient = new ZKStoreClient(client);
+            StoreClient storeClient = new ZKStoreClient(client);
 
-        StreamMetadataStore streamStore = new ZKStreamMetadataStore(client, executor);
+            StreamMetadataStore streamStore = new ZKStreamMetadataStore(client, executor);
 
-        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
+            HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
 
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
+            TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                executor, hostId);
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId);
-        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks);
+            StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+                    executor, hostId);
+            StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
+                    hostStore, taskMetadataStore, executor, hostId);
+            TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks);
 
-        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService);
+            ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                    streamTransactionMetadataTasks, timeoutService);
 
-        //region Setup Event Processors
-        LocalController localController = new LocalController(controllerService);
-        ControllerEventProcessors.initialize(hostId, localController,
-                ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient(), streamStore, hostStore);
-        //endregion
+            //region Setup Event Processors
+            LocalController localController = new LocalController(controllerService);
 
-        //2) start RPC server with v1 implementation. Enable other versions if required.
-        return new LocalController(controllerService);
+            streamTransactionMetadataTasks.initializeStreamWriters(localController);
+
+            ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
+                    client, streamStore, hostStore);
+
+            controllerEventProcessors.initialize();
+            //endregion
+
+            return new LocalController(controllerService);
     }
 }
 

@@ -1,26 +1,14 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.server.rest.resources;
 
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.controller.server.rest.ModelHelper;
-import com.emc.pravega.controller.server.rest.contract.request.CreateStreamRequest;
-import com.emc.pravega.controller.server.rest.contract.request.UpdateStreamRequest;
+import com.emc.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import com.emc.pravega.controller.server.rest.v1.ApiV1;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
@@ -33,13 +21,14 @@ import lombok.extern.slf4j.Slf4j;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
+import javax.ws.rs.core.SecurityContext;
 import java.util.concurrent.CompletableFuture;
 
 /**
  * Stream metadata resource implementation.
  */
 @Slf4j
-public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
+public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
     private final ControllerService controllerService;
 
@@ -56,7 +45,7 @@ public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
      */
     @Override
     public void createStream(final String scope, final CreateStreamRequest createStreamRequest,
-                             final AsyncResponse asyncResponse) {
+            final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "createStream");
 
         StreamConfiguration streamConfiguration = ModelHelper.getCreateStreamConfig(createStreamRequest, scope);
@@ -69,6 +58,8 @@ public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
                                 entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
                     } else if (streamStatus == CreateStreamStatus.STREAM_EXISTS) {
                         return Response.status(Status.CONFLICT).build();
+                    } else if (streamStatus == CreateStreamStatus.SCOPE_NOT_FOUND) {
+                        return Response.status(Status.NOT_FOUND).build();
                     } else {
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
@@ -90,9 +81,8 @@ public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
      * @param asyncResponse       AsyncResponse provides means for asynchronous server side response processing
      */
     @Override
-    public void updateStreamConfig(final String scope, final String stream,
-                                   final UpdateStreamRequest updateStreamRequest,
-                                   final AsyncResponse asyncResponse) {
+    public void updateStream(final String scope, final String stream, final UpdateStreamRequest updateStreamRequest,
+            final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "updateStreamConfig");
 
         StreamConfiguration streamConfiguration = ModelHelper.getUpdateStreamConfig(updateStreamRequest, scope, stream);
@@ -102,7 +92,7 @@ public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
                     if (streamStatus == UpdateStreamStatus.SUCCESS) {
                         return Response.status(Status.CREATED).
                                 entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
-                    } else if (streamStatus == UpdateStreamStatus.STREAM_NOT_FOUND) {
+                    } else if (streamStatus == UpdateStreamStatus.STREAM_NOT_FOUND || streamStatus == UpdateStreamStatus.SCOPE_NOT_FOUND) {
                         return Response.status(Status.NOT_FOUND).build();
                     } else {
                         return Response.status(Status.INTERNAL_SERVER_ERROR).build();
@@ -124,11 +114,12 @@ public class StreamMetadataResourceImpl implements ApiV1.StreamMetadata {
      * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing
      */
     @Override
-    public void getStreamConfig(String scope, String stream, final AsyncResponse asyncResponse) {
+    public void getStream(final String scope, final String stream, final SecurityContext securityContext,
+            final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamConfig");
 
         StreamMetadataStore streamStore = controllerService.getStreamStore();
-        streamStore.getConfiguration(stream)
+        streamStore.getConfiguration(scope, stream)
                 .thenApply(streamConfig -> {
                     return Response.status(Status.OK).entity(ModelHelper.encodeStreamResponse(streamConfig)).build();
                 })

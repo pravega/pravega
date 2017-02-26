@@ -1,31 +1,20 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.server.AttributeSerializer;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Log Operation that represents a mapping of StreamSegment Name to a StreamSegment Id.
@@ -33,12 +22,12 @@ import java.io.IOException;
 public class StreamSegmentMapOperation extends MetadataOperation implements StreamSegmentMapping {
     //region Members
 
-    public static final byte OPERATION_TYPE = 4;
     private static final byte CURRENT_VERSION = 0;
     private long streamSegmentId;
     private String streamSegmentName;
     private long length;
     private boolean sealed;
+    private Map<UUID, Long> attributes;
 
     //endregion
 
@@ -55,6 +44,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         this.streamSegmentName = streamSegmentProperties.getName();
         this.length = streamSegmentProperties.getLength();
         this.sealed = streamSegmentProperties.isSealed();
+        this.attributes = streamSegmentProperties.getAttributes();
     }
 
     protected StreamSegmentMapOperation(OperationHeader header, DataInputStream source) throws SerializationException {
@@ -77,6 +67,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
 
     /**
      * Sets the StreamSegmentId for this operation.
+     *
      * @param value The Id of the segment to set.
      */
     public void setStreamSegmentId(long value) {
@@ -95,13 +86,18 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         return this.sealed;
     }
 
+    @Override
+    public Map<UUID, Long> getAttributes() {
+        return this.attributes;
+    }
+
     //endregion
 
     //region Operation Implementation
 
     @Override
-    protected byte getOperationType() {
-        return OPERATION_TYPE;
+    protected OperationType getOperationType() {
+        return OperationType.SegmentMap;
     }
 
     @Override
@@ -112,6 +108,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         target.writeUTF(this.streamSegmentName);
         target.writeLong(this.length);
         target.writeBoolean(this.sealed);
+        AttributeSerializer.serialize(this.attributes, target);
     }
 
     @Override
@@ -121,6 +118,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         this.streamSegmentName = source.readUTF();
         this.length = source.readLong();
         this.sealed = source.readBoolean();
+        this.attributes = AttributeSerializer.deserialize(source);
     }
 
     @Override

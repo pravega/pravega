@@ -1,32 +1,19 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.common.io.StreamHelpers;
-import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.server.AttributeSerializer;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.UUID;
+import java.util.Collection;
 
 /**
  * Log Operation that represents a StreamSegment Append. This operation, as opposed from CachedStreamSegmentAppendOperation,
@@ -35,12 +22,11 @@ import java.util.UUID;
 public class StreamSegmentAppendOperation extends StorageOperation {
     //region Members
 
-    public static final byte OPERATION_TYPE = 1;
     private static final long NO_OFFSET = -1;
     private static final byte CURRENT_VERSION = 0;
     private long streamSegmentOffset;
     private byte[] data;
-    private AppendContext appendContext;
+    private Collection<AttributeUpdate> attributeUpdates;
 
     //endregion
 
@@ -49,30 +35,29 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     /**
      * Creates a new instance of the StreamSegmentAppendOperation class.
      *
-     * @param streamSegmentId The Id of the StreamSegment to append to.
-     * @param data            The payload to append.
-     * @param appendContext   Append Context for this append.
+     * @param streamSegmentId  The Id of the StreamSegment to append to.
+     * @param data             The payload to append.
+     * @param attributeUpdates (Optional) The attributeUpdates to update with this append.
      */
-    public StreamSegmentAppendOperation(long streamSegmentId, byte[] data, AppendContext appendContext) {
-        this(streamSegmentId, NO_OFFSET, data, appendContext);
+    public StreamSegmentAppendOperation(long streamSegmentId, byte[] data, Collection<AttributeUpdate> attributeUpdates) {
+        this(streamSegmentId, NO_OFFSET, data, attributeUpdates);
     }
 
     /**
      * Creates a new instance of the StreamSegmentAppendOperation class.
      *
-     * @param streamSegmentId The Id of the StreamSegment to append to.
-     * @param offset          The offset to append at.
-     * @param data            The payload to append.
-     * @param appendContext   Append Context for this append.
+     * @param streamSegmentId  The Id of the StreamSegment to append to.
+     * @param offset           The offset to append at.
+     * @param data             The payload to append.
+     * @param attributeUpdates (Optional) The attributeUpdates to update with this append.
      */
-    public StreamSegmentAppendOperation(long streamSegmentId, long offset, byte[] data, AppendContext appendContext) {
+    public StreamSegmentAppendOperation(long streamSegmentId, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates) {
         super(streamSegmentId);
         Preconditions.checkNotNull(data, "data");
-        Preconditions.checkNotNull(appendContext, "appendContext");
 
         this.data = data;
         this.streamSegmentOffset = offset;
-        this.appendContext = appendContext;
+        this.attributeUpdates = attributeUpdates;
     }
 
     protected StreamSegmentAppendOperation(OperationHeader header, DataInputStream source) throws SerializationException {
@@ -103,12 +88,12 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     }
 
     /**
-     * Gets the AppendContext for this StreamSegmentAppendOperation, if any.
+     * Gets the Attribute updates for this StreamSegmentAppendOperation, if any.
      *
-     * @return The AppendContext, or null if no such context was defined.
+     * @return A Collection of Attribute updates, or null if no updates are available.
      */
-    public AppendContext getAppendContext() {
-        return this.appendContext;
+    public Collection<AttributeUpdate> getAttributeUpdates() {
+        return this.attributeUpdates;
     }
 
     //endregion
@@ -126,8 +111,8 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     }
 
     @Override
-    protected byte getOperationType() {
-        return OPERATION_TYPE;
+    protected OperationType getOperationType() {
+        return OperationType.Append;
     }
 
     @Override
@@ -137,12 +122,9 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         target.writeByte(CURRENT_VERSION);
         target.writeLong(getStreamSegmentId());
         target.writeLong(this.streamSegmentOffset);
-        UUID clientId = this.appendContext.getClientId();
-        target.writeLong(clientId.getMostSignificantBits());
-        target.writeLong(clientId.getLeastSignificantBits());
-        target.writeLong(this.appendContext.getEventNumber());
         target.writeInt(data.length);
         target.write(data, 0, data.length);
+        AttributeSerializer.serializeUpdates(this.attributeUpdates, target);
     }
 
     @Override
@@ -150,24 +132,21 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         readVersion(source, CURRENT_VERSION);
         setStreamSegmentId(source.readLong());
         this.streamSegmentOffset = source.readLong();
-        long clientIdMostSig = source.readLong();
-        long clientIdLeastSig = source.readLong();
-        UUID clientId = new UUID(clientIdMostSig, clientIdLeastSig);
-        long clientOffset = source.readLong();
-        this.appendContext = new AppendContext(clientId, clientOffset);
         int dataLength = source.readInt();
         this.data = new byte[dataLength];
         int bytesRead = StreamHelpers.readAll(source, this.data, 0, this.data.length);
         assert bytesRead == this.data.length : "StreamHelpers.readAll did not read all the bytes requested.";
+        this.attributeUpdates = AttributeSerializer.deserializeUpdates(source);
     }
 
     @Override
     public String toString() {
         return String.format(
-                "%s, Offset = %s, Length = %d",
+                "%s, Offset = %s, Length = %d, Attributes = %d",
                 super.toString(),
                 toString(this.streamSegmentOffset, -1),
-                this.data.length);
+                this.data.length,
+                this.attributeUpdates == null ? 0 : this.attributeUpdates.size());
     }
 
     //endregion

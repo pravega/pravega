@@ -1,21 +1,8 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.selftest;
 
 import com.emc.pravega.common.util.ComponentConfig;
@@ -49,6 +36,7 @@ class TestConfig extends ComponentConfig {
     static final String PROPERTY_USE_CLIENT = "useClient";
     static final String PROPERTY_CLIENT_PORT = "clientPort";
     static final String PROPERTY_CLIENT_AUTO_FLUSH = "clientAutoFlush";
+    static final String PROPERTY_CLIENT_WRITER_COUNT = "clientWriterCount"; // Per segment.
 
     private static final int DEFAULT_OPERATION_COUNT = 1000 * 1000;
     private static final int DEFAULT_SEGMENT_COUNT = 100;
@@ -64,6 +52,7 @@ class TestConfig extends ComponentConfig {
     private static final boolean DEFAULT_USE_CLIENT = false;
     private static final int DEFAULT_CLIENT_PORT = 9876;
     private static final boolean DEFAULT_CLIENT_AUTO_FLUSH = true;
+    private static final int DEFAULT_CLIENT_WRITER_COUNT = 1;
 
     @Getter
     private int operationCount;
@@ -93,6 +82,8 @@ class TestConfig extends ComponentConfig {
     private int clientPort;
     @Getter
     private boolean clientAutoFlush;
+    @Getter
+    private int clientWriterCount;
 
     //endregion
 
@@ -132,6 +123,7 @@ class TestConfig extends ComponentConfig {
         this.useClient = getBooleanProperty(PROPERTY_USE_CLIENT, DEFAULT_USE_CLIENT);
         this.clientPort = getInt32Property(PROPERTY_CLIENT_PORT, DEFAULT_CLIENT_PORT);
         this.clientAutoFlush = getBooleanProperty(PROPERTY_CLIENT_AUTO_FLUSH, DEFAULT_CLIENT_AUTO_FLUSH);
+        this.clientWriterCount = getInt32Property(PROPERTY_CLIENT_WRITER_COUNT, DEFAULT_CLIENT_WRITER_COUNT);
     }
 
     //endregion

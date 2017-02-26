@@ -1,34 +1,24 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.eventProcessor.impl;
 
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
 import com.emc.pravega.controller.eventProcessor.CheckpointStore;
-import com.emc.pravega.controller.eventProcessor.Decider;
+import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
+import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
-import com.emc.pravega.controller.eventProcessor.Props;
-import com.emc.pravega.controller.eventProcessor.StreamEvent;
+import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
+import com.emc.pravega.controller.eventProcessor.ControllerEvent;
+import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.google.common.base.Preconditions;
@@ -54,15 +44,15 @@ import static org.mockito.ArgumentMatchers.anyLong;
  */
 public class EventProcessorTest {
 
-    private static String scope = "scope";
-    private static String streamName = "stream";
-    private static String readerGroup = "readerGroup";
-    private static String readerId = "reader-1";
-    private static String process = "process";
+    private static final String SCOPE = "scope";
+    private static final String STREAM_NAME = "stream";
+    private static final String READER_GROUP = "readerGroup";
+    private static final String READER_ID = "reader-1";
+    private static final String PROCESS = "process";
 
     @Data
     @AllArgsConstructor
-    public class TestEvent implements StreamEvent, Serializable {
+    public static class TestEvent implements ControllerEvent, Serializable {
         int number;
     }
 
@@ -110,20 +100,15 @@ public class EventProcessorTest {
         }
     }
 
-    private class MockEventRead<T> implements EventRead<T> {
+    private static class MockEventRead<T> implements EventRead<T> {
 
         final T value;
         final Position position;
 
         MockEventRead(long position, T value) {
             this.value = value;
-            Segment segment = new Segment(scope, streamName, 0);
+            Segment segment = new Segment(SCOPE, STREAM_NAME, 0);
             this.position = new PositionImpl(Collections.singletonMap(segment, position));
-        }
-
-        @Override
-        public Sequence getEventSequence() {
-            return null;
         }
 
         @Override
@@ -137,23 +122,23 @@ public class EventProcessorTest {
         }
 
         @Override
-        public Segment getSegment() {
+        public EventPointer getEventPointer() {
             return null;
         }
 
         @Override
-        public Long getOffsetInSegment() {
-            return null;
-        }
-
-        @Override
-        public boolean isRoutingRebalance() {
+        public boolean isCheckpoint() {
             return false;
+        }
+
+        @Override
+        public String getCheckpointName() {
+            return null;
         }
     }
 
     @Test
-    public void testEventProcessorCell() {
+    public void testEventProcessorCell() throws CheckpointStoreException, ReinitializationRequiredException {
         CheckpointStore checkpointStore = new InMemoryCheckpointStore();
 
         CheckpointConfig.CheckpointPeriod period =
@@ -172,8 +157,8 @@ public class EventProcessorTest {
         EventProcessorGroupConfig config =
                 EventProcessorGroupConfigImpl.builder()
                         .eventProcessorCount(1)
-                        .readerGroupName(readerGroup)
-                        .streamName(streamName)
+                        .readerGroupName(READER_GROUP)
+                        .streamName(STREAM_NAME)
                         .checkpointConfig(checkpointConfig)
                         .build();
 
@@ -187,59 +172,56 @@ public class EventProcessorTest {
         inputEvents.add(new MockEventRead<>(input.length, null));
 
         EventProcessorSystem system = Mockito.mock(EventProcessorSystem.class);
-        Mockito.when(system.getProcess()).thenReturn(process);
+        Mockito.when(system.getProcess()).thenReturn(PROCESS);
 
         EventStreamReader<TestEvent> reader = Mockito.mock(EventStreamReader.class);
 
-        checkpointStore.addReaderGroup(process, readerGroup);
+        checkpointStore.addReaderGroup(PROCESS, READER_GROUP);
 
         // Test case 1. Actor does not throw any exception during normal operation.
         Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
 
-        Props<TestEvent> props = Props.<TestEvent>builder()
-                .clazz(TestEventProcessor.class)
-                .args(false)
+        EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
+                .supplier(() -> new TestEventProcessor(false))
                 .serializer(new JavaSerializer<>())
-                .decider((Throwable e) -> Decider.Directive.Stop)
+                .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(config)
                 .build();
-        testEventProcessor(system, props, reader, readerId, checkpointStore, expectedSum);
+        testEventProcessor(system, eventProcessorConfig, reader, READER_ID, checkpointStore, expectedSum);
 
         // Test case 2. Actor throws an error during normal operation, and Directive is to Resume on error.
         Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
 
-        props = Props.<TestEvent>builder()
-                .clazz(TestEventProcessor.class)
-                .args(true)
+        eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
+                .supplier(() -> new TestEventProcessor(true))
                 .serializer(new JavaSerializer<>())
                 .decider((Throwable e) ->
-                        (e instanceof IllegalArgumentException) ? Decider.Directive.Resume : Decider.Directive.Stop)
+                        (e instanceof IllegalArgumentException) ? ExceptionHandler.Directive.Resume : ExceptionHandler.Directive.Stop)
                 .config(config)
                 .build();
-        testEventProcessor(system, props, reader, readerId, checkpointStore, expectedSum);
+        testEventProcessor(system, eventProcessorConfig, reader, READER_ID, checkpointStore, expectedSum);
 
         // Test case 3. Actor throws an error during normal operation, and Directive is to Restart on error.
         Mockito.when(reader.readNextEvent(anyLong())).thenAnswer(new SequenceAnswer<>(inputEvents));
 
-        props = Props.<TestEvent>builder()
-                .clazz(TestEventProcessor.class)
-                .args(true)
+        eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
+                .supplier(() -> new TestEventProcessor(true))
                 .serializer(new JavaSerializer<>())
                 .decider((Throwable e) ->
-                        (e instanceof IllegalArgumentException) ? Decider.Directive.Restart : Decider.Directive.Stop)
+                        (e instanceof IllegalArgumentException) ? ExceptionHandler.Directive.Restart : ExceptionHandler.Directive.Stop)
                 .config(config)
                 .build();
-        testEventProcessor(system, props, reader, readerId, checkpointStore, 0);
+        testEventProcessor(system, eventProcessorConfig, reader, READER_ID, checkpointStore, 0);
     }
 
     private void testEventProcessor(final EventProcessorSystem system,
-                                    final Props<TestEvent> props,
+                                    final EventProcessorConfig<TestEvent> eventProcessorConfig,
                                     final EventStreamReader<TestEvent> reader,
                                     final String readerId,
                                     final CheckpointStore checkpointStore,
-                                    final int expectedSum) {
+                                    final int expectedSum) throws CheckpointStoreException {
         EventProcessorCell<TestEvent> cell =
-                new EventProcessorCell<>(props, reader, system.getProcess(), readerId, checkpointStore);
+                new EventProcessorCell<>(eventProcessorConfig, reader, system.getProcess(), readerId, checkpointStore);
 
         cell.startAsync();
 
@@ -247,6 +229,6 @@ public class EventProcessorTest {
 
         TestEventProcessor actor = (TestEventProcessor) cell.getActor();
         assertEquals(expectedSum, actor.sum);
-        assertTrue(checkpointStore.getPositions(process, readerGroup).isEmpty());
+        assertTrue(checkpointStore.getPositions(PROCESS, READER_GROUP).isEmpty());
     }
 }

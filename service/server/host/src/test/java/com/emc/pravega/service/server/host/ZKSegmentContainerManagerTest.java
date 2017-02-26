@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.service.server.host;
 
@@ -61,8 +49,7 @@ public class ZKSegmentContainerManagerTest {
     private final static int MAX_RETRY = 5;
     private final static int PORT = 12345;
     private final static Host PRAVEGA_SERVICE_ENDPOINT = new Host(getHostAddress(), PORT);
-    private final static String CLUSTER_NAME = "cluster-1";
-    private final static String PATH = ZKPaths.makePath("cluster", CLUSTER_NAME, "segmentContainerHostMapping");
+    private final static String PATH = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
     private static String zkUrl;
 
     private static TestingServer zkTestServer;
@@ -97,7 +84,7 @@ public class ZKSegmentContainerManagerTest {
 
         ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(createMockContainerRegistry(),
                 segmentToContainerMapper, zkClient,
-                PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
+                PRAVEGA_SERVICE_ENDPOINT);
 
         CompletableFuture<Void> result = segManager.initialize();
 
@@ -120,7 +107,7 @@ public class ZKSegmentContainerManagerTest {
 
         ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(containerRegistry,
                 segmentToContainerMapper, zkClient,
-                PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
+                PRAVEGA_SERVICE_ENDPOINT);
 
         segManager.initialize().get();
 
@@ -157,7 +144,7 @@ public class ZKSegmentContainerManagerTest {
 
         ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(containerRegistry,
                 segmentToContainerMapper, zkClient,
-                PRAVEGA_SERVICE_ENDPOINT, CLUSTER_NAME);
+                PRAVEGA_SERVICE_ENDPOINT);
 
         CompletableFuture<Void> result = segManager.initialize();
 

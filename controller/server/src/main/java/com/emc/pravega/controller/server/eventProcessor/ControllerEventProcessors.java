@@ -1,38 +1,27 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.eventProcessor.CheckpointConfig;
-import com.emc.pravega.controller.eventProcessor.Decider;
+import com.emc.pravega.controller.eventProcessor.CheckpointStoreException;
+import com.emc.pravega.controller.eventProcessor.EventProcessorConfig;
 import com.emc.pravega.controller.eventProcessor.EventProcessorGroupConfig;
+import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
-import com.emc.pravega.controller.eventProcessor.Props;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
-import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -40,41 +29,69 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-// todo: use config values for constants defined in this file
-
 @Slf4j
 public class ControllerEventProcessors {
 
-    private static EventProcessorSystem system;
-    private static EventStreamWriter<CommitEvent> commitEventProcessors;
-    private static EventStreamWriter<AbortEvent> abortEventProcessors;
+    public static final String CONTROLLER_SCOPE = "system";
+    public static final String COMMIT_STREAM = "commitStream";
+    public static final String ABORT_STREAM = "abortStream";
+    public static final Serializer<CommitEvent> COMMIT_EVENT_SERIALIZER = new JavaSerializer<>();
+    public static final Serializer<AbortEvent> ABORT_EVENT_SERIALIZER = new JavaSerializer<>();
 
-    public static void initialize(final String host,
-                                  final Controller controller,
-                                  final CuratorFramework client,
-                                  final StreamMetadataStore streamMetadataStore,
-                                  final HostControllerStore hostControllerStore) {
+    private final Controller controller;
+    private final CuratorFramework client;
+    private final StreamMetadataStore streamMetadataStore;
+    private final HostControllerStore hostControllerStore;
+    private final EventProcessorSystem system;
+
+    public ControllerEventProcessors(final String host,
+                                     final Controller controller,
+                                     final CuratorFramework client,
+                                     final StreamMetadataStore streamMetadataStore,
+                                     final HostControllerStore hostControllerStore) {
+        this.controller = controller;
+        this.client = client;
+        this.streamMetadataStore = streamMetadataStore;
+        this.hostControllerStore = hostControllerStore;
+        this.system = new EventProcessorSystemImpl("Controller", host, CONTROLLER_SCOPE, controller);
+    }
+
+    public void initialize() throws Exception {
 
         final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
-        final String controllerScope = "system";
-        system = new EventProcessorSystemImpl("Controller", host, controllerScope, controller);
-
-        final String commitStream = "commitStream";
+        // Commit event processor configuration
         final String commitStreamReaderGroup = "commitStreamReaders";
         final int commitReaderGroupSize = 5;
         final int commitPositionPersistenceFrequency = 10;
 
-        final String abortStream = "abortStream";
+        // Abort event processor configuration
         final String abortStreamReaderGroup = "abortStreamReaders";
         final int abortReaderGroupSize = 5;
         final int abortPositionPersistenceFrequency = 10;
 
+        // Retry configuration
+        final long delay = 100;
+        final int multiplier = 10;
+        final int attempts = 5;
+        final long maxDelay = 10000;
+
         // region Create commit and abort streams
 
         ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 5);
-        StreamConfiguration commitStreamConfig = new StreamConfigurationImpl(controllerScope, commitStream, policy);
-        StreamConfiguration abortStreamConfig = new StreamConfigurationImpl(controllerScope, abortStream, policy);
+        StreamConfiguration commitStreamConfig =
+                StreamConfiguration.builder()
+                        .scope(CONTROLLER_SCOPE)
+                        .streamName(COMMIT_STREAM)
+                        .scalingPolicy(policy)
+                        .build();
+
+        StreamConfiguration abortStreamConfig =
+                StreamConfiguration.builder()
+                        .scope(CONTROLLER_SCOPE)
+                        .streamName(ABORT_STREAM)
+                        .scalingPolicy(policy)
+                        .build();
 
         CompletableFuture<CreateStreamStatus> createCommitStreamStatus = controller.createStream(commitStreamConfig);
         CompletableFuture<CreateStreamStatus> createAbortStreamStatus = controller.createStream(abortStreamConfig);
@@ -108,22 +125,27 @@ public class ControllerEventProcessors {
 
         EventProcessorGroupConfig commitReadersConfig =
                 EventProcessorGroupConfigImpl.builder()
-                        .streamName(commitStream)
+                        .streamName(COMMIT_STREAM)
                         .readerGroupName(commitStreamReaderGroup)
                         .eventProcessorCount(commitReaderGroupSize)
                         .checkpointConfig(commitEventCheckpointConfig)
                         .build();
 
-        Props<CommitEvent> commitProps =
-                Props.<CommitEvent>builder()
+        EventProcessorConfig<CommitEvent> commitConfig =
+                EventProcessorConfig.<CommitEvent>builder()
                         .config(commitReadersConfig)
-                        .decider(Decider.DEFAULT_DECIDER)
-                        .serializer(new JavaSerializer<>())
-                        .clazz(CommitEventProcessor.class)
-                        .args(streamMetadataStore, hostControllerStore, executor)
+                        .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
+                        .serializer(COMMIT_EVENT_SERIALIZER)
+                        .supplier(() -> new CommitEventProcessor(streamMetadataStore, hostControllerStore, executor))
                         .build();
 
-        commitEventProcessors = system.createEventProcessorGroup(commitProps).getWriter();
+        Retry.withExpBackoff(delay, multiplier, attempts, maxDelay)
+                .retryingOn(CheckpointStoreException.class)
+                .throwingOn(Exception.class)
+                .run(() -> {
+                    system.createEventProcessorGroup(commitConfig).getWriter();
+                    return null;
+                });
 
         // endregion
 
@@ -143,31 +165,28 @@ public class ControllerEventProcessors {
 
         EventProcessorGroupConfig abortReadersConfig =
                 EventProcessorGroupConfigImpl.builder()
-                        .streamName(abortStream)
+                        .streamName(ABORT_STREAM)
                         .readerGroupName(abortStreamReaderGroup)
                         .eventProcessorCount(abortReaderGroupSize)
                         .checkpointConfig(abortEventCheckpointConfig)
                         .build();
 
-        Props<AbortEvent> abortProps =
-                Props.<AbortEvent>builder()
+        EventProcessorConfig<AbortEvent> abortConfig =
+                EventProcessorConfig.<AbortEvent>builder()
                         .config(abortReadersConfig)
-                        .decider(Decider.DEFAULT_DECIDER)
-                        .serializer(new JavaSerializer<>())
-                        .clazz(AbortEventProcessor.class)
-                        .args(streamMetadataStore, hostControllerStore, executor)
+                        .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
+                        .serializer(ABORT_EVENT_SERIALIZER)
+                        .supplier(() -> new AbortEventProcessor(streamMetadataStore, hostControllerStore, executor))
                         .build();
 
-        abortEventProcessors = system.createEventProcessorGroup(abortProps).getWriter();
+        Retry.withExpBackoff(delay, multiplier, attempts, maxDelay)
+                .retryingOn(CheckpointStoreException.class)
+                .throwingOn(Exception.class)
+                .run(() -> {
+                    system.createEventProcessorGroup(abortConfig).getWriter();
+                    return null;
+                });
 
         // endregion
-    }
-
-    public static EventStreamWriter<CommitEvent> getCommitEventProcessorsRef() {
-        return commitEventProcessors;
-    }
-
-    public static EventStreamWriter<AbortEvent> getAbortEventProcessorsRef() {
-        return abortEventProcessors;
     }
 }

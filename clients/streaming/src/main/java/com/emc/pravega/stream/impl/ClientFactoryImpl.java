@@ -1,16 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
- * agreements. See the NOTICE file distributed with this work for additional information regarding
- * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License. You may obtain a
- * copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.stream.impl;
 
@@ -60,42 +51,63 @@ public class ClientFactoryImpl implements ClientFactory {
     private final Controller controller;
     private final SegmentInputStreamFactory inFactory;
     private final SegmentOutputStreamFactory outFactory;
+    private final ConnectionFactory connectionFactory;
 
+    /**
+     * Creates a new instance of ClientFactory class.
+     *
+     * @param scope         The scope string.
+     * @param controllerUri The Controller URI.
+     */
     public ClientFactoryImpl(String scope, URI controllerUri) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controllerUri);
         this.scope = scope;
         this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        connectionFactory = new ConnectionFactoryImpl(false);
         this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
     }
 
+    /**
+     * Creates a new instance of ClientFactory class.
+     *
+     * @param scope             The scope string.
+     * @param controller        The reference to Controller.
+     */
     public ClientFactoryImpl(String scope, Controller controller) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controller);
         this.scope = scope;
         this.controller = controller;
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        this.connectionFactory = new ConnectionFactoryImpl(false);
         this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
     }
 
+    /**
+     * Creates a new instance of the ClientFactory class.
+     *
+     * @param scope             The scope string.
+     * @param controller        The reference to Controller.
+     * @param connectionFactory The reference to Connection Factory impl.
+     */
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
-        this(scope, controller, new SegmentInputStreamFactoryImpl(controller, connectionFactory),
+        this(scope, controller, connectionFactory, new SegmentInputStreamFactoryImpl(controller, connectionFactory),
                 new SegmentOutputStreamFactoryImpl(controller, connectionFactory));
     }
-    
+
     @VisibleForTesting
-    public ClientFactoryImpl(String scope, Controller controller, SegmentInputStreamFactory inFactory,
-            SegmentOutputStreamFactory outFactory) {
+    public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
+            SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(inFactory);
         Preconditions.checkNotNull(outFactory);
         this.scope = scope;
         this.controller = controller;
+        this.connectionFactory = connectionFactory;
         this.inFactory = inFactory;
         this.outFactory = outFactory;
     }
@@ -107,7 +119,7 @@ public class ClientFactoryImpl implements ClientFactory {
         EventRouter router = new EventRouter(stream, controller);
         return new EventStreamWriterImpl<T>(stream, controller, outFactory, router, s, config);
     }
-    
+
     @Override
     public <T> IdempotentEventStreamWriter<T> createIdempotentEventWriter(String streamName, Serializer<T> s,
             EventWriterConfig config) {
@@ -133,19 +145,19 @@ public class ClientFactoryImpl implements ClientFactory {
                 controller,
                 System::nanoTime);
         stateManager.initializeReader();
-        return new EventReaderImpl<T>(inFactory,
+        return new EventStreamReaderImpl<T>(inFactory,
                                       s,
                                       stateManager,
-                                      new RoundRobinOrderer<>(),
+                                      new RoundRobinOrderer(),
                                       System::currentTimeMillis,
                                       config);
     }
 
-    private static class RoundRobinOrderer<T> implements Orderer<T> {
+    private static class RoundRobinOrderer implements Orderer {
         private final AtomicInteger counter = new AtomicInteger(0);
 
         @Override
-        public SegmentReader<T> nextSegment(List<SegmentReader<T>> segments) {
+        public SegmentEventReader nextSegment(List<SegmentEventReader> segments) {
             int count = counter.incrementAndGet();
             return segments.get(count % segments.size());
         }
@@ -166,7 +178,7 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     @Override
-    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
+    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>>
             StateSynchronizer<StateT> createStateSynchronizer(String streamName,
                     Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer,
                     SynchronizerConfig config) {
@@ -174,6 +186,11 @@ public class ClientFactoryImpl implements ClientFactory {
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
         return new StateSynchronizerImpl<StateT>(segment,
                 createRevisionedStreamClient(streamName, serializer, config));
+    }
+
+    @Override
+    public void close() {
+        connectionFactory.close();
     }
 
 }

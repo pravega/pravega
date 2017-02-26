@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.common.cluster.zkImpl;
 
@@ -66,9 +54,14 @@ public class ClusterZKTest {
         LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue();
 
         //ClusterListener for testing purposes
-        CuratorFramework client2 = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
-                RETRY_SLEEP_MS, MAX_RETRY));
-        Cluster clusterListener = new ClusterZKImpl(client2, CLUSTER_NAME);
+        CuratorFramework client2 = CuratorFrameworkFactory.builder()
+                .connectString(zkUrl)
+                .retryPolicy(new ExponentialBackoffRetry(
+                        RETRY_SLEEP_MS, MAX_RETRY))
+                .namespace(CLUSTER_NAME)
+                .build();
+
+        Cluster clusterListener = new ClusterZKImpl(client2);
         clusterListener.addListener((eventType, host) -> {
             switch (eventType) {
                 case HOST_ADDED:
@@ -80,16 +73,20 @@ public class ClusterZKTest {
             }
         });
 
-        CuratorFramework client = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
-                RETRY_SLEEP_MS, MAX_RETRY));
+        CuratorFramework client = CuratorFrameworkFactory.builder()
+                .connectString(zkUrl)
+                .retryPolicy(new ExponentialBackoffRetry(
+                        RETRY_SLEEP_MS, MAX_RETRY))
+                .namespace(CLUSTER_NAME)
+                .build();
 
         //Create Add a node to the cluster.
-        Cluster clusterZKInstance1 = new ClusterZKImpl(client, CLUSTER_NAME);
+        Cluster clusterZKInstance1 = new ClusterZKImpl(client);
         clusterZKInstance1.registerHost(new Host(HOST_1, PORT));
         assertEquals(HOST_1, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 
         //Create a separate instance of Cluster and add node to same Cluster
-        Cluster clusterZKInstance2 = new ClusterZKImpl(client, CLUSTER_NAME);
+        Cluster clusterZKInstance2 = new ClusterZKImpl(client);
         clusterZKInstance1.registerHost(new Host(HOST_2, PORT));
         assertEquals(HOST_2, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
         assertEquals(2, clusterListener.getClusterMembers().size());
@@ -105,9 +102,13 @@ public class ClusterZKTest {
         LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue();
         LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue();
 
-        CuratorFramework client2 = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
-                RETRY_SLEEP_MS, MAX_RETRY));
-        Cluster clusterListener = new ClusterZKImpl(client2, CLUSTER_NAME_2);
+        CuratorFramework client2 = CuratorFrameworkFactory.builder()
+                .connectString(zkUrl)
+                .retryPolicy(new ExponentialBackoffRetry(
+                        RETRY_SLEEP_MS, MAX_RETRY))
+                .namespace(CLUSTER_NAME_2)
+                .build();
+        Cluster clusterListener = new ClusterZKImpl(client2);
         clusterListener.addListener((eventType, host) -> {
             switch (eventType) {
                 case HOST_ADDED:
@@ -119,10 +120,14 @@ public class ClusterZKTest {
             }
         });
 
-        CuratorFramework client = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
-                RETRY_SLEEP_MS, MAX_RETRY));
+        CuratorFramework client = CuratorFrameworkFactory.builder()
+                .connectString(zkUrl)
+                .retryPolicy(new ExponentialBackoffRetry(
+                        RETRY_SLEEP_MS, MAX_RETRY))
+                .namespace(CLUSTER_NAME_2)
+                .build();
         //Create Add a node to the cluster.
-        Cluster clusterZKInstance1 = new ClusterZKImpl(client, CLUSTER_NAME_2);
+        Cluster clusterZKInstance1 = new ClusterZKImpl(client);
         clusterZKInstance1.registerHost(new Host(HOST_1, PORT));
         assertEquals(HOST_1, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 
