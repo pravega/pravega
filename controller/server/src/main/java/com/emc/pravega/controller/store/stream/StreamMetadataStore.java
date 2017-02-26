@@ -167,28 +167,28 @@ public interface StreamMetadataStore {
     /**
      * Method to create a new transaction on a stream.
      *
-     * @param scope  scope
-     * @param stream stream
-     * @param lease Time for which transaction shall remain open with sending any heartbeat.
+     * @param scopeName  Scope
+     * @param streamName Stream
+     * @param lease      Time for which transaction shall remain open with sending any heartbeat.
      * @param maxExecutionTime Maximum time for which client may extend txn lease.
      * @param scaleGracePeriod Maximum time for which client may extend txn lease once
      *                         the scaling operation is initiated on the txn stream.
      * @return Transaction data along with version information.
      */
-    CompletableFuture<VersionedTransactionData> createTransaction(final String scope, final String stream,
+    CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName, final String streamName,
                                                                   final long lease, final long maxExecutionTime,
                                                                   final long scaleGracePeriod);
 
     /**
      * Heartbeat to keep the transaction open for at least lease amount of time.
      *
-     * @param scope Scope.
-     * @param stream Stream name.
-     * @param txId Transaction identifier.
-     * @param lease Lease duration in ms.
+     * @param scopeName  Scope
+     * @param streamName Stream
+     * @param txId       Transaction identifier
+     * @param lease      Lease duration in ms
      * @return Transaction data along with version information.
      */
-    CompletableFuture<VersionedTransactionData> pingTransaction(final String scope, final String stream,
+    CompletableFuture<VersionedTransactionData> pingTransaction(final String scopeName, final String streamName,
                                                                 final UUID txId, final long lease);
 
     /**

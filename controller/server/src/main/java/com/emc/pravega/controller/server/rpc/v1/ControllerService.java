@@ -193,24 +193,28 @@ public class ControllerService {
 
     public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId
             txnId) {
-        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txnId))
+        UUID txId = ModelHelper.encode(txnId);
+        return streamTransactionMetadataTasks.commitTx(scope, stream, txId)
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
                         return TxnStatus.FAILURE;
                     } else {
+                        timeoutService.removeTx(scope, stream, txId);
                         return TxnStatus.SUCCESS;
                     }
                 });
     }
 
     public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final TxnId txnId) {
-        return streamTransactionMetadataTasks.abortTx(scope, stream, ModelHelper.encode(txnId), Optional.<Integer>empty())
+        UUID txId = ModelHelper.encode(txnId);
+        return streamTransactionMetadataTasks.abortTx(scope, stream, txId, Optional.<Integer>empty())
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
                         return TxnStatus.FAILURE;
                     } else {
+                        timeoutService.removeTx(scope, stream, txId);
                         return TxnStatus.SUCCESS;
                     }
                 });
