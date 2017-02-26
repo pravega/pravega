@@ -63,9 +63,15 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         return writeOffset;
     }
 
+    
+    @Override
+    public ByteBuffer read() throws EndOfSegmentException {
+        return read(Long.MAX_VALUE);
+    }
+    
     @Override
     @Synchronized
-    public ByteBuffer read() throws EndOfSegmentException {
+    public ByteBuffer read(long timeout) throws EndOfSegmentException {
         if (readIndex >= eventsWritten) {
             throw new EndOfSegmentException();
         }
