@@ -88,7 +88,8 @@ public class BookkeeperService extends MarathonBasedService {
         app.setContainer(new Container());
         app.getContainer().setType("DOCKER");
         app.getContainer().setDocker(new Docker());
-        app.getContainer().getDocker().setImage("asdrepo.isus.emc.com:8103/nautilus/bookkeeper:0.0-1111.2b562cb");
+        String pravegaVersion = System.getProperty("pravegaVersion");
+        app.getContainer().getDocker().setImage("asdrepo.isus.emc.com:8103/nautilus/bookkeeper:"+pravegaVersion);
         app.getContainer().getDocker().setNetwork("HOST");
         app.getContainer().getDocker().setForcePullImage(true);
         Collection<Volume> volumeCollection = new ArrayList<>();

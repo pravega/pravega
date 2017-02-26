@@ -97,8 +97,8 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         volumeCollection.add(volume);
         app.getContainer().setVolumes(volumeCollection);
         //set the image and network
-        //TODO: tag change to latest
-        app.getContainer().getDocker().setImage("asdrepo.isus.emc.com:8103/nautilus/pravega-host:0.0-1111.2b562cb");
+        String pravegaVersion = System.getProperty("pravegaVersion");
+        app.getContainer().getDocker().setImage("asdrepo.isus.emc.com:8103/nautilus/pravega-host:"+pravegaVersion);
         app.getContainer().getDocker().setNetwork("HOST");
         app.getContainer().getDocker().setForcePullImage(true);
         //set port

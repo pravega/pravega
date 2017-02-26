@@ -11,6 +11,10 @@ import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.framework.services.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
+import org.apache.curator.CuratorZookeeperClient;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -20,6 +24,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
 import static com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient.getClient;
+import static org.junit.Assert.assertEquals;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -35,7 +40,9 @@ public class ZookeeperTest {
         AuthEnabledMetronomeClient.deleteAllJobs(getClient());
         Service zk = new ZookeeperService("zookeeper");
         if (!zk.isRunning()) {
-            zk.start(true);
+            if (!zk.isStaged()) {
+                zk.start(true);
+            }
         }
     }
 
@@ -45,18 +52,21 @@ public class ZookeeperTest {
     }
 
     /**
-     * Invoke the producer test, ensure we are able to produce 100 messages to the stream.
-     * The test fails incase of exceptions while writing to the stream.
+     * Invoke the zookeeper test, ensure zookeeper can be accessed.
+     * The test fails incase zookeeper cannot be accessed
      */
-
     @Test
-    public void zkPingTest() {
-        log.debug("Start execution of zkPingTest");
+    public void zkTest() {
+        log.debug("Start execution of ZkTest");
         Service zk = new ZookeeperService("zookeeper");
         URI zkUri = zk.getServiceDetails().get(0);
-        //TODO: validate zkuri
-        log.debug("zk Service URI : {} ", zkUri);
-        log.debug("zkPingTest  execution completed");
+        CuratorFramework curatorFramework =
+                CuratorFrameworkFactory.newClient(zkUri.toString(), new RetryOneTime(1));
+        curatorFramework.start();
+        CuratorZookeeperClient zkClient = curatorFramework.getZookeeperClient();
+        assertEquals(true, zkClient.isConnected());
+        log.debug("Zookeeper Service URI : {} ", zkUri);
+        log.debug("ZkTest  execution completed");
     }
 
 }

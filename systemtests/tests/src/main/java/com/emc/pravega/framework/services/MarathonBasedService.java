@@ -92,4 +92,29 @@ public abstract class MarathonBasedService implements Service {
                 () -> FutureHelpers.delayedFuture(Duration.ofSeconds(5), executorService),
                 executorService);
     }
+
+    @Override
+    public boolean isStaged() {
+
+        try {
+            GetAppResponse app = marathonClient.getApp(this.id);
+            log.debug("App Details: {}", app);
+
+            if (app.getApp().getTasksStaged() != 0) {
+                log.info("App {} is staged", this.id);
+                return true;
+            } else {
+                log.info("App {} is not staged yet", this.id);
+                return false;
+            }
+        } catch (MarathonException ex) {
+            if (ex.getStatus() == NOT_FOUND.code()) {
+                log.info("App is not staged : {}", this.id);
+                return false;
+            }
+            throw new TestFrameworkException(RequestFailed, "Marathon Exception while " +
+                    "fetching service details", ex);
+        }
+
+    }
 }

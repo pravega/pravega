@@ -7,6 +7,7 @@ import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
 import com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient;
 import com.emc.pravega.framework.services.BookkeeperService;
+import com.emc.pravega.framework.services.PravegaSegmentStoreService;
 import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.framework.services.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
@@ -24,8 +25,7 @@ import static com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient.get
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class BookkeeperTest {
-
+public class PravegaSegmentStoreTest {
 
     /**
      * This is used to setup the various services required by the system test framework.
@@ -48,7 +48,12 @@ public class BookkeeperTest {
                 bk.start(true);
             }
         }
-
+       Service seg = new PravegaSegmentStoreService("segmentstore", zk.getServiceDetails().get(0), 1, 1.0, 512.0);
+        if (!seg.isRunning()) {
+            if (!seg.isStaged()) {
+                seg.start(true);
+            }
+        }
     }
 
     @BeforeClass
@@ -57,24 +62,24 @@ public class BookkeeperTest {
     }
 
     /**
-     * Invoke the bookkeeper test.
-     * The test fails incase bookkeeper is not running on given port.
+     * Invoke the segmentstore test.
+     * The test fails incase segmentstore is not running on given port.
      */
 
     @Test
-    public void bkTest() {
-        log.debug("Start execution of bkTest");
-        Service bk = new BookkeeperService("bookkeeper", null, 0, 0.0, 0.0);
-        List<URI> bkUri = bk.getServiceDetails();
-        log.debug("Bk Service URI details: {} ", bkUri);
-        for (int i = 0; i < bkUri.size(); i++) {
-            if (bkUri.get(i).getPort() == 3181) {
-                log.debug("bookies running on 3181");
-            }  else {
-                log.error("bookies not running on 3181");
+    public void segmentStoreTest() {
+        log.debug("Start execution of segmentStoreTest");
+        Service seg = new PravegaSegmentStoreService("segmentstore", null, 0, 0.0, 0.0);
+        List<URI> segUri = seg.getServiceDetails();
+        log.debug("Pravega SegmentStore Service URI details: {} ", segUri);
+        for (int i = 0; i < segUri.size(); i++) {
+            if (segUri.get(i).getPort() == 12345) {
+                log.debug("pravega segmentstore running on 12345");
+            } else {
+                log.error("pravega segmentstore not running on 12345");
             }
             System.exit(0);
         }
-        log.debug("BkTest  execution completed");
+        log.debug("SegmentStoreTest  execution completed");
     }
 }

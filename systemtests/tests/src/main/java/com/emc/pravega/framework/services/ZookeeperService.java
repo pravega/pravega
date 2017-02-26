@@ -1,18 +1,20 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 
 package com.emc.pravega.framework.services;
 
+import com.emc.pravega.framework.marathon.AuthEnabledMarathonClient;
 import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
+import mesosphere.marathon.client.model.v2.GetAppsResponse;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.UpgradeStrategy;
 import mesosphere.marathon.client.utils.MarathonException;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -25,8 +27,31 @@ public class ZookeeperService extends MarathonBasedService {
         super(id);
     }
 
+    public static void main(String[] args) {
+        Marathon m = AuthEnabledMarathonClient.getClient();
+        GetAppsResponse list = new GetAppsResponse();
+        try {
+            list = m.getApps();
+        } catch (MarathonException e) {
+            log.error("Error in getApps {}", e);
+        }
+        log.debug("list of running apps {}", list);
+        for (int i = 0; i < list.getApps().size(); i++) {
+            String id = list.getApps().get(i).getId();
+            if (!(id.startsWith("/platform") || id.startsWith("/hdfs"))) {
+                try {
+                    m.deleteApp(id);
+                } catch (MarathonException e) {
+                    log.error("Error in deleting app with given id {}", e);
+                }
+            }
+
+        }
+    }
+
     @Override
-    public void start(final boolean wait)  {
+    public void start(final boolean wait) {
+
         log.info("Starting Zookeeper Service: {}", getID());
         try {
             marathonClient.createApp(createZookeeperApp());
@@ -45,6 +70,8 @@ public class ZookeeperService extends MarathonBasedService {
     @Override
     public void clean() {
         //TODO: Clean up to be performed after stopping the Zookeeper Service.
+        getServiceDetails().clear();
+
     }
 
     @Override

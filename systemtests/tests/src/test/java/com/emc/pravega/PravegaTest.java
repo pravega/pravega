@@ -42,6 +42,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
 import static com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient.getClient;
+import static org.junit.Assert.assertEquals;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -64,43 +65,51 @@ public class PravegaTest {
     public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
         AuthEnabledMetronomeClient.deleteAllJobs(getClient());
         //1. check if zk is running, if not start it
-        Service zookeeperService = new ZookeeperService("zookeeper");
-        if (!zookeeperService.isRunning()) {
-            zookeeperService.start(true);
+        Service zkService = new ZookeeperService("zookeeper");
+        if (!zkService.isRunning()) {
+            if (!zkService.isStaged()) {
+                zkService.start(true);
+            }
         }
 
-        List<URI> zkUris = zookeeperService.getServiceDetails();
+        List<URI> zkUris = zkService.getServiceDetails();
         log.debug("zookeeper service details: {}", zkUris);
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
 
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bookkeeperService = new BookkeeperService("bookkeeper", zkUri, 3, 0.5, 512.0);
-        if (!bookkeeperService.isRunning()) {
-            bookkeeperService.start(true);
+        Service bkService = new BookkeeperService("bookkeeper", zkUri, 3, 0.5, 512.0);
+        if (!bkService.isRunning()) {
+            if (!bkService.isStaged()) {
+                bkService.start(true);
+            }
         }
 
-        List<URI> bkUris = bookkeeperService.getServiceDetails();
+        List<URI> bkUris = bkService.getServiceDetails();
         log.debug("bookkeeper service details: {}", bkUris);
 
         //4.start host
-        Service segmentService = new PravegaSegmentStoreService("host", zkUri, 1, 1, 512.0);
+        Service segService = new PravegaSegmentStoreService("host", zkUri, 1, 1, 512.0);
 
-        if (!segmentService.isRunning()) {
-            segmentService.start(true);
+        if (!segService.isRunning()) {
+            if (!segService.isStaged()) {
+                segService.start(true);
+            }
         }
 
-        List<URI> segUris = segmentService.getServiceDetails();
+        List<URI> segUris = segService.getServiceDetails();
         log.debug("pravega host service details: {}", segUris);
         URI segUri = segUris.get(0);
 
         //3. start controller
-        Service controllerService = new PravegaControllerService("controller", zkUri, segUri, 1, 0.1, 256);
-        if (!controllerService.isRunning()) {
-            controllerService.start(true);
+        Service conService = new PravegaControllerService("controller", zkUri, segUri, 1, 0.1, 256);
+        if (!conService.isRunning()) {
+            if (!conService.isStaged()) {
+                conService.start(true);
+            }
         }
 
-        List<URI> conUris = controllerService.getServiceDetails();
+        List<URI> conUris = conService.getServiceDetails();
         log.debug("Pravega Controller service details: {}", conUris);
 
     }
@@ -111,39 +120,60 @@ public class PravegaTest {
     }
 
     /**
-     * Invoke the producer test, ensure we are able to produce 100 messages to the stream.z
-     * The test fails incase of exceptions while writing to the stream.
+     * Invoke the create stream test, ensure we are able to create scope and stream.
+     * The test fails incase of exceptions in creating scope or stream
      *
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-
     @Test
-    public void producerTest() throws InterruptedException, URISyntaxException {
+    public  void createStreamTest() throws InterruptedException, URISyntaxException {
 
-        Service controllerService = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
-        List<URI> ctlURIs = controllerService.getServiceDetails();
+        Service conService = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
+        List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
 
-        log.debug("Invoking producer test.");
+        log.debug("Invoking create stream test.");
 
         log.debug("Controller URI: {} ", controllerUri);
 
         ControllerImpl controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
 
-        //create a stream.
         try {
+            //create a scope
             CompletableFuture<CreateScopeStatus> scopeStatus = controller.createScope(STREAM_SCOPE);
             log.debug("create scope status {}", scopeStatus.get());
-
+            assertEquals("SUCCESS", scopeStatus.get());
+            //create a stream
             CompletableFuture<CreateStreamStatus> status = controller.createStream(config);
             log.debug("create stream status {}", status.get());
+            assertEquals("SUCCESS", status.get());
         } catch (ExecutionException e) {
             log.error("error in doing a get on create stream status {}", e);
             System.exit(0);
         }
 
         Thread.sleep(30000);
+
+    }
+
+    /**
+     * Invoke the producer test, ensure we are able to produce 100 messages to the stream.z
+     * The test fails incase of exceptions while writing to the stream.
+     *
+     * @throws InterruptedException if interrupted
+     * @throws URISyntaxException   If URI is invalid
+     */
+    @Test
+    public void producerTest() throws InterruptedException, URISyntaxException {
+
+        Service conService = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
+        List<URI> ctlURIs = conService.getServiceDetails();
+        URI controllerUri = ctlURIs.get(0);
+
+        log.debug("Invoking producer test.");
+
+        log.debug("Controller URI: {} ", controllerUri);
 
         ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri);
 
@@ -171,11 +201,9 @@ public class PravegaTest {
     @Test
     public void consumerTest() throws URISyntaxException {
 
-        Service controllerService = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
-        List<URI> ctlURIs = controllerService.getServiceDetails();
+        Service conService = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
+        List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
-        String string = "http://" + controllerUri.getHost() + ":9090";
-        controllerUri = new URI(string);
 
         log.debug("Invoking consumer test.");
         log.debug("Controller URI: " + controllerUri);

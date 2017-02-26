@@ -107,7 +107,8 @@ public class PravegaControllerService extends MarathonBasedService {
         app.getContainer().setType("DOCKER");
         app.getContainer().setDocker(new Docker());
         //TODO: change tag to latest
-        app.getContainer().getDocker().setImage("asdrepo.isus.emc.com:8103/nautilus/pravega-controller:0.0-1111.2b562cb");
+        String pravegaVersion = System.getProperty("pravegaVersion");
+        app.getContainer().getDocker().setImage("asdrepo.isus.emc.com:8103/nautilus/pravega-controller:"+pravegaVersion);
         app.getContainer().getDocker().setNetwork("HOST");
         app.getContainer().getDocker().setForcePullImage(true);
         //set docker container parameters

@@ -6,7 +6,7 @@ package com.emc.pravega;
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
 import com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient;
-import com.emc.pravega.framework.services.BookkeeperService;
+import com.emc.pravega.framework.services.PravegaControllerService;
 import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.framework.services.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
@@ -24,8 +24,7 @@ import static com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient.get
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class BookkeeperTest {
-
+public class PravegaControllerTest {
 
     /**
      * This is used to setup the various services required by the system test framework.
@@ -42,10 +41,10 @@ public class BookkeeperTest {
                 zk.start(true);
             }
         }
-        Service bk = new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0), 3, 0.5, 512.0);
-        if (!bk.isRunning()) {
-            if (!bk.isStaged()) {
-                bk.start(true);
+        Service con = new PravegaControllerService("controller", zk.getServiceDetails().get(0), null, 1, 0.1, 256.0);
+        if (!con.isRunning()) {
+            if (!con.isStaged()) {
+                con.start(true);
             }
         }
 
@@ -57,24 +56,24 @@ public class BookkeeperTest {
     }
 
     /**
-     * Invoke the bookkeeper test.
-     * The test fails incase bookkeeper is not running on given port.
+     * Invoke the controller test.
+     * The test fails incase controller is not running on given ports
      */
 
     @Test
-    public void bkTest() {
-        log.debug("Start execution of bkTest");
-        Service bk = new BookkeeperService("bookkeeper", null, 0, 0.0, 0.0);
-        List<URI> bkUri = bk.getServiceDetails();
-        log.debug("Bk Service URI details: {} ", bkUri);
-        for (int i = 0; i < bkUri.size(); i++) {
-            if (bkUri.get(i).getPort() == 3181) {
-                log.debug("bookies running on 3181");
-            }  else {
-                log.error("bookies not running on 3181");
+    public void controllerTest() {
+        log.debug("Start execution of controllerTest");
+        Service con = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
+        List<URI> conUri = con.getServiceDetails();
+        log.debug("Controller Service URI details: {} ", conUri);
+        for (int i = 0; i < conUri.size(); i++) {
+            if (conUri.get(i).getPort() == 9090 || conUri.get(i).getPort() == 10080) {
+                log.debug("Controller running on 9090 and rest server running on 10080");
+            } else {
+                log.error("Controller  and rest not running on 9090 or 10080");
             }
             System.exit(0);
         }
-        log.debug("BkTest  execution completed");
+        log.debug("ControllerTest  execution completed");
     }
 }
