@@ -15,7 +15,6 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroupConfig;
-import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.StreamConfiguration;
