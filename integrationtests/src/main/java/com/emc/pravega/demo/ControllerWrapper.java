@@ -36,51 +36,54 @@ import org.apache.curator.retry.RetryOneTime;
 public class ControllerWrapper {
 
     public static Controller getController(String connectionString) throws Exception {
-            String hostId;
-            try {
-                    // On each controller process restart, it gets a fresh hostId,
-                    // which is a combination of hostname and random GUID.
-                    hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
-            } catch (UnknownHostException e) {
-                    hostId = UUID.randomUUID().toString();
-            }
+        String hostId;
+        try {
+            // On each controller process restart, it gets a fresh hostId,
+            // which is a combination of hostname and random GUID.
+            hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
+        } catch (UnknownHostException e) {
+            hostId = UUID.randomUUID().toString();
+        }
 
-            // initialize the executor service
-            ScheduledExecutorService executor = Executors.newScheduledThreadPool(20,
-                    new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
+        // initialize the executor service
+        ScheduledExecutorService executor = Executors.newScheduledThreadPool(20,
+                new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
 
-            CuratorFramework client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
-            client.start();
+        CuratorFramework client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
+        client.start();
 
-            StoreClient storeClient = new ZKStoreClient(client);
+        StoreClient storeClient = new ZKStoreClient(client);
 
-            StreamMetadataStore streamStore = new ZKStreamMetadataStore(client, executor);
+        StreamMetadataStore streamStore = new ZKStreamMetadataStore(client, executor);
 
-            HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
+        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
 
-            TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
-            StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                    executor, hostId);
-            StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, taskMetadataStore, executor, hostId);
-            TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks);
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+                executor, hostId);
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
+                hostStore, taskMetadataStore, executor, hostId);
+        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks);
 
-            ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, timeoutService);
+        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, timeoutService);
 
-            //region Setup Event Processors
-            LocalController localController = new LocalController(controllerService);
+        //region Setup Event Processors
+        LocalController localController = new LocalController(controllerService);
 
-            streamTransactionMetadataTasks.initializeStreamWriters(localController);
+        ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
+                client, streamStore, hostStore);
 
-            ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
-                    client, streamStore, hostStore);
+        controllerEventProcessors.initialize();
 
-            controllerEventProcessors.initialize();
-            //endregion
+        streamTransactionMetadataTasks.initializeStreamWriters(localController);
+        //endregion
 
-            return new LocalController(controllerService);
+        controllerEventProcessors.initialize();
+        //endregion
+
+        return new LocalController(controllerService);
     }
 }
 

@@ -104,8 +104,6 @@ public class Main {
 
         LocalController localController = new LocalController(controllerService);
 
-        streamTransactionMetadataTasks.initializeStreamWriters(localController);
-
         ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
                 ZKUtils.getCuratorClient(), streamStore, hostStore);
 
@@ -115,6 +113,8 @@ public class Main {
             log.error("Error initializing event processors", e);
             throw new RuntimeException(e);
         }
+
+        streamTransactionMetadataTasks.initializeStreamWriters(localController);
 
         //endregion
 

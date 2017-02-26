@@ -8,6 +8,7 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.ControllerService;
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.PingStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
@@ -70,6 +71,19 @@ public class ControllerImpl implements Controller {
             log.error("Exception" + ioe.getMessage());
             throw new RuntimeException(ioe);
         }
+    }
+
+    @Override
+    public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
+        log.trace("Invoke AdminService.Client.createScope() with name: {}", scopeName);
+
+        final ThriftAsyncCallback<ControllerService.AsyncClient.createScope_call> callback = new ThriftAsyncCallback<>();
+        ThriftHelper.thriftCall(() -> {
+            client.createScope(scopeName, callback);
+            return null;
+        });
+        return callback.getResult()
+                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
     }
 
     @Override

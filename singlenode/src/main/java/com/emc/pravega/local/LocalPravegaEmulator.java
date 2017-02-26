@@ -48,6 +48,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
+import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 
 import org.apache.bookkeeper.util.IOUtils;
@@ -62,18 +63,25 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private static final int NUM_BOOKIES = 5;
     private static final String CONTAINER_COUNT = "2";
     private static final String THREADPOOL_SIZE = "20";
-    private static LocalHDFSEmulator localHdfs;
-    private static int zkPort;
-    private static LocalDLMEmulator localDlm;
+
     private final AtomicReference<ServiceStarter> nodeServiceStarter = new AtomicReference<>();
 
+    private final int zkPort;
     private final int controllerPort;
     private final int hostPort;
-    private ScheduledExecutorService controllerExecutor;
+    private final LocalHDFSEmulator localHdfs;
+        
+    private final ScheduledExecutorService controllerExecutor;
 
-    private LocalPravegaEmulator(int controllerPort, int hostPort) {
+    @Builder
+    private LocalPravegaEmulator(int zkPort, int controllerPort, int hostPort, LocalHDFSEmulator localHdfs) {
+        this.zkPort = zkPort;
         this.controllerPort = controllerPort;
         this.hostPort = hostPort;
+        this.localHdfs = localHdfs;
+        this.controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
+                                                                   new ThreadFactoryBuilder().setNameFormat("taskpool-%d")
+                                                                                             .build());
     }
 
     public static void main(String[] args) {
@@ -83,20 +91,20 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 System.exit(-1);
             }
 
-            zkPort = Integer.parseInt(args[0]);
+            int zkPort = Integer.parseInt(args[0]);
             final int controllerPort = Integer.parseInt(args[1]);
             final int hostPort = Integer.parseInt(args[2]);
 
             final File zkDir = IOUtils.createTempDir("distrlog", "zookeeper");
-            localDlm = LocalDLMEmulator.newBuilder().zkPort(zkPort).numBookies(NUM_BOOKIES).build();
+            LocalDLMEmulator localDlm = LocalDLMEmulator.newBuilder().zkPort(zkPort).numBookies(NUM_BOOKIES).build();
 
             LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
             context.getLoggerList().get(0).setLevel(Level.OFF);
 
-            localHdfs = LocalHDFSEmulator.newBuilder().baseDirName("temp").build();
+            LocalHDFSEmulator localHdfs = LocalHDFSEmulator.newBuilder().baseDirName("temp").build();
 
-            final LocalPravegaEmulator localPravega = LocalPravegaEmulator.newBuilder().controllerPort(
-                    controllerPort).hostPort(hostPort).build();
+            final LocalPravegaEmulator localPravega = LocalPravegaEmulator.builder().controllerPort(
+                    controllerPort).hostPort(hostPort).localHdfs(localHdfs).build();
 
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
@@ -108,14 +116,15 @@ public class LocalPravegaEmulator implements AutoCloseable {
                         FileUtils.deleteDirectory(zkDir);
                         System.out.println("ByeBye!");
                     } catch (Exception e) {
-                        log.warn("Caught an exception shutting down", e);
+                        // do nothing
+                        log.warn("Exception running local pravega emulator: " + e.getMessage());
                     }
                 }
             });
 
             localHdfs.start();
             localDlm.start();
-            configureDLBinding();
+            configureDLBinding(zkPort);
             localPravega.start();
 
             System.out.println(
@@ -127,7 +136,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         }
     }
 
-    private static void configureDLBinding() {
+    private static void configureDLBinding(int zkPort) {
         DistributedLogAdmin admin = new DistributedLogAdmin();
         String[] params = {"bind", "-dlzr", "localhost:" + zkPort, "-dlzw", "localhost:" + 7000, "-s", "localhost:" +
                 zkPort, "-bkzr", "localhost:" + 7000, "-l", "/ledgers", "-i", "false", "-r", "true", "-c",
@@ -188,9 +197,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
             ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE,
                     Long.toString(128 * 1024 * 1024));
 
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_HOSTNAME, "localhost");
-            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_PORT,
-                                     Integer.toString(zkPort));
+            ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_URL, "localhost:" +
+                    zkPort);
             ServiceBuilderConfig.set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT,
                                      Integer.toString(hostPort));
 
@@ -221,11 +229,6 @@ public class LocalPravegaEmulator implements AutoCloseable {
         }
 
         //1. LOAD configuration.
-        Config.setZKURL("localhost:" + zkPort);
-        //Initialize the executor service.
-        controllerExecutor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
-                new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
-
         log.info("Creating store client");
         StoreClient storeClient = StoreClientFactory.createStoreClient(StoreClientFactory.StoreType.Zookeeper);
 
@@ -269,28 +272,4 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 streamTransactionMetadataTasks);
     }
 
-
-    private static Builder newBuilder() {
-        return new Builder();
-    }
-
-
-    private static class Builder {
-        private int controllerPort;
-        private int hostPort;
-
-        public Builder controllerPort(int controllerPort) {
-            this.controllerPort = controllerPort;
-            return this;
-        }
-
-        public Builder hostPort(int hostPort) {
-            this.hostPort = hostPort;
-            return this;
-        }
-
-        public LocalPravegaEmulator build() {
-            return new LocalPravegaEmulator(controllerPort, hostPort);
-        }
-    }
 }

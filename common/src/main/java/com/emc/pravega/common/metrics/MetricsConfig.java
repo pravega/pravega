@@ -34,9 +34,9 @@ public class MetricsConfig extends ComponentConfig {
     public final static String DEFAULT_STATSD_HOST = "localhost";
     public final static int DEFAULT_STATSD_PORT = 8125;
 
-    private static boolean enableStatistics = true;
-    private static long dynamicCacheSize = 1000000L;
-    private static long dynamicTTLSeconds = 120L;
+    private boolean enableStatistics = true;
+    private long dynamicCacheSize = 1000000L;
+    private long dynamicTTLSeconds = 120L;
     private int yammerStatsOutputFrequencySeconds;
     private String yammerMetricsPrefix;
     private String yammerCSVEndpoint;
@@ -60,21 +60,21 @@ public class MetricsConfig extends ComponentConfig {
     /**
      * Gets a value indicating the status of enable statistics.
      */
-    public static boolean enableStatistics() {
+    public boolean enableStatistics() {
         return enableStatistics;
     }
 
     /**
      * Gets cache size for dynamic metrics.
      */
-    public static long getDynamicCacheSize() {
+    public long getDynamicCacheSize() {
         return dynamicCacheSize;
     }
 
     /**
      * Gets cache TTL for dynamic metrics.
      */
-    public static long getDynamicTTLSeconds() {
+    public long getDynamicTTLSeconds() {
         return dynamicTTLSeconds;
     }
 
@@ -116,9 +116,9 @@ public class MetricsConfig extends ComponentConfig {
 
     @Override
     public void refresh() throws ConfigurationException {
-        MetricsConfig.enableStatistics = getBooleanProperty(ENABLE_STATISTICS, DEFAULT_ENABLE_STATISTICS);
-        MetricsConfig.dynamicCacheSize = getInt64Property(DYNAMIC_CACHE_SIZE, DEFAULT_DYNAMIC_CACHE_SIZE);
-        MetricsConfig.dynamicTTLSeconds = getInt64Property(DYNAMIC_TTL_SECONDS, DEFAULT_DYNAMIC_TTL_SECONDS);
+        this.enableStatistics = getBooleanProperty(ENABLE_STATISTICS, DEFAULT_ENABLE_STATISTICS);
+        this.dynamicCacheSize = getInt64Property(DYNAMIC_CACHE_SIZE, DEFAULT_DYNAMIC_CACHE_SIZE);
+        this.dynamicTTLSeconds = getInt64Property(DYNAMIC_TTL_SECONDS, DEFAULT_DYNAMIC_TTL_SECONDS);
         this.yammerStatsOutputFrequencySeconds = getInt32Property(OUTPUT_FREQUENCY, DEFAULT_OUTPUT_FREQUENCY);
         this.yammerMetricsPrefix = getProperty(METRICS_PREFIX, DEFAULT_METRICS_PREFIX);
         this.yammerCSVEndpoint = getProperty(CSV_ENDPOINT, DEFAULT_CSV_ENDPOINT);

@@ -94,7 +94,7 @@ public final class ServiceStarter {
 
         log.info("Initializing metrics provider ...");
         statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.start(metricsConfig);
+        statsProvider.start();
 
         log.info("Initializing Service Builder ...");
         this.serviceBuilder.initialize().join();
@@ -171,7 +171,7 @@ public final class ServiceStarter {
 
     private CuratorFramework createZKClient() {
         CuratorFramework zkClient = CuratorFrameworkFactory.builder()
-                .connectString(this.serviceConfig.getZkHostName() + ":" + this.serviceConfig.getZkPort())
+                .connectString(this.serviceConfig.getZkURL())
                 .namespace("pravega/" + this.serviceConfig.getClusterName())
                 .retryPolicy(new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()))
                 .build();

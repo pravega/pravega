@@ -45,9 +45,9 @@ public class TimeoutServiceTest {
     private final static String SCOPE = "SCOPE";
     private final static String STREAM = "STREAM";
 
-    private static long lease = 4000;
-    private static long maxExecutionTime = 10000;
-    private static long scaleGracePeriod = 30000;
+    private final static long LEASE = 4000;
+    private final static long MAX_EXECUTION_TIME = 10000;
+    private final static long SCALE_GRACE_PERIOD = 30000;
 
     private final StreamMetadataStore streamStore;
     private final TimeoutService timeoutService;
@@ -144,10 +144,10 @@ public class TimeoutServiceTest {
     @Test
     public void testTimeout() throws InterruptedException {
 
-        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, lease, maxExecutionTime,
-                scaleGracePeriod).join();
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
+                SCALE_GRACE_PERIOD).join();
 
-        timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), lease,
+        timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
         Thread.sleep(5200);
@@ -159,7 +159,7 @@ public class TimeoutServiceTest {
 
     @Test
     public void testControllerTimeout() throws InterruptedException {
-        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod)
+        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
                 .join();
 
         Thread.sleep(5200);
@@ -170,10 +170,10 @@ public class TimeoutServiceTest {
 
     @Test
     public void testPingSuccess() throws InterruptedException {
-        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, lease, maxExecutionTime,
-                scaleGracePeriod).join();
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
+                SCALE_GRACE_PERIOD).join();
 
-        timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), lease,
+        timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
         Thread.sleep(3000);
@@ -181,7 +181,7 @@ public class TimeoutServiceTest {
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
-        PingStatus pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), lease);
+        PingStatus pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), LEASE);
         Assert.assertEquals(PingStatus.OK, pingStatus);
 
         Thread.sleep(2000);
@@ -197,7 +197,7 @@ public class TimeoutServiceTest {
 
     @Test
     public void testControllerPingSuccess() throws InterruptedException {
-        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod)
+        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
                 .join();
 
         Thread.sleep(3000);
@@ -205,7 +205,7 @@ public class TimeoutServiceTest {
         TxnState txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.OPEN, txnState);
 
-        PingStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, lease).join();
+        PingStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, LEASE).join();
         Assert.assertEquals(PingStatus.OK, pingStatus);
 
         Thread.sleep(2000);
@@ -222,10 +222,10 @@ public class TimeoutServiceTest {
     @Test
     public void testPingFailureMaxExecutionTimeExceeded() throws InterruptedException {
 
-        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, lease, maxExecutionTime,
-                scaleGracePeriod).join();
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
+                SCALE_GRACE_PERIOD).join();
 
-        timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), lease,
+        timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
         Thread.sleep(3000);
@@ -233,7 +233,7 @@ public class TimeoutServiceTest {
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
-        PingStatus pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), lease);
+        PingStatus pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), LEASE);
         Assert.assertEquals(PingStatus.OK, pingStatus);
 
         Thread.sleep(3000);
@@ -241,7 +241,7 @@ public class TimeoutServiceTest {
         status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
-        pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), lease + 1);
+        pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), LEASE + 1);
         Assert.assertEquals(PingStatus.MAX_EXECUTION_TIME_EXCEEDED, pingStatus);
 
         Thread.sleep(2000);
@@ -252,7 +252,7 @@ public class TimeoutServiceTest {
 
     @Test
     public void testControllerPingFailureMaxExecutionTimeExceeded() throws InterruptedException {
-        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod)
+        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
                 .join();
 
         Thread.sleep(3000);
@@ -260,7 +260,7 @@ public class TimeoutServiceTest {
         TxnState txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.OPEN, txnState);
 
-        PingStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, lease).join();
+        PingStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, LEASE).join();
         Assert.assertEquals(PingStatus.OK, pingStatus);
 
         Thread.sleep(3000);
@@ -268,7 +268,7 @@ public class TimeoutServiceTest {
         txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.OPEN, txnState);
 
-        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, lease + 1).join();
+        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, LEASE + 1).join();
         Assert.assertEquals(PingStatus.MAX_EXECUTION_TIME_EXCEEDED, pingStatus);
 
         Thread.sleep(2000);
@@ -280,13 +280,13 @@ public class TimeoutServiceTest {
     @Test
     public void testPingFailureDisconnected() throws InterruptedException {
 
-        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, lease, maxExecutionTime,
-                scaleGracePeriod).join();
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
+                SCALE_GRACE_PERIOD).join();
 
-        timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), lease,
+        timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
-        Thread.sleep(3 * lease / 4);
+        Thread.sleep(3 * LEASE / 4);
 
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
@@ -294,10 +294,10 @@ public class TimeoutServiceTest {
         // Stop timeoutService, and then try pinging the transaction.
         timeoutService.stopAsync();
 
-        PingStatus pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), lease);
+        PingStatus pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), LEASE);
         Assert.assertEquals(PingStatus.DISCONNECTED, pingStatus);
 
-        Thread.sleep(lease / 2);
+        Thread.sleep(LEASE / 2);
 
         // Check that the transaction status is still open, since timeoutService has been stopped.
         status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
@@ -307,10 +307,10 @@ public class TimeoutServiceTest {
     @Test
     public void testControllerPingFailureDisconnected() throws InterruptedException {
 
-        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod)
+        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
                 .join();
 
-        Thread.sleep(3 * lease / 4);
+        Thread.sleep(3 * LEASE / 4);
 
         TxnState status = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.OPEN, status);
@@ -318,10 +318,10 @@ public class TimeoutServiceTest {
         // Stop timeoutService, and then try pinging the transaction.
         timeoutService.stopAsync();
 
-        PingStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, lease).join();
+        PingStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, LEASE).join();
         Assert.assertEquals(PingStatus.DISCONNECTED, pingStatus);
 
-        Thread.sleep(lease / 2);
+        Thread.sleep(LEASE / 2);
 
         // Check that the transaction status is still open, since timeoutService has been stopped.
         status = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
@@ -331,14 +331,14 @@ public class TimeoutServiceTest {
     @Test
     public void testTimeoutTaskFailureInvalidVersion() throws InterruptedException {
 
-        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, lease, maxExecutionTime,
-                scaleGracePeriod).join();
+        VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
+                SCALE_GRACE_PERIOD).join();
 
         // Submit transaction to TimeoutService with incorrect tx version identifier.
-        timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion() + 1, lease,
+        timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion() + 1, LEASE,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
-        Thread.sleep(lease + lease / 4);
+        Thread.sleep(LEASE + LEASE / 4);
 
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
