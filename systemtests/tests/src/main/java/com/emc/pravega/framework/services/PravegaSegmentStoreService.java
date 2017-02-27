@@ -23,7 +23,6 @@ import java.util.concurrent.ExecutionException;
 
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
 
-
 @Slf4j
 public class PravegaSegmentStoreService extends MarathonBasedService {
 
@@ -33,7 +32,6 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
     private int instances = 1;
     private double cpu = 1.0;
     private double mem = 512.0;
-
 
     public PravegaSegmentStoreService(final String id, final URI zkUri, int instances, double cpu, double mem) {
         super(id);
@@ -50,35 +48,33 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         try {
             marathonClient.createApp(createPravegaSegmentStoreApp());
             if (wait) {
-                try {
-                    waitUntilServiceRunning().get();
-                } catch (InterruptedException | ExecutionException ex) {
-                    throw new TestFrameworkException(InternalError, "Exception while " +
-                            "starting Pravega SegmentStore Service", ex);
-                }
+                waitUntilServiceRunning().get();
             }
         } catch (MarathonException e) {
             handleMarathonException(e);
+        } catch (InterruptedException | ExecutionException ex) {
+            throw new TestFrameworkException(InternalError, "Exception while " +
+                    "starting Pravega SegmentStore Service", ex);
         }
     }
 
-    /**
-     * Cleanup after service is stopped.
-     * This is a placeholder to perform cleaning up configuration of segmentstore in zk
-     */
-    @Override
-    public void clean() {
-    }
-
-    @Override
-    public void stop() {
-        log.info("Stopping Pravega SegmentStore Service : {}", getID());
-        try {
-            marathonClient.deleteApp(getID());
-        } catch (MarathonException e) {
-            handleMarathonException(e);
+        /**
+         * Cleanup after service is stopped.
+         * This is a placeholder to perform cleaning up configuration of segmentstore in zk
+         */
+        @Override
+        public void clean() {
         }
-    }
+
+        @Override
+        public void stop() {
+            log.info("Stopping Pravega SegmentStore Service : {}", getID());
+            try {
+                marathonClient.deleteApp(getID());
+            } catch (MarathonException e) {
+                handleMarathonException(e);
+            }
+        }
 
     private App createPravegaSegmentStoreApp() {
 
@@ -113,11 +109,10 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         Map<String, String> map = new HashMap<>();
         map.put("ZK_URL", zk);
-        map.put("pravegaservice_zkHostName", zkUri.getHost());
+        map.put("pravegaservice_zkURL", zk);
         map.put("dlog_hostname", zkUri.getHost());
         map.put("hdfs_fs_default_name", "namenode-0.hdfs.mesos:9001");
         app.setEnv(map);
         return app;
     }
-
 }

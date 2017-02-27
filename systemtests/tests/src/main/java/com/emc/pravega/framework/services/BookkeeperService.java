@@ -48,17 +48,14 @@ public class BookkeeperService extends MarathonBasedService {
         log.info("Starting Bookkeeper Service: {}", getID());
         try {
             marathonClient.createApp(createBookieApp());
-
             if (wait) {
-                try {
-                    waitUntilServiceRunning().get();
-                } catch (InterruptedException | ExecutionException ex) {
-                    throw new TestFrameworkException(InternalError, "Exception while " +
-                            "starting Bookkeeper Service", ex);
-                }
+                waitUntilServiceRunning().get();
             }
         } catch (MarathonException e) {
             handleMarathonException(e);
+        } catch (InterruptedException | ExecutionException ex) {
+            throw new TestFrameworkException(InternalError, "Exception while " +
+                    "starting Bookkeeper Service", ex);
         }
     }
 
@@ -89,7 +86,7 @@ public class BookkeeperService extends MarathonBasedService {
         app.getContainer().setType(CONTAINER_TYPE);
         app.getContainer().setDocker(new Docker());
 
-        app.getContainer().getDocker().setImage(IMAGE_PATH + "bookkeeper:" + "0.0-1111.2b562cb");
+        app.getContainer().getDocker().setImage(IMAGE_PATH + "bookkeeper:" + PRAVEGA_VERSION);
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
         Collection<Volume> volumeCollection = new ArrayList<>();

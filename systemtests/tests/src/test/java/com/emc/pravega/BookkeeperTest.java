@@ -35,7 +35,6 @@ public class BookkeeperTest {
         if (!bk.isRunning()) {
             bk.start(true);
         }
-
     }
 
     /**

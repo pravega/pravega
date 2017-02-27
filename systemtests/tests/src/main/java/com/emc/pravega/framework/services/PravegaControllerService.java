@@ -56,18 +56,15 @@ public class PravegaControllerService extends MarathonBasedService {
         deleteApp("/pravega/controller");
         log.debug("Starting service: {}", getID());
         try {
-
             marathonClient.createApp(createPravegaControllerApp());
             if (wait) {
-                try {
-                    waitUntilServiceRunning().get();
-                } catch (InterruptedException | ExecutionException ex) {
-                    throw  new TestFrameworkException(InternalError, "Exception while " +
-                            "starting Pravega Controller Service", ex);
-                }
+                waitUntilServiceRunning().get();
             }
         } catch (MarathonException e) {
             handleMarathonException(e);
+        } catch (InterruptedException | ExecutionException ex) {
+            throw new TestFrameworkException(InternalError, "Exception while " +
+                    "starting Pravega Controller Service", ex);
         }
     }
 
@@ -109,7 +106,7 @@ public class PravegaControllerService extends MarathonBasedService {
         app.getContainer().setType(CONTAINER_TYPE);
         app.getContainer().setDocker(new Docker());
         //TODO: change tag to latest
-        app.getContainer().getDocker().setImage(IMAGE_PATH + "pravega-controller:" + "0.0-1111.2b562cb");
+        app.getContainer().getDocker().setImage(IMAGE_PATH + "pravega-controller:" + PRAVEGA_VERSION);
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
         //set docker container parameters

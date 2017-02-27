@@ -35,7 +35,6 @@ public class PravegaControllerTest {
         if (!con.isRunning()) {
             con.start(true);
         }
-
     }
 
     /**

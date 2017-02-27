@@ -141,22 +141,25 @@ public abstract class MarathonBasedService implements Service {
         }
         log.debug("list of running apps {}", list);
         for (int i = 0; i < list.getApps().size(); i++) {
-            String id = list.getApps().get(i).getId();
-            if (!(id.startsWith("/platform") || id.startsWith("/hdfs"))) {
+            String appId = list.getApps().get(i).getId();
+            if (!((appId.startsWith("/platform") || appId.startsWith("/hdfs")))) {
                 try {
-                    m.deleteApp(id);
+                    log.debug("running app id {}", appId);
+                    marathonClient.deleteApp(appId);
+                    marathonClient.deleteGroup(appId);
+                    log.debug("deleting app with id {}", appId);
                 } catch (MarathonException e) {
-                    log.error("Error in deleting app with given id {}", e);
+                    throw new TestFrameworkException(RequestFailed, "Marathon Exception while deleting service", e);
                 }
-            }
 
+            }
         }
     }
 
-    void deleteApp(String appId) {
+    void deleteApp(String appID) {
 
         try {
-            marathonClient.deleteApp(appId);
+            marathonClient.deleteApp(appID);
         } catch (MarathonException e) {
             if (e.getStatus() == NOT_FOUND.code()) {
                 log.debug("Application does not exist");

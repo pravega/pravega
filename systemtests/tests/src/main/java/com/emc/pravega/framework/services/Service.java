@@ -54,4 +54,10 @@ public interface Service {
      */
     public List<URI> getServiceDetails();
 
+    /**
+     * Delete the default services.
+     *
+     */
+    public void deleteServices();
+
 }

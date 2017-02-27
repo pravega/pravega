@@ -4,7 +4,6 @@
 
 package com.emc.pravega;
 
-import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
@@ -30,6 +29,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -39,16 +39,15 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-import static org.junit.Assert.assertEquals;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class PravegaTest {
 
-    private final static String STREAM_NAME = "testStreamSample";
-    private final static String STREAM_SCOPE = "testScopeSample";
-    private final static String READER_GROUP = "ExampleReaderGroup";
-    private final ScalingPolicy scalingPolicy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 2L, 2, 2);
+    private final static String STREAM_NAME = "testStreamSampleY";
+    private final static String STREAM_SCOPE = "testScopeSampleY";
+    private final static String READER_GROUP = "ExampleReaderGroupY";
+    private final ScalingPolicy scalingPolicy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 2L, 2, 4);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(STREAM_SCOPE).streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
 
     /**
@@ -60,17 +59,17 @@ public class PravegaTest {
      */
     @Environment
     public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
+
         //1. check if zk is running, if not start it
         Service zkService = new ZookeeperService("zookeeper", 1, 1.0, 128.0);
         if (!zkService.isRunning()) {
-                zkService.start(true);
+            zkService.start(true);
         }
 
         List<URI> zkUris = zkService.getServiceDetails();
         log.debug("zookeeper service details: {}", zkUris);
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
-
         //2, check if bk is running, otherwise start, get the zk ip
         Service bkService = new BookkeeperService("bookkeeper", zkUri, 3, 0.5, 512.0);
         if (!bkService.isRunning()) {
@@ -94,7 +93,7 @@ public class PravegaTest {
         //3. start controller
         Service conService = new PravegaControllerService("controller", zkUri, segUri, 1, 0.1, 256);
         if (!conService.isRunning()) {
-                conService.start(true);
+            conService.start(true);
         }
 
         List<URI> conUris = conService.getServiceDetails();
@@ -108,7 +107,7 @@ public class PravegaTest {
     }
 
     /**
-     * Invoke the createStream method, ensure we are able to create scope and stream.
+     * Invoke the createStream method, ensure we are able to create stream.
      *
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
@@ -120,21 +119,17 @@ public class PravegaTest {
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
 
-        log.debug("Invoking create stream test.");
+        log.debug("Invoking create stream.");
 
         log.debug("Controller URI: {} ", controllerUri);
 
         ControllerImpl controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
 
         try {
-            //create a scope
-            CompletableFuture<CreateScopeStatus> scopeStatus = controller.createScope(STREAM_SCOPE);
-            log.debug("create scope status {}", scopeStatus.get());
-            assertEquals("SUCCESS", scopeStatus.get());
             //create a stream
             CompletableFuture<CreateStreamStatus> status = controller.createStream(config);
             log.debug("create stream status {}", status.get());
-            assertEquals("SUCCESS", status.get());
+            //assertEquals(CreateStreamStatus.SUCCESS, status.get());
         } catch (ExecutionException e) {
             log.error("error in doing a get on create stream status {}", e);
         }
@@ -167,7 +162,7 @@ public class PravegaTest {
                 new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 5; i++) {
             String event = "\n Transactional Publish \n";
             log.debug("Producing event: {} ", event);
             producer.writeEvent("", event);
@@ -183,7 +178,7 @@ public class PravegaTest {
                         Collections.singletonList(STREAM_NAME));
 
         try {
-            Thread.sleep(1000);
+            Thread.sleep(10000);
         } catch (InterruptedException e) {
             log.error(" error in thread sleep {}", e);
         }
@@ -193,7 +188,7 @@ public class PravegaTest {
                 READER_GROUP,
                 new JavaSerializer<>(),
                 ReaderConfig.builder().build());
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 5; i++) {
             String event = null;
             try {
                 event = reader.readNextEvent(6000).getEvent();
