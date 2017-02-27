@@ -8,6 +8,7 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.stream.tables.Data;
 
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -84,6 +85,18 @@ public class ZKStoreHelper {
             }
             return null;
         });
+    }
+
+    CompletableFuture<Void> checkPoint(String readerGroup, String readerId, byte[] checkpointBlob) {
+
+        String path = ZKPaths.makePath("", readerGroup, readerId);
+        Data<Integer> data = new Data<>(checkpointBlob, null);
+        return setData(path, data);
+    }
+
+    CompletableFuture<ByteBuffer> readCheckPoint(String readerGroup, String readerId) {
+        String path = ZKPaths.makePath("", readerGroup, readerId);
+        return getData(path).thenApply(data -> ByteBuffer.wrap(data.getData()));
     }
 
     // region curator client store access
@@ -305,6 +318,5 @@ public class ZKStoreHelper {
             }
         };
     }
-
     // endregion
 }

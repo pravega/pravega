@@ -138,8 +138,7 @@ public class Main {
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
 
-        RequestHandlersInit.bootstrapRequestHandlers(controllerService, requestExecutor);
-
+        RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, requestExecutor);
         // 4. Start the REST server.
         log.info("Starting Pravega REST Service");
         RESTServer.start(controllerService);

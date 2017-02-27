@@ -10,6 +10,7 @@ import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 
+import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
@@ -345,4 +346,8 @@ public interface StreamMetadataStore {
      * @return Completable Future
      */
     CompletableFuture<Void> removeMarker(final String scope, final String stream, final int number, final OperationContext context, final Executor executor);
+
+    CompletableFuture<Void> checkpoint(final String readerGroup, final String readerId, final ByteBuffer checkpointBlob);
+
+    CompletableFuture<ByteBuffer> readCheckpoint(final String readerGroup, final String readerId);
 }

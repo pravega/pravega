@@ -26,13 +26,13 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -46,18 +46,27 @@ public class RequestHandlersInit {
     private static final AtomicReference<EventStreamReader<ScaleRequest>> SCALE_READER_REF = new AtomicReference<>();
     private static final AtomicReference<EventStreamWriter<ScaleRequest>> SCALE_WRITER_REF = new AtomicReference<>();
     private static final AtomicReference<RequestReader<ScaleRequest, ScaleRequestHandler>> SCALE_REQUEST_READER_REF = new AtomicReference<>();
+    private static final AtomicReference<StreamMetadataStore> CHECKPOINT_STORE_REF = new AtomicReference<>();
 
-    public static void bootstrapRequestHandlers(ControllerService controller, ScheduledExecutorService executor) {
+    public static CompletableFuture<Void> bootstrapRequestHandlers(ControllerService controller,
+                                                                   StreamMetadataStore checkpointStore,
+                                                                   ScheduledExecutorService executor) {
+        Preconditions.checkNotNull(controller);
+        Preconditions.checkNotNull(checkpointStore);
+        Preconditions.checkNotNull(executor);
         URI uri = URI.create("tcp://localhost:" + Config.SERVER_PORT);
         ClientFactory clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, uri);
 
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, uri);
 
-        createScope(controller, executor).thenCompose(x ->
-                createStreams(controller, executor)
-                        .thenCompose(y -> startScaleReader(clientFactory, readerGroupManager, controller.getStreamMetadataTasks(),
-                                controller.getStreamStore(), controller.getStreamTransactionMetadataTasks(),
-                                executor)));
+        CHECKPOINT_STORE_REF.set(checkpointStore);
+
+        return createScope(controller, executor)
+                .thenCompose(x -> createStreams(controller, executor))
+                .thenCompose(y -> startScaleReader(clientFactory, readerGroupManager, controller.getStreamMetadataTasks(),
+                        controller.getStreamStore(), controller.getStreamTransactionMetadataTasks(),
+                        executor))
+                .thenCompose(z -> SCALE_REQUEST_READER_REF.get().run());
     }
 
     private static CompletableFuture<Void> createScope(ControllerService controller, ScheduledExecutorService executor) {
@@ -129,10 +138,10 @@ public class RequestHandlersInit {
                                 SCALE_WRITER_REF.get(),
                                 SCALE_READER_REF.get(),
                                 SCALE_HANDLER_REF.get(),
-                                executor));
+                                executor,
+                                CHECKPOINT_STORE_REF.get()));
                     }
 
-                    CompletableFuture.runAsync(SCALE_REQUEST_READER_REF.get(), Executors.newSingleThreadExecutor());
                     log.debug("bootstrapping request handlers done");
                     result.complete(null);
                     return result;

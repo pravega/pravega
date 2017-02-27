@@ -6,6 +6,7 @@ package com.emc.pravega.controller.requesthandler;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.requests.ControllerRequest;
 import com.emc.pravega.controller.retryable.RetryableException;
+import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
@@ -48,9 +49,10 @@ import java.util.stream.Collectors;
  * @param <H>
  */
 @Slf4j
-public class RequestReader<R extends ControllerRequest, H extends RequestHandler<R>> implements Runnable {
+public class RequestReader<R extends ControllerRequest, H extends RequestHandler<R>> implements AutoCloseable {
 
     private static final int MAX_CONCURRENT = 10000;
+    private static final String CONTROLLER = "Controller";
 
     private final String readerId;
     private final String readerGroup;
@@ -59,7 +61,6 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
     private final AtomicReference<PositionCounter> checkpoint;
     private final EventStreamWriter<R> writer;
     private final EventStreamReader<R> reader;
-    private final JavaSerializer<Position> serializer;
     private final ScheduledExecutorService executor;
     private final AtomicBoolean stop = new AtomicBoolean(false);
     private final H requestHandler;
@@ -67,16 +68,21 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
     private final Comparator<PositionCounter> positionCounterComparator = Comparator.comparingLong(o -> o.counter);
     private final Semaphore semaphore;
     private final ScheduledFuture<?> scheduledFuture;
+    private final JavaSerializer<Position> serializer;
+    private final StreamMetadataStore checkpointStore;
+    private final CompletableFuture<Void> promise = new CompletableFuture<>();
 
     RequestReader(final String readerId,
                   final String readerGroup,
                   final EventStreamWriter<R> writer,
                   final EventStreamReader<R> reader,
                   final H requestHandler,
-                  final ScheduledExecutorService executor) {
+                  final ScheduledExecutorService executor,
+                  final StreamMetadataStore checkpointStore) {
         Preconditions.checkNotNull(writer);
         Preconditions.checkNotNull(reader);
         Preconditions.checkNotNull(requestHandler);
+        Preconditions.checkNotNull(checkpointStore);
 
         this.requestHandler = requestHandler;
 
@@ -90,13 +96,13 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
 
         this.checkpoint = new AtomicReference<>();
 
-        serializer = new JavaSerializer<>();
-
         this.executor = executor;
+        this.checkpointStore = checkpointStore;
 
         // periodic checkpointing - every one minute
         scheduledFuture = this.executor.scheduleAtFixedRate(this::checkpoint, 1, 1, TimeUnit.MINUTES);
         semaphore = new Semaphore(MAX_CONCURRENT);
+        serializer = new JavaSerializer<>();
     }
 
     public void stop() {
@@ -112,64 +118,75 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
      * <p>
      * It also gets the next counter value. A counter is an ever increasing number.
      */
-    @Override
-    public void run() {
-        while (!stop.get()) {
-            try {
-                // limiting number of concurrent processing. Otherwise we will keep picking messages from the stream
-                // and it could lead to memory overload.
-                semaphore.acquire();
-
-                EventRead<R> event;
-                long next;
-                R request;
-                PositionCounter pc;
-
+    public CompletableFuture<Void> run() {
+        CompletableFuture.runAsync(() -> {
+            while (!stop.get()) {
                 try {
-                    next = counter.incrementAndGet();
+                    // limiting number of concurrent processing. Otherwise we will keep picking messages from the stream
+                    // and it could lead to memory overload.
+                    semaphore.acquire();
 
-                    event = reader.readNextEvent(60000);
-                    request = event.getEvent();
-                    pc = new PositionCounter(event.getPosition(), next);
-                    running.add(pc);
-                } catch (Exception e) {
-                    semaphore.release();
-                    log.warn("error reading event {}", e.getMessage());
-                    throw e;
-                }
+                    EventRead<R> event;
+                    long next;
+                    R request;
+                    PositionCounter pc;
 
-                CompletableFuture<Void> process;
-                try {
-                    process = requestHandler.process(request);
-                } catch (Exception e) {
-                    log.error("exception thrown while creating processing future {}", e.getMessage());
-                    complete(pc);
-                    semaphore.release();
-                    throw e;
-                }
+                    try {
+                        next = counter.incrementAndGet();
 
-                process.whenCompleteAsync((r, e) -> {
-                    semaphore.release();
-                    complete(pc);
-
-                    if (e != null) {
-                        log.error("Processing failed RequestReader {}", e.getMessage());
-
-                        if (RetryableException.isRetryable(e)) {
-                            putBack(request.getKey(), request);
+                        event = reader.readNextEvent(60000);
+                        if (event == null) {
+                            log.info("timeout elapsed but no request received.");
+                            continue;
                         }
+                        request = event.getEvent();
+                        pc = new PositionCounter(event.getPosition(), next);
+                        running.add(pc);
+                    } catch (Exception e) {
+                        semaphore.release();
+                        log.warn("error reading event {}", e.getMessage());
+                        throw e;
                     }
-                }, executor);
-            } catch (Exception e) {
-                // Catch all exceptions (not throwable) and log and ignore.
-                // Ideally we should never come here. But this is a safety check to ensure request processing continues even if
-                // an exception is thrown while doing reads for next events.
-                // And we should never stop processing of other requests in the queue even if processing a request throws
-                // an exception.
-                log.error("Exception thrown while processing event. {}. Logging and continuing. Stack trace {}",
-                        e.getMessage(), e.getStackTrace());
+
+                    CompletableFuture<Void> process;
+                    try {
+                        process = requestHandler.process(request);
+                    } catch (Exception e) {
+                        log.error("exception thrown while creating processing future {}", e.getMessage());
+                        complete(pc);
+                        semaphore.release();
+                        throw e;
+                    }
+
+                    process.whenCompleteAsync((r, e) -> {
+                        complete(pc);
+                        semaphore.release();
+
+                        if (e != null) {
+                            log.error("Processing failed RequestReader {}", e.getMessage());
+
+                            if (RetryableException.isRetryable(e)) {
+                                putBack(request.getKey(), request);
+                            }
+                        }
+                    }, executor);
+                } catch (Exception | Error e) {
+                    // Catch all exceptions (not throwable) and log and ignore.
+                    // Ideally we should never come here. But this is a safety check to ensure request processing continues even if
+                    // an exception is thrown while doing reads for next events.
+                    // And we should never stop processing of other requests in the queue even if processing a request throws
+                    // an exception.
+                    log.error("Exception thrown while processing event. {}. Logging and continuing. Stack trace {}",
+                            e.getMessage(), e.getStackTrace());
+                } catch (Throwable t) {
+                    log.error("Fatal exception while processing event {}", t);
+                    promise.completeExceptionally(t);
+                    throw t;
+                }
             }
-        }
+        });
+
+        return promise;
     }
 
     /**
@@ -226,13 +243,21 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
         try {
             // TODO: store checkpoint in persistent store
             if (checkpoint.get() != null) {
-                serializer.serialize(checkpoint.get().position);
+                checkpointStore.checkpoint(readerGroup, readerId, serializer.serialize(checkpoint.get().position));
             }
-            // checkpoint(readerId, readerGroup, serialize);
         } catch (Exception e) {
             // Even if this fails, its ok. Next checkpoint periodic trigger will store the checkpoint.
             log.error("Request reader checkpointing failed {}", e);
+        } catch (Throwable t) {
+            log.error("Checkpointing failed with fatal error {}", t);
+            promise.completeExceptionally(t);
         }
+    }
+
+    @Override
+    public void close() throws Exception {
+        scheduledFuture.cancel(true);
+        stop();
     }
 
     @AllArgsConstructor

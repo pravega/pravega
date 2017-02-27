@@ -11,6 +11,7 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,6 +31,10 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @GuardedBy("$lock")
     private final Map<String, InMemoryScope> scopes = new HashMap<>();
+
+    @GuardedBy("$lock")
+    private final Map<String, ByteBuffer> checkpoints = new HashMap<>();
+
     private final Executor executor;
 
     InMemoryStreamMetadataStore(Executor executor) {
@@ -90,6 +95,19 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             return FutureHelpers.
                     failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
         }
+    }
+
+    @Override
+    public CompletableFuture<Void> checkpoint(String readerGroup, String readerId, ByteBuffer checkpointBlob) {
+        String key = String.format("%s/%s", readerGroup, readerId);
+        checkpoints.put(key, checkpointBlob);
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<ByteBuffer> readCheckpoint(String readerGroup, String readerId) {
+        String key = String.format("%s/%s", readerGroup, readerId);
+        return CompletableFuture.completedFuture(checkpoints.get(key));
     }
 
     @Override

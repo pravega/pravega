@@ -76,7 +76,7 @@ class ControllerWrapper {
                 segmentHelper, executor);
         RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
 
-        RequestHandlersInit.bootstrapRequestHandlers(controllerService, executor);
+        RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);
 
         //region Setup Event Processors
         LocalController localController = new LocalController(controllerService);

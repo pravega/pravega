@@ -266,7 +266,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
 
-        RequestHandlersInit.bootstrapRequestHandlers(controllerService, controllerExecutor);
+        RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, controllerExecutor);
     }
 
 }

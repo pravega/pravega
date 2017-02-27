@@ -92,7 +92,7 @@ public class RequestTest {
         streamMetadataTasks.createStream(scope, stream, config, createTimestamp).get();
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testScaleRequest() throws ExecutionException, InterruptedException {
         ScaleRequestHandler requestHandler = new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor);
         ScaleRequest request = new ScaleRequest(scope, stream, 2, ScaleRequest.UP, System.currentTimeMillis(), 2, false);
