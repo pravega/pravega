@@ -11,17 +11,21 @@ import com.emc.pravega.controller.store.stream.TransactionNotFoundException;
 import com.emc.pravega.controller.store.stream.WriteConflictException;
 import com.emc.pravega.controller.stream.api.v1.PingStatus;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -52,6 +56,10 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     private final HashedWheelTimer hashedWheelTimer;
     private final ConcurrentHashMap<String, TxnData> map;
 
+    @Getter(value = AccessLevel.PACKAGE)
+    @VisibleForTesting
+    private final BlockingQueue<Optional<Throwable>> taskCompletionQueue;
+
     @AllArgsConstructor
     private class TxnTimeoutTask implements TimerTask {
 
@@ -81,6 +89,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
                                 log.debug("Timeout task for tx {} failed because of {}. Ignoring timeout task.",
                                         key, error.getClass().getName());
                                 map.remove(key);
+                                notifyCompletion(error);
                             } else {
                                 String errorMsg = String.format("Rescheduling timeout task for tx %s because " +
                                         "of transient or unknown error", key);
@@ -90,9 +99,20 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
                         } else {
                             log.debug("Successfully executed abort on tx {} ", key);
                             map.remove(key);
+                            notifyCompletion(null);
                         }
                         return null;
                     });
+        }
+
+        private void notifyCompletion(Throwable error) {
+            if (taskCompletionQueue != null) {
+                if (error != null) {
+                    taskCompletionQueue.add(Optional.of(error));
+                } else {
+                    taskCompletionQueue.add(Optional.<Throwable>empty());
+                }
+            }
         }
     }
 
@@ -104,11 +124,18 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
         private Timeout timeout;
     }
 
-    public TimerWheelTimeoutService(StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+    public TimerWheelTimeoutService(final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+        this(streamTransactionMetadataTasks, null);
+    }
+
+    @VisibleForTesting
+    TimerWheelTimeoutService(final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                             final BlockingQueue<Optional<Throwable>> taskCompletionQueue) {
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
         this.hashedWheelTimer = new HashedWheelTimer(THREAD_FACTORY, TICK_DURATION, TIME_UNIT, TICKS_PER_WHEEL,
                 LEAK_DETECTION);
-        map = new ConcurrentHashMap<>();
+        this.map = new ConcurrentHashMap<>();
+        this.taskCompletionQueue = taskCompletionQueue;
         this.startAsync();
     }
 

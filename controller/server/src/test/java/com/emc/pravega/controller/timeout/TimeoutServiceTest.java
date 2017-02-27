@@ -12,6 +12,7 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.VersionedTransactionData;
+import com.emc.pravega.controller.store.stream.WriteConflictException;
 import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
@@ -34,7 +35,9 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Test class for TimeoutService.
@@ -50,7 +53,7 @@ public class TimeoutServiceTest {
     private final static long SCALE_GRACE_PERIOD = 30000;
 
     private final StreamMetadataStore streamStore;
-    private final TimeoutService timeoutService;
+    private final TimerWheelTimeoutService timeoutService;
     private final ControllerService controllerService;
 
     @Slf4j
@@ -135,7 +138,7 @@ public class TimeoutServiceTest {
                 hostStore, taskMetadataStore, executor, hostId);
 
         // Create TimeoutService
-        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks);
+        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, new LinkedBlockingQueue<>(5));
 
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService);
@@ -147,10 +150,15 @@ public class TimeoutServiceTest {
         VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
                 SCALE_GRACE_PERIOD).join();
 
+        long begin = System.currentTimeMillis();
         timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
-        Thread.sleep(5200);
+        timeoutService.getTaskCompletionQueue().poll((long) (1.3 * LEASE), TimeUnit.MILLISECONDS);
+        long end = System.currentTimeMillis();
+
+        log.info("Delay until timeout = " + (end - begin));
+        Assert.assertTrue((end - begin) >= LEASE);
 
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.ABORTING, status);
@@ -159,10 +167,15 @@ public class TimeoutServiceTest {
 
     @Test
     public void testControllerTimeout() throws InterruptedException {
+        long begin = System.currentTimeMillis();
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
                 .join();
 
-        Thread.sleep(5200);
+        timeoutService.getTaskCompletionQueue().poll((long) (1.3 * LEASE), TimeUnit.MILLISECONDS);
+        long end = System.currentTimeMillis();
+
+        log.info("Delay until timeout = " + (end - begin));
+        Assert.assertTrue((end - begin) >= LEASE);
 
         TxnState txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.ABORTING, txnState);
@@ -176,7 +189,8 @@ public class TimeoutServiceTest {
         timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
-        Thread.sleep(3000);
+        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
 
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
@@ -184,12 +198,14 @@ public class TimeoutServiceTest {
         PingStatus pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), LEASE);
         Assert.assertEquals(PingStatus.OK, pingStatus);
 
-        Thread.sleep(2000);
+        result = timeoutService.getTaskCompletionQueue().poll((long) (0.5 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
 
         status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
-        Thread.sleep(3200);
+        result = timeoutService.getTaskCompletionQueue().poll((long) (0.8 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNotNull(result);
 
         status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.ABORTING, status);
@@ -200,7 +216,8 @@ public class TimeoutServiceTest {
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
                 .join();
 
-        Thread.sleep(3000);
+        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
 
         TxnState txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.OPEN, txnState);
@@ -208,12 +225,14 @@ public class TimeoutServiceTest {
         PingStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, LEASE).join();
         Assert.assertEquals(PingStatus.OK, pingStatus);
 
-        Thread.sleep(2000);
+        result = timeoutService.getTaskCompletionQueue().poll((long) (0.5 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
 
         txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.OPEN, txnState);
 
-        Thread.sleep(3200);
+        result = timeoutService.getTaskCompletionQueue().poll((long) (0.8 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNotNull(result);
 
         txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.ABORTING, txnState);
@@ -228,7 +247,8 @@ public class TimeoutServiceTest {
         timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
-        Thread.sleep(3000);
+        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
 
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
@@ -236,7 +256,8 @@ public class TimeoutServiceTest {
         PingStatus pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), LEASE);
         Assert.assertEquals(PingStatus.OK, pingStatus);
 
-        Thread.sleep(3000);
+        result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
 
         status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
@@ -244,7 +265,8 @@ public class TimeoutServiceTest {
         pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), LEASE + 1);
         Assert.assertEquals(PingStatus.MAX_EXECUTION_TIME_EXCEEDED, pingStatus);
 
-        Thread.sleep(2000);
+        result = timeoutService.getTaskCompletionQueue().poll((long) (0.5 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNotNull(result);
 
         status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.ABORTING, status);
@@ -255,7 +277,8 @@ public class TimeoutServiceTest {
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
                 .join();
 
-        Thread.sleep(3000);
+        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
 
         TxnState txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.OPEN, txnState);
@@ -263,7 +286,8 @@ public class TimeoutServiceTest {
         PingStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, LEASE).join();
         Assert.assertEquals(PingStatus.OK, pingStatus);
 
-        Thread.sleep(3000);
+        result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
 
         txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.OPEN, txnState);
@@ -271,7 +295,8 @@ public class TimeoutServiceTest {
         pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, LEASE + 1).join();
         Assert.assertEquals(PingStatus.MAX_EXECUTION_TIME_EXCEEDED, pingStatus);
 
-        Thread.sleep(2000);
+        result = timeoutService.getTaskCompletionQueue().poll((long) (0.5 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNotNull(result);
 
         txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.ABORTING, txnState);
@@ -286,7 +311,8 @@ public class TimeoutServiceTest {
         timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
-        Thread.sleep(3 * LEASE / 4);
+        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
 
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
@@ -297,7 +323,8 @@ public class TimeoutServiceTest {
         PingStatus pingStatus = timeoutService.pingTx(SCOPE, STREAM, txData.getId(), LEASE);
         Assert.assertEquals(PingStatus.DISCONNECTED, pingStatus);
 
-        Thread.sleep(LEASE / 2);
+        result = timeoutService.getTaskCompletionQueue().poll((long) (0.5 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
 
         // Check that the transaction status is still open, since timeoutService has been stopped.
         status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
@@ -310,7 +337,8 @@ public class TimeoutServiceTest {
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
                 .join();
 
-        Thread.sleep(3 * LEASE / 4);
+        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
 
         TxnState status = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.OPEN, status);
@@ -321,7 +349,8 @@ public class TimeoutServiceTest {
         PingStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, LEASE).join();
         Assert.assertEquals(PingStatus.DISCONNECTED, pingStatus);
 
-        Thread.sleep(LEASE / 2);
+        result = timeoutService.getTaskCompletionQueue().poll((long) (0.5 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNull(result);
 
         // Check that the transaction status is still open, since timeoutService has been stopped.
         status = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
@@ -338,7 +367,10 @@ public class TimeoutServiceTest {
         timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion() + 1, LEASE,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
-        Thread.sleep(LEASE + LEASE / 4);
+        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (1.25 * LEASE), TimeUnit.MILLISECONDS);
+        Assert.assertNotNull(result);
+        Assert.assertTrue(result.isPresent());
+        Assert.assertEquals(WriteConflictException.class, result.get().getClass());
 
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId()).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
