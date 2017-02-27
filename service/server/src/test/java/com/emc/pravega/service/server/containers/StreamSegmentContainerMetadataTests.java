@@ -142,6 +142,40 @@ public class StreamSegmentContainerMetadataTests {
     }
 
     /**
+     * Tests the ability of the metadata to enforce the Maximum Active Segment Count rule.
+     */
+    @Test
+    public void testMaxActiveSegmentCount() {
+        final int maxCount = 2;
+        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID)
+                .withMaxActiveSegmentCount(maxCount)
+                .build();
+
+        // Map 1 segment + 1 transactions. These should fill up the capacity.
+        m.mapStreamSegmentId("1", 1);
+        m.mapStreamSegmentId("2", 2, 1);
+
+        // Verify we cannot map anything now.
+        AssertExtensions.assertThrows(
+                "Metadata allowed mapping more segments than indicated (segment).",
+                () -> m.mapStreamSegmentId("3", 3),
+                ex -> ex instanceof IllegalStateException);
+
+        AssertExtensions.assertThrows(
+                "Metadata allowed mapping more segments than indicated (transaction).",
+                () -> m.mapStreamSegmentId("3", 3, 1),
+                ex -> ex instanceof IllegalStateException);
+
+        // Verify we are allowed to do this in recovery mode.
+        m.enterRecoveryMode();
+        m.mapStreamSegmentId("3", 3);
+        m.mapStreamSegmentId("4", 4, 3);
+        m.exitRecoveryMode();
+        Assert.assertNotNull("Metadata did not map new segment that exceeded the quota in recovery mode.", m.getStreamSegmentMetadata(3));
+        Assert.assertNotNull("Metadata did not map new transaction that exceeded the quota in recovery mode.", m.getStreamSegmentMetadata(4));
+    }
+
+    /**
      * Tests the ability to delete a StreamSegment from the metadata, as well as any dependent (Transaction) StreamSegments.
      */
     @Test

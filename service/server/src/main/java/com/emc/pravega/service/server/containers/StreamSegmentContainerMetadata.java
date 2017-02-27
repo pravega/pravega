@@ -127,6 +127,13 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
     @Override
+    public int getActiveSegmentCount() {
+        synchronized (this.lock) {
+            return this.metadataById.size();
+        }
+    }
+
+    @Override
     public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
         StreamSegmentMetadata segmentMetadata;
         synchronized (this.lock) {
@@ -167,9 +174,14 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
                 "StreamSegment '%s' is already mapped.", streamSegmentName);
         Exceptions.checkArgument(!this.metadataById.containsKey(streamSegmentId), "streamSegmentId",
                 "StreamSegment Id %d is already mapped.", streamSegmentId);
-        Preconditions.checkState(this.metadataById.size() < this.maxActiveSegmentCount,
-                "StreamSegment '%s' cannot be mapped because the maximum allowed number of mapped segments (%s)has been reached.",
-                streamSegmentName, this.maxActiveSegmentCount);
+        if (!this.recoveryMode.get()) {
+            // We enforce the max active segment count only in non-recovery mode. If for some reason we manage to recover
+            // more than this number of segments, then we shouldn't block recovery for that (it likely means we have a problem
+            // somewhere else though).
+            Preconditions.checkState(this.metadataById.size() < this.maxActiveSegmentCount,
+                    "StreamSegment '%s' cannot be mapped because the maximum allowed number of mapped segments (%s)has been reached.",
+                    streamSegmentName, this.maxActiveSegmentCount);
+        }
     }
 
     @Override

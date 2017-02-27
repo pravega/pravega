@@ -11,10 +11,12 @@ import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.Attributes;
 import com.emc.pravega.service.contracts.BadAttributeUpdateException;
 import com.emc.pravega.service.contracts.BadOffsetException;
+import com.emc.pravega.service.contracts.ContainerException;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.contracts.TooManyActiveSegmentsException;
 import com.emc.pravega.service.server.AttributeSerializer;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
@@ -195,14 +197,14 @@ class OperationMetadataUpdater implements ContainerMetadata {
      * recorded in the pending transaction.
      *
      * @param operation The operation to pre-process.
-     * @throws MetadataUpdateException         If the given operation was rejected given the current state of the metadata.
+     * @throws ContainerException              If the given operation was rejected given the current state of the container metadata.
      * @throws StreamSegmentNotExistsException If the given operation was for a StreamSegment that was is marked as deleted.
      * @throws StreamSegmentSealedException    If the given operation was for a StreamSegment that was previously sealed and
      *                                         that is incompatible with a sealed stream.
      * @throws StreamSegmentMergedException    If the given operation was for a StreamSegment that was previously merged.
      * @throws NullPointerException            If the operation is null.
      */
-    void preProcessOperation(Operation operation) throws MetadataUpdateException, StreamSegmentException {
+    void preProcessOperation(Operation operation) throws ContainerException, StreamSegmentException {
         log.trace("{}: PreProcess {}.", this.traceObjectId, operation);
         getCurrentTransaction().preProcessOperation(operation);
     }
@@ -356,14 +358,14 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * Pre-processes the given Operation. See OperationMetadataUpdater.preProcessOperation for more details on behavior.
          *
          * @param operation The operation to pre-process.
-         * @throws MetadataUpdateException         If the given operation was rejected given the current state of the metadata.
+         * @throws ContainerException              If the given operation was rejected given the current state of the container metadata.
          * @throws StreamSegmentNotExistsException If the given operation was for a StreamSegment that was is marked as deleted.
          * @throws StreamSegmentSealedException    If the given operation was for a StreamSegment that was previously sealed and
          *                                         that is incompatible with a sealed stream.
          * @throws StreamSegmentMergedException    If the given operation was for a StreamSegment that was previously merged.
          * @throws NullPointerException            If the operation is null.
          */
-        void preProcessOperation(Operation operation) throws MetadataUpdateException, StreamSegmentException {
+        void preProcessOperation(Operation operation) throws ContainerException, StreamSegmentException {
             TemporaryStreamSegmentMetadata segmentMetadata = null;
             if (operation instanceof SegmentOperation) {
                 segmentMetadata = getStreamSegmentMetadata(((SegmentOperation) operation).getStreamSegmentId());
@@ -439,7 +441,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
         }
 
-        private void preProcessMetadataOperation(StreamSegmentMapOperation operation) throws MetadataUpdateException {
+        private void preProcessMetadataOperation(StreamSegmentMapOperation operation) throws ContainerException {
             // Verify StreamSegment Name is not already mapped somewhere else.
             long existingStreamSegmentId = getExistingStreamSegmentId(operation.getStreamSegmentName());
             if (existingStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
@@ -449,12 +451,16 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             if (!this.containerMetadata.isRecoveryMode()) {
+                if (this.containerMetadata.getActiveSegmentCount() + this.newStreamSegments.size() >= this.containerMetadata.getMaximumActiveSegmentCount()) {
+                    throw new TooManyActiveSegmentsException(this.containerMetadata.getContainerId(), this.containerMetadata.getMaximumActiveSegmentCount());
+                }
+
                 // Assign the SegmentId, but only in non-recovery mode.
                 operation.setStreamSegmentId(generateUniqueStreamSegmentId());
             }
         }
 
-        private void preProcessMetadataOperation(TransactionMapOperation operation) throws MetadataUpdateException {
+        private void preProcessMetadataOperation(TransactionMapOperation operation) throws ContainerException {
             // Verify Parent StreamSegment Exists.
             UpdateableSegmentMetadata parentMetadata = getExistingMetadata(operation.getParentStreamSegmentId());
             if (parentMetadata == null) {
@@ -475,8 +481,12 @@ class OperationMetadataUpdater implements ContainerMetadata {
                                 operation.getSequenceNumber(), operation.getStreamSegmentName(), existingStreamId));
             }
 
-            // Assign the SegmentId.
             if (!this.containerMetadata.isRecoveryMode()) {
+                if (this.containerMetadata.getActiveSegmentCount() + this.newStreamSegments.size() >= this.containerMetadata.getMaximumActiveSegmentCount()) {
+                    throw new TooManyActiveSegmentsException(this.containerMetadata.getContainerId(), this.containerMetadata.getMaximumActiveSegmentCount());
+                }
+
+                // Assign the SegmentId.
                 operation.setStreamSegmentId(generateUniqueStreamSegmentId());
             }
         }

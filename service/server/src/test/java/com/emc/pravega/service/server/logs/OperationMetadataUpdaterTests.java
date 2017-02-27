@@ -13,8 +13,8 @@ import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.contracts.TooManyActiveSegmentsException;
 import com.emc.pravega.service.server.ContainerMetadata;
-import com.emc.pravega.service.server.ManualTimer;
 import com.emc.pravega.service.server.MetadataBuilder;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.SegmentMetadataComparer;
@@ -45,7 +45,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.val;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -65,12 +64,6 @@ public class OperationMetadataUpdaterTests {
     private static final AttributeUpdateType[] ATTRIBUTE_UPDATE_TYPES = new AttributeUpdateType[]{
             AttributeUpdateType.Replace, AttributeUpdateType.Accumulate};
     private static final Supplier<Long> NEXT_ATTRIBUTE_VALUE = System::nanoTime;
-    private ManualTimer timeProvider;
-
-    @Before
-    public void before() {
-        this.timeProvider = new ManualTimer();
-    }
 
     //region StreamSegmentAppendOperation
 
@@ -691,6 +684,57 @@ public class OperationMetadataUpdaterTests {
     }
 
     /**
+     * Tests the ability to reject new StreamSegment/Transaction map operations that would exceed the max allowed counts.
+     */
+    @Test
+    public void testSegmentMapMax() throws Exception {
+        UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID)
+                .withMaxActiveSegmentCount(3).build();
+        metadata.mapStreamSegmentId("a", SEGMENT_ID);
+        metadata.mapStreamSegmentId("a_txn1", 123457, SEGMENT_ID);
+
+        // Non-recovery mode.
+        val updater = createUpdater(metadata);
+
+        // Map one segment, which should fill up the quota.
+        StreamSegmentMapOperation acceptedMap = createMap();
+        updater.preProcessOperation(acceptedMap);
+        updater.acceptOperation(acceptedMap);
+
+        // Verify non-recovery mode.
+        AssertExtensions.assertThrows(
+                "Unexpected behavior from preProcessOperation when attempting to map a StreamSegment that would exceed the active segment quota.",
+                () -> updater.preProcessOperation(createMap("foo")),
+                ex -> ex instanceof TooManyActiveSegmentsException);
+
+        AssertExtensions.assertThrows(
+                "Unexpected behavior from preProcessOperation when attempting to map a StreamSegment that would exceed the active segment quota.",
+                () -> updater.preProcessOperation(createTransactionMap(SEGMENT_ID, "foo")),
+                ex -> ex instanceof TooManyActiveSegmentsException);
+
+        // Verify recovery mode.
+        metadata.enterRecoveryMode();
+        val recoveryUpdater = createUpdater(metadata);
+        //updater.setOperationSequenceNumber(10000);
+        StreamSegmentMapOperation secondMap = createMap("c");
+        secondMap.setStreamSegmentId(1234);
+        recoveryUpdater.preProcessOperation(secondMap);
+        recoveryUpdater.acceptOperation(secondMap);
+
+        TransactionMapOperation secondTxnMap = createTransactionMap(SEGMENT_ID, "a_txn2");
+        secondTxnMap.setStreamSegmentId(1235);
+        recoveryUpdater.preProcessOperation(secondTxnMap);
+        recoveryUpdater.acceptOperation(secondTxnMap);
+        recoveryUpdater.commit();
+        metadata.exitRecoveryMode();
+
+        Assert.assertNotNull("Updater did not create metadata for new segment in recovery mode even if quota is exceeded.",
+                metadata.getStreamSegmentMetadata(secondMap.getStreamSegmentId()));
+        Assert.assertNotNull("Updater did not create metadata for new transaction in recovery mode even if quota is exceeded.",
+                metadata.getStreamSegmentMetadata(secondTxnMap.getStreamSegmentId()));
+    }
+
+    /**
      * Tests the processMetadataOperation method with MetadataCheckpoint operations.
      */
     @Test
@@ -700,12 +744,10 @@ public class OperationMetadataUpdaterTests {
         // When encountering MetadataCheckpoint in Recovery Mode, the OperationMetadataUpdater deserializes the snapshot-ted
         // metadata in it and applies it to the container metadata (inside the transaction). All existing metadata updates
         // are cleared.
-
         String newSegmentName = "NewSegmentId";
         AtomicLong seqNo = new AtomicLong();
 
         // Create a non-empty metadata.
-        this.timeProvider.setElapsedMillis(1234);
         UpdateableContainerMetadata metadata = createMetadata();
         OperationMetadataUpdater updater = createUpdater(metadata);
 
@@ -1013,13 +1055,13 @@ public class OperationMetadataUpdaterTests {
 
     private Collection<AttributeUpdate> createAttributeUpdates() {
         return Arrays.stream(ATTRIBUTE_UPDATE_TYPES)
-                     .map(ut -> new AttributeUpdate(UUID.randomUUID(), ut, NEXT_ATTRIBUTE_VALUE.get()))
-                     .collect(Collectors.toList());
+                .map(ut -> new AttributeUpdate(UUID.randomUUID(), ut, NEXT_ATTRIBUTE_VALUE.get()))
+                .collect(Collectors.toList());
     }
 
     private Map<UUID, Long> createAttributes() {
         return Arrays.stream(ATTRIBUTE_UPDATE_TYPES)
-                     .collect(Collectors.toMap(a -> UUID.randomUUID(), a -> NEXT_ATTRIBUTE_VALUE.get()));
+                .collect(Collectors.toMap(a -> UUID.randomUUID(), a -> NEXT_ATTRIBUTE_VALUE.get()));
     }
 
     private StreamSegmentSealOperation createSeal() {

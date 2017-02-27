@@ -17,6 +17,13 @@ public interface UpdateableContainerMetadata extends ContainerMetadata, Recovera
     int getMaximumActiveSegmentCount();
 
     /**
+     * Gets a value indicating the current number of registered segments.
+     *
+     * @return The count.
+     */
+    int getActiveSegmentCount();
+
+    /**
      * Maps a new StreamSegment Name to the given Id.
      *
      * @param streamSegmentName The case-sensitive name of the StreamSegment to map.

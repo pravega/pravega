@@ -12,6 +12,7 @@ import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.concurrent.ServiceShutdownListener;
 import com.emc.pravega.common.util.SequencedItemList;
+import com.emc.pravega.service.contracts.ContainerException;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamingException;
 import com.emc.pravega.service.server.DataCorruptionException;
@@ -393,7 +394,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             log.debug("{} Recovering {}.", this.traceObjectId, operation);
             metadataUpdater.preProcessOperation(operation);
             metadataUpdater.acceptOperation(operation);
-        } catch (StreamSegmentException | MetadataUpdateException ex) {
+        } catch (StreamSegmentException | ContainerException ex) {
             // Metadata updates failures should not happen during recovery.
             throw new DataCorruptionException(String.format("Unable to update metadata for Log Operation %s", operation), ex);
         }

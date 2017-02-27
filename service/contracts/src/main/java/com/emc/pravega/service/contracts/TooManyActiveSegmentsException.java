@@ -15,11 +15,11 @@ public class TooManyActiveSegmentsException extends ContainerException {
      * @param containerId     The Id of the ContainerException.
      * @param maxSegmentCount The maximum number of active Segments per container.
      */
-    TooManyActiveSegmentsException(int containerId, int maxSegmentCount) {
+    public TooManyActiveSegmentsException(int containerId, int maxSegmentCount) {
         super(containerId, getMessage(maxSegmentCount));
     }
 
     private static String getMessage(int maxSegmentCount) {
-        return String.format("The maximum number of Active Segments (%d) has been reached.", maxSegmentCount);
+        return String.format("The maximum number of active Segments (%d) has been reached.", maxSegmentCount);
     }
 }
