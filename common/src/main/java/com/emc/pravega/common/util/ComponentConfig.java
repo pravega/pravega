@@ -101,6 +101,22 @@ public abstract class ComponentConfig {
     }
 
     /**
+     * Same as getProperty method, but ignores name prefix.
+     *
+     * @param name         The name of the property (no component code prefix).
+     * @param defaultValue The default value for the property.
+     * @return The property value or default value, if no such is defined in the base Properties.
+     */
+    protected String getPropertyWithoutPrefix(String name, String defaultValue) {
+        String fullKeyName = name;
+
+        String retVal;
+        String envVarName = fullKeyName.replace('.', '_');
+        retVal = System.getenv(envVarName);
+        return retVal != null ? retVal : this.properties.getProperty(fullKeyName, defaultValue);
+    }
+
+    /**
      * Gets the value of an Int32 property.
      *
      * @param name The name of the property (no component code prefix).
@@ -127,7 +143,29 @@ public abstract class ComponentConfig {
      * @throws InvalidPropertyValueException When the property cannot be parsed as an Int32.
      */
     protected int getInt32Property(String name, int defaultValue) throws InvalidPropertyValueException {
-        String value = getProperty(name, null);
+        String value = getPropertyWithoutPrefix(name, null);
+        if (value == null) {
+            return defaultValue;
+        }
+
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException ex) {
+            throw new InvalidPropertyValueException(getKey(name), value, ex);
+        }
+    }
+
+
+    /**
+     * Gets the value of an Int32 property, but ignores the name prefix.
+     *
+     * @param name         The name of the property (no component code prefix).
+     * @param defaultValue The default value for the property.
+     * @return The property value or default value, if no such is defined in the base Properties.
+     * @throws InvalidPropertyValueException When the property cannot be parsed as an Int32.
+     */
+    protected int getInt32PropertyWithoutPrefix(String name, int defaultValue) throws InvalidPropertyValueException {
+        String value = getPropertyWithoutPrefix(name, null);
         if (value == null) {
             return defaultValue;
         }
