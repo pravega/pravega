@@ -23,17 +23,19 @@ import com.emc.pravega.stream.mock.MockClientFactory;
 import java.util.concurrent.CompletableFuture;
 
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertTrue;
 
+@Slf4j
 public class EndToEndTransactionTest {
 
     @Test
     public static void main(String[] args) throws Exception {
-        //@Cleanup
+        @Cleanup
         TestingServer zkTestServer = new TestingServer();
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -60,7 +62,7 @@ public class EndToEndTransactionTest {
         CreateStreamStatus status = futureStatus.join();
 
         if (status != CreateStreamStatus.SUCCESS) {
-            System.err.println("FAILURE: Error creating test stream");
+            log.error("FAILURE: Error creating test stream");
             return;
         }
 
@@ -70,7 +72,7 @@ public class EndToEndTransactionTest {
 
         MockClientFactory clientFactory = new MockClientFactory(testScope, controller);
 
-        //@Cleanup
+        @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(
                 testStream,
                 new JavaSerializer<>(),
@@ -81,7 +83,7 @@ public class EndToEndTransactionTest {
 
         for (int i = 0; i < 1; i++) {
             String event = "\n Transactional Publish \n";
-            System.err.println("Producing event: " + event);
+            log.info("Producing event: " + event);
             transaction.writeEvent("", event);
             transaction.flush();
             Thread.sleep(500);
@@ -91,7 +93,7 @@ public class EndToEndTransactionTest {
             try {
                 transaction.commit();
             } catch (Exception e) {
-                e.printStackTrace();
+                log.warn("Error committing transaction", e);
             }
             return null;
         });
@@ -100,13 +102,13 @@ public class EndToEndTransactionTest {
 
         Transaction.Status txnStatus = transaction.checkStatus();
         assertTrue(txnStatus == Transaction.Status.COMMITTING || txnStatus == Transaction.Status.COMMITTED);
-        System.err.println("SUCCESS: successful in committing transaction. Transaction status=" + txnStatus);
+        log.info("SUCCESS: successful in committing transaction. Transaction status=" + txnStatus);
 
         Thread.sleep(2000);
 
         txnStatus = transaction.checkStatus();
         assertTrue(txnStatus == Transaction.Status.COMMITTED);
-        System.err.println("SUCCESS: successfully committed transaction. Transaction status=" + txnStatus);
+        log.info("SUCCESS: successfully committed transaction. Transaction status=" + txnStatus);
 
         // endregion
 
@@ -115,7 +117,7 @@ public class EndToEndTransactionTest {
         Transaction<String> transaction2 = producer.beginTxn(60000, 60000, 60000);
         for (int i = 0; i < 1; i++) {
             String event = "\n Transactional Publish \n";
-            System.err.println("Producing event: " + event);
+            log.info("Producing event: " + event);
             transaction2.writeEvent("", event);
             transaction2.flush();
             Thread.sleep(500);
@@ -125,7 +127,7 @@ public class EndToEndTransactionTest {
             try {
                 transaction2.abort();
             } catch (Exception e) {
-                e.printStackTrace();
+                log.warn("Error aborting transaction", e);
             }
             return null;
         });
@@ -134,13 +136,13 @@ public class EndToEndTransactionTest {
 
         Transaction.Status txn2Status = transaction2.checkStatus();
         assertTrue(txn2Status == Transaction.Status.ABORTING || txn2Status == Transaction.Status.ABORTED);
-        System.err.println("SUCCESS: successful in dropping transaction. Transaction status=" + txn2Status);
+        log.info("SUCCESS: successful in dropping transaction. Transaction status=" + txn2Status);
 
         Thread.sleep(2000);
 
         txn2Status = transaction2.checkStatus();
         assertTrue(txn2Status == Transaction.Status.ABORTED);
-        System.err.println("SUCCESS: successfully aborted transaction. Transaction status=" + txn2Status);
+        log.info("SUCCESS: successfully aborted transaction. Transaction status=" + txn2Status);
 
         // endregion
 
@@ -151,7 +153,7 @@ public class EndToEndTransactionTest {
 
         Transaction.Status txStatus = tx1.checkStatus();
         Assert.assertTrue(Transaction.Status.ABORTING == txStatus || Transaction.Status.ABORTED == txStatus);
-        System.err.println("SUCCESS: successfully aborted transaction after timeout. Transaction status=" + txStatus);
+        log.info("SUCCESS: successfully aborted transaction after timeout. Transaction status=" + txStatus);
 
         // endregion
 
@@ -169,7 +171,7 @@ public class EndToEndTransactionTest {
         } catch (PingFailedException pfe) {
             Assert.assertTrue(false);
         }
-        System.err.println("SUCCESS: successfully pinged transaction.");
+        log.info("SUCCESS: successfully pinged transaction.");
 
         Thread.sleep(2000);
 
@@ -179,7 +181,7 @@ public class EndToEndTransactionTest {
 
         txStatus = tx2.checkStatus();
         Assert.assertTrue(Transaction.Status.ABORTING == txStatus || Transaction.Status.ABORTED == txStatus);
-        System.err.println("SUCCESS: successfully aborted transaction after pinging. Transaction status=" + txStatus);
+        log.info("SUCCESS: successfully aborted transaction after pinging. Transaction status=" + txStatus);
 
         // endregion
 
@@ -209,14 +211,14 @@ public class EndToEndTransactionTest {
             Assert.assertTrue(false);
         } catch (PingFailedException pfe) {
             Assert.assertTrue(true);
-            System.err.println("SUCCESS: successfully received error after max expiry time");
+            log.info("SUCCESS: successfully received error after max expiry time");
         }
 
         Thread.sleep(2000);
 
         txStatus = tx3.checkStatus();
         Assert.assertTrue(Transaction.Status.ABORTING == txStatus || Transaction.Status.ABORTED == txStatus);
-        System.err.println("SUCCESS: successfully aborted transaction after 1 successful ping and 1 unsuccessful" +
+        log.info("SUCCESS: successfully aborted transaction after 1 successful ping and 1 unsuccessful" +
                 "ping. Transaction status=" + txStatus);
 
         // endregion
@@ -231,20 +233,20 @@ public class EndToEndTransactionTest {
 
         txnStatus = transaction.checkStatus();
         assertTrue(txnStatus == Transaction.Status.COMMITTING || txnStatus == Transaction.Status.COMMITTED);
-        System.err.println("SUCCESS: successful in committing transaction. Transaction status=" + txnStatus);
+        log.info("SUCCESS: successful in committing transaction. Transaction status=" + txnStatus);
 
         txn2Status = transaction2.checkStatus();
         assertTrue(txn2Status == Transaction.Status.ABORTING || txn2Status == Transaction.Status.ABORTED);
-        System.err.println("SUCCESS: successful in dropping transaction. Transaction status=" + txn2Status);
+        log.info("SUCCESS: successful in dropping transaction. Transaction status=" + txn2Status);
 
         Thread.sleep(2000);
 
         txnStatus = transaction.checkStatus();
         assertTrue(txnStatus == Transaction.Status.COMMITTED);
-        System.err.println("SUCCESS: successfully committed transaction. Transaction status=" + txnStatus);
+        log.info("SUCCESS: successfully committed transaction. Transaction status=" + txnStatus);
 
         txn2Status = transaction2.checkStatus();
         assertTrue(txn2Status == Transaction.Status.ABORTED);
-        System.err.println("SUCCESS: successfully aborted transaction. Transaction status=" + txn2Status);
+        log.info("SUCCESS: successfully aborted transaction. Transaction status=" + txn2Status);
     }
 }

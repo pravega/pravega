@@ -154,8 +154,9 @@ public class TimeoutServiceTest {
         timeoutService.addTx(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
-        timeoutService.getTaskCompletionQueue().poll((long) (1.3 * LEASE), TimeUnit.MILLISECONDS);
+        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (1.3 * LEASE), TimeUnit.MILLISECONDS);
         long end = System.currentTimeMillis();
+        Assert.assertNotNull(result);
 
         log.info("Delay until timeout = " + (end - begin));
         Assert.assertTrue((end - begin) >= LEASE);
@@ -171,8 +172,9 @@ public class TimeoutServiceTest {
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
                 .join();
 
-        timeoutService.getTaskCompletionQueue().poll((long) (1.3 * LEASE), TimeUnit.MILLISECONDS);
+        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (1.3 * LEASE), TimeUnit.MILLISECONDS);
         long end = System.currentTimeMillis();
+        Assert.assertNotNull(result);
 
         log.info("Delay until timeout = " + (end - begin));
         Assert.assertTrue((end - begin) >= LEASE);
