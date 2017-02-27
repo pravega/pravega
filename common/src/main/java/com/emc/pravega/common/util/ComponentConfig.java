@@ -143,7 +143,7 @@ public abstract class ComponentConfig {
      * @throws InvalidPropertyValueException When the property cannot be parsed as an Int32.
      */
     protected int getInt32Property(String name, int defaultValue) throws InvalidPropertyValueException {
-        String value = getPropertyWithoutPrefix(name, null);
+        String value = getProperty(name, null);
         if (value == null) {
             return defaultValue;
         }
