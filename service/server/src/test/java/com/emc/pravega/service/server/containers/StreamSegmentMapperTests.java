@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.containers;
 
@@ -89,12 +87,12 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
             String segmentName = getName(i);
             val segmentAttributes = createAttributes(ATTRIBUTE_COUNT);
             context.mapper.createNewStreamSegment(segmentName, segmentAttributes, TIMEOUT).join();
-            assertStreamSegmentCreated(segmentName, segmentAttributes, context);
+            assertSegmentCreated(segmentName, segmentAttributes, context);
 
             for (int j = 0; j < transactionsPerSegment; j++) {
                 val transactionAttributes = createAttributes(ATTRIBUTE_COUNT);
                 String transactionName = context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), transactionAttributes, TIMEOUT).join();
-                assertTransactionCreated(transactionName, segmentName, transactionAttributes, context);
+                assertSegmentCreated(transactionName, transactionAttributes, context);
             }
         }
     }
@@ -155,22 +153,6 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         context.operationLog.addHandler = op -> FutureHelpers.failedFuture(new TimeoutException("intentional"));
         setupStorageCreateHandler(context, storageSegments);
         setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new ImmutableDate()));
-
-        // 5. When Creating a Transaction.
-        AssertExtensions.assertThrows(
-                "createNewTransactionStreamSegment did not fail when OperationLog threw an exception.",
-                () -> context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), null, TIMEOUT),
-                ex -> ex instanceof TimeoutException);
-        Assert.assertEquals("Transaction was registered in the metadata even if it failed to be processed by the OperationLog.", 1, context.metadata.getAllStreamSegmentIds().size());
-        Assert.assertEquals("Transaction was not created in Storage even if the failure was post-storage (in OperationLog processing).", 2, storageSegments.size());
-
-        // 6. When creating a new StreamSegment.
-        AssertExtensions.assertThrows(
-                "createNewStreamSegment did not fail when OperationLog threw an exception.",
-                () -> context.mapper.createNewStreamSegment(segmentName + "foo", null, TIMEOUT),
-                ex -> ex instanceof TimeoutException);
-        Assert.assertEquals("Segment was registered in the metadata even if it failed to be processed by the OperationLog.", 1, context.metadata.getAllStreamSegmentIds().size());
-        Assert.assertEquals("Segment was not created in Storage even if the failure was post-storage (in OperationLog processing).", 3, storageSegments.size());
     }
 
     /**
@@ -416,25 +398,16 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void assertStreamSegmentCreated(String segmentName, Collection<AttributeUpdate> attributeUpdates, TestContext context) {
+    private void assertSegmentCreated(String segmentName, Collection<AttributeUpdate> attributeUpdates, TestContext context) {
         SegmentProperties sp = context.storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
         Assert.assertNotNull("No segment has been created in the Storage for " + segmentName, sp);
-        long segmentId = context.metadata.getStreamSegmentId(segmentName, false);
-        Assert.assertNotEquals("Segment '" + segmentName + "' has not been registered in the metadata.", ContainerMetadata.NO_STREAM_SEGMENT_ID, segmentId);
-        SegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
-        Assert.assertNotNull("Segment '" + segmentName + "' has not been registered in the metadata.", sm);
-        Assert.assertEquals("Wrong segment name in metadata .", segmentName, sm.getName());
-        val attributes = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
-        AssertExtensions.assertMapEquals("Wrong attributes.", attributes, sm.getAttributes());
-    }
 
-    private void assertTransactionCreated(String transactionName, String segmentName, Collection<AttributeUpdate> attributes, TestContext context) {
-        assertStreamSegmentCreated(transactionName, attributes, context);
-        long parentId = context.metadata.getStreamSegmentId(segmentName, false);
-        long transactionId = context.metadata.getStreamSegmentId(transactionName, false);
-        SegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
-        Assert.assertNotEquals("Transaction StreamSegment is not mapped to any parent.", ContainerMetadata.NO_STREAM_SEGMENT_ID, transactionMetadata.getParentId());
-        Assert.assertEquals("Transaction StreamSegment is not mapped to the correct parent.", parentId, transactionMetadata.getParentId());
+        long segmentId = context.metadata.getStreamSegmentId(segmentName, false);
+        Assert.assertEquals("Segment '" + segmentName + "' has been registered in the metadata.", ContainerMetadata.NO_STREAM_SEGMENT_ID, segmentId);
+
+        val attributes = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
+        val actualAttributes = context.stateStore.get(segmentName, TIMEOUT).join().getAttributes();
+        AssertExtensions.assertMapEquals("Wrong attributes.", attributes, actualAttributes);
     }
 
     private void setupOperationLog(TestContext context) {

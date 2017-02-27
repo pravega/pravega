@@ -85,7 +85,7 @@ public class SelfTestRunner {
 
                            // Transaction setup.
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
-                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
+                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 100)//Integer.MAX_VALUE)
 
                            // Test setup.
                            .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 50 + testThreadPoolAddition)
