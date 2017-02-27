@@ -51,7 +51,8 @@ public class ControllerEventProcessors {
                                      final Controller controller,
                                      final CuratorFramework client,
                                      final StreamMetadataStore streamMetadataStore,
-                                     final HostControllerStore hostControllerStore, SegmentHelper segmentHelper) {
+                                     final HostControllerStore hostControllerStore,
+                                     final SegmentHelper segmentHelper) {
         this.controller = controller;
         this.client = client;
         this.streamMetadataStore = streamMetadataStore;
