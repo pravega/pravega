@@ -24,8 +24,9 @@ public interface EventStreamReader<T> extends AutoCloseable {
      * {@link EventRead#getEventSequence()} will be populated. (This is useful for applications that want to
      * be sure they have read all the events within a time range.)
      *
-     * @param timeout An upper bound on how long the call may block before returning a event read with a null event.
-     * @return The next event in the stream, or null if timeout is reached.
+     * @param timeout An upper bound on how long the call may block before returning null.
+     * @return An instance of {@link EventRead}, which contains the next event in the stream. In the case the timeout
+     *         is reached, {@link EventRead#getEvent()} returns null.
      * @throws ReinitializationRequiredException Is throw in the event that
      *         {@link ReaderGroup#resetReadersToCheckpoint(Checkpoint)} or
      *         {@link ReaderGroup#alterConfig(ReaderGroupConfig, java.util.List)} was called
