@@ -8,6 +8,7 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.state.StateSynchronizer;
+import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.ReaderGroupState.AddReader;
 import com.emc.pravega.stream.impl.ReaderGroupState.AcquireSegment;
@@ -80,8 +81,9 @@ public class ReaderGroupStateManager {
         acquireTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
     }
     
-    static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync, Map<Segment, Long> segments) {
-        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(segments));
+    static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync, List<String> streamNames,
+            ReaderGroupConfig config, Map<Segment, Long> segments) {
+        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(streamNames, config, segments));
     }
     
     /**

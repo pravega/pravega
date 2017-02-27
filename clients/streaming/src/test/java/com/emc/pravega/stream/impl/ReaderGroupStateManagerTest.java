@@ -9,6 +9,7 @@ import com.emc.pravega.ClientFactory;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
+import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
@@ -65,7 +66,10 @@ public class ReaderGroupStateManagerTest {
                                                                                                       config);
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(initialSegment, 1L);
-        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
+                                                      ImmutableList.of(stream),
+                                                      ReaderGroupConfig.builder().build(),
+                                                      segments);
         val readerState = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
         readerState.initializeReader();
         Map<Segment, Long> newSegments = readerState.acquireNewSegmentsIfNeeded(0);
@@ -114,7 +118,10 @@ public class ReaderGroupStateManagerTest {
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(initialSegmentA, 1L);
         segments.put(initialSegmentB, 2L);
-        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
+                                                      ImmutableList.of(stream),
+                                                      ReaderGroupConfig.builder().build(),
+                                                      segments);
         val readerState = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
         readerState.initializeReader();
         Map<Segment, Long> newSegments = readerState.acquireNewSegmentsIfNeeded(0);
@@ -153,7 +160,10 @@ public class ReaderGroupStateManagerTest {
                                                                                                       config);
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(new Segment(scope, stream, 0), 1L);
-        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
+                                                      ImmutableList.of(stream),
+                                                      ReaderGroupConfig.builder().build(),
+                                                      segments);
         ReaderGroupStateManager readerState = new ReaderGroupStateManager("testReader",
                 stateSynchronizer,
                 controller,
@@ -190,7 +200,10 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 1), 1L);
         segments.put(new Segment(scope, stream, 2), 2L);
         segments.put(new Segment(scope, stream, 3), 3L);
-        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
+                                                      ImmutableList.of(stream),
+                                                      ReaderGroupConfig.builder().build(),
+                                                      segments);
 
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1",
                 stateSynchronizer,
@@ -270,7 +283,10 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 3), 3L);
         segments.put(new Segment(scope, stream, 4), 4L);
         segments.put(new Segment(scope, stream, 5), 5L);
-        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
+                                                      ImmutableList.of(stream),
+                                                      ReaderGroupConfig.builder().build(),
+                                                      segments);
 
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1",
                 stateSynchronizer,

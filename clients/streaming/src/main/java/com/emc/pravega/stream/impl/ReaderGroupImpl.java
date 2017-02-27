@@ -18,6 +18,7 @@ import com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateInit;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 import com.google.common.annotations.VisibleForTesting;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,7 +50,7 @@ public class ReaderGroupImpl implements ReaderGroup {
                                                                                                  updateSerializer,
                                                                                                  initSerializer,
                                                                                                  synchronizerConfig);
-        ReaderGroupStateManager.initializeReaderGroup(synchronizer, segments);
+        ReaderGroupStateManager.initializeReaderGroup(synchronizer, new ArrayList<>(streamNames), config, segments);
     }
     
     @Override

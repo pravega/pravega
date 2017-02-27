@@ -10,10 +10,12 @@ import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Update;
+import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -25,6 +27,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.concurrent.GuardedBy;
 
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 import lombok.val;
@@ -37,6 +40,10 @@ class ReaderGroupState implements Revisioned {
 
     private static final long ASSUMED_LAG_MILLIS = 30000;
     private final String scopedSynchronizerStream;
+    @Getter
+    private final List<String> streamNames;
+    @Getter
+    private final ReaderGroupConfig config;
     @GuardedBy("$lock")
     private Revision revision;
     @GuardedBy("$lock")
@@ -48,12 +55,16 @@ class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     private final Map<Segment, Long> unassignedSegments;
 
-    ReaderGroupState(String scopedSynchronizerStream, Revision revision, Map<Segment, Long> segmentsToOffsets) {
+    ReaderGroupState(String scopedSynchronizerStream, Revision revision, List<String> streamNames, ReaderGroupConfig config, Map<Segment, Long> segmentsToOffsets) {
         Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
         Preconditions.checkNotNull(revision);
+        Preconditions.checkNotNull(streamNames);
+        Preconditions.checkNotNull(config);
         Exceptions.checkNotNullOrEmpty(segmentsToOffsets.entrySet(), "segmentsToOffsets");
         this.scopedSynchronizerStream = scopedSynchronizerStream;
         this.revision = revision;
+        this.streamNames = Collections.unmodifiableList(streamNames);
+        this.config = config;
         this.unassignedSegments = new LinkedHashMap<>(segmentsToOffsets);
     }
     
@@ -149,11 +160,13 @@ class ReaderGroupState implements Revisioned {
     
     @RequiredArgsConstructor
     static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState>, Serializable {
+        private final List<String> streamNames;
+        private final ReaderGroupConfig config;
         private final Map<Segment, Long> segments;
         
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
-            return new ReaderGroupState(scopedStreamName, revision, segments);
+            return new ReaderGroupState(scopedStreamName, revision, streamNames, config, segments);
         }
     }
     

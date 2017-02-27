@@ -8,6 +8,7 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
@@ -94,7 +95,21 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     
     @Override
     public ReaderGroup getReaderGroup(String groupName) {
-        throw new NotImplementedException();
+        SynchronizerConfig synchronizerConfig = new SynchronizerConfig(null, null);
+        StateSynchronizer<ReaderGroupState> sync = clientFactory.createStateSynchronizer(groupName,
+                                                                                         new JavaSerializer<>(),
+                                                                                         new JavaSerializer<>(),
+                                                                                         synchronizerConfig);
+        List<String> streamNames = sync.getState().getStreamNames();
+        ReaderGroupConfig config = sync.getState().getConfig();
+        return new ReaderGroupImpl(scope,
+                groupName,
+                streamNames,
+                config,
+                synchronizerConfig,
+                new JavaSerializer<>(),
+                new JavaSerializer<>(),
+                clientFactory);
     }
 
     @Override
