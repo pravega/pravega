@@ -573,6 +573,7 @@ project('systemtests:tests') {
             systemProperty "masterIP", "INVALID_MASTER_IP"
         }
         systemProperty "testArtifactUrl", project.property('testArtifactUrl') + "/pravega/systemtests/0.1/systemtests-0.1.jar"
+        maxParallelForks = 1
     }
     publishing {
         publications {

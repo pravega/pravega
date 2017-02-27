@@ -5,7 +5,6 @@ package com.emc.pravega;
 
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
-import com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient;
 import com.emc.pravega.framework.services.PravegaControllerService;
 import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.framework.services.ZookeeperService;
@@ -19,8 +18,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-
-import static com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient.getClient;
+import static org.junit.Assert.assertEquals;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -33,19 +31,13 @@ public class PravegaControllerTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-
-        AuthEnabledMetronomeClient.deleteAllJobs(getClient());
-        Service zk = new ZookeeperService("zookeeper");
+        Service zk = new ZookeeperService("zookeeper", 1, 1.0, 128.0);
         if (!zk.isRunning()) {
-            if (!zk.isStaged()) {
-                zk.start(true);
-            }
+            zk.start(true);
         }
         Service con = new PravegaControllerService("controller", zk.getServiceDetails().get(0), null, 1, 0.1, 256.0);
         if (!con.isRunning()) {
-            if (!con.isStaged()) {
                 con.start(true);
-            }
         }
 
     }
@@ -67,12 +59,7 @@ public class PravegaControllerTest {
         List<URI> conUri = con.getServiceDetails();
         log.debug("Controller Service URI details: {} ", conUri);
         for (int i = 0; i < conUri.size(); i++) {
-            if (conUri.get(i).getPort() == 9090 || conUri.get(i).getPort() == 10080) {
-                log.debug("Controller running on 9090 and rest server running on 10080");
-            } else {
-                log.error("Controller  and rest not running on 9090 or 10080");
-            }
-            System.exit(0);
+            assertEquals(9090, conUri.get(i).getPort());
         }
         log.debug("ControllerTest  execution completed");
     }

@@ -5,7 +5,6 @@ package com.emc.pravega;
 
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
-import com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient;
 import com.emc.pravega.framework.services.BookkeeperService;
 import com.emc.pravega.framework.services.PravegaSegmentStoreService;
 import com.emc.pravega.framework.services.Service;
@@ -20,8 +19,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-
-import static com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient.getClient;
+import static org.junit.Assert.assertEquals;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -34,25 +32,17 @@ public class PravegaSegmentStoreTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-
-        AuthEnabledMetronomeClient.deleteAllJobs(getClient());
-        Service zk = new ZookeeperService("zookeeper");
+        Service zk = new ZookeeperService("zookeeper", 1, 1.0, 128.0);
         if (!zk.isRunning()) {
-            if (!zk.isStaged()) {
-                zk.start(true);
-            }
+            zk.start(true);
         }
         Service bk = new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0), 3, 0.5, 512.0);
         if (!bk.isRunning()) {
-            if (!bk.isStaged()) {
-                bk.start(true);
-            }
+            bk.start(true);
         }
        Service seg = new PravegaSegmentStoreService("segmentstore", zk.getServiceDetails().get(0), 1, 1.0, 512.0);
         if (!seg.isRunning()) {
-            if (!seg.isStaged()) {
-                seg.start(true);
-            }
+            seg.start(true);
         }
     }
 
@@ -73,12 +63,7 @@ public class PravegaSegmentStoreTest {
         List<URI> segUri = seg.getServiceDetails();
         log.debug("Pravega SegmentStore Service URI details: {} ", segUri);
         for (int i = 0; i < segUri.size(); i++) {
-            if (segUri.get(i).getPort() == 12345) {
-                log.debug("pravega segmentstore running on 12345");
-            } else {
-                log.error("pravega segmentstore not running on 12345");
-            }
-            System.exit(0);
+            assertEquals(12345, segUri.get(i).getPort());
         }
         log.debug("SegmentStoreTest  execution completed");
     }

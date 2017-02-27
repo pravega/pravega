@@ -54,11 +54,4 @@ public interface Service {
      */
     public List<URI> getServiceDetails();
 
-    /**
-     * Check if the service is deployed.
-     *
-     *  @return true if the service is deployed.
-     */
-    public boolean isStaged();
-
 }

@@ -3,13 +3,13 @@
  */
 package com.emc.pravega.framework.services;
 
+import com.emc.pravega.framework.TestFrameworkException;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
-import mesosphere.marathon.client.model.v2.UpgradeStrategy;
 import mesosphere.marathon.client.utils.MarathonException;
 
 import java.net.URI;
@@ -19,6 +19,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+
+import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
 
 /**
  * Controller Service.
@@ -55,8 +57,9 @@ public class PravegaControllerService extends MarathonBasedService {
             if (wait) {
                 try {
                     waitUntilServiceRunning().get();
-                } catch (InterruptedException | ExecutionException e) {
-                    log.error("Error in wait until pravega controller service is running {}", e);
+                } catch (InterruptedException | ExecutionException ex) {
+                    throw  new TestFrameworkException(InternalError, "Exception while " +
+                            "starting Pravega Controller Service", ex);
                 }
             }
         } catch (MarathonException e) {
@@ -79,10 +82,10 @@ public class PravegaControllerService extends MarathonBasedService {
 
     /**
      * Cleanup after service is stopped.
+     * This is a placeholder to perform actions of cleaning up configuration of controller in zk
      */
     @Override
     public void clean() {
-        //TODO: Clean up to be performed after stopping the service.
     }
 
     /**
@@ -97,50 +100,32 @@ public class PravegaControllerService extends MarathonBasedService {
         app.setCpus(cpu);
         app.setMem(mem);
         app.setInstances(instances);
-        List<List<String>> listString = new ArrayList<>();
-        List<String> list = new ArrayList<>();
-        list.add("hostname");
-        list.add("UNIQUE");
-        listString.add(list);
-        app.setConstraints(listString);
+        app.setConstraints(setConstraint("hostname", "UNIQUE"));
         app.setContainer(new Container());
-        app.getContainer().setType("DOCKER");
+        app.getContainer().setType(containerType);
         app.getContainer().setDocker(new Docker());
         //TODO: change tag to latest
-        String pravegaVersion = System.getProperty("pravegaVersion");
-        app.getContainer().getDocker().setImage("asdrepo.isus.emc.com:8103/nautilus/pravega-controller:"+pravegaVersion);
-        app.getContainer().getDocker().setNetwork("HOST");
-        app.getContainer().getDocker().setForcePullImage(true);
+        app.getContainer().getDocker().setImage(imagePath + "pravega-controller:" + pravegaVersion);
+        app.getContainer().getDocker().setNetwork(networkType);
+        app.getContainer().getDocker().setForcePullImage(forceImage);
         //set docker container parameters
-        String zk = zkUri.getHost() + ":2181";
+        String zk = zkUri.getHost() + ":" + zkPort;
         List<Parameter> parameterList = new ArrayList<>();
         Parameter element1 = new Parameter("env", "SERVER_OPTS=\"-DZK_URL=" + zk + "\\");
         parameterList.add(element1);
         app.getContainer().getDocker().setParameters(parameterList);
         //set port
-        app.setPorts(Arrays.asList(9090, 10080));
+        app.setPorts(Arrays.asList(controllerPort, restPort));
         app.setRequirePorts(true);
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
-        HealthCheck healthCheck = new HealthCheck();
-        healthCheck.setGracePeriodSeconds(900);
-        healthCheck.setProtocol("TCP");
-        healthCheck.setIgnoreHttp1xx(false);
-        healthCheckList.add(healthCheck);
-        healthCheck.setIntervalSeconds(60);
-        healthCheck.setTimeoutSeconds(20);
-        healthCheck.setMaxConsecutiveFailures(0);
+        healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0));
         app.setHealthChecks(healthCheckList);
         //set env
         Map<String, String> map = new HashMap<>();
         map.put("ZK_URL", zk);
         map.put("SERVICE_HOST_IP", segUri.getHost());
-        map.put("REST_SERVER_PORT", "10080");
+        map.put("REST_SERVER_PORT", String.valueOf(restPort));
         app.setEnv(map);
-        //upgrade strategy
-        UpgradeStrategy upgradeStrategy = new UpgradeStrategy();
-        upgradeStrategy.setMaximumOverCapacity(0.0);
-        upgradeStrategy.setMinimumHealthCapacity(0.0);
-        app.setUpgradeStrategy(upgradeStrategy);
         return app;
     }
 }

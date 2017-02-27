@@ -5,22 +5,16 @@ package com.emc.pravega;
 
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
-import com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient;
 import com.emc.pravega.framework.services.BookkeeperService;
 import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.framework.services.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import java.net.URI;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
-
-import static com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient.getClient;
+import static org.junit.Assert.assertEquals;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -34,26 +28,15 @@ public class BookkeeperTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-
-        AuthEnabledMetronomeClient.deleteAllJobs(getClient());
-        Service zk = new ZookeeperService("zookeeper");
+        Service zk = new ZookeeperService("zookeeper", 1, 1.0, 128.0);
         if (!zk.isRunning()) {
-            if (!zk.isStaged()) {
-                zk.start(true);
-            }
+            zk.start(true);
         }
         Service bk = new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0), 3, 0.5, 512.0);
         if (!bk.isRunning()) {
-            if (!bk.isStaged()) {
-                bk.start(true);
-            }
+            bk.start(true);
         }
 
-    }
-
-    @BeforeClass
-    public static void beforeClass() throws InterruptedException, ExecutionException, TimeoutException {
-        // This is the placeholder to perform any operation on the services before executing the system tests
     }
 
     /**
@@ -68,12 +51,7 @@ public class BookkeeperTest {
         List<URI> bkUri = bk.getServiceDetails();
         log.debug("Bk Service URI details: {} ", bkUri);
         for (int i = 0; i < bkUri.size(); i++) {
-            if (bkUri.get(i).getPort() == 3181) {
-                log.debug("bookies running on 3181");
-            }  else {
-                log.error("bookies not running on 3181");
-            }
-            System.exit(0);
+            assertEquals(3181, bkUri.get(i).getPort());
         }
         log.debug("BkTest  execution completed");
     }

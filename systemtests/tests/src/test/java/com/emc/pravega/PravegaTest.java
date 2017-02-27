@@ -8,7 +8,6 @@ import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
-import com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient;
 import com.emc.pravega.framework.services.BookkeeperService;
 import com.emc.pravega.framework.services.PravegaControllerService;
 import com.emc.pravega.framework.services.PravegaSegmentStoreService;
@@ -27,10 +26,10 @@ import com.emc.pravega.stream.impl.JavaSerializer;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -40,8 +39,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-
-import static com.emc.pravega.framework.metronome.AuthEnabledMetronomeClient.getClient;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
@@ -63,13 +60,10 @@ public class PravegaTest {
      */
     @Environment
     public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
-        AuthEnabledMetronomeClient.deleteAllJobs(getClient());
         //1. check if zk is running, if not start it
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = new ZookeeperService("zookeeper", 1, 1.0, 128.0);
         if (!zkService.isRunning()) {
-            if (!zkService.isStaged()) {
                 zkService.start(true);
-            }
         }
 
         List<URI> zkUris = zkService.getServiceDetails();
@@ -80,9 +74,7 @@ public class PravegaTest {
         //2, check if bk is running, otherwise start, get the zk ip
         Service bkService = new BookkeeperService("bookkeeper", zkUri, 3, 0.5, 512.0);
         if (!bkService.isRunning()) {
-            if (!bkService.isStaged()) {
-                bkService.start(true);
-            }
+            bkService.start(true);
         }
 
         List<URI> bkUris = bkService.getServiceDetails();
@@ -92,9 +84,7 @@ public class PravegaTest {
         Service segService = new PravegaSegmentStoreService("host", zkUri, 1, 1, 512.0);
 
         if (!segService.isRunning()) {
-            if (!segService.isStaged()) {
-                segService.start(true);
-            }
+            segService.start(true);
         }
 
         List<URI> segUris = segService.getServiceDetails();
@@ -104,9 +94,7 @@ public class PravegaTest {
         //3. start controller
         Service conService = new PravegaControllerService("controller", zkUri, segUri, 1, 0.1, 256);
         if (!conService.isRunning()) {
-            if (!conService.isStaged()) {
                 conService.start(true);
-            }
         }
 
         List<URI> conUris = conService.getServiceDetails();
@@ -120,14 +108,13 @@ public class PravegaTest {
     }
 
     /**
-     * Invoke the create stream test, ensure we are able to create scope and stream.
-     * The test fails incase of exceptions in creating scope or stream
+     * Invoke the createStream method, ensure we are able to create scope and stream.
      *
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    @Test
-    public  void createStreamTest() throws InterruptedException, URISyntaxException {
+    @Before
+    public void createStream() throws InterruptedException, URISyntaxException {
 
         Service conService = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
@@ -150,22 +137,20 @@ public class PravegaTest {
             assertEquals("SUCCESS", status.get());
         } catch (ExecutionException e) {
             log.error("error in doing a get on create stream status {}", e);
-            System.exit(0);
         }
 
         Thread.sleep(30000);
-
     }
 
     /**
-     * Invoke the producer test, ensure we are able to produce 100 messages to the stream.z
-     * The test fails incase of exceptions while writing to the stream.
+     * Invoke the simpleTest, ensure we are able to produce and consumer events.
+     * The test fails incase of exceptions while writing to or reading from the stream.
      *
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
     @Test
-    public void producerTest() throws InterruptedException, URISyntaxException {
+    public void simpleTest() throws InterruptedException, URISyntaxException {
 
         Service conService = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
@@ -182,40 +167,23 @@ public class PravegaTest {
                 new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 100; i++) {
             String event = "\n Transactional Publish \n";
             log.debug("Producing event: {} ", event);
             producer.writeEvent("", event);
             producer.flush();
             Thread.sleep(2000);
         }
+
+        //Bug in controller.Sleep can be removed after the pr #510 goes in
         Thread.sleep(10000);
-    }
-
-    /**
-     * Invoke consumer test, ensure we are able to read 100 messages from the stream.
-     * The test fails incase of exceptions/ timeout.
-     *
-     * @throws URISyntaxException If URI is invalid
-     */
-    @Test
-    public void consumerTest() throws URISyntaxException {
-
-        Service conService = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
-        List<URI> ctlURIs = conService.getServiceDetails();
-        URI controllerUri = ctlURIs.get(0);
-
-        log.debug("Invoking consumer test.");
-        log.debug("Controller URI: " + controllerUri);
-
-        ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri);
 
         ReaderGroupManager.withScope(STREAM_SCOPE, controllerUri)
                 .createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
                         Collections.singletonList(STREAM_NAME));
 
         try {
-            Thread.sleep(10000);
+            Thread.sleep(1000);
         } catch (InterruptedException e) {
             log.error(" error in thread sleep {}", e);
         }
@@ -225,7 +193,7 @@ public class PravegaTest {
                 READER_GROUP,
                 new JavaSerializer<>(),
                 ReaderConfig.builder().build());
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 100; i++) {
             String event = null;
             try {
                 event = reader.readNextEvent(6000).getEvent();

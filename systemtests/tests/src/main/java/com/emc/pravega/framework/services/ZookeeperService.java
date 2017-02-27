@@ -4,49 +4,32 @@
 
 package com.emc.pravega.framework.services;
 
-import com.emc.pravega.framework.marathon.AuthEnabledMarathonClient;
+import com.emc.pravega.framework.TestFrameworkException;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
-import mesosphere.marathon.client.model.v2.GetAppsResponse;
 import mesosphere.marathon.client.model.v2.HealthCheck;
-import mesosphere.marathon.client.model.v2.UpgradeStrategy;
 import mesosphere.marathon.client.utils.MarathonException;
+import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-
 @Slf4j
 public class ZookeeperService extends MarathonBasedService {
 
-    public ZookeeperService(final String id) {
+    private int instances = 1;
+    private double cpu = 1.0;
+    private double mem = 128.0;
+
+
+    public ZookeeperService(final String id, int instances, double cpu, double mem) {
         super(id);
-    }
-
-    public static void main(String[] args) {
-        Marathon m = AuthEnabledMarathonClient.getClient();
-        GetAppsResponse list = new GetAppsResponse();
-        try {
-            list = m.getApps();
-        } catch (MarathonException e) {
-            log.error("Error in getApps {}", e);
-        }
-        log.debug("list of running apps {}", list);
-        for (int i = 0; i < list.getApps().size(); i++) {
-            String id = list.getApps().get(i).getId();
-            if (!(id.startsWith("/platform") || id.startsWith("/hdfs"))) {
-                try {
-                    m.deleteApp(id);
-                } catch (MarathonException e) {
-                    log.error("Error in deleting app with given id {}", e);
-                }
-            }
-
-        }
+        this.instances = instances;
+        this.cpu = cpu;
+        this.mem = mem;
     }
 
     @Override
@@ -58,8 +41,9 @@ public class ZookeeperService extends MarathonBasedService {
             if (wait) {
                 try {
                     waitUntilServiceRunning().get();
-                } catch (InterruptedException | ExecutionException e) {
-                    log.error("Error in wait until zookeeper service is running {}", e);
+                } catch (InterruptedException | ExecutionException ex) {
+                    throw  new TestFrameworkException(InternalError, "Exception while " +
+                            "starting Zookeeper Service", ex);
                 }
             }
         } catch (MarathonException e) {
@@ -67,11 +51,9 @@ public class ZookeeperService extends MarathonBasedService {
         }
     }
 
+    //This is a placeholder to perform actions related to  cleaning up of zk
     @Override
     public void clean() {
-        //TODO: Clean up to be performed after stopping the Zookeeper Service.
-        getServiceDetails().clear();
-
     }
 
     @Override
@@ -88,28 +70,17 @@ public class ZookeeperService extends MarathonBasedService {
 
         App app = new App();
         app.setId(this.id);
-        app.setCpus(1.0);
-        app.setMem(128.0);
-        app.setInstances(1);
+        app.setCpus(cpu);
+        app.setMem(mem);
+        app.setInstances(instances);
         app.setContainer(new Container());
-        app.getContainer().setType("DOCKER");
+        app.getContainer().setType(containerType);
         app.getContainer().setDocker(new Docker());
-        app.getContainer().getDocker().setImage("jplock/zookeeper:3.5.1-alpha");
-        app.getContainer().getDocker().setNetwork("HOST");
+        app.getContainer().getDocker().setImage(zkImage);
+        app.getContainer().getDocker().setNetwork(networkType);
         List<HealthCheck> healthCheckList = new ArrayList<>();
-        HealthCheck healthCheck = new HealthCheck();
-        healthCheck.setGracePeriodSeconds(900);
-        healthCheck.setProtocol("TCP");
-        healthCheck.setIgnoreHttp1xx(false);
-        healthCheckList.add(healthCheck);
-        healthCheck.setIntervalSeconds(60);
-        healthCheck.setTimeoutSeconds(20);
-        healthCheck.setMaxConsecutiveFailures(0);
+        healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0));
         app.setHealthChecks(healthCheckList);
-        UpgradeStrategy upgradeStrategy = new UpgradeStrategy();
-        upgradeStrategy.setMaximumOverCapacity(0.0);
-        upgradeStrategy.setMinimumHealthCapacity(0.0);
-        app.setUpgradeStrategy(upgradeStrategy);
         return app;
     }
 
