@@ -246,7 +246,6 @@ public class RequestReader<R extends ControllerRequest, H extends RequestHandler
     @Synchronized
     private void checkpoint() {
         try {
-            // TODO: store checkpoint in persistent store
             if (checkpoint.get() != null) {
                 checkpointStore.checkpoint(readerGroup, readerId, serializer.serialize(checkpoint.get().position));
             }
