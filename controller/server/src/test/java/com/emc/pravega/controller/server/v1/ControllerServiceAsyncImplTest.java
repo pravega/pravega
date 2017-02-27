@@ -72,7 +72,10 @@ public class ControllerServiceAsyncImplTest {
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final StreamMetadataStore streamStore;
 
-    public ControllerServiceAsyncImplTest(ScheduledExecutorService executor, CuratorFramework zkClient, StreamMetadataStore streamStoreType) throws Exception {
+    public ControllerServiceAsyncImplTest(ScheduledExecutorService executor,
+                                          CuratorFramework zkClient,
+                                          StreamMetadataStore streamStoreType)
+            throws Exception {
         streamStore = streamStoreType;
         storeClient = new ZKStoreClient(zkClient);
 
@@ -84,8 +87,8 @@ public class ControllerServiceAsyncImplTest {
         streamTransactionMetadataTasks =
                 new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
 
-        controllerService = new ControllerServiceAsyncImpl(new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks));
+        controllerService = new ControllerServiceAsyncImpl(
+                new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
     }
 
     /**
