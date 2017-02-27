@@ -81,7 +81,7 @@ public class PravegaTest {
         log.debug("bookkeeper service details: {}", bkUris);
 
         //4.start host
-        Service segService = new PravegaSegmentStoreService("host", zkUri, 1, 1, 512.0);
+        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, 1, 1, 512.0);
 
         if (!segService.isRunning()) {
             segService.start(true);
@@ -203,7 +203,5 @@ public class PravegaTest {
             log.debug("Read event: {} ", event);
         }
         reader.close();
-        System.exit(0);
-
     }
 }

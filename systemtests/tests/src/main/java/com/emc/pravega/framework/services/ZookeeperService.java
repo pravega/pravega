@@ -20,6 +20,7 @@ import java.util.concurrent.ExecutionException;
 @Slf4j
 public class ZookeeperService extends MarathonBasedService {
 
+    private static final String ZK_IMAGE = "jplock/zookeeper:3.5.1-alpha";
     private int instances = 1;
     private double cpu = 1.0;
     private double mem = 128.0;
@@ -34,7 +35,7 @@ public class ZookeeperService extends MarathonBasedService {
 
     @Override
     public void start(final boolean wait) {
-
+        deleteApp(getID());
         log.info("Starting Zookeeper Service: {}", getID());
         try {
             marathonClient.createApp(createZookeeperApp());
@@ -74,10 +75,10 @@ public class ZookeeperService extends MarathonBasedService {
         app.setMem(mem);
         app.setInstances(instances);
         app.setContainer(new Container());
-        app.getContainer().setType(containerType);
+        app.getContainer().setType(CONTAINER_TYPE);
         app.getContainer().setDocker(new Docker());
-        app.getContainer().getDocker().setImage(zkImage);
-        app.getContainer().getDocker().setNetwork(networkType);
+        app.getContainer().getDocker().setImage(ZK_IMAGE);
+        app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         List<HealthCheck> healthCheckList = new ArrayList<>();
         healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0));
         app.setHealthChecks(healthCheckList);

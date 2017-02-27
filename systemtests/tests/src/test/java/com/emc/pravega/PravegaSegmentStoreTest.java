@@ -11,14 +11,10 @@ import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.framework.services.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import java.net.URI;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
@@ -44,11 +40,6 @@ public class PravegaSegmentStoreTest {
         if (!seg.isRunning()) {
             seg.start(true);
         }
-    }
-
-    @BeforeClass
-    public static void beforeClass() throws InterruptedException, ExecutionException, TimeoutException {
-        // This is the placeholder to perform any operation on the services before executing the system tests
     }
 
     /**

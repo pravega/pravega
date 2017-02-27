@@ -23,7 +23,6 @@ import static org.junit.Assert.assertEquals;
 @RunWith(SystemTestRunner.class)
 public class ZookeeperTest {
 
-
     /**
      * This is used to setup the various services required by the system test framework.
      * @throws MarathonException if error in setup

@@ -27,11 +27,11 @@ import static com.emc.pravega.framework.TestFrameworkException.Type.InternalErro
 @Slf4j
 public class BookkeeperService extends MarathonBasedService {
 
+    private static final int BK_PORT = 3181;
     private final URI zkUri;
     private int instances = 3;
     private double cpu = 0.5;
     private double mem = 512.0;
-
 
     public BookkeeperService(final String id, final URI zkUri, int instances, double cpu, double mem) {
         super(id);
@@ -44,6 +44,7 @@ public class BookkeeperService extends MarathonBasedService {
 
     @Override
     public void start(final boolean wait) {
+        deleteApp("/pravega/bookkeeper");
         log.info("Starting Bookkeeper Service: {}", getID());
         try {
             marathonClient.createApp(createBookieApp());
@@ -52,7 +53,7 @@ public class BookkeeperService extends MarathonBasedService {
                 try {
                     waitUntilServiceRunning().get();
                 } catch (InterruptedException | ExecutionException ex) {
-                    throw  new TestFrameworkException(InternalError, "Exception while " +
+                    throw new TestFrameworkException(InternalError, "Exception while " +
                             "starting Bookkeeper Service", ex);
                 }
             }
@@ -85,12 +86,12 @@ public class BookkeeperService extends MarathonBasedService {
         app.setInstances(instances);
         app.setConstraints(setConstraint("hostname", "UNIQUE"));
         app.setContainer(new Container());
-        app.getContainer().setType(containerType);
+        app.getContainer().setType(CONTAINER_TYPE);
         app.getContainer().setDocker(new Docker());
 
-        app.getContainer().getDocker().setImage(imagePath + "bookkeeper:" + pravegaVersion);
-        app.getContainer().getDocker().setNetwork(networkType);
-        app.getContainer().getDocker().setForcePullImage(forceImage);
+        app.getContainer().getDocker().setImage(IMAGE_PATH + "bookkeeper:" + "0.0-1111.2b562cb");
+        app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
+        app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
         Collection<Volume> volumeCollection = new ArrayList<>();
         volumeCollection.add(createVolume("/bk/journal", "/mnt/journal", "RW"));
         volumeCollection.add(createVolume("/bk/index", "/mnt/index", "RW"));
@@ -103,14 +104,14 @@ public class BookkeeperService extends MarathonBasedService {
         Parameter element1 = new Parameter("env", "DLOG_EXTRA_OPTS=-Xms512m");
         parameterList.add(element1);
         app.getContainer().getDocker().setParameters(parameterList);
-        app.setPorts(Arrays.asList(bkPort));
+        app.setPorts(Arrays.asList(BK_PORT));
         app.setRequirePorts(true);
         //set env
-        String zk = zkUri.getHost() + ":" + zkPort;
+        String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         Map<String, String> map = new HashMap<>();
         map.put("ZK_URL", zk);
         map.put("ZK", zk);
-        map.put("bookiePort", String.valueOf(bkPort));
+        map.put("bookiePort", String.valueOf(BK_PORT));
         app.setEnv(map);
         //healthchecks
         List<HealthCheck> healthCheckList = new ArrayList<>();

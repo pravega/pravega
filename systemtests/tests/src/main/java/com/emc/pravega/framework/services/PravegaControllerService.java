@@ -28,11 +28,14 @@ import static com.emc.pravega.framework.TestFrameworkException.Type.InternalErro
 @Slf4j
 public class PravegaControllerService extends MarathonBasedService {
 
+    private static final int CONTROLLER_PORT = 9090;
+    private static final int REST_PORT = 10080;
     private final URI zkUri;
     private final URI segUri;
     private int instances = 1;
     private double cpu = 0.1;
     private double mem = 256;
+
 
     public PravegaControllerService(final String id, final URI zkUri, final URI segUri, int instances, double cpu, double mem) {
         super(id);
@@ -50,6 +53,7 @@ public class PravegaControllerService extends MarathonBasedService {
      */
     @Override
     public void start(final boolean wait) {
+        deleteApp("/pravega/controller");
         log.debug("Starting service: {}", getID());
         try {
 
@@ -102,20 +106,20 @@ public class PravegaControllerService extends MarathonBasedService {
         app.setInstances(instances);
         app.setConstraints(setConstraint("hostname", "UNIQUE"));
         app.setContainer(new Container());
-        app.getContainer().setType(containerType);
+        app.getContainer().setType(CONTAINER_TYPE);
         app.getContainer().setDocker(new Docker());
         //TODO: change tag to latest
-        app.getContainer().getDocker().setImage(imagePath + "pravega-controller:" + pravegaVersion);
-        app.getContainer().getDocker().setNetwork(networkType);
-        app.getContainer().getDocker().setForcePullImage(forceImage);
+        app.getContainer().getDocker().setImage(IMAGE_PATH + "pravega-controller:" + "0.0-1111.2b562cb");
+        app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
+        app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
         //set docker container parameters
-        String zk = zkUri.getHost() + ":" + zkPort;
+        String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         List<Parameter> parameterList = new ArrayList<>();
         Parameter element1 = new Parameter("env", "SERVER_OPTS=\"-DZK_URL=" + zk + "\\");
         parameterList.add(element1);
         app.getContainer().getDocker().setParameters(parameterList);
         //set port
-        app.setPorts(Arrays.asList(controllerPort, restPort));
+        app.setPorts(Arrays.asList(CONTROLLER_PORT, REST_PORT));
         app.setRequirePorts(true);
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
         healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0));
@@ -124,7 +128,7 @@ public class PravegaControllerService extends MarathonBasedService {
         Map<String, String> map = new HashMap<>();
         map.put("ZK_URL", zk);
         map.put("SERVICE_HOST_IP", segUri.getHost());
-        map.put("REST_SERVER_PORT", String.valueOf(restPort));
+        map.put("REST_SERVER_PORT", String.valueOf(REST_PORT));
         app.setEnv(map);
         return app;
     }

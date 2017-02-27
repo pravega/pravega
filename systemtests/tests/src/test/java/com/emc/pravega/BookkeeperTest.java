@@ -20,7 +20,6 @@ import static org.junit.Assert.assertEquals;
 @RunWith(SystemTestRunner.class)
 public class BookkeeperTest {
 
-
     /**
      * This is used to setup the various services required by the system test framework.
      *

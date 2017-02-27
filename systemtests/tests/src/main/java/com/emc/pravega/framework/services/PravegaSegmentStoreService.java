@@ -27,10 +27,13 @@ import static com.emc.pravega.framework.TestFrameworkException.Type.InternalErro
 @Slf4j
 public class PravegaSegmentStoreService extends MarathonBasedService {
 
+    private static final int SEGMENTSTORE_PORT = 12345;
+    private static final int BACK_OFF_SECS = 7200;
     private final URI zkUri;
     private int instances = 1;
     private double cpu = 1.0;
     private double mem = 512.0;
+
 
     public PravegaSegmentStoreService(final String id, final URI zkUri, int instances, double cpu, double mem) {
         super(id);
@@ -42,6 +45,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
 
     @Override
     public void start(final boolean wait) {
+        deleteApp("/pravega/segmentstore");
         log.info("Starting Pravega SegmentStore Service: {}", getID());
         try {
             marathonClient.createApp(createPravegaSegmentStoreApp());
@@ -49,7 +53,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
                 try {
                     waitUntilServiceRunning().get();
                 } catch (InterruptedException | ExecutionException ex) {
-                    throw  new TestFrameworkException(InternalError, "Exception while " +
+                    throw new TestFrameworkException(InternalError, "Exception while " +
                             "starting Pravega SegmentStore Service", ex);
                 }
             }
@@ -80,7 +84,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
 
         App app = new App();
         app.setId(this.id);
-        app.setBackoffSeconds(backOffSeconds);
+        app.setBackoffSeconds(BACK_OFF_SECS);
         app.setCpus(cpu);
         app.setMem(mem);
         app.setInstances(instances);
@@ -88,25 +92,25 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         app.setConstraints(setConstraint("hostname", "UNIQUE"));
         //docker container
         app.setContainer(new Container());
-        app.getContainer().setType(containerType);
+        app.getContainer().setType(CONTAINER_TYPE);
         app.getContainer().setDocker(new Docker());
         //set volume
         Collection<Volume> volumeCollection = new ArrayList<Volume>();
         volumeCollection.add(createVolume("/tmp/logs", "/mnt/logs", "RW"));
         app.getContainer().setVolumes(volumeCollection);
         //set the image and network
-        app.getContainer().getDocker().setImage(imagePath + "pravega-host:" + pravegaVersion);
-        app.getContainer().getDocker().setNetwork(networkType);
-        app.getContainer().getDocker().setForcePullImage(forceImage);
+        app.getContainer().getDocker().setImage(IMAGE_PATH + "pravega-host:" + PRAVEGA_VERSION);
+        app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
+        app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
         //set port
-        app.setPorts(Arrays.asList(segmentStorePort));
+        app.setPorts(Arrays.asList(SEGMENTSTORE_PORT));
         app.setRequirePorts(true);
         //healthchecks
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
         healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0));
         app.setHealthChecks(healthCheckList);
         //set env
-        String zk = zkUri.getHost() + ":" + zkPort;
+        String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         Map<String, String> map = new HashMap<>();
         map.put("ZK_URL", zk);
         map.put("pravegaservice_zkHostName", zkUri.getHost());
