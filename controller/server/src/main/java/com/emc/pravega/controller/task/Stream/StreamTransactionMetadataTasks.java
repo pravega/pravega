@@ -106,12 +106,12 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * @return transaction id.
      */
     @Task(name = "createTransaction", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<VersionedTransactionData> createTx(final String scope, final String stream, final long lease,
+    public CompletableFuture<VersionedTransactionData> createTxn(final String scope, final String stream, final long lease,
                                             final long maxExecutionTime, final long scaleGracePeriod) {
         return execute(
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream},
-                () -> createTxBody(scope, stream, lease, maxExecutionTime, scaleGracePeriod));
+                () -> createTxnBody(scope, stream, lease, maxExecutionTime, scaleGracePeriod));
     }
 
     /**
@@ -126,12 +126,12 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * @param lease Amount of time in milliseconds by which to extend the transaction lease.
      * @return Transaction metadata along with the version of it record in the store.
      */
-    public CompletableFuture<VersionedTransactionData> pingTx(final String scope, final String stream,
-                                                              final UUID txId, final long lease) {
+    public CompletableFuture<VersionedTransactionData> pingTxn(final String scope, final String stream,
+                                                               final UUID txId, final long lease) {
         return execute(
                 new Resource(scope, stream, txId.toString()),
                 new Serializable[]{scope, stream, txId},
-                () -> pingTxBody(scope, stream, txId, lease));
+                () -> pingTxnBody(scope, stream, txId, lease));
     }
 
     /**
@@ -144,12 +144,12 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * @return true/false.
      */
     @Task(name = "abortTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
-    public CompletableFuture<TxnStatus> abortTx(final String scope, final String stream, final UUID txId,
+    public CompletableFuture<TxnStatus> abortTxn(final String scope, final String stream, final UUID txId,
                                                 final Optional<Integer> version) {
         return execute(
                 new Resource(scope, stream, txId.toString()),
                 new Serializable[]{scope, stream, txId},
-                () -> abortTxBody(scope, stream, txId, version));
+                () -> abortTxnBody(scope, stream, txId, version));
     }
 
     /**
@@ -161,16 +161,16 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * @return true/false.
      */
     @Task(name = "commitTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
-    public CompletableFuture<TxnStatus> commitTx(final String scope, final String stream, final UUID txId) {
+    public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId) {
         return execute(
                 new Resource(scope, stream, txId.toString()),
                 new Serializable[]{scope, stream, txId},
-                () -> commitTxBody(scope, stream, txId));
+                () -> commitTxnBody(scope, stream, txId));
     }
 
-    private CompletableFuture<VersionedTransactionData> createTxBody(final String scope, final String stream,
-                                                                     final long lease, final long maxExecutionPeriod,
-                                                                     final long scaleGracePeriod) {
+    private CompletableFuture<VersionedTransactionData> createTxnBody(final String scope, final String stream,
+                                                                      final long lease, final long maxExecutionPeriod,
+                                                                      final long scaleGracePeriod) {
         return streamMetadataStore.createTransaction(scope, stream, lease, maxExecutionPeriod, scaleGracePeriod)
                 .thenCompose(txData ->
                         streamMetadataStore.getActiveSegments(scope, stream)
@@ -187,12 +187,12 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                                 .thenApply(x -> txData));
     }
 
-    private CompletableFuture<VersionedTransactionData> pingTxBody(String scope, String stream, UUID txId, long lease) {
+    private CompletableFuture<VersionedTransactionData> pingTxnBody(String scope, String stream, UUID txId, long lease) {
         return streamMetadataStore.pingTransaction(scope, stream, txId, lease);
     }
 
-    private CompletableFuture<TxnStatus> abortTxBody(final String scope, final String stream, final UUID txid,
-                                                     final Optional<Integer> version) {
+    private CompletableFuture<TxnStatus> abortTxnBody(final String scope, final String stream, final UUID txid,
+                                                      final Optional<Integer> version) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, false, version)
                 .thenApply(status -> {
                     this.abortEventEventStreamWriter
@@ -201,7 +201,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 });
     }
 
-    private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid) {
+    private CompletableFuture<TxnStatus> commitTxnBody(final String scope, final String stream, final UUID txid) {
         return streamMetadataStore.sealTransaction(scope, stream, txid, true, Optional.empty())
                 .thenApply(status -> {
                     this.commitEventEventStreamWriter

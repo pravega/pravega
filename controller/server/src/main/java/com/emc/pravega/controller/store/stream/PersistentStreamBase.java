@@ -300,9 +300,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(data -> {
                     ActiveTxRecord activeTxRecord = ActiveTxRecord.parse(data.getData());
                     if (activeTxRecord.getTxnStatus() == TxnStatus.OPEN) {
-
                         // Update txn record with new lease value and return versioned tx data.
-
                         ActiveTxRecord newData = new ActiveTxRecord(activeTxRecord.getTxCreationTimestamp(),
                                 System.currentTimeMillis() + lease, activeTxRecord.getMaxExecutionExpiryTime(),
                                 activeTxRecord.getScaleGracePeriod(), activeTxRecord.getTxnStatus());

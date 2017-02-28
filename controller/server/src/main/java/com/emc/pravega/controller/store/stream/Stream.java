@@ -133,6 +133,7 @@ interface Stream {
 
     /**
      * Heartbeat method to keep transaction open for at least lease amount of time.
+     *
      * @param txId Transaction identifier.
      * @param lease Lease period in ms.
      * @return Transaction metadata along with its version.

@@ -151,7 +151,7 @@ public class ZKStoreHelper {
     }
 
 
-    CompletableFuture<Void> updateTxData(final String path, final byte[] data) {
+    CompletableFuture<Void> updateTxnData(final String path, final byte[] data) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 client.setData().forPath(path, data);

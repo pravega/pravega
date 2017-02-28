@@ -88,7 +88,7 @@ public class ScaleTest {
         }
 
         // Test 3: create a transaction, and try scale operation, it should fail with precondition check failure
-        CompletableFuture<UUID> txIdFuture = controller.createTransaction(stream, 60000, 60000, 60000);
+        CompletableFuture<UUID> txIdFuture = controller.createTransaction(stream, 5000, 3600000, 60000);
         UUID txId = txIdFuture.get();
         if (txId == null) {
             System.err.println("Create transaction failed, exiting");

@@ -254,7 +254,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 controllerExecutor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, controllerExecutor, hostId);
-        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks);
+        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
+                Config.MAX_LEASE_VALUE, Config.MAX_SCALE_GRACE_PERIOD);
 
         RPCServer.start(new ControllerServiceAsyncImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,

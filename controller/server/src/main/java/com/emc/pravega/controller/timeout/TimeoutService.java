@@ -20,16 +20,16 @@ import java.util.UUID;
  *
  * Pravega client creates a transaction by calling the createTransaction controller API. In response to this API,
  * the controller instance (1) creates transaction node in the peristent store, and (2) Starts tracking the transaction
- * timeout in in-memory data structures managed by TimeoutService by invoking {TimeoutService#addTx} method.
+ * timeout in in-memory data structures managed by TimeoutService by invoking {@link TimeoutService#addTxn} method.
  *
  * Subsequently, the client may renew transaction lease by calling pingTransaction API on the same controller
  * instance. On receiving a ping request for a known transaction, the controller instance updates the in-memory
- * data structures of TimeoutService by invoking {TimeoutService#pingTx} method. The controller instance does
+ * data structures of TimeoutService by invoking {@link TimeoutService#pingTxn} method. The controller instance does
  * not update the persisted transaction data on receiving ping request about a known transaction in order to reduce
  * latency of ping requests. Eventually, the client may commit or abort a transaction by calling commitTransaction
  * or abortTransaction controller API, respectively. On receiving these requests, the controller instance
  * updates the transaction state in the persistent store and removes information about that transaction from
- * TimeoutService by calling {TimeoutService#removeTx} method. If a controller instance does not receive a ping
+ * TimeoutService by calling {@link TimeoutService#removeTxn} method. If a controller instance does not receive a ping
  * request for a transaction before its lease expiry, the controller assumes that the client that initiated the
  * transaction has failed and hence it automatically aborts the transaction, and removes its traces from its in-memory
  * data structures.
@@ -38,10 +38,10 @@ import java.util.UUID;
  * for sending ping requests. However, if that controller instance crashes, or is partitioned from the client, the
  * client attempts to contact another controller instance and renew its lease before expiry. The controller instance
  * can check whether its TimeoutService is managing timeouts for a given transaction by invoking
- * {TimeoutService#containsTx} method. If TimeoutService in a controller instance does not manage timeouts of a
+ * {@link TimeoutService#containsTxn} method. If TimeoutService in a controller instance does not manage timeouts of a
  * transaction then that controller instance first fetches the transaction metadata from persistent store and updates
  * its version in the underlying persistent store. It then updates in-memory data structures of TimeoutService by
- * calling {TimeoutService#addTx} method. Updating transaction node version in the persistent store prevents the old
+ * calling {@link TimeoutService#addTxn} method. Updating transaction node version in the persistent store prevents the old
  * controller instance from automatically aborting that transaction, thus acting as a fencing mechanism.
  *
  */
@@ -59,8 +59,8 @@ public interface TimeoutService extends Service {
      * @param scaleGracePeriod       Maximum amount of time by which transaction lease can be increased
      *                               once a scale operation starts on the transaction stream.
      */
-    void addTx(final String scope, final String stream, final UUID txnId, final int version,
-                      final long lease, final long maxExecutionTimeExpiry, final long scaleGracePeriod);
+    void addTxn(final String scope, final String stream, final UUID txnId, final int version,
+                final long lease, final long maxExecutionTimeExpiry, final long scaleGracePeriod);
 
     /**
      * Remove information about the specified transaction.
@@ -69,16 +69,16 @@ public interface TimeoutService extends Service {
      * @param stream                 Stream name.
      * @param txnId                  Transaction id.
      */
-    void removeTx(final String scope, final String stream, final UUID txnId);
+    void removeTxn(final String scope, final String stream, final UUID txnId);
 
     /**
      * This method increases the txn timeout by lease amount of milliseconds.
      * <p>
-     * If this object is in stopped state, pingTx returns DISCONNECTED status.
+     * If this object is in stopped state, pingTxn returns DISCONNECTED status.
      * If increasing txn timeout causes the time for which txn is open to exceed
-     * max execution time, pingTx returns MAX_EXECUTION_TIME_EXCEEDED. If metadata
+     * max execution time, pingTxn returns MAX_EXECUTION_TIME_EXCEEDED. If metadata
      * about specified txn is not present in the map, it throws IllegalStateException.
-     * Otherwise pingTx returns OK status.
+     * Otherwise pingTxn returns OK status.
      *
      * @param scope  Scope name.
      * @param stream Stream name.
@@ -86,7 +86,7 @@ public interface TimeoutService extends Service {
      * @param lease  Additional amount of time for the transaction to be in open state.
      * @return Ping status
      */
-    PingStatus pingTx(final String scope, final String stream, final UUID txnId, long lease);
+    PingStatus pingTxn(final String scope, final String stream, final UUID txnId, long lease);
 
     /**
      * This method returns a boolean indicating whether it manages timeout for the specified transaction.
@@ -96,5 +96,19 @@ public interface TimeoutService extends Service {
      * @param txnId  Transaction id.
      * @return A boolean indicating whether this class manages timeout for specified transaction.
      */
-    boolean containsTx(final String scope, final String stream, final UUID txnId);
+    boolean containsTxn(final String scope, final String stream, final UUID txnId);
+
+    /**
+     * Returns the maximum allowed lease value.
+     *
+     * @return maximum allowed lease value.
+     */
+    long getMaxLeaseValue();
+
+    /**
+     * Returns the maximum allowed scale grace period.
+     *
+     * @return maximum allowed scale grace period.
+     */
+    long getMaxScaleGracePeriod();
 }

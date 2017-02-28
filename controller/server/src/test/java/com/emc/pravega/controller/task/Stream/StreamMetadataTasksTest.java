@@ -85,7 +85,7 @@ public class StreamMetadataTasksTest {
 
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStorePartialMock, hostStore, taskMetadataStore, executor, "host");
-        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks);
+        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
 
         consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasksPartialMock,
                 streamTransactionMetadataTasks, timeoutService);

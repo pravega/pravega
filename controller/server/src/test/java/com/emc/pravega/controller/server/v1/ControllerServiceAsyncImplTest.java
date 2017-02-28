@@ -79,7 +79,7 @@ public class ControllerServiceAsyncImplTest {
                 executor, "host");
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =
                 new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
-        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks);
+        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 10000);
 
         this.controllerService = new ControllerServiceAsyncImpl(new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService));

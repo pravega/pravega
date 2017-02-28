@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.demo;
 
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -33,6 +34,9 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class EndToEndTransactionTest {
 
+    final static long maxLeaseValue = 30000;
+    final static long maxScaleGracePeriod = 60000;
+
     @Test
     public static void main(String[] args) throws Exception {
         @Cleanup
@@ -49,6 +53,14 @@ public class EndToEndTransactionTest {
 
         final String testScope = "testScope";
         final String testStream = "testStream";
+
+        CompletableFuture<CreateScopeStatus> futureScopeStatus = controller.createScope(testScope);
+        CreateScopeStatus scopeStatus = futureScopeStatus.join();
+
+        if (scopeStatus != CreateScopeStatus.SUCCESS) {
+            log.error("FAILURE: Error creating test scope");
+            return;
+        }
 
         ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 5);
         StreamConfiguration streamConfig =
@@ -79,7 +91,7 @@ public class EndToEndTransactionTest {
                 EventWriterConfig.builder().build());
 
         // region Successful commit tests
-        Transaction<String> transaction = producer.beginTxn(60000, 60000, 60000);
+        Transaction<String> transaction = producer.beginTxn(5000, 3600000, 60000);
 
         for (int i = 0; i < 1; i++) {
             String event = "\n Transactional Publish \n";
@@ -114,7 +126,7 @@ public class EndToEndTransactionTest {
 
         // region Successful abort tests
 
-        Transaction<String> transaction2 = producer.beginTxn(60000, 60000, 60000);
+        Transaction<String> transaction2 = producer.beginTxn(5000, 3600000, 60000);
         for (int i = 0; i < 1; i++) {
             String event = "\n Transactional Publish \n";
             log.info("Producing event: " + event);
@@ -149,7 +161,7 @@ public class EndToEndTransactionTest {
         // region Successful timeout tests
         Transaction<String> tx1 = producer.beginTxn(lease, maxExecutionTime, scaleGracePeriod);
 
-        Thread.sleep(5200);
+        Thread.sleep((long) (1.3 * lease));
 
         Transaction.Status txStatus = tx1.checkStatus();
         Assert.assertTrue(Transaction.Status.ABORTING == txStatus || Transaction.Status.ABORTED == txStatus);
@@ -161,7 +173,7 @@ public class EndToEndTransactionTest {
 
         Transaction<String> tx2 = producer.beginTxn(lease, maxExecutionTime, scaleGracePeriod);
 
-        Thread.sleep(3000);
+        Thread.sleep((long) (0.75 * lease));
 
         Assert.assertEquals(Transaction.Status.OPEN, tx2.checkStatus());
 
@@ -173,11 +185,11 @@ public class EndToEndTransactionTest {
         }
         log.info("SUCCESS: successfully pinged transaction.");
 
-        Thread.sleep(2000);
+        Thread.sleep((long) (0.5 * lease));
 
         Assert.assertEquals(Transaction.Status.OPEN, tx2.checkStatus());
 
-        Thread.sleep(3200);
+        Thread.sleep((long) (0.8 * lease));
 
         txStatus = tx2.checkStatus();
         Assert.assertTrue(Transaction.Status.ABORTING == txStatus || Transaction.Status.ABORTED == txStatus);
@@ -189,7 +201,7 @@ public class EndToEndTransactionTest {
 
         Transaction<String> tx3 = producer.beginTxn(lease, maxExecutionTime, scaleGracePeriod);
 
-        Thread.sleep(3000);
+        Thread.sleep((long) (0.75 * lease));
 
         Assert.assertEquals(Transaction.Status.OPEN, tx3.checkStatus());
 
@@ -201,7 +213,7 @@ public class EndToEndTransactionTest {
             Assert.assertTrue(false);
         }
 
-        Thread.sleep(3000);
+        Thread.sleep((long) (0.75 * lease));
 
         Assert.assertEquals(Transaction.Status.OPEN, tx3.checkStatus());
 
@@ -214,7 +226,7 @@ public class EndToEndTransactionTest {
             log.info("SUCCESS: successfully received error after max expiry time");
         }
 
-        Thread.sleep(2000);
+        Thread.sleep((long) (0.5 * lease));
 
         txStatus = tx3.checkStatus();
         Assert.assertTrue(Transaction.Status.ABORTING == txStatus || Transaction.Status.ABORTED == txStatus);
@@ -223,30 +235,42 @@ public class EndToEndTransactionTest {
 
         // endregion
 
-        // region Ping failure due to controller going into disconnection state
+        // region Ping failure due to very high lease value
 
-        // Fill in these tests once we have controller.stop() implemented.
+        Transaction<String> tx4 = producer.beginTxn(lease, maxExecutionTime, scaleGracePeriod);
+
+        try {
+            tx4.ping(scaleGracePeriod + 1);
+            Assert.assertTrue(false);
+        } catch (PingFailedException pfe) {
+            Assert.assertTrue(true);
+        }
+
+        try {
+            tx4.ping(maxExecutionTime + 1);
+            Assert.assertTrue(false);
+        } catch (PingFailedException pfe) {
+            Assert.assertTrue(true);
+        }
+
+        try {
+            tx4.ping(maxLeaseValue + 1);
+            Assert.assertTrue(false);
+        } catch (PingFailedException pfe) {
+            Assert.assertTrue(true);
+        }
+
+        try {
+            tx4.ping(maxScaleGracePeriod + 1);
+            Assert.assertTrue(false);
+        } catch (PingFailedException pfe) {
+            Assert.assertTrue(true);
+        }
 
         // endregion
 
-        // region
+        // region Ping failure due to controller going into disconnection state
 
-        txnStatus = transaction.checkStatus();
-        assertTrue(txnStatus == Transaction.Status.COMMITTING || txnStatus == Transaction.Status.COMMITTED);
-        log.info("SUCCESS: successful in committing transaction. Transaction status=" + txnStatus);
-
-        txn2Status = transaction2.checkStatus();
-        assertTrue(txn2Status == Transaction.Status.ABORTING || txn2Status == Transaction.Status.ABORTED);
-        log.info("SUCCESS: successful in dropping transaction. Transaction status=" + txn2Status);
-
-        Thread.sleep(2000);
-
-        txnStatus = transaction.checkStatus();
-        assertTrue(txnStatus == Transaction.Status.COMMITTED);
-        log.info("SUCCESS: successfully committed transaction. Transaction status=" + txnStatus);
-
-        txn2Status = transaction2.checkStatus();
-        assertTrue(txn2Status == Transaction.Status.ABORTED);
-        log.info("SUCCESS: successfully aborted transaction. Transaction status=" + txn2Status);
+        // Fill in these tests once we have controller.stop() implemented.
     }
 }

@@ -220,7 +220,7 @@ public final class SetupUtils {
                 streamStore, hostStore, taskMetadataStore, executor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =
                 new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, hostId);
-        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks);
+        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
 
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                                                                     streamTransactionMetadataTasks, timeoutService);

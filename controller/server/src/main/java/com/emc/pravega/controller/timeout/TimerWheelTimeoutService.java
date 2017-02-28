@@ -55,6 +55,10 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final HashedWheelTimer hashedWheelTimer;
     private final ConcurrentHashMap<String, TxnData> map;
+    @Getter
+    private final long maxLeaseValue;
+    @Getter
+    private final long maxScaleGracePeriod;
 
     @Getter(value = AccessLevel.PACKAGE)
     @VisibleForTesting
@@ -74,7 +78,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
             TxnData txnData = map.get(key);
 
             log.debug("Executing timeout task for txn {}", key);
-            streamTransactionMetadataTasks.abortTx(scope, stream, txnId, Optional.of(txnData.getVersion()))
+            streamTransactionMetadataTasks.abortTxn(scope, stream, txnId, Optional.of(txnData.getVersion()))
                     .handle((ok, ex) -> {
                         // If abort attempt fails because of (1) version mismatch, or (2) node not found,
                         // ignore the timeout task.
@@ -121,20 +125,27 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     private static class TxnData {
         private final int version;
         private final long maxExecutionTimeExpiry;
+        private final long scaleGracePeriod;
         private Timeout timeout;
     }
 
-    public TimerWheelTimeoutService(final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
-        this(streamTransactionMetadataTasks, null);
+    public TimerWheelTimeoutService(final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                                    final long maxLeaseValue,
+                                    final long maxScaleGracePeriod) {
+        this(streamTransactionMetadataTasks, maxLeaseValue, maxScaleGracePeriod, null);
     }
 
     @VisibleForTesting
     TimerWheelTimeoutService(final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                             final long maxLeaseValue,
+                             final long maxScaleGracePeriod,
                              final BlockingQueue<Optional<Throwable>> taskCompletionQueue) {
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
         this.hashedWheelTimer = new HashedWheelTimer(THREAD_FACTORY, TICK_DURATION, TIME_UNIT, TICKS_PER_WHEEL,
                 LEAK_DETECTION);
         this.map = new ConcurrentHashMap<>();
+        this.maxLeaseValue = maxLeaseValue;
+        this.maxScaleGracePeriod = maxScaleGracePeriod;
         this.taskCompletionQueue = taskCompletionQueue;
         this.startAsync();
     }
@@ -161,20 +172,20 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     }
 
     @Override
-    public void addTx(final String scope, final String stream, final UUID txnId, final int version,
-                      final long lease, final long maxExecutionTimeExpiry, final long scaleGracePeriod) {
+    public void addTxn(final String scope, final String stream, final UUID txnId, final int version,
+                       final long lease, final long maxExecutionTimeExpiry, final long scaleGracePeriod) {
 
         if (this.isRunning()) {
             final String key = getKey(scope, stream, txnId);
             final TxnTimeoutTask task = new TxnTimeoutTask(scope, stream, txnId);
             Timeout timeout = hashedWheelTimer.newTimeout(task, lease, TimeUnit.MILLISECONDS);
-            map.put(key, new TxnData(version, maxExecutionTimeExpiry, timeout));
+            map.put(key, new TxnData(version, maxExecutionTimeExpiry, scaleGracePeriod, timeout));
         }
 
     }
 
     @Override
-    public void removeTx(String scope, String stream, UUID txnId) {
+    public void removeTxn(String scope, String stream, UUID txnId) {
         String key = getKey(scope, stream, txnId);
         final TxnData txnData = map.get(key);
         txnData.getTimeout().cancel();
@@ -182,7 +193,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     }
 
     @Override
-    public PingStatus pingTx(final String scope, final String stream, final UUID txnId, long lease) {
+    public PingStatus pingTxn(final String scope, final String stream, final UUID txnId, long lease) {
 
         if (!this.isRunning()) {
             return PingStatus.DISCONNECTED;
@@ -192,25 +203,25 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
         Preconditions.checkState(map.containsKey(key), "Stream not found in the map");
 
         final TxnData txnData = map.get(key);
-        final long current = System.currentTimeMillis();
-        if (current + lease > txnData.getMaxExecutionTimeExpiry()) {
 
+        if (lease > maxLeaseValue || lease > txnData.getScaleGracePeriod()) {
+            return PingStatus.LEASE_TOO_LARGE;
+        }
+
+        if (lease + System.currentTimeMillis() > txnData.getMaxExecutionTimeExpiry()) {
             return PingStatus.MAX_EXECUTION_TIME_EXCEEDED;
-
         } else {
-
             Timeout timeout = txnData.getTimeout();
             timeout.cancel();
             Timeout newTimeout = hashedWheelTimer.newTimeout(timeout.task(), lease, TimeUnit.MILLISECONDS);
             txnData.setTimeout(newTimeout);
             return PingStatus.OK;
-
         }
 
     }
 
     @Override
-    public boolean containsTx(final String scope, final String stream, final UUID txnId) {
+    public boolean containsTxn(final String scope, final String stream, final UUID txnId) {
         return map.containsKey(getKey(scope, stream, txnId));
     }
 

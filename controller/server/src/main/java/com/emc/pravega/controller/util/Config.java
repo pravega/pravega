@@ -67,4 +67,8 @@ public final class Config {
     //REST server configuration
     public static final String REST_SERVER_IP = CONFIG.getString("config.controller.server.rest.serverIp");
     public static final int REST_SERVER_PORT = CONFIG.getInt("config.controller.server.rest.serverPort");
+
+    //Transaction configuration
+    public static final long MAX_LEASE_VALUE = CONFIG.getLong("config.controller.server.transaction.maxLeaseValue");
+    public static final long MAX_SCALE_GRACE_PERIOD = CONFIG.getLong("config.controller.server.transaction.maxScaleGracePeriod");
 }

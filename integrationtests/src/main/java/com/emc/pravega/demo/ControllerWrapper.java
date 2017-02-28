@@ -64,7 +64,7 @@ public class ControllerWrapper {
                 executor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, executor, hostId);
-        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks);
+        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
 
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService);
@@ -78,9 +78,6 @@ public class ControllerWrapper {
         controllerEventProcessors.initialize();
 
         streamTransactionMetadataTasks.initializeStreamWriters(localController);
-        //endregion
-
-        controllerEventProcessors.initialize();
         //endregion
 
         return new LocalController(controllerService);

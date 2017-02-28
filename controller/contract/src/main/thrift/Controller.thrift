@@ -31,6 +31,7 @@ enum TxnStatus {
 
 enum PingStatus {
     OK,
+    LEASE_TOO_LARGE,
     MAX_EXECUTION_TIME_EXCEEDED,
     SCALE_GRACE_TIME_EXCEEDED,
     DISCONNECTED
