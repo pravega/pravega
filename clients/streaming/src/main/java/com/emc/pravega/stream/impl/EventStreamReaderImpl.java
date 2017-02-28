@@ -19,10 +19,12 @@ import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.NoSuchEventException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactory;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -30,6 +32,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.concurrent.GuardedBy;
+
+import lombok.Synchronized;
 
 
 public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
@@ -182,6 +186,12 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         } catch (EndOfSegmentException e) {
             throw new NoSuchEventException(e.getMessage());
         }
+    }
+
+    @Synchronized
+    @VisibleForTesting
+    List<SegmentInputStream> getReaders() {
+        return Collections.unmodifiableList(readers);
     }
 
 }
