@@ -38,6 +38,7 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.apache.thrift.TException;
+import org.junit.AfterClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -54,6 +55,8 @@ import static org.junit.Assert.assertEquals;
 @RunWith(Parameterized.class)
 public class ControllerServiceAsyncImplTest {
 
+    private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newScheduledThreadPool(20,
+            new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
     private final String scope1 = "scope1";
     private final String scope2 = "scope2";
     private final String scope3 = "scope3";
@@ -67,20 +70,19 @@ public class ControllerServiceAsyncImplTest {
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final StreamMetadataStore streamStore;
 
-    public ControllerServiceAsyncImplTest(ScheduledExecutorService executor,
-                                          CuratorFramework zkClient,
+    public ControllerServiceAsyncImplTest(CuratorFramework zkClient,
                                           StreamMetadataStore streamStoreType)
             throws Exception {
         streamStore = streamStoreType;
         storeClient = new ZKStoreClient(zkClient);
 
-        taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
+        taskMetadataStore = TaskStoreFactory.createStore(storeClient, EXECUTOR_SERVICE);
         hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                executor, "host");
+                EXECUTOR_SERVICE, "host");
 
         streamTransactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
+                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, EXECUTOR_SERVICE, "host");
 
         controllerService = new ControllerServiceAsyncImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
@@ -101,13 +103,15 @@ public class ControllerServiceAsyncImplTest {
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
-        final ScheduledExecutorService executor = Executors.newScheduledThreadPool(20,
-                new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
-
         return Arrays.asList(new Object[][]{
-                {executor, zkClient, StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executor)},
-                {executor, zkClient, new ZKStreamMetadataStore(zkClient, executor)}
+                {zkClient, StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, EXECUTOR_SERVICE)},
+                {zkClient, new ZKStreamMetadataStore(zkClient, EXECUTOR_SERVICE)}
         });
+    }
+
+    @AfterClass
+    public static void cleanUp() {
+        EXECUTOR_SERVICE.shutdown();
     }
 
     @Test
