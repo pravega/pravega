@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.writer;
 
@@ -18,7 +16,6 @@ import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
-
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -33,12 +30,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
-import lombok.Setter;
-import lombok.val;
 
 /**
  * Test version of a WriterDataSource that can accumulate operations in memory (just like the real DurableLog) and only
@@ -64,17 +57,17 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     private final AtomicLong lastAddedCheckpoint;
     private final AtomicBoolean ackEffective;
     private final AtomicBoolean closed;
-    @Setter
+    @GuardedBy("lock")
     private Consumer<Long> segmentMetadataRequested;
-    @Setter
+    @GuardedBy("lock")
     private ErrorInjector<Exception> readSyncErrorInjector;
-    @Setter
+    @GuardedBy("lock")
     private ErrorInjector<Exception> readAsyncErrorInjector;
-    @Setter
+    @GuardedBy("lock")
     private ErrorInjector<Exception> ackSyncErrorInjector;
-    @Setter
+    @GuardedBy("lock")
     private ErrorInjector<Exception> ackAsyncErrorInjector;
-    @Setter
+    @GuardedBy("lock")
     private ErrorInjector<Exception> getAppendDataErrorInjector;
     private final Object lock = new Object();
 
@@ -192,10 +185,14 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     public CompletableFuture<Void> acknowledge(long upToSequenceNumber, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkArgument(this.metadata.isValidTruncationPoint(upToSequenceNumber), "Invalid Truncation Point. Must refer to a MetadataCheckpointOperation.");
-        ErrorInjector.throwSyncExceptionIfNeeded(this.ackSyncErrorInjector);
+        ErrorInjector<Exception> asyncErrorInjector;
+        synchronized (this.lock) {
+            ErrorInjector.throwSyncExceptionIfNeeded(this.ackSyncErrorInjector);
+            asyncErrorInjector = this.ackAsyncErrorInjector;
+        }
 
         return ErrorInjector
-                .throwAsyncExceptionIfNeeded(this.ackAsyncErrorInjector)
+                .throwAsyncExceptionIfNeeded(asyncErrorInjector)
                 .thenRunAsync(() -> {
                     if (this.ackEffective.get()) {
                         // ackEffective determines whether the ack operation has any effect or not.
@@ -223,10 +220,14 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     @Override
     public CompletableFuture<Iterator<Operation>> read(long afterSequenceNumber, int maxCount, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        ErrorInjector.throwSyncExceptionIfNeeded(this.readSyncErrorInjector);
+        ErrorInjector<Exception> asyncErrorInjector;
+        synchronized (this.lock) {
+            ErrorInjector.throwSyncExceptionIfNeeded(this.readSyncErrorInjector);
+            asyncErrorInjector = this.readAsyncErrorInjector;
+        }
 
         return ErrorInjector
-                .throwAsyncExceptionIfNeeded(this.readAsyncErrorInjector)
+                .throwAsyncExceptionIfNeeded(asyncErrorInjector)
                 .thenCompose(v -> {
                     Iterator<Operation> logReadResult = this.log.read(afterSequenceNumber, maxCount);
                     if (logReadResult.hasNext()) {
@@ -247,7 +248,10 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     @Override
     public InputStream getAppendData(long streamSegmentId, long startOffset, int length) {
-        ErrorInjector.throwSyncExceptionIfNeeded(this.getAppendDataErrorInjector);
+        synchronized (this.lock) {
+            ErrorInjector.throwSyncExceptionIfNeeded(this.getAppendDataErrorInjector);
+        }
+
         AppendData ad;
         synchronized (this.lock) {
             ad = this.appendData.getOrDefault(streamSegmentId, null);
@@ -277,7 +281,11 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     @Override
     public UpdateableSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) {
-        val callback = this.segmentMetadataRequested;
+        Consumer<Long> callback;
+        synchronized (this.lock) {
+            callback = this.segmentMetadataRequested;
+        }
+
         if (callback != null) {
             CallbackHelpers.invokeSafely(callback, streamSegmentId, null);
         }
@@ -288,6 +296,42 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     //endregion
 
     //region Other Properties
+
+    void setSegmentMetadataRequested(Consumer<Long> callback) {
+        synchronized (this.lock) {
+            this.segmentMetadataRequested = callback;
+        }
+    }
+
+    void setReadSyncErrorInjector(ErrorInjector<Exception> injector) {
+        synchronized (this.lock) {
+            this.readSyncErrorInjector = injector;
+        }
+    }
+
+    void setReadAsyncErrorInjector(ErrorInjector<Exception> injector) {
+        synchronized (this.lock) {
+            this.readAsyncErrorInjector = injector;
+        }
+    }
+
+    void setAckSyncErrorInjector(ErrorInjector<Exception> injector) {
+        synchronized (this.lock) {
+            this.ackSyncErrorInjector = injector;
+        }
+    }
+
+    void setAckAsyncErrorInjector(ErrorInjector<Exception> injector) {
+        synchronized (this.lock) {
+            this.ackAsyncErrorInjector = injector;
+        }
+    }
+
+    void setGetAppendDataErrorInjector(ErrorInjector<Exception> injector) {
+        synchronized (this.lock) {
+            this.getAppendDataErrorInjector = injector;
+        }
+    }
 
     /**
      * Sets whether the acknowledgements have any effect of actually truncating the inner log.
@@ -372,6 +416,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         }
     }
 
+    @ThreadSafe
     private static class AppendData {
         @GuardedBy("this")
         private final TreeMap<Long, byte[]> data = new TreeMap<>();
