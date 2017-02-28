@@ -40,6 +40,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
+import static org.junit.Assert.assertEquals;
+
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class PravegaTest {
@@ -111,9 +113,10 @@ public class PravegaTest {
      *
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
+     * @throws ExecutionException if error in create stream
      */
     @Before
-    public void createStream() throws InterruptedException, URISyntaxException {
+    public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
 
         Service conService = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
@@ -124,15 +127,10 @@ public class PravegaTest {
         log.debug("Controller URI: {} ", controllerUri);
 
         ControllerImpl controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
-
-        try {
             //create a stream
             CompletableFuture<CreateStreamStatus> status = controller.createStream(config);
             log.debug("create stream status {}", status.get());
-            //assertEquals(CreateStreamStatus.SUCCESS, status.get());
-        } catch (ExecutionException e) {
-            log.error("error in doing a get on create stream status {}", e);
-        }
+            assertEquals(CreateStreamStatus.SUCCESS, status.get());
 
         Thread.sleep(30000);
     }
@@ -158,15 +156,15 @@ public class PravegaTest {
         ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri);
 
         @Cleanup
-        EventStreamWriter<Serializable> producer = clientFactory.createEventWriter(STREAM_NAME,
+        EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM_NAME,
                 new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
 
         for (int i = 0; i < 5; i++) {
-            String event = "\n Transactional Publish \n";
+            String event = "\n Publish \n";
             log.debug("Producing event: {} ", event);
-            producer.writeEvent("", event);
-            producer.flush();
+            writer.writeEvent("", event);
+            writer.flush();
             Thread.sleep(2000);
         }
 
@@ -177,11 +175,7 @@ public class PravegaTest {
                 .createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
                         Collections.singletonList(STREAM_NAME));
 
-        try {
             Thread.sleep(10000);
-        } catch (InterruptedException e) {
-            log.error(" error in thread sleep {}", e);
-        }
 
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),

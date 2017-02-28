@@ -95,7 +95,6 @@ public class PravegaControllerService extends MarathonBasedService {
      * @return App instance of marathon app
      */
     private App createPravegaControllerApp() {
-
         App app = new App();
         app.setId(this.id);
         app.setCpus(cpu);
@@ -127,6 +126,7 @@ public class PravegaControllerService extends MarathonBasedService {
         map.put("SERVICE_HOST_IP", segUri.getHost());
         map.put("REST_SERVER_PORT", String.valueOf(REST_PORT));
         app.setEnv(map);
+
         return app;
     }
 }

@@ -75,7 +75,6 @@ public class BookkeeperService extends MarathonBasedService {
     }
 
     private App createBookieApp() {
-
         App app = new App();
         app.setId(this.id);
         app.setCpus(cpu);
@@ -113,7 +112,7 @@ public class BookkeeperService extends MarathonBasedService {
         List<HealthCheck> healthCheckList = new ArrayList<>();
         healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0));
         app.setHealthChecks(healthCheckList);
+
         return app;
     }
-
 }

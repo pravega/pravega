@@ -35,8 +35,8 @@ public abstract class MarathonBasedService implements Service {
     static final boolean FORCE_IMAGE = true;
     static final int ZKSERVICE_ZKPORT = 2181;
     static final String CONTAINER_TYPE = "DOCKER";
-    static final String IMAGE_PATH = "asdrepo.isus.emc.com:8103/nautilus/";
-    static final String PRAVEGA_VERSION = System.getProperty("pravegaVersion");
+    static final String IMAGE_PATH = System.getProperty("imageRegistry");
+    static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
     static final String NETWORK_TYPE = "HOST";
     private static final String TCP = "tcp://";
     final String id;
@@ -130,7 +130,6 @@ public abstract class MarathonBasedService implements Service {
     }
 
     void deleteApp(String appID) {
-
         try {
             marathonClient.deleteApp(appID);
         } catch (MarathonException e) {

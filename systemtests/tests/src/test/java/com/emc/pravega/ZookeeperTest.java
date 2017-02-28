@@ -41,7 +41,7 @@ public class ZookeeperTest {
      */
     @Test
     public void zkTest() {
-        log.debug("Start execution of ZkTest");
+        log.info("Start execution of ZkTest");
         Service zk = new ZookeeperService("zookeeper", 0, 0.0, 0.0);
         URI zkUri = zk.getServiceDetails().get(0);
         CuratorFramework curatorFramework =
@@ -49,7 +49,7 @@ public class ZookeeperTest {
         curatorFramework.start();
         CuratorZookeeperClient zkClient = curatorFramework.getZookeeperClient();
         assertEquals(true, zkClient.isConnected());
-        log.debug("Zookeeper Service URI : {} ", zkUri);
-        log.debug("ZkTest  execution completed");
+        log.info("Zookeeper Service URI : {} ", zkUri);
+        log.info("ZkTest  execution completed");
     }
 }

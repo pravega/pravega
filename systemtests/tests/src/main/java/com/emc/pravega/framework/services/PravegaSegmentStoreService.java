@@ -77,7 +77,6 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         }
 
     private App createPravegaSegmentStoreApp() {
-
         App app = new App();
         app.setId(this.id);
         app.setBackoffSeconds(BACK_OFF_SECS);
@@ -113,6 +112,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         map.put("dlog_hostname", zkUri.getHost());
         map.put("hdfs_fs_default_name", "namenode-0.hdfs.mesos:9001");
         app.setEnv(map);
+
         return app;
     }
 }
