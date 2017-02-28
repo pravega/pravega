@@ -432,7 +432,6 @@ public class ZkStreamTest {
                     return null;
                 }).get();
 
-
         store.markCold(SCOPE, streamName, 0, System.currentTimeMillis() + 1000, null, executor).get();
         assertTrue(store.isCold(SCOPE, streamName, 0, null, executor).get());
         Thread.sleep(1000);
