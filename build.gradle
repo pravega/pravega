@@ -574,6 +574,12 @@ project('systemtests:tests') {
         if (System.getProperty("masterIP") == null) {
             systemProperty "masterIP", "INVALID_MASTER_IP"
         }
+        if (System.getProperty("dockerImageVersion") == null) {
+            systemProperty "dockerImageVersion", "INVALID_IMAGE_VERSION"
+        }
+        if (System.getProperty("dockerImageRegistry") == null) {
+            systemProperty "dockerImageRegistry", "INVALID_IMAGE_REGISTRY"
+        }
         systemProperty "testArtifactUrl", project.property('testArtifactUrl') + "/pravega/systemtests/0.1/systemtests-0.1.jar"
         maxParallelForks = 1
     }
