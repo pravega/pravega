@@ -216,6 +216,11 @@ class InMemoryStream implements Stream {
     }
 
     @Override
+    public CompletableFuture<VersionedTransactionData> getTransactionData(UUID txId) {
+        throw new NotImplementedException();
+    }
+
+    @Override
     public CompletableFuture<TxnStatus> sealTransaction(UUID txId, boolean commit, Optional<Integer> version) {
         throw new NotImplementedException();
     }

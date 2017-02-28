@@ -141,6 +141,14 @@ interface Stream {
     CompletableFuture<VersionedTransactionData> pingTransaction(final UUID txId, final long lease);
 
     /**
+     * Fetch transaction metadata along with its version.
+     *
+     * @param txId transaction id.
+     * @return transaction metadata along with its version.
+     */
+    CompletableFuture<VersionedTransactionData> getTransactionData(UUID txId);
+
+    /**
      * Seal given transaction
      *
      * @param txId

@@ -34,8 +34,8 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class EndToEndTransactionTest {
 
-    final static long maxLeaseValue = 30000;
-    final static long maxScaleGracePeriod = 60000;
+    final static long MAX_LEASE_VALUE = 30000;
+    final static long MAX_SCALE_GRACE_PERIOD = 60000;
 
     @Test
     public static void main(String[] args) throws Exception {
@@ -254,14 +254,14 @@ public class EndToEndTransactionTest {
         }
 
         try {
-            tx4.ping(maxLeaseValue + 1);
+            tx4.ping(MAX_LEASE_VALUE + 1);
             Assert.assertTrue(false);
         } catch (PingFailedException pfe) {
             Assert.assertTrue(true);
         }
 
         try {
-            tx4.ping(maxScaleGracePeriod + 1);
+            tx4.ping(MAX_SCALE_GRACE_PERIOD + 1);
             Assert.assertTrue(false);
         } catch (PingFailedException pfe) {
             Assert.assertTrue(true);
@@ -272,5 +272,7 @@ public class EndToEndTransactionTest {
         // region Ping failure due to controller going into disconnection state
 
         // Fill in these tests once we have controller.stop() implemented.
+
+        System.exit(0);
     }
 }

@@ -245,26 +245,37 @@ public class ControllerService {
 
             return CompletableFuture.completedFuture(status);
         } else {
-            // Otherwise start owning the transaction timeout management by updating the txn node data in the store,
+            // Otherwise, first check whether lease value is within necessary bounds, and then
+            // start owning the transaction timeout management by updating the txn node data in the store,
             // thus updating its version.
             // Pass this transaction metadata along with its version to timeout service, and ask timeout service to
             // start managing timeout for this transaction.
-            return streamTransactionMetadataTasks.pingTxn(scope, stream, txId, lease)
-                    .thenApply(txData -> {
-
-                        // If lease value is too large return error
-                        if (lease > txData.getScaleGracePeriod() || lease > timeoutService.getMaxLeaseValue()) {
+            return streamStore.getTransactionData(scope, stream, txId)
+                    .thenApply(txnData -> {
+                        // sanity check for lease value
+                        if (lease > txnData.getScaleGracePeriod() || lease > timeoutService.getMaxLeaseValue()) {
                             return PingStatus.LEASE_TOO_LARGE;
-                        }
-
-                        if (lease > txData.getMaxExecutionExpiryTime() - System.currentTimeMillis()) {
+                        } else if (lease + System.currentTimeMillis() > txnData.getMaxExecutionExpiryTime()) {
                             return PingStatus.MAX_EXECUTION_TIME_EXCEEDED;
+                        } else {
+                            return PingStatus.OK;
                         }
+                    })
+                    .thenCompose(status -> {
+                        if (status == PingStatus.OK) {
+                            // If lease value if within necessary bounds, update the transaction node data, thus
+                            // updating its version.
+                            return streamTransactionMetadataTasks.pingTxn(scope, stream, txId, lease)
+                                    .thenApply(data -> {
+                                        // Let timeout service start managing timeout for the transaction.
+                                        timeoutService.addTxn(scope, stream, txId, data.getVersion(), lease,
+                                                data.getMaxExecutionExpiryTime(), data.getScaleGracePeriod());
 
-                        timeoutService.addTxn(scope, stream, txId, txData.getVersion(), lease,
-                                txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
-
-                        return PingStatus.OK;
+                                        return PingStatus.OK;
+                                    });
+                        } else {
+                            return CompletableFuture.completedFuture(status);
+                        }
                     });
         }
     }

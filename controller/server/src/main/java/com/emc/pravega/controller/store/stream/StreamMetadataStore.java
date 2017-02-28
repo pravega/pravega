@@ -192,6 +192,16 @@ public interface StreamMetadataStore {
                                                                 final UUID txId, final long lease);
 
     /**
+     * Fetch transaction metadata along with its version.
+     *
+     * @param scopeName  scope
+     * @param streamName stream
+     * @param txId       transaction id
+     * @return           transaction metadata along with its version.
+     */
+    CompletableFuture<VersionedTransactionData> getTransactionData(String scopeName, String streamName, UUID txId);
+
+    /**
      * Get transaction status from the stream store.
      *
      * @param scopeName  scope

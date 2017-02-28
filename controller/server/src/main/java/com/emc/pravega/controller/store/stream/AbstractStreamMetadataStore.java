@@ -362,6 +362,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<VersionedTransactionData> getTransactionData(final String scopeName, final String streamName,
+                                                                          final UUID txId) {
+        return getStream(scopeName, streamName).getTransactionData(txId);
+    }
+
+    @Override
     public CompletableFuture<TxnStatus> transactionStatus(final String scopeName, final String streamName, final UUID txId) {
         return getStream(scopeName, streamName).checkTransactionStatus(txId);
     }

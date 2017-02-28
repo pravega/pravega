@@ -318,6 +318,17 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
+    public CompletableFuture<VersionedTransactionData> getTransactionData(UUID txId) {
+        return getActiveTx(txId)
+                .thenApply(data -> {
+                    ActiveTxRecord activeTxRecord = ActiveTxRecord.parse(data.getData());
+                    return new VersionedTransactionData(txId, data.getVersion(),
+                            activeTxRecord.getTxnStatus(), activeTxRecord.getTxCreationTimestamp(),
+                            activeTxRecord.getMaxExecutionExpiryTime(), activeTxRecord.getScaleGracePeriod());
+                });
+    }
+
+    @Override
     public CompletableFuture<TxnStatus> checkTransactionStatus(final UUID txId) {
 
         final CompletableFuture<TxnStatus> activeTx = getActiveTx(txId)
