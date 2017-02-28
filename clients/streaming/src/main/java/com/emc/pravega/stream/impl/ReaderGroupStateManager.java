@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -90,13 +91,19 @@ public class ReaderGroupStateManager {
      * Add this reader to the reader group so that it is able to acquire segments
      */
     void initializeReader() {
+        AtomicBoolean alreadyAdded = new AtomicBoolean(false);
         sync.updateState(state -> {
             if (state.getSegments(readerId) == null) {
                 return Collections.singletonList(new AddReader(readerId));
             } else {
+                alreadyAdded.set(true);
                 return null;
             }
         });
+        if (alreadyAdded.get()) {
+            throw new IllegalStateException("The requested reader: " + readerId
+                    + " cannot be added to the group because it is already in the group. Perhaps close() was not called?");
+        }
         acquireTimer.zero();
     }
     
