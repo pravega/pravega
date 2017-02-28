@@ -53,7 +53,6 @@ public class PravegaControllerService extends MarathonBasedService {
      */
     @Override
     public void start(final boolean wait) {
-        deleteApp("/pravega/controller");
         log.debug("Starting service: {}", getID());
         try {
             marathonClient.createApp(createPravegaControllerApp());
@@ -83,7 +82,7 @@ public class PravegaControllerService extends MarathonBasedService {
 
     /**
      * Cleanup after service is stopped.
-     * This is a placeholder to perform actions of cleaning up configuration of controller in zk
+     * This is a placeholder to perform clean up actions
      */
     @Override
     public void clean() {
@@ -105,7 +104,7 @@ public class PravegaControllerService extends MarathonBasedService {
         app.getContainer().setType(CONTAINER_TYPE);
         app.getContainer().setDocker(new Docker());
         //TODO: change tag to latest
-        app.getContainer().getDocker().setImage(IMAGE_PATH + "pravega-controller:" + PRAVEGA_VERSION);
+        app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/pravega-controller:" + PRAVEGA_VERSION);
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
         //set docker container parameters

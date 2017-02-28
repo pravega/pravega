@@ -43,7 +43,6 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
 
     @Override
     public void start(final boolean wait) {
-        deleteApp("/pravega/segmentstore");
         log.info("Starting Pravega SegmentStore Service: {}", getID());
         try {
             marathonClient.createApp(createPravegaSegmentStoreApp());
@@ -60,7 +59,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
 
         /**
          * Cleanup after service is stopped.
-         * This is a placeholder to perform cleaning up configuration of segmentstore in zk
+         * This is a placeholder to perform clean up actions
          */
         @Override
         public void clean() {
@@ -94,7 +93,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         volumeCollection.add(createVolume("/tmp/logs", "/mnt/logs", "RW"));
         app.getContainer().setVolumes(volumeCollection);
         //set the image and network
-        app.getContainer().getDocker().setImage(IMAGE_PATH + "pravega-host:" + PRAVEGA_VERSION);
+        app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/pravega-host:" + PRAVEGA_VERSION);
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
         //set port
@@ -108,7 +107,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         Map<String, String> map = new HashMap<>();
         map.put("ZK_URL", zk);
-        map.put("pravegaservice_zkURL", zk);
+        map.put("pravegaservice_zkHostName", zkUri.getHost());
         map.put("dlog_hostname", zkUri.getHost());
         map.put("hdfs_fs_default_name", "namenode-0.hdfs.mesos:9001");
         app.setEnv(map);

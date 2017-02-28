@@ -6,6 +6,7 @@ package com.emc.pravega;
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
 import com.emc.pravega.framework.services.PravegaControllerService;
+import com.emc.pravega.framework.services.PravegaSegmentStoreService;
 import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.framework.services.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +32,11 @@ public class PravegaControllerTest {
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        Service con = new PravegaControllerService("controller", zk.getServiceDetails().get(0), null, 1, 0.1, 256.0);
+        Service seg = new PravegaSegmentStoreService("segmentstore", zk.getServiceDetails().get(0), 1, 1.0, 512.0);
+        if (!seg.isRunning()) {
+            seg.start(true);
+        }
+        Service con = new PravegaControllerService("controller", zk.getServiceDetails().get(0), seg.getServiceDetails().get(0), 1, 0.1, 256.0);
         if (!con.isRunning()) {
             con.start(true);
         }
@@ -49,7 +54,9 @@ public class PravegaControllerTest {
         List<URI> conUri = con.getServiceDetails();
         log.debug("Controller Service URI details: {} ", conUri);
         for (int i = 0; i < conUri.size(); i++) {
-            assertEquals(9090, conUri.get(i).getPort());
+            int port = conUri.get(i).getPort();
+            boolean boolPort = port == 9090 || port == 10080;
+            assertEquals(true, boolPort);
         }
         log.debug("ControllerTest  execution completed");
     }

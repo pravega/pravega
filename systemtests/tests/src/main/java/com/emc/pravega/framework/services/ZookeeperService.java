@@ -35,7 +35,6 @@ public class ZookeeperService extends MarathonBasedService {
 
     @Override
     public void start(final boolean wait) {
-        deleteApp(getID());
         log.info("Starting Zookeeper Service: {}", getID());
         try {
             marathonClient.createApp(createZookeeperApp());
@@ -50,7 +49,7 @@ public class ZookeeperService extends MarathonBasedService {
         }
     }
 
-        //This is a placeholder to perform actions related to  cleaning up of zk
+        //This is a placeholder to perform clean up actions
         @Override
         public void clean() {
         }
@@ -82,5 +81,4 @@ public class ZookeeperService extends MarathonBasedService {
 
         return app;
     }
-
 }

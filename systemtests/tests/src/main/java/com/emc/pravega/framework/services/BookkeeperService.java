@@ -44,7 +44,6 @@ public class BookkeeperService extends MarathonBasedService {
 
     @Override
     public void start(final boolean wait) {
-        deleteApp("/pravega/bookkeeper");
         log.info("Starting Bookkeeper Service: {}", getID());
         try {
             marathonClient.createApp(createBookieApp());
@@ -59,7 +58,7 @@ public class BookkeeperService extends MarathonBasedService {
         }
     }
 
-    //This is a placeholder to perform actions of cleaning up configuration of bookies in zk
+    //This is a placeholder to perform clean up actions
     @Override
     public void clean() {
     }
@@ -84,7 +83,7 @@ public class BookkeeperService extends MarathonBasedService {
         app.setContainer(new Container());
         app.getContainer().setType(CONTAINER_TYPE);
         app.getContainer().setDocker(new Docker());
-        app.getContainer().getDocker().setImage(IMAGE_PATH + "bookkeeper:" + PRAVEGA_VERSION);
+        app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/bookkeeper:" + PRAVEGA_VERSION);
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
         Collection<Volume> volumeCollection = new ArrayList<>();

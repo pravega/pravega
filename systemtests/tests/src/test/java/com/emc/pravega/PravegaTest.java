@@ -4,6 +4,7 @@
 
 package com.emc.pravega;
 
+import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.framework.Environment;
 import com.emc.pravega.framework.SystemTestRunner;
@@ -12,12 +13,8 @@ import com.emc.pravega.framework.services.PravegaControllerService;
 import com.emc.pravega.framework.services.PravegaSegmentStoreService;
 import com.emc.pravega.framework.services.Service;
 import com.emc.pravega.framework.services.ZookeeperService;
-import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
-import com.emc.pravega.stream.ReaderConfig;
-import com.emc.pravega.stream.ReaderGroupConfig;
-import com.emc.pravega.stream.ReinitializationRequiredException;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ControllerImpl;
@@ -33,9 +30,7 @@ import org.junit.runner.RunWith;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -83,7 +78,6 @@ public class PravegaTest {
 
         //4.start host
         Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, 1, 1, 512.0);
-
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -113,7 +107,7 @@ public class PravegaTest {
      *
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
-     * @throws ExecutionException if error in create stream
+     * @throws ExecutionException   if error in create stream
      */
     @Before
     public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
@@ -121,18 +115,15 @@ public class PravegaTest {
         Service conService = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
-
         log.debug("Invoking create stream.");
-
         log.debug("Controller URI: {} ", controllerUri);
-
         ControllerImpl controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
-            //create a stream
-            CompletableFuture<CreateStreamStatus> status = controller.createStream(config);
-            log.debug("create stream status {}", status.get());
-            assertEquals(CreateStreamStatus.SUCCESS, status.get());
-
-        Thread.sleep(30000);
+        //create a stream
+        CompletableFuture<CreateScopeStatus> scopeStatus = controller.createScope(STREAM_SCOPE);
+        System.out.println("create scope status" + scopeStatus.get());
+        CompletableFuture<CreateStreamStatus> status = controller.createStream(config);
+        log.debug("create stream status {}", status.get());
+        assertEquals(CreateStreamStatus.SUCCESS, status.get());
     }
 
     /**
@@ -148,49 +139,19 @@ public class PravegaTest {
         Service conService = new PravegaControllerService("controller", null, null, 0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
-
         log.debug("Invoking producer test.");
-
         log.debug("Controller URI: {} ", controllerUri);
-
         ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri);
-
         @Cleanup
         EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM_NAME,
                 new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
-
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 100; i++) {
             String event = "\n Publish \n";
             log.debug("Producing event: {} ", event);
             writer.writeEvent("", event);
             writer.flush();
-            Thread.sleep(2000);
+            Thread.sleep(500);
         }
-
-        //Bug in controller.Sleep can be removed after the pr #510 goes in
-        Thread.sleep(10000);
-
-        ReaderGroupManager.withScope(STREAM_SCOPE, controllerUri)
-                .createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
-                        Collections.singletonList(STREAM_NAME));
-
-            Thread.sleep(10000);
-
-        @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
-                READER_GROUP,
-                new JavaSerializer<>(),
-                ReaderConfig.builder().build());
-        for (int i = 0; i < 5; i++) {
-            String event = null;
-            try {
-                event = reader.readNextEvent(6000).getEvent();
-            } catch (ReinitializationRequiredException e) {
-                log.error(" error in reading next event with a given timeout{}", e);
-            }
-            log.debug("Read event: {} ", event);
-        }
-        reader.close();
     }
 }
