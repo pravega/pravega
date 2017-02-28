@@ -155,7 +155,7 @@ public class ClientFactoryImpl implements ClientFactory {
             StateSynchronizer<StateT> createStateSynchronizer(String streamName,
                     Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer,
                     SynchronizerConfig config) {
-        StreamSegments segments = getAndHandleExceptions(controller.getCurrentSegments(streamName, streamName),
+        StreamSegments segments = getAndHandleExceptions(controller.getCurrentSegments(scope, streamName),
                                                          StreamDoesNotExistException::new);
         Segment segment = new Segment(scope, streamName, 0);
         if (!segments.getSegments().contains(segment)) {
