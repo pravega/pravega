@@ -12,7 +12,6 @@ import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.task.LockFailedException;
-import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.ScalingPolicy;
