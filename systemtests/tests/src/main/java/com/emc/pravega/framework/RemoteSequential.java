@@ -105,7 +105,7 @@ public class RemoteSequential implements TestExecutor {
 
         run.setCmd("docker run --rm --name=\"testCase-1\" -v $(pwd):/data asdrepo.isus.emc.com:8103/java:8 java" +
                 " -DmasterIP=" + MESOS_MASTER +
-                " -cp /data/systemtests-0.1.jar com.emc.pravega.SingleJUnitTestRunner " +
+                " -cp /data/systemtests-"+System.getProperty("testVersion")+".jar com.emc.pravega.SingleJUnitTestRunner " +
                 className + "#" + methodName + " > server.log 2>&1" +
                 "; exit $?");
 
