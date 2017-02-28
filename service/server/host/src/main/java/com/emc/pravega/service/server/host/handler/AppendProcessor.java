@@ -37,7 +37,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -157,8 +156,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     numOfEvents = last.getEventNumber() - first.getEventNumber() + 1;
                 }
                 
-                String segment = Optional.ofNullable(last).map(Append::getSegment).orElse(first.getSegment());
-                long eventNumber = Optional.ofNullable(last).map(Append::getEventNumber).orElse(first.getEventNumber());
+                String segment = last != null ? last.getSegment() : first.getSegment();
+                long eventNumber = last != null ? last.getEventNumber() : first.getEventNumber();
                 append = new Append(segment, writer, eventNumber, data, null);
             }
             outstandingAppend = append;
@@ -217,7 +216,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     DYNAMIC_LOGGER.reportGaugeValue(nameFromSegment(SEGMENT_WRITE_LATENCY, toWrite.getSegment()), timer.getElapsedMillis());
                     connection.send(new DataAppended(toWrite.getConnectionId(), toWrite.getEventNumber()));
 
-                    Optional.ofNullable(statsRecorder).ifPresent(x -> x.record(segment, bytes.length, (int) numOfEvents));
+                    if (statsRecorder != null) {
+                        statsRecorder.record(segment, bytes.length, (int) numOfEvents);
+                    }
                 }
 
                 pauseOrResumeReading();

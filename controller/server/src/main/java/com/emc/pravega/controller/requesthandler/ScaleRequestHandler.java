@@ -48,7 +48,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
 
     private static final long REQUEST_VALIDITY_PERIOD = Duration.ofMinutes(10).toMillis();
     private static final Retry.RetryAndThrowConditionally<RuntimeException> RETRY = Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-            .retryingOn(RetryableException::isRetryable)
+            .retryWhen(RetryableException::isRetryable)
             .throwingOn(RuntimeException.class);
 
     private final StreamMetadataTasks streamMetadataTasks;
@@ -97,16 +97,6 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
         }, executor);
     }
 
-    /**
-     * Helper method to say if an operation requested at given timestamp is still valid.
-     *
-     * @param timestamp timestamp when the operation was requested.
-     * @return true if validity period has not elapsed since timestamp, else false.
-     */
-    private boolean isValid(long timestamp) {
-        return timestamp > System.currentTimeMillis();
-    }
-
     private CompletableFuture<Void> processScaleUp(final ScaleRequest request, final ScalingPolicy policy, final OperationContext context) {
         log.debug("scale up request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
         if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
@@ -133,7 +123,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
             return CompletableFuture.completedFuture(null);
         }
 
-        return streamMetadataStore.setMarker(request.getScope(),
+        return streamMetadataStore.markCold(request.getScope(),
                 request.getStream(),
                 request.getSegmentNumber(),
                 request.isSilent() ? Long.MAX_VALUE : request.getTimestamp() + REQUEST_VALIDITY_PERIOD,
@@ -162,10 +152,10 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
 
                         // fetch their cold status for all candidates
                         return FutureHelpers.filter(candidates,
-                                candidate -> streamMetadataStore.getMarker(request.getScope(),
+                                candidate -> streamMetadataStore.isCold(request.getScope(),
                                         request.getStream(),
                                         candidate.getNumber(),
-                                        context, executor).thenApply(x -> x.map(this::isValid).orElse(false)))
+                                        context, executor))
                                 .thenApply(segments -> {
                                     if (maxScaleDownFactor == 1 && segments.size() == 3) {
                                         // Note: sorted by keystart so just pick first two.

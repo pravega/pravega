@@ -11,7 +11,6 @@ import com.emc.pravega.stream.impl.TxnStatus;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -124,14 +123,45 @@ interface Stream {
                                            final long scaleTimestamp);
 
 
-    CompletableFuture<Void> setMarker(int segmentNumber, long timestamp);
+    /**
+     * Sets cold marker which is valid till the specified time stamp.
+     * It creates a new marker if none is present or updates the previously set value.
+     *
+     * @param segmentNumber segment number to be marked as cold.
+     * @param timestamp     time till when the marker is valid.
+     * @return future
+     */
+    CompletableFuture<Void> setColdMarker(int segmentNumber, long timestamp);
 
-    CompletableFuture<Optional<Long>> getMarker(int segmentNumber);
+    /**
+     * Returns if a cold marker is set. Otherwise returns null.
+     *
+     * @param segmentNumber segment to check for cold.
+     * @return future of either timestamp till when the marker is valid or null.
+     */
+    CompletableFuture<Long> getColdMarker(int segmentNumber);
 
-    CompletableFuture<Void> removeMarker(int segmentNumber);
+    /**
+     * Remove the cold marker for the segment.
+     *
+     * @param segmentNumber segment.
+     * @return future
+     */
+    CompletableFuture<Void> removeColdMarker(int segmentNumber);
 
-    CompletableFuture<Void> blockTransactions();
+    /**
+     * Blocks creation of transaction till the specified time
+     *
+     * @param timestamp block validity timestamp.
+     * @return future
+     */
+    CompletableFuture<Void> blockTransactions(long timestamp);
 
+    /**
+     * Remove any block flags set against the stream.
+     *
+     * @return future
+     */
     CompletableFuture<Void> unblockTransactions();
 
     /**

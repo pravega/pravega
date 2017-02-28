@@ -16,14 +16,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
 /**
  * Stream properties
- *
+ * <p>
  * This class is no longer consistent and mostly not Implemented. Deprecating it.
  */
 class InMemoryStream implements Stream {
@@ -210,22 +209,22 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<Void> setMarker(int segmentNumber, long timestamp) {
+    public CompletableFuture<Void> setColdMarker(int segmentNumber, long timestamp) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<Optional<Long>> getMarker(int segmentNumber) {
+    public CompletableFuture<Long> getColdMarker(int segmentNumber) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<Void> removeMarker(int segmentNumber) {
+    public CompletableFuture<Void> removeColdMarker(int segmentNumber) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<Void> blockTransactions() {
+    public CompletableFuture<Void> blockTransactions(long timestamp) {
         return null;
     }
 

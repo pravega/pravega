@@ -32,14 +32,14 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-class ControllerWrapper {
+public class ControllerWrapper {
 
     @Getter
     private final ControllerService controllerService;
     @Getter
     private final Controller controller;
 
-    ControllerWrapper(String connectionString, boolean disableEventProcessors) throws Exception {
+    public ControllerWrapper(String connectionString, boolean disableEventProcessors) throws Exception {
         String hostId;
         try {
             // On each controller process restart, it gets a fresh hostId,

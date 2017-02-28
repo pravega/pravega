@@ -15,12 +15,11 @@ import com.google.common.cache.CacheBuilder;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashSet;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -56,7 +55,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         Preconditions.checkNotNull(executor);
         Preconditions.checkNotNull(maintenanceExecutor);
         this.executor = executor;
-        this.pendingCacheLoads = new HashSet<>();
+        this.pendingCacheLoads = Collections.synchronizedSet(new HashSet<>());
 
         this.cache = CacheBuilder.newBuilder()
                 .initialCapacity(INITIAL_CAPACITY)
@@ -82,8 +81,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         this.reporter = reporter;
     }
 
-    @VisibleForTesting
-    SegmentAggregates getSegmentAggregate(String streamSegmentName) {
+    private SegmentAggregates getSegmentAggregate(String streamSegmentName) {
         SegmentAggregates aggregates = cache.getIfPresent(streamSegmentName);
 
         if (aggregates == null &&
@@ -98,17 +96,19 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
         if (!pendingCacheLoads.contains(streamSegmentName)) {
             pendingCacheLoads.add(streamSegmentName);
-            Optional.ofNullable(store).ifPresent(s -> s.getStreamSegmentInfo(streamSegmentName, false, TIMEOUT)
-                    .thenAcceptAsync(prop -> {
-                        if (prop != null &&
-                                prop.getAttributes().containsKey(Attributes.SCALE_POLICY_TYPE) &&
-                                prop.getAttributes().containsKey(Attributes.SCALE_POLICY_RATE)) {
-                            byte type = prop.getAttributes().getOrDefault(Attributes.SCALE_POLICY_TYPE, 0L).byteValue();
-                            int rate = prop.getAttributes().get(Attributes.SCALE_POLICY_TYPE).intValue();
-                            cache.put(streamSegmentName, new SegmentAggregates(type, rate));
-                        }
-                        pendingCacheLoads.remove(streamSegmentName);
-                    }, executor));
+            if (store != null) {
+                store.getStreamSegmentInfo(streamSegmentName, false, TIMEOUT)
+                        .thenAcceptAsync(prop -> {
+                            if (prop != null &&
+                                    prop.getAttributes().containsKey(Attributes.SCALE_POLICY_TYPE) &&
+                                    prop.getAttributes().containsKey(Attributes.SCALE_POLICY_RATE)) {
+                                byte type = prop.getAttributes().get(Attributes.SCALE_POLICY_TYPE).byteValue();
+                                int rate = prop.getAttributes().get(Attributes.SCALE_POLICY_TYPE).intValue();
+                                cache.put(streamSegmentName, new SegmentAggregates(type, rate));
+                            }
+                            pendingCacheLoads.remove(streamSegmentName);
+                        }, executor);
+            }
         }
     }
 
@@ -161,21 +161,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
             if (aggregates != null) {
                 if (aggregates.getScaleType() != WireCommands.CreateSegment.NO_SCALE) {
                     aggregates.update(dataLength, numOfEvents);
-
-                    if (System.currentTimeMillis() - aggregates.getLastReportedTime() > reportingDuration) {
-                        try {
-                            executor.execute(() -> reporter.report(streamSegmentName,
-                                    aggregates.getTargetRate(), aggregates.getScaleType(), aggregates.getStartTime(),
-                                    aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(),
-                                    aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate()));
-                            aggregates.setLastReportedTime(System.currentTimeMillis());
-                        } catch (RejectedExecutionException e) {
-                            // We will not keep posting indefinitely and let the queue grow. We will only post optimistically
-                            // and ignore any rejected execution exceptions.
-                            log.error("Executor queue full. We will report this when pending work clears up. StreamSegmentName: {}",
-                                    streamSegmentName);
-                        }
-                    }
+                    report(streamSegmentName, aggregates);
                 }
             }
         } catch (Exception e) {
@@ -194,10 +180,24 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     @Override
     public void merge(String streamSegmentName, long dataLength, int numOfEvents, long txnCreationTime) {
         SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
-        // This should never be null as a txn commit cannot happen on a sealed segment.
-        // However, if a diskbacked cache is not present, this may be null as it may have been evicted from cache.
         if (aggregates != null) {
             aggregates.updateTx(dataLength, numOfEvents, txnCreationTime);
+            report(streamSegmentName, aggregates);
         }
     }
+
+    private long report(String streamSegmentName, SegmentAggregates aggregates) {
+        return aggregates.lastReportedTime.getAndUpdate(prev -> {
+            if (System.currentTimeMillis() - prev > reportingDuration) {
+                reporter.report(streamSegmentName,
+                        aggregates.getTargetRate(), aggregates.getScaleType(), aggregates.getStartTime(),
+                        aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(),
+                        aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate());
+                return System.currentTimeMillis();
+            }
+
+            return prev;
+        });
+    }
+
 }

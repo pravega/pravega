@@ -48,7 +48,7 @@ public class EndToEndAutoScaleUpTest {
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize().get();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-            SegmentStatsRecorder statsRecorder = SegmentStatsFactory.createSegmentStatsRecorder(store, "pravega", "requeststream",
+            SegmentStatsRecorder statsRecorder = new SegmentStatsFactory().createSegmentStatsRecorder(store, "pravega", "requeststream",
                     internalCF, Duration.ofMinutes(0),
                     Duration.ofMinutes(0), Duration.ofMinutes(10), Duration.ofMinutes(10));
 

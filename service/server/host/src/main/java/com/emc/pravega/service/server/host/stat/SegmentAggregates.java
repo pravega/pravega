@@ -19,10 +19,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * The rates are Exponential Weighted moving averages. These averages include new values into the calculated rate
  * by applying an exponential weight. Each of four rates are over different durations and have different alpha factor
  * for exponential weighing.
- *
- * This class is not synchronization protected, so any computation is not thread safe.
- * This is done intentionally to not put performance overheads while doing these computations.
- * However, it has a drawback in loss of accuracy and we may compute rates with erring on lower side.
  */
 class SegmentAggregates {
 
@@ -42,6 +38,11 @@ class SegmentAggregates {
     // Amount of data stored in each aggregate object in memory = 77 bytes + object overhead
 
     /**
+     * 8 bytes.
+     */
+    AtomicLong lastReportedTime;
+
+    /**
      * Policy = 5 bytes.
      */
     @Getter
@@ -54,25 +55,14 @@ class SegmentAggregates {
     /**
      * Rates for Scale up = 24 bytes.
      */
-    @Getter
-    private volatile double twoMinuteRate;
-    @Getter
-    private volatile double fiveMinuteRate;
-    @Getter
-    private volatile double tenMinuteRate;
+    private AtomicLong twoMinuteRate;
+    private AtomicLong fiveMinuteRate;
+    private AtomicLong tenMinuteRate;
 
     /**
      * Rate for Scale down = 8 bytes.
      */
-    @Getter
-    private volatile double twentyMinuteRate;
-
-    /**
-     * 16 bytes.
-     */
-    @Getter
-    @Setter
-    private long lastReportedTime;
+    private AtomicLong twentyMinuteRate;
 
     /**
      * Start time and last ticked time.
@@ -81,21 +71,27 @@ class SegmentAggregates {
     @Getter
     private long startTime;
 
+    /**
+     * 8 bytes.
+     */
     private AtomicLong lastTick;
 
     /**
      * 8 bytes.
      */
-    // Note: we are not concurrency protecting this variable for performance reasons
     private AtomicLong currentCount;
 
     SegmentAggregates(byte scaleType, int targetRate) {
         this.targetRate = targetRate;
         this.scaleType = scaleType;
-        startTime = System.currentTimeMillis();
-        lastReportedTime = System.currentTimeMillis();
+        this.startTime = System.currentTimeMillis();
+        this.lastReportedTime = new AtomicLong(System.currentTimeMillis());
         this.lastTick = new AtomicLong(System.nanoTime());
-        this.currentCount = new AtomicLong(0);
+        this.currentCount = new AtomicLong(Double.doubleToLongBits(0.0));
+        this.twoMinuteRate = new AtomicLong(Double.doubleToLongBits(0.0));
+        this.fiveMinuteRate = new AtomicLong(Double.doubleToLongBits(0.0));
+        this.tenMinuteRate = new AtomicLong(Double.doubleToLongBits(0.0));
+        this.twentyMinuteRate = new AtomicLong(Double.doubleToLongBits(0.0));
     }
 
     void update(long dataLength, int numOfEvents) {
@@ -134,14 +130,30 @@ class SegmentAggregates {
     }
 
     private void computeDecay(long count, long duration) {
-        twoMinuteRate = decayingRate(count, twoMinuteRate, M2_ALPHA, duration);
-        fiveMinuteRate = decayingRate(count, fiveMinuteRate, M5_ALPHA, duration);
-        tenMinuteRate = decayingRate(count, tenMinuteRate, M10_ALPHA, duration);
-        twentyMinuteRate = decayingRate(count, twentyMinuteRate, M20_ALPHA, duration);
+        twoMinuteRate.getAndUpdate(prev -> Double.doubleToRawLongBits(decayingRate(count, Double.longBitsToDouble(prev), M2_ALPHA, duration)));
+        fiveMinuteRate.getAndUpdate(prev -> Double.doubleToRawLongBits(decayingRate(count, Double.longBitsToDouble(prev), M5_ALPHA, duration)));
+        tenMinuteRate.getAndUpdate(prev -> Double.doubleToRawLongBits(decayingRate(count, Double.longBitsToDouble(prev), M10_ALPHA, duration)));
+        twentyMinuteRate.getAndUpdate(prev -> Double.doubleToRawLongBits(decayingRate(count, Double.longBitsToDouble(prev), M20_ALPHA, duration)));
     }
 
     private double decayingRate(long count, double rate, double alpha, long interval) {
         final double instantRate = (double) count / (double) interval;
         return rate + (alpha * (instantRate - rate));
+    }
+
+    double getTwoMinuteRate() {
+        return Double.longBitsToDouble(twoMinuteRate.get());
+    }
+
+    double getFiveMinuteRate() {
+        return Double.longBitsToDouble(fiveMinuteRate.get());
+    }
+
+    double getTenMinuteRate() {
+        return Double.longBitsToDouble(tenMinuteRate.get());
+    }
+
+    double getTwentyMinuteRate() {
+        return Double.longBitsToDouble(twentyMinuteRate.get());
     }
 }

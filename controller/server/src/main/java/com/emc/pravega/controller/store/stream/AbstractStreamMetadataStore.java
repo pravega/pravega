@@ -24,12 +24,12 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.ParametersAreNonnullByDefault;
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -57,6 +57,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("Controller");
     private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricNames.CREATE_STREAM);
     private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricNames.SEAL_STREAM);
+    private static final long BLOCK_VALIDITY_PERIOD = Duration.ofSeconds(10).toMillis();
+
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
 
@@ -364,21 +366,22 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> setMarker(final String scope, final String stream, final int segmentNumber, final long timestamp,
-                                             final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).setMarker(segmentNumber, timestamp), executor);
+    public CompletableFuture<Void> markCold(final String scope, final String stream, final int segmentNumber, final long timestamp,
+                                            final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).setColdMarker(segmentNumber, timestamp), executor);
     }
 
     @Override
-    public CompletableFuture<Optional<Long>> getMarker(final String scope, final String stream, final int number,
-                                                       final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).getMarker(number), executor);
+    public CompletableFuture<Boolean> isCold(final String scope, final String stream, final int number,
+                                             final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).getColdMarker(number)
+                .thenApply(marker -> marker != null && marker > System.currentTimeMillis()), executor);
     }
 
     @Override
     public CompletableFuture<Void> removeMarker(final String scope, final String stream, final int number,
                                                 final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).removeMarker(number), executor);
+        return withCompletion(getStream(scope, stream, context).removeColdMarker(number), executor);
     }
 
     @Override
@@ -390,7 +393,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Void> blockTransactions(final String scope, final String stream,
                                                      final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).blockTransactions(), executor);
+        return withCompletion(getStream(scope, stream, context)
+                .blockTransactions(System.currentTimeMillis() + BLOCK_VALIDITY_PERIOD), executor);
     }
 
     @Override

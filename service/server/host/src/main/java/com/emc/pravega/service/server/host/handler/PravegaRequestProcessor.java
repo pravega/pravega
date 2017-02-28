@@ -61,7 +61,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
@@ -265,9 +264,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
         }).whenComplete((res, e) -> {
             if (e == null) {
-                Optional.ofNullable(statsRecorder).ifPresent(recorder ->
-                        recorder.createSegment(createStreamsSegment.getSegment(),
-                                createStreamsSegment.getScaleType(), createStreamsSegment.getTargetRate()));
+                if (statsRecorder != null) {
+                    statsRecorder.createSegment(createStreamsSegment.getSegment(),
+                            createStreamsSegment.getScaleType(), createStreamsSegment.getTargetRate());
+                }
             } else {
                 CREATE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
                 handleException(createStreamsSegment.getSegment(), "Create segment", e);
@@ -320,7 +320,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         segmentStore.sealStreamSegment(transactionName, TIMEOUT).thenApply((Long length) -> {
             segmentStore.mergeTransaction(transactionName, TIMEOUT).thenAccept(v -> {
                 connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));
-            }).exceptionally((Throwable e) -> {
+            }).thenCompose(x -> recordStatForTransaction(commitTx.getSegment())
+                    .exceptionally((Throwable e) -> {
+                        // gobble up any errors from stat recording so we do not affect rest of the flow.
+                        log.error("exception while computing stats while merging txn {}", e);
+                        return null;
+                    })
+            ).exceptionally((Throwable e) -> {
                 handleException(transactionName, "Commit transaction", e);
                 return null;
             });
@@ -328,14 +334,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }).exceptionally((Throwable e) -> {
             handleException(transactionName, "Commit transaction", e);
             return null;
-        }).thenCompose(x -> segmentStore.getStreamSegmentInfo(commitTx.getSegment(), false, TIMEOUT)
-                .thenAccept(prop -> {
-                    long creationTime = prop.getAttributes().getOrDefault(Attributes.CREATION_TIME, System.currentTimeMillis());
-                    int numOfEvents = prop.getAttributes().getOrDefault(Attributes.EVENT_COUNT, 0L).intValue();
-                    Optional.ofNullable(statsRecorder).ifPresent(recorder ->
-                            recorder.merge(commitTx.getSegment(), prop.getLength(), numOfEvents, creationTime));
-                })
-        );
+        });
     }
 
     @Override
@@ -364,8 +363,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             if (e != null) {
                 handleException(segment, "Seal segment", e);
             } else {
-                Optional.ofNullable(statsRecorder).ifPresent(recorder ->
-                        recorder.sealSegment(sealSegment.getSegment()));
+                if (statsRecorder != null) {
+                    statsRecorder.sealSegment(sealSegment.getSegment());
+                }
             }
         });
     }
@@ -386,21 +386,38 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void updateSegmentPolicy(UpdateSegmentPolicy updateSegmentPolicy) {
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, (long) updateSegmentPolicy.getScaleType()),
-                new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, (int) updateSegmentPolicy.getTargetRate()));
+                new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, updateSegmentPolicy.getTargetRate()));
 
-         CompletableFuture<Void> future = segmentStore.updateAttributes(updateSegmentPolicy.getSegment(), attributes, TIMEOUT);
-        future.thenApply((Void v) -> {
+        CompletableFuture<Void> future = segmentStore.updateAttributes(updateSegmentPolicy.getSegment(), attributes, TIMEOUT);
+        future.thenAccept((Void v) -> {
             connection.send(new SegmentPolicyUpdated(updateSegmentPolicy.getSegment()));
-            return null;
         }).whenComplete((r, e) -> {
             if (e != null) {
                 handleException(updateSegmentPolicy.getSegment(), "Update segment", e);
             } else {
-                Optional.ofNullable(statsRecorder).ifPresent(recorder ->
-                        recorder.policyUpdate(updateSegmentPolicy.getSegment(),
-                                updateSegmentPolicy.getScaleType(), updateSegmentPolicy.getTargetRate()));
+                if (statsRecorder != null) {
+                    statsRecorder.policyUpdate(updateSegmentPolicy.getSegment(),
+                            updateSegmentPolicy.getScaleType(), updateSegmentPolicy.getTargetRate());
+                }
             }
         });
+    }
+
+    private CompletableFuture<Void> recordStatForTransaction(String parentSegmentName) {
+        return segmentStore.getStreamSegmentInfo(parentSegmentName, false, TIMEOUT)
+                .thenAccept(prop -> {
+                    if (prop != null &&
+                            prop.getAttributes().containsKey(Attributes.CREATION_TIME) &&
+                            prop.getAttributes().containsKey(Attributes.EVENT_COUNT)) {
+                        long creationTime = prop.getAttributes().get(Attributes.CREATION_TIME);
+                        int numOfEvents = prop.getAttributes().get(Attributes.EVENT_COUNT).intValue();
+                        long len = prop.getLength();
+
+                        if (statsRecorder != null) {
+                            statsRecorder.merge(parentSegmentName, len, numOfEvents, creationTime);
+                        }
+                    }
+                });
     }
 
 }

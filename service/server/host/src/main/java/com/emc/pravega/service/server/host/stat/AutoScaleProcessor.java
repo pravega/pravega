@@ -18,7 +18,6 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalListener;
-import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -95,7 +94,6 @@ public class AutoScaleProcessor {
         clientFactory.set(cf);
     }
 
-    @Synchronized
     private void bootstrapRequestWriters() {
 
         CompletableFuture<Void> createWriter = new CompletableFuture<>();
@@ -126,7 +124,7 @@ public class AutoScaleProcessor {
     }
 
     private void triggerScaleUp(String streamSegmentName, int numOfSplits) {
-        checkAndRun(() -> {
+        if (initialized.get()) {
             Pair<Long, Long> pair = cache.getIfPresent(streamSegmentName);
             long lastRequestTs = 0;
 
@@ -144,11 +142,11 @@ public class AutoScaleProcessor {
                 // Mute scale for timestamp for both scale up and down
                 writeRequest(event).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
             }
-        });
+        }
     }
 
     private void triggerScaleDown(String streamSegmentName, boolean silent) {
-        checkAndRun(() -> {
+        if (initialized.get()) {
             Pair<Long, Long> pair = cache.getIfPresent(streamSegmentName);
             long lastRequestTs = 0;
 
@@ -167,7 +165,7 @@ public class AutoScaleProcessor {
                         new ImmutablePair<>(0L, timestamp)));
                 // mute only scale downs
             }
-        });
+        }
     }
 
     private CompletableFuture<Void> writeRequest(ScaleRequest event) {
@@ -192,7 +190,7 @@ public class AutoScaleProcessor {
 
     void report(String streamSegmentName, long targetRate, byte type, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
         log.info("received traffic for {} with twoMinute rate = {} and targetRate = {}", streamSegmentName, twoMinuteRate, targetRate);
-        checkAndRun(() -> {
+        if (initialized.get()) {
             // note: we are working on caller's thread. We should not do any blocking computation here and return as quickly as
             // possible.
             // So we will decide whether to scale or not and then unblock by asynchronously calling 'writeEvent'
@@ -202,8 +200,8 @@ public class AutoScaleProcessor {
                     log.debug("cool down period elapsed for {}", streamSegmentName);
 
                     // report to see if a scale operation needs to be performed.
-                    if ((twoMinuteRate > 5 * targetRate && currentTime - startTime > TWO_MINUTES) ||
-                            (fiveMinuteRate > 2 * targetRate && currentTime - startTime > FIVE_MINUTES) ||
+                    if ((twoMinuteRate > 5.0 * targetRate && currentTime - startTime > TWO_MINUTES) ||
+                            (fiveMinuteRate > 2.0 * targetRate && currentTime - startTime > FIVE_MINUTES) ||
                             (tenMinuteRate > targetRate && currentTime - startTime > TEN_MINUTES)) {
                         int numOfSplits = (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate);
                         log.debug("triggering scale up for {}", streamSegmentName);
@@ -214,7 +212,7 @@ public class AutoScaleProcessor {
                     if (twoMinuteRate < targetRate &&
                             fiveMinuteRate < targetRate &&
                             tenMinuteRate < targetRate &&
-                            twentyMinuteRate < targetRate / 2 &&
+                            twentyMinuteRate < targetRate / 2.0 &&
                             currentTime - startTime > TWENTY_MINUTES) {
                         log.debug("triggering scale down for {}", streamSegmentName);
 
@@ -222,7 +220,7 @@ public class AutoScaleProcessor {
                     }
                 }
             }
-        });
+        }
     }
 
     void notifyCreated(String segmentStreamName, byte type, long targetRate) {
@@ -240,10 +238,5 @@ public class AutoScaleProcessor {
         cache.put(streamSegmentName, lrImmutablePair);
     }
 
-    private void checkAndRun(Runnable supplier) {
-        if (initialized.get()) {
-            supplier.run();
-        }
-    }
 }
 

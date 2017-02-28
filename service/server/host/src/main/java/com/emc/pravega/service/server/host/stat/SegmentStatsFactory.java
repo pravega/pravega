@@ -8,18 +8,15 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.Data;
-import lombok.Synchronized;
 
 import java.net.URI;
 import java.time.Duration;
-import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 @Data
 public class SegmentStatsFactory implements AutoCloseable {
@@ -28,7 +25,6 @@ public class SegmentStatsFactory implements AutoCloseable {
     private static final int MAXIMUM_POOL_SIZE = 10;
     private static final int TASK_QUEUE_CAPACITY = 100000;
     private static final long KEEP_ALIVE_TIME_IN_SECONDS = 10L;
-    private static final AtomicReference<SegmentStatsFactory> SINGLETON = new AtomicReference<>();
 
     private final ScheduledExecutorService maintenanceExecutor = Executors.newSingleThreadScheduledExecutor(
             new ThreadFactoryBuilder().setNameFormat("cache-maintenance-%d").build());
@@ -40,38 +36,21 @@ public class SegmentStatsFactory implements AutoCloseable {
             new ArrayBlockingQueue<Runnable>(TASK_QUEUE_CAPACITY),
             new ThreadFactoryBuilder().setNameFormat("stat-background-%d").build()); // queue with a size
 
-    @Synchronized
-    public static SegmentStatsFactory getSegmentStatsFactory() {
-        if (SINGLETON.get() == null) {
-            SINGLETON.set(new SegmentStatsFactory());
-        }
-
-        return SINGLETON.get();
-    }
-
-    @Synchronized
-    public static void shutdown() {
-        SINGLETON.updateAndGet(segmentStatsFactory -> {
-            Optional.ofNullable(segmentStatsFactory).ifPresent(SegmentStatsFactory::close);
-            return null;
-        });
-    }
-
     @VisibleForTesting
-    public static SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store,
-                                                                  String scope,
-                                                                  String requestStream,
-                                                                  ClientFactory clientFactory,
-                                                                  Duration cooldown,
-                                                                  Duration mute,
-                                                                  Duration cacheCleanup,
-                                                                  Duration cacheExpiry) {
+    public SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store,
+                                                           String scope,
+                                                           String requestStream,
+                                                           ClientFactory clientFactory,
+                                                           Duration cooldown,
+                                                           Duration mute,
+                                                           Duration cacheCleanup,
+                                                           Duration cacheExpiry) {
         AutoScalerConfig configuration = new AutoScalerConfig(cooldown, mute, cacheCleanup, cacheExpiry,
                 scope, requestStream, null);
         AutoScaleProcessor monitor = new AutoScaleProcessor(configuration, clientFactory,
-                getSegmentStatsFactory().executor, getSegmentStatsFactory().maintenanceExecutor);
+                executor, maintenanceExecutor);
         return new SegmentStatsRecorderImpl(monitor, store,
-                getSegmentStatsFactory().executor, getSegmentStatsFactory().maintenanceExecutor);
+                executor, maintenanceExecutor);
     }
 
     public SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store,
@@ -87,6 +66,5 @@ public class SegmentStatsFactory implements AutoCloseable {
     public void close() {
         executor.shutdown();
         maintenanceExecutor.shutdown();
-        SINGLETON.set(null);
     }
 }

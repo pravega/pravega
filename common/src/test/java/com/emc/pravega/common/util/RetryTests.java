@@ -160,7 +160,7 @@ public class RetryTests {
         AtomicInteger i = new AtomicInteger(0);
         try {
             Retry.withExpBackoff(10, 10, 10)
-                    .retryingOn(e -> i.getAndIncrement() != 1)
+                    .retryWhen(e -> i.getAndIncrement() != 1)
                     .throwingOn(RuntimeException.class)
                     .run(() -> {
                         throw new Exception("test");

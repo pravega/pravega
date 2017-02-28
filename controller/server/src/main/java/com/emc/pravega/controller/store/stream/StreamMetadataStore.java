@@ -14,7 +14,6 @@ import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -321,7 +320,7 @@ public interface StreamMetadataStore {
      * @param executor      callers executor
      * @return Completable future
      */
-    CompletableFuture<Void> setMarker(final String scope, final String stream, final int segmentNumber, final long timestamp, final OperationContext context, final Executor executor);
+    CompletableFuture<Void> markCold(final String scope, final String stream, final int segmentNumber, final long timestamp, final OperationContext context, final Executor executor);
 
     /**
      * Api to return if a cold marker is set.
@@ -333,7 +332,7 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return Completable future Optional of marker's creation time.
      */
-    CompletableFuture<Optional<Long>> getMarker(final String scope, final String stream, final int number, final OperationContext context, final Executor executor);
+    CompletableFuture<Boolean> isCold(final String scope, final String stream, final int number, final OperationContext context, final Executor executor);
 
     /**
      * Api to clear marker.

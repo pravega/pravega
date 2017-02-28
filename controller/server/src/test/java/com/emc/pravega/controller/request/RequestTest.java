@@ -35,6 +35,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
+import static org.junit.Assert.assertTrue;
+
 public class RequestTest {
     private final String scope = "scope";
     private final String stream = "stream";
@@ -97,30 +99,30 @@ public class RequestTest {
         ScaleRequestHandler requestHandler = new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor);
         ScaleRequest request = new ScaleRequest(scope, stream, 2, ScaleRequest.UP, System.currentTimeMillis(), 2, false);
 
-        assert FutureHelpers.await(requestHandler.process(request));
+        assertTrue(FutureHelpers.await(requestHandler.process(request)));
         List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
-        assert activeSegments.stream().noneMatch(z -> z.getNumber() == 2);
-        assert activeSegments.stream().anyMatch(z -> z.getNumber() == 3);
-        assert activeSegments.stream().anyMatch(z -> z.getNumber() == 4);
-        assert activeSegments.size() == 4;
+        assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 2));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 3));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
+        assertTrue(activeSegments.size() == 4);
 
         request = new ScaleRequest(scope, stream, 4, ScaleRequest.DOWN, System.currentTimeMillis(), 0, false);
 
-        assert FutureHelpers.await(requestHandler.process(request));
+        assertTrue(FutureHelpers.await(requestHandler.process(request)));
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
-        assert activeSegments.stream().anyMatch(z -> z.getNumber() == 4);
-        assert activeSegments.size() == 4;
+        assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
+        assertTrue(activeSegments.size() == 4);
 
         request = new ScaleRequest(scope, stream, 3, ScaleRequest.DOWN, System.currentTimeMillis(), 0, false);
 
-        assert FutureHelpers.await(requestHandler.process(request));
+        assertTrue(FutureHelpers.await(requestHandler.process(request)));
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
-        assert activeSegments.stream().noneMatch(z -> z.getNumber() == 3);
-        assert activeSegments.stream().noneMatch(z -> z.getNumber() == 4);
-        assert activeSegments.stream().anyMatch(z -> z.getNumber() == 5);
-        assert activeSegments.size() == 3;
+        assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 3));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 4));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 5));
+        assertTrue(activeSegments.size() == 3);
     }
 }

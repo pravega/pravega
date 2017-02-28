@@ -14,7 +14,7 @@ import java.time.Duration;
 import static com.emc.pravega.service.selftest.AppendContentGenerator.HEADER_LENGTH;
 
 /**
- * Represents the result of a validation report.
+ * Represents the result of a validation process.
  */
 class ValidationResult {
     //region Members

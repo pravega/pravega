@@ -61,14 +61,14 @@ public final class Retry {
         Preconditions.checkArgument(multiplier >= 1, "multiplier must be a positive integer.");
         Preconditions.checkArgument(attempts >= 1, "attempts must be a positive integer.");
         Preconditions.checkArgument(maxDelay >= 1, "maxDelay must be a positive integer.");
-        return new RetryWithBackoff(initialMillis, multiplier, attempts, maxDelay, false);
+        return new RetryWithBackoff(initialMillis, multiplier, attempts, maxDelay);
     }
 
     public static RetryUnconditionally indefinitelyWithExpBackoff(long initialMillis, int multiplier, long maxDelay, Consumer<Throwable> consumer) {
         Preconditions.checkArgument(initialMillis >= 1, "InitialMillis must be a positive integer.");
         Preconditions.checkArgument(multiplier >= 1, "multiplier must be a positive integer.");
         Preconditions.checkArgument(maxDelay >= 1, "maxDelay must be a positive integer.");
-        RetryWithBackoff params = new RetryWithBackoff(initialMillis, multiplier, Integer.MAX_VALUE, maxDelay, true);
+        RetryWithBackoff params = new RetryWithBackoff(initialMillis, multiplier, Integer.MAX_VALUE, maxDelay);
         return new RetryUnconditionally(consumer, params);
     }
 
@@ -81,14 +81,12 @@ public final class Retry {
         private final int multiplier;
         private final int attempts;
         private final long maxDelay;
-        private final boolean indefinitely;
 
-        private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay, boolean indefinitely) {
+        private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay) {
             this.initialMillis = initialMillis;
             this.multiplier = multiplier;
             this.attempts = attempts;
             this.maxDelay = maxDelay;
-            this.indefinitely = indefinitely;
         }
 
         public <RetryT extends Exception> RetryExceptionally<RetryT> retryingOn(Class<RetryT> retryType) {
@@ -96,7 +94,7 @@ public final class Retry {
             return new RetryExceptionally<>(retryType, this);
         }
 
-        public RetryConditionally retryingOn(Predicate<Throwable> predicate) {
+        public RetryConditionally retryWhen(Predicate<Throwable> predicate) {
             Preconditions.checkNotNull(predicate);
             return new RetryConditionally(predicate, this);
         }
@@ -159,7 +157,7 @@ public final class Retry {
             Preconditions.checkNotNull(r);
             long delay = params.initialMillis;
             Exception last = null;
-            for (int attemptNumber = 1; params.indefinitely || attemptNumber <= params.attempts; attemptNumber++) {
+            for (int attemptNumber = 1; attemptNumber <= params.attempts; attemptNumber++) {
                 try {
                     return r.attempt();
                 } catch (Exception e) {
@@ -196,7 +194,7 @@ public final class Retry {
                                 if (!canRetry(ex)) {
                                     // Cannot retry this exception. Fail now.
                                     result.completeExceptionally(ex);
-                                } else if (!params.indefinitely && attemptNumber.get() + 1 > params.attempts) {
+                                } else if (attemptNumber.get() + 1 > params.attempts) {
                                     // We have retried as many times as we were asked, unsuccessfully.
                                     result.completeExceptionally(new RetriesExhaustedException(ex));
                                 } else {

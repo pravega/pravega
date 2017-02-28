@@ -29,7 +29,7 @@ public class SegmentAggregatesTest {
         long startTime = System.currentTimeMillis();
         // after 10 seconds we should have written ~100 events.
         // Which means 2 minute rate at this point is 100 / 120 ~= 0.4 events per second
-        while (System.currentTimeMillis() - startTime < Duration.ofSeconds(10).toMillis()) {
+        while (System.currentTimeMillis() - startTime < Duration.ofSeconds(7).toMillis()) {
             for (int i = 0; i < 11; i++) {
                 aggregates.update(0, 1);
             }
@@ -48,10 +48,9 @@ public class SegmentAggregatesTest {
         CompletableFuture.allOf(CompletableFuture.runAsync(() -> write(aggregates)),
                 CompletableFuture.runAsync(() -> write(aggregates)),
                 CompletableFuture.runAsync(() -> write(aggregates))).get();
-        // 3 writers in parallel would write about 300 events in 10 seconds.
-        // 2 minute rate = 300/120 = 2.5.. with exponential weighing it will be slightly less than 2
-        // with some approximations because of inaccuracy in measurement, we can potentially get even less.
-        // So will check against 1
-        assert aggregates.getTwoMinuteRate() > 1.0;
+        // 3 writers in parallel would write about 150 events in 5 seconds.
+        // 2 minute rate = 150/120 = 1.25.. with exponential weighing it will be slightly less than that.
+        // safer side we will check against 0.5
+        assert aggregates.getTwoMinuteRate() > 0.5;
     }
 }

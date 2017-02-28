@@ -19,11 +19,9 @@ import com.emc.pravega.stream.impl.TxnStatus;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.utils.ZKPaths;
 
-import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -49,8 +47,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
     private static final String BLOCKER_PATH = STREAM_PATH + "/blocker";
-
-    private static final long BLOCK_VALIDITY_PERIOD = Duration.ofSeconds(10).toMillis();
 
     private final ZKStoreHelper store;
     private final String creationPath;
@@ -230,20 +226,20 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Optional<Data<Integer>>> getMarkerData(int segmentNumber) {
-        final CompletableFuture<Optional<Data<Integer>>> result = new CompletableFuture<>();
+    CompletableFuture<Data<Integer>> getMarkerData(int segmentNumber) {
+        final CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
         final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
         cache.getCachedData(path)
                 .whenComplete((res, ex) -> {
                     if (ex != null) {
                         Throwable cause = ExceptionHelpers.getRealException(ex);
                         if (cause instanceof DataNotFoundException) {
-                            result.complete(Optional.empty());
+                            result.complete(null);
                         } else {
                             result.completeExceptionally(cause);
                         }
                     } else {
-                        result.complete(Optional.of(res));
+                        result.complete(res);
                     }
                 });
 
@@ -259,7 +255,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> setBlockFlag() {
+    CompletableFuture<Void> setBlockFlag(long timestamp) {
         return store.checkExists(blockerPath)
                 .thenCompose(x -> {
                     if (x) {
@@ -269,9 +265,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
                     }
                 }).thenCompose(x -> {
                     if (x == null) {
-                        return store.createZNodeIfNotExist(blockerPath, Utilities.toByteArray(System.currentTimeMillis()));
-                    } else if (System.currentTimeMillis() - Utilities.toLong(x.getData()) > BLOCK_VALIDITY_PERIOD) {
-                        return store.setData(blockerPath, new Data<>(Utilities.toByteArray(System.currentTimeMillis()), x.getVersion()));
+                        return store.createZNodeIfNotExist(blockerPath, Utilities.toByteArray(timestamp));
+                    } else if (timestamp > System.currentTimeMillis()) {
+                        return store.setData(blockerPath, new Data<>(Utilities.toByteArray(timestamp), x.getVersion()));
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
@@ -296,7 +292,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         return CompletableFuture.completedFuture(null);
                     }
                 }).thenApply(x ->
-                        !(x == null || System.currentTimeMillis() - Utilities.toLong(x.getData()) > BLOCK_VALIDITY_PERIOD));
+                        x != null && System.currentTimeMillis() < Utilities.toLong(x.getData()));
     }
 
     @Override

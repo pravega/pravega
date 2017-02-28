@@ -18,7 +18,7 @@ class TaskStepsRetryHelper {
     private static final long RETRY_MAX_DELAY = Duration.ofSeconds(10).toMillis();
     private static final Retry.RetryAndThrowConditionally<RuntimeException> RETRY = Retry
             .withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-            .retryingOn(RetryableException::isRetryable)
+            .retryWhen(RetryableException::isRetryable)
             .throwingOn(RuntimeException.class);
 
     static <U> CompletableFuture<U> withRetries(Supplier<CompletableFuture<U>> futureSupplier, ScheduledExecutorService executor) {

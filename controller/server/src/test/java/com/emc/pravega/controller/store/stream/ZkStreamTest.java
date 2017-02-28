@@ -421,16 +421,16 @@ public class ZkStreamTest {
         store.blockTransactions(SCOPE, streamName, null, executor).get();
         store.createTransaction(SCOPE, streamName, null, executor)
                 .handle((r, ex) -> {
-                    assert ex != null && ex.getCause() instanceof TransactionBlockedException;
+                    assertTrue(ex != null && ex.getCause() instanceof TransactionBlockedException);
                     return null;
                 }).get();
 
-        store.setMarker(SCOPE, streamName, 0, 1L, null, executor).get();
+        store.markCold(SCOPE, streamName, 0, System.currentTimeMillis() + 10000, null, executor).get();
 
-        assert store.getMarker(SCOPE, streamName, 0, null, executor).get().isPresent();
+        assertTrue(store.isCold(SCOPE, streamName, 0, null, executor).get());
 
         store.removeMarker(SCOPE, streamName, 0, null, executor).get();
 
-        assert !store.getMarker(SCOPE, streamName, 0, null, executor).get().isPresent();
+        assertFalse(store.isCold(SCOPE, streamName, 0, null, executor).get());
     }
 }

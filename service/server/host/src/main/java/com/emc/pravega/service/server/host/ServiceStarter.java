@@ -47,6 +47,7 @@ public final class ServiceStarter {
     private final ServiceBuilder serviceBuilder;
     private StatsProvider statsProvider;
     private PravegaConnectionListener listener;
+    private SegmentStatsFactory segmentStatsFactory;
     private boolean closed;
 
     //endregion
@@ -106,7 +107,8 @@ public final class ServiceStarter {
         log.info("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        SegmentStatsRecorder statsRecorder = SegmentStatsFactory.getSegmentStatsFactory()
+        segmentStatsFactory = new SegmentStatsFactory();
+        SegmentStatsRecorder statsRecorder = segmentStatsFactory
                 .createSegmentStatsRecorder(service,
                 this.serviceConfig.getInternalScope(),
                 this.serviceConfig.getInternalRequestStream(),
@@ -134,7 +136,10 @@ public final class ServiceStarter {
                 log.info("Metrics statsProvider is now closed.");
             }
 
-            SegmentStatsFactory.shutdown();
+            if (this.segmentStatsFactory != null) {
+                segmentStatsFactory.close();
+            }
+
             this.closed = true;
         }
     }

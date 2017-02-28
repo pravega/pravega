@@ -437,12 +437,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<Void> setMarker(int segmentNumber, long timestamp) {
+    public CompletableFuture<Void> setColdMarker(int segmentNumber, long timestamp) {
 
         return verifyLegalState(getMarkerData(segmentNumber)
                 .thenCompose(x -> {
-                    if (x.isPresent()) {
-                        final Data<T> data = new Data<>(Utilities.toByteArray(timestamp), x.get().getVersion());
+                    if (x != null) {
+                        final Data<T> data = new Data<>(Utilities.toByteArray(timestamp), x.getVersion());
                         return updateMarkerData(segmentNumber, data);
                     } else {
                         return createMarkerData(segmentNumber, timestamp);
@@ -451,19 +451,19 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<Optional<Long>> getMarker(int segmentNumber) {
+    public CompletableFuture<Long> getColdMarker(int segmentNumber) {
         return verifyLegalState(getMarkerData(segmentNumber)
-                .thenApply(x -> x.map(y -> Utilities.toLong(y.getData()))));
+                .thenApply(x -> (x != null) ? Utilities.toLong(x.getData()) : 0L));
     }
 
     @Override
-    public CompletableFuture<Void> removeMarker(int segmentNumber) {
+    public CompletableFuture<Void> removeColdMarker(int segmentNumber) {
         return verifyLegalState(removeMarkerData(segmentNumber));
     }
 
     @Override
-    public CompletableFuture<Void> blockTransactions() {
-        return verifyLegalState(setBlockFlag());
+    public CompletableFuture<Void> blockTransactions(long timestamp) {
+        return verifyLegalState(setBlockFlag(timestamp));
     }
 
     @Override
@@ -697,9 +697,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> removeMarkerData(int segmentNumber);
 
-    abstract CompletableFuture<Optional<Data<T>>> getMarkerData(int segmentNumber);
+    abstract CompletableFuture<Data<T>> getMarkerData(int segmentNumber);
 
-    abstract CompletableFuture<Void> setBlockFlag();
+    abstract CompletableFuture<Void> setBlockFlag(long timestamp);
 
     abstract CompletableFuture<Void> unsetBlockFlag();
 
