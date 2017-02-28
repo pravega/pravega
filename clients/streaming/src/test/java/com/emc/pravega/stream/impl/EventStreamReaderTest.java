@@ -8,6 +8,7 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.stream.EventRead;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.impl.segment.NoSuchEventException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
@@ -26,8 +27,8 @@ import org.mockito.Mockito;
 import static org.junit.Assert.*;
 
 public class EventStreamReaderTest {
-    
-    @Test(timeout=10000)
+
+    @Test(timeout = 10000)
     public void testEndOfSegmentWithoutSuccessors() throws SegmentSealedException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
@@ -40,7 +41,9 @@ public class EventStreamReaderTest {
                 clock::get,
                 ReaderConfig.builder().build());
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
-        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
+               .thenReturn(ImmutableMap.of(segment, 0L))
+               .thenReturn(Collections.emptyMap());
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment);
         ByteBuffer buffer = writeInt(stream, 1);
         EventRead<byte[]> read = reader.readNextEvent(0);
@@ -67,15 +70,18 @@ public class EventStreamReaderTest {
                 clock::get,
                 ReaderConfig.builder().build());
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
-        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L));
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment);
-        ByteBuffer buffer = writeInt(stream, 1);
-        EventRead<byte[]> read = reader.readNextEvent(0);
-        byte[] event = read.getEvent();
-        assertEquals(buffer, ByteBuffer.wrap(event));
+        ByteBuffer buffer1 = writeInt(stream, 1);
+        ByteBuffer buffer2 = writeInt(stream, 2);
+        ByteBuffer buffer3 = writeInt(stream, 3);
+        assertEquals(buffer1, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
+        assertEquals(buffer2, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
+        assertEquals(buffer3, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
+        assertNull(reader.readNextEvent(0).getEvent());
         reader.close();
     }
-    
+
     @Test
     public void testReleaseSegment() throws SegmentSealedException {
         AtomicLong clock = new AtomicLong();
@@ -90,12 +96,14 @@ public class EventStreamReaderTest {
                 ReaderConfig.builder().build());
         Segment segment1 = Segment.fromScopedName("Foo/Bar/0");
         Segment segment2 = Segment.fromScopedName("Foo/Bar/1");
-        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment1, 0L, segment2, 0L)).thenReturn(Collections.emptyMap());
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
+               .thenReturn(ImmutableMap.of(segment1, 0L, segment2, 0L))
+               .thenReturn(Collections.emptyMap());
         SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1);
         SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2);
         writeInt(stream1, 1);
         writeInt(stream2, 2);
-        EventRead<byte[]> read = reader.readNextEvent(0);
+        reader.readNextEvent(0);
         List<SegmentInputStream> readers = reader.getReaders();
         assertEquals(2, readers.size());
         assertEquals(segment1, readers.get(0).getSegmentId());
@@ -116,10 +124,71 @@ public class EventStreamReaderTest {
         stream.write(buffer, new CompletableFuture<Boolean>());
         return buffer;
     }
-    
+
     @Test
     public void testAquireSegment() throws SegmentSealedException {
-        
+        AtomicLong clock = new AtomicLong();
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+        Orderer orderer = new Orderer();
+        ReaderGroupStateManager groupState = Mockito.mock(ReaderGroupStateManager.class);
+        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<byte[]>(segmentStreamFactory,
+                new ByteArraySerializer(),
+                groupState,
+                orderer,
+                clock::get,
+                ReaderConfig.builder().build());
+        Segment segment1 = Segment.fromScopedName("Foo/Bar/0");
+        Segment segment2 = Segment.fromScopedName("Foo/Bar/1");
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
+               .thenReturn(ImmutableMap.of(segment1, 0L))
+               .thenReturn(ImmutableMap.of(segment2, 0L))
+               .thenReturn(Collections.emptyMap());
+        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1);
+        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2);
+        writeInt(stream1, 1);
+        writeInt(stream2, 2);
+        reader.readNextEvent(0);
+        List<SegmentInputStream> readers = reader.getReaders();
+        assertEquals(1, readers.size());
+        assertEquals(segment1, readers.get(0).getSegmentId());
+
+        reader.readNextEvent(0);
+        readers = reader.getReaders();
+        assertEquals(2, readers.size());
+        assertEquals(segment1, readers.get(0).getSegmentId());
+        assertEquals(segment2, readers.get(1).getSegmentId());
+        reader.close();
+    }
+    
+    @Test
+    public void testEventPointer() throws SegmentSealedException, NoSuchEventException {
+        AtomicLong clock = new AtomicLong();
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+        Orderer orderer = new Orderer();
+        ReaderGroupStateManager groupState = Mockito.mock(ReaderGroupStateManager.class);
+        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<byte[]>(segmentStreamFactory,
+                new ByteArraySerializer(),
+                groupState,
+                orderer,
+                clock::get,
+                ReaderConfig.builder().build());
+        Segment segment = Segment.fromScopedName("Foo/Bar/0");
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment);
+        ByteBuffer buffer1 = writeInt(stream, 1);
+        ByteBuffer buffer2 = writeInt(stream, 2);
+        ByteBuffer buffer3 = writeInt(stream, 3);
+        EventRead<byte[]> event1 = reader.readNextEvent(0);
+        EventRead<byte[]> event2 = reader.readNextEvent(0);
+        EventRead<byte[]> event3 = reader.readNextEvent(0);
+        assertEquals(buffer1, ByteBuffer.wrap(event1.getEvent()));
+        assertEquals(buffer2, ByteBuffer.wrap(event2.getEvent()));
+        assertEquals(buffer3, ByteBuffer.wrap(event3.getEvent()));
+        assertNull(reader.readNextEvent(0).getEvent());
+        assertEquals(buffer1, ByteBuffer.wrap(reader.read(event1.getEventPointer())));
+        assertEquals(buffer3, ByteBuffer.wrap(reader.read(event3.getEventPointer())));
+        assertEquals(buffer2, ByteBuffer.wrap(reader.read(event2.getEventPointer())));
+        reader.close();
     }
 
 }

@@ -164,6 +164,14 @@ public interface Controller {
     // Controller Apis that are called by writers and readers
 
     /**
+     * Checks to see if a segment exists.
+     * 
+     * @param segment The segment to verify.
+     * @return true if the segment exists and false if it does not.
+     */
+    CompletableFuture<Boolean> isSegmentValid(final Segment segment);
+    
+    /**
      * Given a segment return the endpoint that currently is the owner of that segment.
      * <p>
      * This is called when a reader or a writer needs to determine which host/server it needs to contact to

@@ -295,7 +295,7 @@ public class MockController implements Controller {
                 getSegmentsForStream(new StreamImpl(scope, stream)).stream()
                                                                    .collect(Collectors.toMap(s -> s, s -> 0L)));
     }
-    
+
     private void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor) {
         ClientConnection connection = getAndHandleExceptions(connectionFactory
             .establishConnection(new PravegaNodeUri(endpoint, port), replyProcessor), RuntimeException::new);
@@ -304,6 +304,11 @@ public class MockController implements Controller {
         } catch (ConnectionFailedException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public CompletableFuture<Boolean> isSegmentValid(Segment segment) {
+        return CompletableFuture.completedFuture(true);
     }
 
 }

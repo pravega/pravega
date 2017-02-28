@@ -220,6 +220,18 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> isSegmentValid(final Segment segment) {
+        log.trace("Invoke ProducerService.Client.isSegmentValid() for segment: {}", segment);
+        final ThriftAsyncCallback<ControllerService.AsyncClient.isSegmentValid_call> callback = new ThriftAsyncCallback<>();
+        ThriftHelper.thriftCall(() -> {
+            client.getURI(new SegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber()),
+                          callback);
+            return callback.getResult();
+        });
+        return callback.getResult().thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+    }
+
+    @Override
     public CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout) {
         log.trace("Invoke AdminService.Client.createTransaction() with stream: {}", stream);
 

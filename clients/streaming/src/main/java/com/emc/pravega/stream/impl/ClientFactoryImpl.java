@@ -95,7 +95,6 @@ public class ClientFactoryImpl implements ClientFactory {
         this.outFactory = outFactory;
     }
 
-
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         Stream stream = new StreamImpl(scope, streamName);
@@ -151,19 +150,15 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     @Override
-    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>>
-            StateSynchronizer<StateT> createStateSynchronizer(String streamName,
-                    Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer,
-                    SynchronizerConfig config) {
-        StreamSegments segments = getAndHandleExceptions(controller.getCurrentSegments(scope, streamName),
-                                                         StreamDoesNotExistException::new);
+    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> StateSynchronizer<StateT> createStateSynchronizer(
+            String streamName, Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer,
+            SynchronizerConfig config) {
         Segment segment = new Segment(scope, streamName, 0);
-        if (!segments.getSegments().contains(segment)) {
-            throw new StreamDoesNotExistException("Stream does not exist with segment: " + segment);
+        if (!getAndHandleExceptions(controller.isSegmentValid(segment), StreamDoesNotExistException::new)) {
+            throw new StreamDoesNotExistException("Segment does not exist: " + segment);
         }
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
-        return new StateSynchronizerImpl<StateT>(segment,
-                createRevisionedStreamClient(streamName, serializer, config));
+        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(streamName, serializer, config));
     }
 
     @Override
