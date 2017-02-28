@@ -86,10 +86,10 @@ public class ZkStreamTest {
         store.createStream(scopeName, streamName1, streamConfig, System.currentTimeMillis()).get();
         store.createStream(scopeName, streamName2, streamConfig2, System.currentTimeMillis()).get();
 
-        List<String> listOfStreams = store.listStreamsInScope(scopeName).get();
+        List<StreamConfiguration> listOfStreams = store.listStreamsInScope(scopeName).get();
         assertEquals("Size of list", 2, listOfStreams.size());
-        assertEquals("Name of stream at index zero", "Stream1", listOfStreams.get(0));
-        assertEquals("Name of stream at index one", "Stream2", listOfStreams.get(1));
+        assertEquals("Name of stream at index zero", "Stream1", listOfStreams.get(0).getStreamName());
+        assertEquals("Name of stream at index one", "Stream2", listOfStreams.get(1).getStreamName());
     }
 
     @Test

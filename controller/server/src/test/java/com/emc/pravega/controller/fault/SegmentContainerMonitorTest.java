@@ -32,13 +32,16 @@ import static org.junit.Assert.assertTrue;
 
 public class SegmentContainerMonitorTest {
 
-    private static TestingServer zkTestServer;
-    private static CuratorFramework zkClient;
-    private static Cluster cluster;
-
+    private final static String CLUSTER_NAME = "testcluster";
+    
     //Ensure each test completes within 30 seconds.
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+    
+    private TestingServer zkTestServer;
+    private CuratorFramework zkClient;
+    private Cluster cluster;
+
 
     @Before
     public void startZookeeper() throws Exception {
