@@ -43,8 +43,9 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
 
     private static final long RETRY_INITIAL_DELAY = 100;
     private static final int RETRY_MULTIPLIER = 2;
-    private static final int RETRY_MAX_ATTEMPTS = 100;
+    private static final int RETRY_MAX_ATTEMPTS = 10;
     private static final long RETRY_MAX_DELAY = Duration.ofSeconds(10).toMillis();
+    private static final long BLOCK_VALIDITY_PERIOD = Duration.ofSeconds(5).toMillis();
 
     private static final long REQUEST_VALIDITY_PERIOD = Duration.ofMinutes(10).toMillis();
     private static final Retry.RetryAndThrowConditionally<RuntimeException> RETRY = Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
@@ -201,7 +202,8 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                                                      final OperationContext context) {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
-        CompletableFuture<ScaleResponse> scaleFuture = streamMetadataStore.blockTransactions(request.getScope(), request.getStream(), context, executor)
+        CompletableFuture<ScaleResponse> scaleFuture = streamMetadataStore.blockTransactions(request.getScope(),
+                request.getStream(), System.currentTimeMillis() + BLOCK_VALIDITY_PERIOD, context, executor)
                 .thenCompose(x -> streamMetadataTasks.scale(request.getScope(),
                         request.getStream(),
                         segments,
@@ -266,7 +268,8 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
      * @param context stream store context
      */
     private CompletableFuture<Void> blockTxCreationAndSweepTimedout(ScaleRequest request, OperationContext context) {
-        return streamMetadataStore.blockTransactions(request.getScope(), request.getStream(), context, executor)
+        return streamMetadataStore.blockTransactions(request.getScope(), request.getStream(),
+                System.currentTimeMillis() + BLOCK_VALIDITY_PERIOD, context, executor)
                 .thenCompose(x -> streamMetadataStore.getActiveTxns(request.getScope(), request.getStream(), context, executor))
                 .thenCompose(x -> FutureHelpers.allOfWithResults(x.entrySet().stream().filter(y ->
                         System.currentTimeMillis() - y.getValue().getTxCreationTimestamp() > Config.TXN_TIMEOUT_IN_SECONDS)

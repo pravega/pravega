@@ -24,7 +24,6 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.ParametersAreNonnullByDefault;
-import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.HashMap;
@@ -57,7 +56,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("Controller");
     private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricNames.CREATE_STREAM);
     private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricNames.SEAL_STREAM);
-    private static final long BLOCK_VALIDITY_PERIOD = Duration.ofSeconds(10).toMillis();
 
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
@@ -391,10 +389,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> blockTransactions(final String scope, final String stream,
+    public CompletableFuture<Void> blockTransactions(final String scope, final String stream, final long timestamp,
                                                      final OperationContext context, final Executor executor) {
         return withCompletion(getStream(scope, stream, context)
-                .blockTransactions(System.currentTimeMillis() + BLOCK_VALIDITY_PERIOD), executor);
+                .blockTransactions(timestamp), executor);
     }
 
     @Override
