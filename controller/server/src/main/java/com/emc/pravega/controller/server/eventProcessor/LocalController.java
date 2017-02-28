@@ -137,12 +137,12 @@ public class LocalController implements Controller {
         }
     }
 
-	@Override
-	public CompletableFuture<Boolean> isSegmentValid(Segment segment) {
-		try {
-			return controller.isSegmentValid(segment.getScope(), segment.getScopedName(), segment.getSegmentNumber());
-		} catch (TException e) {
-			throw new RuntimeException(e);
-		}
-	}
+    @Override
+    public CompletableFuture<Boolean> isSegmentValid(Segment segment) {
+        try {
+            return controller.isSegmentValid(segment.getScope(), segment.getScopedName(), segment.getSegmentNumber());
+        } catch (TException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }
