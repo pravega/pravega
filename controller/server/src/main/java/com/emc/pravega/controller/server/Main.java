@@ -93,6 +93,10 @@ public class Main {
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks);
 
+        // Start the RPC server.
+        log.info("Starting gRPC server");
+        GRPCServer.start(controllerService, Config.SERVER_PORT);
+
         //2. set up Event Processors
 
         //region Setup Event Processors
@@ -112,10 +116,6 @@ public class Main {
         streamTransactionMetadataTasks.initializeStreamWriters(localController);
 
         //endregion
-
-        //3. Start the RPC server.
-        log.info("Starting gRPC server");
-        GRPCServer.start(controllerService, Config.SERVER_PORT);
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
