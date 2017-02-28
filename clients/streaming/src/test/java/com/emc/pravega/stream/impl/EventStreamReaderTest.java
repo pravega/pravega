@@ -146,7 +146,9 @@ public class EventStreamReaderTest {
         SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1);
         SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2);
         writeInt(stream1, 1);
-        writeInt(stream2, 2);
+        writeInt(stream1, 2);
+        writeInt(stream2, 3);
+        writeInt(stream2, 4);
         reader.readNextEvent(0);
         List<SegmentInputStream> readers = reader.getReaders();
         assertEquals(1, readers.size());
