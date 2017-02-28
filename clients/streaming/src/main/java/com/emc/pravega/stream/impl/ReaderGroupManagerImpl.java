@@ -16,6 +16,7 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.StreamDoesNotExistException;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -89,7 +90,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
             return listOfMaps.stream()
                              .flatMap(map -> map.entrySet().stream())
                              .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
-        }), RuntimeException::new);
+        }), StreamDoesNotExistException::new);
         result.initializeGroup(segments);
         return result;
     }

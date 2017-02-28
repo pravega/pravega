@@ -25,6 +25,7 @@ import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.StreamDoesNotExistException;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
@@ -40,6 +41,8 @@ import com.google.common.base.Preconditions;
 import lombok.val;
 
 import org.apache.commons.lang.NotImplementedException;
+
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 public class ClientFactoryImpl implements ClientFactory {
 
@@ -152,7 +155,12 @@ public class ClientFactoryImpl implements ClientFactory {
             StateSynchronizer<StateT> createStateSynchronizer(String streamName,
                     Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer,
                     SynchronizerConfig config) {
+        StreamSegments segments = getAndHandleExceptions(controller.getCurrentSegments(streamName, streamName),
+                                                         StreamDoesNotExistException::new);
         Segment segment = new Segment(scope, streamName, 0);
+        if (!segments.getSegments().contains(segment)) {
+            throw new StreamDoesNotExistException("Stream does not exist with segment: " + segment);
+        }
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
         return new StateSynchronizerImpl<StateT>(segment,
                 createRevisionedStreamClient(streamName, serializer, config));
