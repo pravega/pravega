@@ -53,5 +53,4 @@ public interface Service {
      *  @return List<URI> list of Host:port where the service is running.
      */
     public List<URI> getServiceDetails();
-
 }

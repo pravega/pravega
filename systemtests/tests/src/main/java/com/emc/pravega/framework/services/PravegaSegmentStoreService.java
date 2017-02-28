@@ -11,7 +11,6 @@ import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Volume;
-
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -20,7 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
 
 @Slf4j

@@ -139,6 +139,5 @@ public abstract class MarathonBasedService implements Service {
                 throw new TestFrameworkException(RequestFailed, "Marathon Exception while deleting service", e);
             }
         }
-
     }
 }

@@ -11,7 +11,6 @@ import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.utils.MarathonException;
-
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,7 +18,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
 
 /**
@@ -35,7 +33,6 @@ public class PravegaControllerService extends MarathonBasedService {
     private int instances = 1;
     private double cpu = 0.1;
     private double mem = 256;
-
 
     public PravegaControllerService(final String id, final URI zkUri, final URI segUri, int instances, double cpu, double mem) {
         super(id);

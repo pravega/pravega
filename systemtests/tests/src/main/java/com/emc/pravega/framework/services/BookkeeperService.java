@@ -12,7 +12,6 @@ import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.utils.MarathonException;
-
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -21,7 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-
 import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
 
 @Slf4j
@@ -40,7 +38,6 @@ public class BookkeeperService extends MarathonBasedService {
         this.cpu = cpu;
         this.mem = mem;
     }
-
 
     @Override
     public void start(final boolean wait) {

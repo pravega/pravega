@@ -26,7 +26,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -34,7 +33,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
@@ -127,8 +125,8 @@ public class PravegaTest {
     }
 
     /**
-     * Invoke the simpleTest, ensure we are able to produce and consumer events.
-     * The test fails incase of exceptions while writing to or reading from the stream.
+     * Invoke the simpleTest, ensure we are able to produce  events.
+     * The test fails incase of exceptions while writing to the stream.
      *
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
