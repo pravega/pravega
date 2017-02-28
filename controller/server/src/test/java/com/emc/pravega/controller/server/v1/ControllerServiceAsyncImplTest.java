@@ -1,124 +1,49 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.server.v1;
 
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
-import com.emc.pravega.controller.store.StoreClient;
-import com.emc.pravega.controller.store.ZKStoreClient;
-import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.store.stream.StreamStoreFactory;
-import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
-import com.emc.pravega.controller.store.task.TaskMetadataStore;
-import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
-import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
-import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.util.ThriftAsyncCallback;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
 import org.apache.thrift.TException;
-import org.junit.AfterClass;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+
+import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import static org.junit.Assert.assertEquals;
 
 /**
  * Async Controller Service Implementation tests.
- *
- * Every Test is run for both streamStore (Zookeeper and InMemory) types.
- * checkstyle:StaticVariableName is suppressed because the structure requires a static method to pass parameters
- * to constructor, and this methods initializes the static class members.
+ * <p>
+ * Every test is run twice for both streamStore (Zookeeper and InMemory) types.
  */
-@RunWith(Parameterized.class)
-public class ControllerServiceAsyncImplTest {
+public abstract class ControllerServiceAsyncImplTest {
 
-    private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newScheduledThreadPool(20,
-            new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
+    ControllerServiceAsyncImpl controllerService;
     private final String scope1 = "scope1";
     private final String scope2 = "scope2";
     private final String scope3 = "scope3";
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
-    private final ControllerServiceAsyncImpl controllerService;
-    private final TaskMetadataStore taskMetadataStore;
-    private final HostControllerStore hostStore;
-    private final StreamMetadataTasks streamMetadataTasks;
-    private final StoreClient storeClient;
-    private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private final StreamMetadataStore streamStore;
 
-    public ControllerServiceAsyncImplTest(CuratorFramework zkClient,
-                                          StreamMetadataStore streamStoreType)
-            throws Exception {
-        streamStore = streamStoreType;
-        storeClient = new ZKStoreClient(zkClient);
+    @Before
+    public abstract void setupStore() throws Exception;
 
-        taskMetadataStore = TaskStoreFactory.createStore(storeClient, EXECUTOR_SERVICE);
-        hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                EXECUTOR_SERVICE, "host");
-
-        streamTransactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, EXECUTOR_SERVICE, "host");
-
-        controllerService = new ControllerServiceAsyncImpl(
-                new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
-    }
-
-    /**
-     * Different parameters for streamStore to be sent to constructor.
-     *
-     * @return Collection of Arrays, each array being a parameter to the test.
-     * @throws Exception Exception thrown by test method.
-     */
-    @Parameterized.Parameters
-    public static Collection storeType() throws Exception {
-
-        final TestingServer zkServer = new TestingServer();
-        zkServer.start();
-        final CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
-                new ExponentialBackoffRetry(200, 10, 5000));
-        zkClient.start();
-
-        return Arrays.asList(new Object[][]{
-                {zkClient, StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, EXECUTOR_SERVICE)},
-                {zkClient, new ZKStreamMetadataStore(zkClient, EXECUTOR_SERVICE)}
-        });
-    }
-
-    @AfterClass
-    public static void cleanUp() {
-        EXECUTOR_SERVICE.shutdown();
-    }
+    @After
+    public abstract void cleanupStore() throws IOException;
 
     @Test
     public void createScopeTests() throws TException, ExecutionException, InterruptedException {
         CreateScopeStatus status;
-        final String scope1 = "Scope1";
-        final String scope2 = "Scope2";
 
         // region createScope
         ThriftAsyncCallback<CreateScopeStatus> result1 = new ThriftAsyncCallback<>();
@@ -139,7 +64,7 @@ public class ControllerServiceAsyncImplTest {
         assertEquals(status, CreateScopeStatus.SCOPE_EXISTS);
         // endregion
 
-        // region with invalid scope with name "abc/def'
+        // region with invalid scope with name "abc/def"
         ThriftAsyncCallback<CreateScopeStatus> result4 = new ThriftAsyncCallback<>();
         this.controllerService.createScope("abc/def", result4);
         status = result4.getResult().get();
