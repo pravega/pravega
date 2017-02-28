@@ -21,6 +21,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -61,7 +62,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     }
     
     @Override
-    public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, List<String> streams) {
+    public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streams) {
         createStreamHelper(groupName,
                            StreamConfiguration.builder()
                                               .scope(scope)
@@ -100,7 +101,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                                                                          new JavaSerializer<>(),
                                                                                          new JavaSerializer<>(),
                                                                                          synchronizerConfig);
-        List<String> streamNames = sync.getState().getStreamNames();
+        Set<String> streamNames = sync.getState().getStreamNames();
         ReaderGroupConfig config = sync.getState().getConfig();
         return new ReaderGroupImpl(scope,
                 groupName,

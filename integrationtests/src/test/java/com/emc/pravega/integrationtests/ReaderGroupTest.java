@@ -22,8 +22,8 @@ import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockClientFactory;
 import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.TestUtils;
-import com.google.common.collect.Lists;
 
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
 import lombok.Cleanup;
@@ -87,7 +87,7 @@ public class ReaderGroupTest {
         MockClientFactory clientFactory = streamManager.getClientFactory();
 
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
-        streamManager.createReaderGroup(READER_GROUP, groupConfig, Lists.newArrayList(STREAM_NAME));
+        streamManager.createReaderGroup(READER_GROUP, groupConfig, Collections.singleton(STREAM_NAME));
 
         writeEvents(100, clientFactory);
         ReaderThread r1 = new ReaderThread(20, "Reader1", clientFactory);

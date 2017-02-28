@@ -13,7 +13,16 @@ import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Serializer;
 import com.google.common.base.Preconditions;
+
+import java.io.IOException;
+import java.io.Serializable;
+import java.net.URI;
+import java.nio.ByteBuffer;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.flink.api.common.functions.StoppableFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -21,13 +30,6 @@ import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.util.serialization.DeserializationSchema;
-
-import java.io.IOException;
-import java.io.Serializable;
-import java.net.URI;
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Flink source implementation for reading from pravega storage.
@@ -72,7 +74,7 @@ public class FlinkPravegaReader<T> extends RichParallelSourceFunction<T> impleme
      *                              Use 0 to read all stream events from the beginning.
      * @param deserializationSchema The implementation to deserialize events from pravega streams.
      */
-    public FlinkPravegaReader(final URI controllerURI, final String scope, final List<String> streamNames,
+    public FlinkPravegaReader(final URI controllerURI, final String scope, final Set<String> streamNames,
             final long startTime, final DeserializationSchema<T> deserializationSchema) {
         Preconditions.checkNotNull(controllerURI);
         Preconditions.checkNotNull(scope);

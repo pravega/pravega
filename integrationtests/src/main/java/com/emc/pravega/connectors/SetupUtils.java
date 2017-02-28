@@ -147,7 +147,7 @@ public final class SetupUtils {
         readerGroupManager.createReaderGroup(
                 readerGroup,
                 ReaderGroupConfig.builder().startingTime(0).build(),
-                Collections.singletonList(streamName));
+                Collections.singleton(streamName));
 
         ClientFactory clientFactory = ClientFactory.withScope(scope, SetupUtils.CONTROLLER_URI);
         final String readerGroupId = UUID.randomUUID().toString();

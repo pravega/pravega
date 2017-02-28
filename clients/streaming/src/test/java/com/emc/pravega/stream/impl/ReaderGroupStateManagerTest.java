@@ -25,6 +25,9 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
+import lombok.Cleanup;
+import lombok.val;
+
 import org.junit.Test;
 
 import static java.util.Collections.singletonList;
@@ -34,9 +37,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-
-import lombok.Cleanup;
-import lombok.val;
 
 public class ReaderGroupStateManagerTest {
 
@@ -67,7 +67,6 @@ public class ReaderGroupStateManagerTest {
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(initialSegment, 1L);
         ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
-                                                      ImmutableList.of(stream),
                                                       ReaderGroupConfig.builder().build(),
                                                       segments);
         val readerState = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
@@ -119,7 +118,6 @@ public class ReaderGroupStateManagerTest {
         segments.put(initialSegmentA, 1L);
         segments.put(initialSegmentB, 2L);
         ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
-                                                      ImmutableList.of(stream),
                                                       ReaderGroupConfig.builder().build(),
                                                       segments);
         val readerState = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
@@ -161,7 +159,6 @@ public class ReaderGroupStateManagerTest {
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(new Segment(scope, stream, 0), 1L);
         ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
-                                                      ImmutableList.of(stream),
                                                       ReaderGroupConfig.builder().build(),
                                                       segments);
         ReaderGroupStateManager readerState = new ReaderGroupStateManager("testReader",
@@ -201,7 +198,6 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 2), 2L);
         segments.put(new Segment(scope, stream, 3), 3L);
         ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
-                                                      ImmutableList.of(stream),
                                                       ReaderGroupConfig.builder().build(),
                                                       segments);
 
@@ -284,7 +280,6 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 4), 4L);
         segments.put(new Segment(scope, stream, 5), 5L);
         ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
-                                                      ImmutableList.of(stream),
                                                       ReaderGroupConfig.builder().build(),
                                                       segments);
 

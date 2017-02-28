@@ -34,7 +34,7 @@ public interface ReaderGroup {
      *
      * @return List of stream names
      */
-    List<String> getStreamNames();
+    Set<String> getStreamNames();
 
     /**
      * Returns the name of the group.

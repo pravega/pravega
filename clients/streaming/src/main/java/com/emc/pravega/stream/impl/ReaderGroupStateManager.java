@@ -82,9 +82,9 @@ public class ReaderGroupStateManager {
         acquireTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
     }
     
-    static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync, List<String> streamNames,
+    static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync,
             ReaderGroupConfig config, Map<Segment, Long> segments) {
-        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(streamNames, config, segments));
+        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments));
     }
     
     /**
