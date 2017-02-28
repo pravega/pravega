@@ -31,10 +31,9 @@ abstract class AsyncSegmentInputStream implements AutoCloseable {
         boolean isSuccess();
         
         /**
-         * Waits for the provided future to be complete, and returns true if it was successful, false if it
-         * failed or did not complete.
+         * Waits for the provided future to be complete and returns true if it completed and false if it did not.
          * 
-         * @param timeout The maximum number of milliseconds to block 
+         * @param timeout The maximum number of milliseconds to block
          */
         boolean await(long timeout);
     }

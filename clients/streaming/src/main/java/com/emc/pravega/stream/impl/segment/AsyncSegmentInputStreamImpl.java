@@ -104,7 +104,12 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
         @Override
         public boolean await(long timeout) {
-            return FutureHelpers.await(result.get(), timeout);
+            FutureHelpers.await(result.get(), timeout);
+            return result.get().isDone();
+        }
+        
+        public boolean await() {
+            return FutureHelpers.await(result.get());
         }
 
         private SegmentRead get() throws ExecutionException {
@@ -214,7 +219,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             if (closed.get()) {
                 throw new ObjectClosedException(this);
             }
-            if (!read.await(Long.MAX_VALUE)) {
+            if (!read.await()) {
                 log.debug("Retransmitting a read request {}", read.request);
                 read.reset();
                 ClientConnection c = handleInterrupted(() -> getConnection().get());

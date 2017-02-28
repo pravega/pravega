@@ -276,8 +276,8 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count) {
-        return CompletableFuture.completedFuture(ImmutableList.<PositionInternal> of(getInitialPosition(stream.getScope(),
-                                                                                                        stream.getStreamName())));
+        return CompletableFuture.completedFuture(ImmutableList.<PositionInternal>of(getInitialPosition(stream.getScope(),
+                                                                                                       stream.getStreamName())));
     }
     
     @Override

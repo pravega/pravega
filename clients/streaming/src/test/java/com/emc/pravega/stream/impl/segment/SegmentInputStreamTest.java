@@ -61,7 +61,8 @@ public class SegmentInputStreamTest {
 
             @Override
             public boolean await(long timeout) {
-                return FutureHelpers.await(readResults.get(num + attempt), timeout);
+                FutureHelpers.await(readResults.get(num + attempt), timeout);
+                return readResults.get(num + attempt).isDone();
             }
         }
 
