@@ -11,10 +11,8 @@ import com.emc.pravega.controller.retryable.RetryableException;
 import com.emc.pravega.controller.store.stream.OperationContext;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.store.task.ConflictingTaskException;
 import com.emc.pravega.controller.store.task.LockFailedException;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
-import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.ScalingPolicy;
@@ -201,7 +199,7 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                                                      final OperationContext context) {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
-        CompletableFuture<ScaleResponse> scaleFuture = streamMetadataTasks.scale(request.getScope(),
+        streamMetadataTasks.scale(request.getScope(),
                 request.getStream(),
                 segments,
                 newRanges,
@@ -212,31 +210,18 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                         log.warn("Scale failed for request {}/{}/{} with exception {}", request.getScope(), request.getStream(), request.getSegmentNumber(), e);
                         Throwable cause = ExceptionHelpers.getRealException(e);
                         if (cause instanceof LockFailedException) {
-                            throw (LockFailedException) cause;
+                            result.completeExceptionally(cause);
                         } else {
-                            throw new RuntimeException(e);
+                            result.completeExceptionally(e);
                         }
-                    } else if (res.getStatus().equals(ScaleStreamStatus.TXN_CONFLICT)) {
-                        // transactions were running, throw a retryable exception.
-                        throw new ConflictingTaskException(request.getStream());
                     } else {
                         // completed - either successfully or with pre-condition-failure. Clear markers on all scaled segments.
+                        log.error("scale done for {}/{}/{}", request.getScope(), request.getStream(), request.getSegmentNumber());
+                        result.complete(null);
+
                         clearMarkers(request.getScope(), request.getStream(), segments, context);
                     }
                 }, executor);
-
-        scaleFuture.whenComplete((res, ex) -> {
-            // if it is retryable exception, do not unblock creation of txn and let scale be attempted again.
-            // However, if its either completed successfully or failed with non-retryable, we need to unblock
-            // creation of transactions.
-            if (ex != null) {
-                log.error("scale failed for request {}/{}/{} with exception", request.getScope(), request.getStream(), request.getSegmentNumber(), ex.getMessage());
-                result.completeExceptionally(ex);
-            } else {
-                log.error("scale done for {}/{}/{}", request.getScope(), request.getStream(), request.getSegmentNumber());
-                result.complete(null);
-            }
-        });
 
         return result;
     }
