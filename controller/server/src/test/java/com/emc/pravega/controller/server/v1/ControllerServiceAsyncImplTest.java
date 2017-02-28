@@ -52,12 +52,7 @@ import static org.junit.Assert.assertEquals;
  * to constructor, and this methods initializes the static class members.
  */
 @RunWith(Parameterized.class)
-@SuppressWarnings("checkstyle:StaticVariableName")
 public class ControllerServiceAsyncImplTest {
-
-    private static TestingServer zkServer;
-    private static CuratorFramework zkClient;
-    private static ScheduledExecutorService executor;
 
     private final String scope1 = "scope1";
     private final String scope2 = "scope2";
@@ -100,13 +95,13 @@ public class ControllerServiceAsyncImplTest {
     @Parameterized.Parameters
     public static Collection storeType() throws Exception {
 
-        zkServer = new TestingServer();
+        final TestingServer zkServer = new TestingServer();
         zkServer.start();
-        zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
+        final CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
-        executor = Executors.newScheduledThreadPool(20,
+        final ScheduledExecutorService executor = Executors.newScheduledThreadPool(20,
                 new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
 
         return Arrays.asList(new Object[][]{
