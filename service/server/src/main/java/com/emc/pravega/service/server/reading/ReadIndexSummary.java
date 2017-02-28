@@ -1,36 +1,28 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.reading;
 
 import com.google.common.base.Preconditions;
-
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Represents a summary for a particular ReadIndex.
  */
+@ThreadSafe
 class ReadIndexSummary {
     //region Members
 
+    @GuardedBy("this")
     private int currentGeneration;
+    @GuardedBy("this")
     private long totalSize;
+    @GuardedBy("this")
     private final HashMap<Integer, Integer> generations;
 
     //endregion
@@ -131,11 +123,13 @@ class ReadIndexSummary {
         return new CacheManager.CacheStatus(this.totalSize, Math.min(newestGeneration.get(), oldestGeneration.get()), newestGeneration.get());
     }
 
+    @GuardedBy("this")
     private void addToCurrentGeneration() {
         int newCount = this.generations.getOrDefault(this.currentGeneration, 0) + 1;
         this.generations.put(this.currentGeneration, newCount);
     }
 
+    @GuardedBy("this")
     private void removeFromGeneration(int generation) {
         int newCount = this.generations.getOrDefault(generation, 0) - 1;
         if (newCount > 0) {

@@ -1,26 +1,13 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.demo;
 
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -28,18 +15,19 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamImpl;
-import lombok.Cleanup;
-import org.apache.curator.test.TestingServer;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-
 import java.util.concurrent.CompletableFuture;
+
+import lombok.Cleanup;
+
+import org.apache.curator.test.TestingServer;
 
 /**
  * End to end scale tests.
@@ -49,7 +37,6 @@ public class ScaleTest {
     @SuppressWarnings("checkstyle:ReturnCount")
     public static void main(String[] args) throws Exception {
         TestingServer zkTestServer = new TestingServer();
-        ControllerWrapper controller = new ControllerWrapper(zkTestServer.getConnectString());
 
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
@@ -58,17 +45,18 @@ public class ScaleTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
+        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString());
+
         // Create controller object for testing against a separate controller process.
         // ControllerImpl controller = new ControllerImpl("localhost", 9090);
 
         final String scope = "scope";
         final String streamName = "stream1";
         final StreamConfiguration config =
-                new StreamConfigurationImpl(scope,
-                        streamName,
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 1));
+                StreamConfiguration.builder().scope(scope).streamName(streamName).scalingPolicy(
+                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 1)).build();
 
-        Stream stream = new StreamImpl(scope, streamName, config);
+        Stream stream = new StreamImpl(scope, streamName);
 
         System.err.println(String.format("Creating stream (%s, %s)", scope, streamName));
         CompletableFuture<CreateStreamStatus> createStatus = controller.createStream(config);
@@ -119,13 +107,8 @@ public class ScaleTest {
             return;
         }
 
-        CompletableFuture<TxnStatus> statusFuture = controller.dropTransaction(stream, txId);
-        TxnStatus status = statusFuture.get();
-
-        if (status.getStatus() != TxnStatus.Status.SUCCESS) {
-            System.err.println("Drop transaction failed, exiting");
-            return;
-        }
+        CompletableFuture<Void> statusFuture = controller.abortTransaction(stream, txId);
+        statusFuture.get();
 
         // Test 4: try scale operation after transaction is dropped
         System.err.println(

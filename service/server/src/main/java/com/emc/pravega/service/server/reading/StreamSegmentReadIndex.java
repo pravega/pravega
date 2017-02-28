@@ -1,21 +1,8 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.Exceptions;
@@ -49,6 +36,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -63,6 +51,7 @@ import lombok.val;
  * </ol>
  */
 @Slf4j
+@ThreadSafe
 class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     //region Members
 
@@ -436,6 +425,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
     }
 
+    @GuardedBy("lock")
     private ReadIndexEntry addToIndex(ReadIndexEntry entry) {
         // Insert the new entry and figure out if an old entry was overwritten.
         ReadIndexEntry oldEntry = this.indexEntries.put(entry);
@@ -556,6 +546,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         int readLength = entryContents.getLength();
         while (readLength < length) {
             // No need to search the index; from now on, we know each offset we are looking for is at the beginning of a cache entry.
+            // Also, no need to acquire the lock there. The cache itself is thread safe, and if the entry we are about to fetch
+            // has just been evicted, we'll just get null back and stop reading (which is acceptable).
             byte[] entryData = this.cache.get(new CacheKey(this.metadata.getId(), startOffset + readLength));
             if (entryData == null) {
                 // Could not find the 'next' cache entry: this means the requested range is not fully cached.
@@ -788,6 +780,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param maxLength           The maximum length of the Read, from the Offset of this ReadResultEntry.
      * @param updateStats         If true, the entry's cache generation is updated as a result of this call.
      */
+    @GuardedBy("lock")
     private CacheReadResultEntry createMemoryRead(ReadIndexEntry entry, long streamSegmentOffset, int maxLength, boolean updateStats) {
         assert streamSegmentOffset >= entry.getStreamSegmentOffset() : String.format("streamSegmentOffset{%d} < entry.getStreamSegmentOffset{%d}", streamSegmentOffset, entry.getStreamSegmentOffset());
 
@@ -843,6 +836,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param maxLength   The maximum allowed length.
      * @return The result.
      */
+    @GuardedBy("lock")
     private int getLengthUntilNextEntry(long startOffset, int maxLength) {
         ReadIndexEntry ceilingEntry = this.indexEntries.getCeiling(startOffset);
         if (ceilingEntry != null) {

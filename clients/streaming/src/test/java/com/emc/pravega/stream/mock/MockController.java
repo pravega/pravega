@@ -1,21 +1,8 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.stream.mock;
 
 import com.emc.pravega.common.netty.ConnectionFailedException;
@@ -31,9 +18,9 @@ import com.emc.pravega.common.netty.WireCommands.TransactionAborted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
@@ -70,8 +57,13 @@ public class MockController implements Controller {
     private final ConnectionFactory connectionFactory;
 
     @Override
+    public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
+        throw new NotImplementedException();
+    }
+
+    @Override
     public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {
-        Segment segmentId = new Segment(streamConfig.getScope(), streamConfig.getName(), 0);
+        Segment segmentId = new Segment(streamConfig.getScope(), streamConfig.getStreamName(), 0);
         createSegment(segmentId.getScopedName(), new PravegaNodeUri(endpoint, port));
         return CompletableFuture.completedFuture(CreateStreamStatus.newBuilder()
                                                          .setStatus(CreateStreamStatus.Status.SUCCESS).build());
@@ -134,8 +126,8 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> commitTransaction(Stream stream, UUID txId) {
-        CompletableFuture<TxnStatus> result = new CompletableFuture<>();
+    public CompletableFuture<Void> commitTransaction(Stream stream, UUID txId) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
@@ -150,7 +142,7 @@ public class MockController implements Controller {
 
             @Override
             public void transactionCommitted(TransactionCommitted transactionCommitted) {
-                result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
+                result.complete(null);
             }
 
             @Override
@@ -163,8 +155,8 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> dropTransaction(Stream stream, UUID txId) {
-        CompletableFuture<TxnStatus> result = new CompletableFuture<>();
+    public CompletableFuture<Void> abortTransaction(Stream stream, UUID txId) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
@@ -184,7 +176,7 @@ public class MockController implements Controller {
 
             @Override
             public void transactionAborted(TransactionAborted transactionAborted) {
-                result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
+                result.complete(null);
             }
         };
         sendRequestOverNewConnection(new AbortTransaction(Segment.getScopedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
@@ -225,10 +217,10 @@ public class MockController implements Controller {
     public CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count) {
         return CompletableFuture.completedFuture(ImmutableList.<PositionInternal>of(getInitialPosition(stream.getScope(), stream.getStreamName())));
     }
-
+    
     @Override
-    public CompletableFuture<List<PositionInternal>> updatePositions(Stream stream, List<PositionInternal> positions) {
-        return CompletableFuture.completedFuture(positions);
+    public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(Segment segment) {
+        return CompletableFuture.completedFuture(Collections.emptyMap());
     }
 
     @Override
@@ -236,13 +228,8 @@ public class MockController implements Controller {
         return CompletableFuture.completedFuture(new PravegaNodeUri(endpoint, port));
     }
 
-    @Override
-    public CompletableFuture<Boolean> isSegmentValid(String scope, String stream, int segmentNumber) {
-        return CompletableFuture.completedFuture(true);
-    }
-
     private PositionImpl getInitialPosition(String scope, String stream) {
-        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
+        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L));
     }
     
     private void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor) {
@@ -254,5 +241,6 @@ public class MockController implements Controller {
             throw new RuntimeException(e);
         }
     }
+
 }
 

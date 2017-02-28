@@ -1,59 +1,68 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.metrics.DynamicLogger;
+import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.OpStatsLogger;
+import com.emc.pravega.common.metrics.StatsLogger;
+import com.emc.pravega.common.metrics.StatsProvider;
+import com.emc.pravega.controller.server.MetricNames;
 import com.emc.pravega.controller.store.stream.tables.State;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
-import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import com.google.common.collect.Sets;
+import lombok.extern.slf4j.Slf4j;
 
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.AbstractMap;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static com.emc.pravega.common.concurrent.FutureCollectionHelper.filter;
-import static com.emc.pravega.common.concurrent.FutureCollectionHelper.sequence;
+import javax.annotation.ParametersAreNonnullByDefault;
+
+import static com.emc.pravega.controller.server.MetricNames.ABORT_TRANSACTION;
+import static com.emc.pravega.controller.server.MetricNames.COMMIT_TRANSACTION;
+import static com.emc.pravega.controller.server.MetricNames.CREATE_TRANSACTION;
+import static com.emc.pravega.controller.server.MetricNames.MERGES;
+import static com.emc.pravega.controller.server.MetricNames.NUMBER_OF_SEGMENTS;
+import static com.emc.pravega.controller.server.MetricNames.OPEN_TRANSACTIONS;
+import static com.emc.pravega.controller.server.MetricNames.SPLITS;
+import static com.emc.pravega.controller.server.MetricNames.nameFromStream;
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_EMPTY;
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
 
 /**
  * Abstract Stream metadata store. It implements various read queries using the Stream interface.
  * Implementation of create and update queries are delegated to the specific implementations of this abstract class.
  */
+@Slf4j
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
-    private final LoadingCache<String, Stream> cache;
+    protected static final StatsProvider METRICS_PROVIDER = MetricsProvider.getMetricsProvider();
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+    private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("Controller");
+    private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricNames.CREATE_STREAM);
+    private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricNames.SEAL_STREAM);
+    private final LoadingCache<String, Scope> scopeCache;
+    private final LoadingCache<String, Stream> streamCache;
 
     protected AbstractStreamMetadataStore() {
-        cache = CacheBuilder.newBuilder()
+        streamCache = CacheBuilder.newBuilder()
                 .maximumSize(1000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
@@ -68,131 +77,351 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                 }
                             }
                         });
+
+        scopeCache = CacheBuilder.newBuilder()
+                .maximumSize(1000)
+                .refreshAfterWrite(10, TimeUnit.MINUTES)
+                .expireAfterWrite(10, TimeUnit.MINUTES)
+                .build(
+                        new CacheLoader<String, Scope>() {
+                            @ParametersAreNonnullByDefault
+                            public Scope load(String scopeName) {
+                                try {
+                                    return newScope(scopeName);
+                                } catch (Exception e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+                        });
     }
 
-    abstract Stream newStream(final String name);
+    /**
+     * Returns a Stream object from stream identifier.
+     *
+     * @param scopedStreamName scopedStreamName is stream identifier  (scopeName/streamName)
+     * @return Stream Object.
+     */
+    abstract Stream newStream(final String scopedStreamName);
+
+    /**
+     * Returns a Scope object from scope identifier.
+     *
+     * @param scopeName scope identifier is scopeName.
+     * @return Scope object.
+     */
+    abstract Scope newScope(final String scopeName);
 
     @Override
-    public CompletableFuture<Boolean> createStream(final String name,
+    public CompletableFuture<Boolean> createStream(final String scopeName,
+                                                   final String streamName,
                                                    final StreamConfiguration configuration,
                                                    final long createTimestamp) {
-        return getStream(name).create(configuration, createTimestamp);
+        Stream stream = getStream(scopeName, streamName);
+        return stream.create(configuration, createTimestamp).thenApply(result -> {
+            CREATE_STREAM.reportSuccessValue(1);
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), 0);
+            DYNAMIC_LOGGER.incCounterValue(nameFromStream(NUMBER_OF_SEGMENTS, scopeName, streamName),
+                    configuration.getScalingPolicy().getMinNumSegments());
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SPLITS, scopeName, streamName), 0);
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(MERGES, scopeName, streamName), 0);
+            return result;
+        });
+    }
+
+    /**
+     * Create a scope with given name.
+     *
+     * @param scopeName Name of scope to created.
+     * @return CreateScopeStatus future.
+     */
+    @Override
+    public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
+        if (!validateName(scopeName)) {
+            log.error("Create scope failed due to invalid scope name {}", scopeName);
+            return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
+                    CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
+        } else {
+            return getScope(scopeName).createScope()
+                    .handle((result, ex) -> {
+                        if (ex != null) {
+                            if (ex.getCause() instanceof StoreException &&
+                                    ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
+                                return CreateScopeStatus.newBuilder().setStatus(
+                                        CreateScopeStatus.Status.SCOPE_EXISTS).build();
+                            } else if (ex instanceof StoreException &&
+                                    ((StoreException) ex).getType() == NODE_EXISTS) {
+                                return CreateScopeStatus.newBuilder().setStatus(
+                                        CreateScopeStatus.Status.SCOPE_EXISTS).build();
+                            } else {
+                                log.debug("Create scope failed due to ", ex);
+                                return CreateScopeStatus.newBuilder().setStatus(
+                                        CreateScopeStatus.Status.FAILURE).build();
+                            }
+                        } else {
+                            return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build();
+                        }
+                    });
+        }
+    }
+
+    /**
+     * Delete a scope with given name.
+     *
+     * @param scopeName Name of scope to be deleted
+     * @return DeleteScopeStatus future.
+     */
+    @Override
+    public CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName) {
+        return getScope(scopeName).deleteScope()
+                .handle((result, ex) -> {
+                    if (ex != null) {
+                        if ((ex.getCause() instanceof StoreException &&
+                                ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) ||
+                                (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_FOUND))) {
+                            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND)
+                                    .build();
+                        } else if (ex.getCause() instanceof StoreException &&
+                                ((StoreException) ex.getCause()).getType() == NODE_NOT_EMPTY ||
+                                (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_EMPTY))) {
+                            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY)
+                                    .build();
+                        } else {
+                            log.debug("DeleteScope failed due to {} ", ex);
+                            return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE)
+                                    .build();
+                        }
+                    } else {
+                        return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
+                    }
+                });
+    }
+
+    /**
+     * List the streams in scope.
+     *
+     * @param scopeName Name of scope
+     * @return List of streams in scope
+     */
+    @Override
+    public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
+        return getScope(scopeName).listStreamsInScope()
+                .thenCompose(streams -> {
+                    List<CompletableFuture<StreamConfiguration>> streamFutures = streams.stream()
+                            .map(s -> getStream(scopeName, s).getConfiguration())
+                            .collect(Collectors.toList());
+
+                    // Aggregate each of the results into one CompleteableFuture.
+                    final CompletableFuture[] completableFutures =
+                            streamFutures.toArray(new CompletableFuture[streamFutures.size()]);
+                    final CompletableFuture<Void> futuresList = CompletableFuture.allOf(completableFutures);
+
+                    // On completion contruct a single future holding the result.
+                    final CompletableFuture<List<StreamConfiguration>> result = futuresList.thenApply(v -> streamFutures
+                            .stream()
+                            .map(CompletableFuture::join)
+                            .collect(Collectors.toList()));
+
+                    // Complete the future on first error, so clients won't have to wait.
+                    streamFutures.forEach(stream -> stream.whenComplete((res, ex) -> {
+                        if (ex != null) {
+                            result.completeExceptionally(ex);
+                        }
+                    }));
+
+                    return result;
+                });
     }
 
     @Override
-    public CompletableFuture<Boolean> updateConfiguration(final String name,
+    public CompletableFuture<Boolean> updateConfiguration(final String scopeName,
+                                                          final String streamName,
                                                           final StreamConfiguration configuration) {
-        return getStream(name).updateConfiguration(configuration);
+        return getStream(scopeName, streamName).updateConfiguration(configuration);
     }
 
     @Override
-    public CompletableFuture<StreamConfiguration> getConfiguration(final String name) {
-        return getStream(name).getConfiguration();
+    public CompletableFuture<StreamConfiguration> getConfiguration(final String scopeName, final String streamName) {
+        return getStream(scopeName, streamName).getConfiguration();
     }
 
     @Override
-    public CompletableFuture<Boolean> isSealed(final String name) {
-        return getStream(name).getState().thenApply(state -> state.equals(State.SEALED));
+    public CompletableFuture<Boolean> isSealed(final String scopeName, final String streamName) {
+        return getStream(scopeName, streamName).getState().thenApply(state -> state.equals(State.SEALED));
     }
 
     @Override
-    public CompletableFuture<Boolean> setSealed(final String name) {
-        return getStream(name).updateState(State.SEALED);
+    public CompletableFuture<Boolean> setSealed(final String scopeName, final String streamName) {
+        Stream stream = getStream(scopeName, streamName);
+        return stream.updateState(State.SEALED).thenApply(result -> {
+            SEAL_STREAM.reportSuccessValue(1);
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), 0);
+            return result;
+        });
     }
 
     @Override
-    public CompletableFuture<Segment> getSegment(final String name, final int number) {
-        return getStream(name).getSegment(number);
+    public CompletableFuture<Segment> getSegment(final String scopeName, final String streamName, final int number) {
+        return getStream(scopeName, streamName).getSegment(number);
     }
 
     @Override
-    public CompletableFuture<List<Segment>> getActiveSegments(final String name) {
-        final Stream stream = getStream(name);
-        return stream.getState()
-                .thenCompose(state ->
-                        State.SEALED.equals(state) ? CompletableFuture.completedFuture(Collections.emptyList()) : stream
-                                .getActiveSegments())
-                .thenCompose(currentSegments -> sequence(currentSegments.stream().map(stream::getSegment)
-                        .collect(Collectors.toList())));
+    public CompletableFuture<List<Segment>> getActiveSegments(final String scopeName, final String streamName) {
+        final Stream stream = getStream(scopeName, streamName);
+        return stream.getState().thenCompose(state -> {
+            if (State.SEALED.equals(state)) {
+                return CompletableFuture.completedFuture(Collections.<Integer>emptyList());
+            } else {
+                return stream.getActiveSegments();
+            }
+        }).thenCompose(currentSegments -> FutureHelpers.allOfWithResults(currentSegments.stream().map(stream::getSegment).collect(Collectors.toList())));
     }
 
     @Override
-    public CompletableFuture<SegmentFutures> getActiveSegments(final String name, final long timestamp) {
-        Stream stream = getStream(name);
+    public CompletableFuture<SegmentFutures> getActiveSegments(final String scopeName, final String streamName,
+                                                               final long timestamp) {
+        Stream stream = getStream(scopeName, streamName);
         CompletableFuture<List<Integer>> futureActiveSegments = stream.getActiveSegments(timestamp);
         return futureActiveSegments.thenCompose(activeSegments -> constructSegmentFutures(stream, activeSegments));
     }
 
     @Override
-    public CompletableFuture<List<SegmentFutures>> getNextSegments(final String name,
-                                                                   final Set<Integer> completedSegments,
-                                                                   final List<SegmentFutures> positions) {
-        Preconditions.checkNotNull(positions);
-        Preconditions.checkArgument(positions.size() > 0);
-
-        Stream stream = getStream(name);
-
-        Set<Integer> current = new HashSet<>();
-        positions.forEach(position ->
-                position.getCurrent().forEach(current::add));
-
-        CompletableFuture<Set<Integer>> implicitCompletedSegments =
-                getImplicitCompletedSegments(stream, completedSegments, current);
-
-        CompletableFuture<Set<Integer>> successors =
-                implicitCompletedSegments.thenCompose(x -> getSuccessors(stream, x));
-
-        CompletableFuture<List<Integer>> newCurrents =
-                implicitCompletedSegments.thenCompose(x -> successors.thenCompose(y -> getNewCurrents(stream, y, x, positions)));
-
-        CompletableFuture<Map<Integer, List<Integer>>> newFutures =
-                implicitCompletedSegments.thenCompose(x -> successors.thenCompose(y -> getNewFutures(stream, y, x)));
-
-        return newCurrents.thenCompose(x -> newFutures.thenCompose(y -> divideSegments(stream, x, y, positions)));
+    public CompletableFuture<Map<Integer, List<Integer>>> getSuccessors(final String scopeName, final String streamName,
+                                                                        final int segmentNumber) {
+        Stream stream = getStream(scopeName, streamName);
+        return stream.getSuccessorsWithPredecessors(segmentNumber);
     }
 
     @Override
-    public CompletableFuture<List<Segment>> scale(final String name,
+    public CompletableFuture<List<Segment>> scale(final String scopeName, final String streamName,
                                                   final List<Integer> sealedSegments,
                                                   final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                   final long scaleTimestamp) {
-        return getStream(name).scale(sealedSegments, newRanges, scaleTimestamp);
+        return getStream(scopeName, streamName).scale(sealedSegments, newRanges, scaleTimestamp)
+                .thenApply(result -> {
+                    DYNAMIC_LOGGER.incCounterValue(nameFromStream(NUMBER_OF_SEGMENTS, scopeName, streamName),
+                            newRanges.size() - sealedSegments.size());
+
+                    getSealedRanges(scopeName, streamName, sealedSegments)
+                            .thenAccept(sealedRanges -> {
+
+                                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SPLITS, scopeName, streamName),
+                                        findSplits(sealedRanges, newRanges));
+
+                                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(MERGES, scopeName, streamName),
+                                        findSplits(newRanges, sealedRanges));
+                            });
+
+                    return result;
+                });
+    }
+
+    private CompletableFuture<List<AbstractMap.SimpleEntry<Double, Double>>> getSealedRanges(final String scopeName,
+                                                                                             final String streamName,
+                                                                                             final List<Integer>
+                                                                                                     sealedSegments) {
+        return FutureHelpers.allOfWithResults(
+                sealedSegments.stream()
+                        .map(value ->
+                                getSegment(scopeName, streamName, value).thenApply(segment ->
+                                        new AbstractMap.SimpleEntry<>(
+                                                segment.getKeyStart(),
+                                                segment.getKeyEnd())))
+                        .collect(Collectors.toList()));
+    }
+
+    private int findSplits(final List<AbstractMap.SimpleEntry<Double, Double>> sealedRanges,
+                           final List<AbstractMap.SimpleEntry<Double, Double>> newRanges) {
+        int splits = 0;
+        for (AbstractMap.SimpleEntry<Double, Double> sealedRange : sealedRanges) {
+            int overlaps = 0;
+            for (AbstractMap.SimpleEntry<Double, Double> newRange : newRanges) {
+                if (Segment.overlaps(sealedRange, newRange)) {
+                    overlaps++;
+                }
+                if (overlaps > 1) {
+                    splits++;
+                    break;
+                }
+            }
+        }
+        return splits;
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final String scope, final String stream) {
-        return getStream(stream).createTransaction();
+    public CompletableFuture<UUID> createTransaction(final String scopeName, final String streamName) {
+        Stream stream = getStream(scopeName, streamName);
+        return stream.createTransaction().thenApply(result -> {
+            stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(CREATE_TRANSACTION, scopeName, streamName), 1);
+                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), count);
+            });
+            return result;
+        });
     }
 
     @Override
-    public CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId) {
-        return getStream(stream).checkTransactionStatus(txId);
+    public CompletableFuture<TxnStatus> transactionStatus(final String scopeName, final String streamName, final UUID txId) {
+        return getStream(scopeName, streamName).checkTransactionStatus(txId);
     }
 
     @Override
-    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId) {
-        return getStream(stream).commitTransaction(txId);
+    public CompletableFuture<TxnStatus> commitTransaction(final String scopeName, final String streamName, final UUID txId) {
+        Stream stream = getStream(scopeName, streamName);
+        return stream.commitTransaction(txId).thenApply(result -> {
+            stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(COMMIT_TRANSACTION, scopeName, streamName), 1);
+                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), count);
+            });
+            return result;
+        });
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId) {
-        return getStream(stream).sealTransaction(txId);
+    public CompletableFuture<TxnStatus> sealTransaction(final String scopeName, final String streamName, final UUID txId,
+                                                        final boolean commit) {
+        return getStream(scopeName, streamName).sealTransaction(txId, commit);
     }
 
     @Override
-    public CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final UUID txId) {
-        return getStream(stream).abortTransaction(txId);
+    public CompletableFuture<TxnStatus> abortTransaction(final String scopeName, final String streamName, final UUID txId) {
+        Stream stream = getStream(scopeName, streamName);
+        return stream.abortTransaction(txId).thenApply(result -> {
+            stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(ABORT_TRANSACTION, scopeName, streamName), 1);
+                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), count);
+            });
+            return result;
+        });
     }
 
     @Override
-    public CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream) {
-        return getStream(stream).isTransactionOngoing();
+    public CompletableFuture<Boolean> isTransactionOngoing(final String scopeName, final String streamName) {
+        Stream stream = getStream(scopeName, streamName);
+        return stream.getNumberOfOngoingTransactions().thenApply(num -> num > 0);
     }
 
-    private Stream getStream(final String name) {
-        Stream stream = cache.getUnchecked(name);
+    private Stream getStream(final String scopeName, final String streamName) {
+
+        Stream stream = streamCache.getUnchecked(getScopedStreamName(scopeName, streamName));
         stream.refresh();
         return stream;
+    }
+
+    private Scope getScope(final String scopeName) {
+        Scope scope = scopeCache.getUnchecked(scopeName);
+        scope.refresh();
+        return scope;
+    }
+
+    /**
+     * ScopedStreamName is scopeName/streamName
+     *
+     * @param scopeName  Scope name.
+     * @param streamName Stream name.
+     * @return String scopeName/streamName.
+     */
+    private String getScopedStreamName(final String scopeName, final String streamName) {
+        return new StringBuilder(scopeName).append("/").append(streamName).toString();
     }
 
     private CompletableFuture<SegmentFutures> constructSegmentFutures(final Stream stream, final List<Integer> activeSegments) {
@@ -200,7 +429,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         List<CompletableFuture<List<Integer>>> list =
                 activeSegments.stream().map(number -> getDefaultFutures(stream, number)).collect(Collectors.toList());
 
-        CompletableFuture<List<List<Integer>>> futureDefaultFutures = sequence(list);
+        CompletableFuture<List<List<Integer>>> futureDefaultFutures = FutureHelpers.allOfWithResults(list);
         return futureDefaultFutures
                 .thenApply(futureList -> {
                             for (int i = 0; i < futureList.size(); i++) {
@@ -228,147 +457,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private CompletableFuture<List<Integer>> getDefaultFutures(final Stream stream, final int number) {
         CompletableFuture<List<Integer>> futureSuccessors = stream.getSuccessors(number);
         return futureSuccessors.thenCompose(
-                list -> filter(list, elem -> stream.getPredecessors(elem).thenApply(x -> x.size() == 1)));
+                list -> FutureHelpers.filter(list, elem -> stream.getPredecessors(elem).thenApply(x -> x.size() == 1)));
     }
 
-    private CompletableFuture<Set<Integer>> getImplicitCompletedSegments(final Stream stream,
-                                                                         final Set<Integer> completedSegments,
-                                                                         final Set<Integer> current) {
-        List<CompletableFuture<Set<Integer>>> futures =
-                current
-                        .stream()
-                        .map(x -> stream.getPredecessors(x).thenApply(list -> list.stream().collect(Collectors.toSet())))
-                        .collect(Collectors.toList());
-
-        return sequence(futures)
-                .thenApply(list -> Sets.union(completedSegments, list.stream().reduce(Collections.emptySet(), Sets::union)));
-    }
-
-    private CompletableFuture<Set<Integer>> getSuccessors(final Stream stream, final Set<Integer> completedSegments) {
-        // successors of completed segments are interesting, which means
-        // some of them may become current, and
-        // some of them may become future
-        //Set<Integer> successors = completedSegments.stream().flatMap(x -> stream.getSuccessors(x).stream()).collect(Collectors.toSet());
-        List<CompletableFuture<Set<Integer>>> futures =
-                completedSegments
-                        .stream()
-                        .map(x -> stream.getSuccessors(x).thenApply(list -> list.stream().collect(Collectors.toSet())))
-                        .collect(Collectors.toList());
-
-        return sequence(futures)
-                .thenApply(list -> list.stream().reduce(Collections.emptySet(), Sets::union));
-    }
-
-    private CompletableFuture<List<Integer>> getNewCurrents(final Stream stream,
-                                                            final Set<Integer> successors,
-                                                            final Set<Integer> completedSegments,
-                                                            final List<SegmentFutures> positions) {
-        // a successor that has
-        // 1. it is not completed yet, and
-        // 2. it is not current in any of the positions, and
-        // 3. all its predecessors completed.
-        // shall become current and be added to some position
-        List<Integer> newCurrents = successors.stream().filter(x ->
-                        // 2. it is not completed yet, and
-                        !completedSegments.contains(x)
-                                // 3. it is not current in any of the positions
-                                && positions.stream().allMatch(z -> !z.getCurrent().contains(x))
-        ).collect(Collectors.toList());
-
-        // 3. all its predecessors completed, and
-        Function<List<Integer>, Boolean> predicate = list -> list.stream().allMatch(completedSegments::contains);
-        return filter(
-                newCurrents,
-                (Integer x) -> stream.getPredecessors(x).thenApply(predicate));
-    }
-
-    private CompletableFuture<Map<Integer, List<Integer>>> getNewFutures(final Stream stream,
-                                                                         final Set<Integer> successors,
-                                                                         final Set<Integer> completedSegments) {
-        List<Integer> subset = successors.stream().filter(x -> !completedSegments.contains(x)).collect(Collectors.toList());
-
-        List<CompletableFuture<List<Integer>>> predecessors = new ArrayList<>();
-        for (Integer number : subset) {
-            predecessors.add(stream.getPredecessors(number)
-                            .thenApply(preds -> preds.stream().filter(y -> !completedSegments.contains(y)).collect(Collectors.toList()))
-            );
-        }
-
-        return sequence(predecessors).thenApply((List<List<Integer>> preds) -> {
-            Map<Integer, List<Integer>> map = new HashMap<>();
-            for (int i = 0; i < preds.size(); i++) {
-                List<Integer> filtered = preds.get(i);
-                if (filtered.size() == 1) {
-                    Integer pendingPredecessor = filtered.get(0);
-                    if (map.containsKey(pendingPredecessor)) {
-                        map.get(pendingPredecessor).add(subset.get(i));
-                    } else {
-                        List<Integer> list = new ArrayList<>();
-                        list.add(subset.get(i));
-                        map.put(pendingPredecessor, list);
-                    }
-                }
-            }
-            return map;
-        });
-    }
-
-    /**
-     * Divides the set of new current segments among existing positions and returns the updated positions
-     *
-     * @param stream      stream
-     * @param newCurrents new set of current segments
-     * @param newFutures  new set of future segments
-     * @param positions   positions to be updated
-     * @return the updated sequence of positions
-     */
-    private CompletableFuture<List<SegmentFutures>> divideSegments(final Stream stream,
-                                                                   final List<Integer> newCurrents,
-                                                                   final Map<Integer, List<Integer>> newFutures,
-                                                                   final List<SegmentFutures> positions) {
-        List<CompletableFuture<SegmentFutures>> newPositions = new ArrayList<>(positions.size());
-
-        int quotient = newCurrents.size() / positions.size();
-        int remainder = newCurrents.size() % positions.size();
-        int counter = 0;
-        for (int i = 0; i < positions.size(); i++) {
-            SegmentFutures position = positions.get(i);
-
-            // add the new current segments
-            List<Integer> newCurrent = new ArrayList<>(position.getCurrent());
-            int portion = (i < remainder) ? quotient + 1 : quotient;
-            for (int j = 0; j < portion; j++, counter++) {
-                newCurrent.add(newCurrents.get(counter));
-            }
-            Map<Integer, Integer> newFuture = new HashMap<>(position.getFutures());
-            // add new futures if any
-            position.getCurrent().forEach(
-                    current -> {
-                        if (newFutures.containsKey(current)) {
-                            newFutures.get(current).stream().forEach(x -> newFuture.put(x, current));
-                        }
-                    }
-            );
-            // add default futures for new and old current segments, if any
-            List<CompletableFuture<List<Integer>>> defaultFutures =
-                    newCurrent.stream().map(x -> getDefaultFutures(stream, x)).collect(Collectors.toList());
-
-            CompletableFuture<SegmentFutures> segmentFuture =
-                    sequence(defaultFutures).thenApply((List<List<Integer>> list) -> {
-                        for (int k = 0; k < list.size(); k++) {
-                            Integer x = newCurrent.get(k);
-                            list.get(k).stream().forEach(
-                                    y -> {
-                                        if (!newFuture.containsKey(y)) {
-                                            newFuture.put(y, x);
-                                        }
-                                    }
-                            );
-                        }
-                        return new SegmentFutures(newCurrent, newFuture);
-                    });
-            newPositions.add(segmentFuture);
-        }
-        return sequence(newPositions);
+    static boolean validateName(final String path) {
+        return (path.indexOf('\\') >= 0 || path.indexOf('/') >= 0) ? false : true;
     }
 }

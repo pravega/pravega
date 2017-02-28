@@ -1,21 +1,8 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.mocks;
 
 import com.emc.pravega.common.Exceptions;
@@ -26,12 +13,13 @@ import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Local (sandbox) implementation for SegmentContainerManager. Nothing that happens here ever leaves the confines
@@ -41,12 +29,14 @@ import java.util.concurrent.CompletableFuture;
  * number of containers (result is in hex).
  */
 @Slf4j
+@ThreadSafe
 public class LocalSegmentContainerManager implements SegmentContainerManager {
     //region Members
     private static final Duration INIT_TIMEOUT_PER_CONTAINER = Duration.ofSeconds(30L);
     private static final Duration CLOSE_TIMEOUT_PER_CONTAINER = Duration.ofSeconds(30L); //TODO: config?
     private final SegmentContainerRegistry registry;
     private final SegmentToContainerMapper segmentToContainerMapper;
+    @GuardedBy("handles")
     private final HashMap<Integer, ContainerHandle> handles;
     private boolean closed;
 
@@ -108,7 +98,7 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int containerId = 0; containerId < containerCount; containerId++) {
             futures.add(this.registry.startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER)
-                    .thenAccept(this::registerHandle));
+                                     .thenAccept(this::registerHandle));
         }
 
         return FutureHelpers.allOf(futures)

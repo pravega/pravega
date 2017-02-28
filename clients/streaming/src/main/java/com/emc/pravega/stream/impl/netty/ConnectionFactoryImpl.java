@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.stream.impl.netty;
 
@@ -25,6 +13,7 @@ import java.util.concurrent.CompletableFuture;
 
 import javax.net.ssl.SSLException;
 
+import com.emc.pravega.common.netty.AppendBatchSizeTracker;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
 import com.emc.pravega.common.netty.ExceptionLoggingHandler;
@@ -57,6 +46,11 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     private EventLoopGroup group;
     private boolean nio = false;
 
+    /**
+     * Actual implementation of ConnectionFactory interface.
+     *
+     * @param ssl Whether connection should use SSL or not.
+     */
     public ConnectionFactoryImpl(boolean ssl) {
         this.ssl = ssl;
         try {
@@ -84,7 +78,8 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         } else {
             sslCtx = null;
         }
-        ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(location.getEndpoint(), rp);
+        AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
+        ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(location.getEndpoint(), rp, batchSizeTracker);
         Bootstrap b = new Bootstrap();
         b.group(group)
          .channel(nio ? NioSocketChannel.class : EpollSocketChannel.class)
@@ -98,7 +93,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
                  }
                  // p.addLast(new LoggingHandler(LogLevel.INFO));
                  p.addLast(new ExceptionLoggingHandler(location.getEndpoint()),
-                         new CommandEncoder(),
+                         new CommandEncoder(batchSizeTracker),
                          new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                          new CommandDecoder(),
                          handler);

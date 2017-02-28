@@ -1,21 +1,8 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.host;
 
 import ch.qos.logback.classic.Level;
@@ -62,14 +49,14 @@ public final class ServiceStarter {
 
     //region Constructor
 
-    private ServiceStarter(ServiceBuilderConfig config) {
+    public ServiceStarter(ServiceBuilderConfig config) {
         this.builderConfig = config;
         this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::new);
         Options opt = new Options();
-        opt.distributedLog = false;
-        opt.hdfs = false;
+        opt.distributedLog = true;
+        opt.hdfs = true;
         opt.rocksDb = true;
-        opt.zkSegmentManager = false;
+        opt.zkSegmentManager = true;
         this.serviceBuilder = createServiceBuilder(opt);
     }
 
@@ -98,7 +85,7 @@ public final class ServiceStarter {
 
     //region Service Operation
 
-    private void start() {
+    public void start() {
         Exceptions.checkNotClosed(this.closed, this);
 
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
@@ -107,7 +94,7 @@ public final class ServiceStarter {
 
         log.info("Initializing metrics provider ...");
         statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.start(metricsConfig);
+        statsProvider.start();
 
         log.info("Initializing Service Builder ...");
         this.serviceBuilder.initialize().join();
@@ -121,7 +108,7 @@ public final class ServiceStarter {
         log.info("StreamSegmentService started.");
     }
 
-    private void shutdown() {
+    public void shutdown() {
         if (!this.closed) {
             this.serviceBuilder.close();
             log.info("StreamSegmentService shut down.");
@@ -178,14 +165,16 @@ public final class ServiceStarter {
             return new ZKSegmentContainerManager(setup.getContainerRegistry(),
                     setup.getSegmentToContainerMapper(),
                     zkClient,
-                    new Host(this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getListeningPort()),
-                    this.serviceConfig.getClusterName());
+                    new Host(this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getListeningPort()));
         });
     }
 
     private CuratorFramework createZKClient() {
-        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(this.serviceConfig.getZkHostName() + ":" + this.serviceConfig.getZkPort(),
-                new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()));
+        CuratorFramework zkClient = CuratorFrameworkFactory.builder()
+                .connectString(this.serviceConfig.getZkURL())
+                .namespace("pravega/" + this.serviceConfig.getClusterName())
+                .retryPolicy(new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()))
+                .build();
         zkClient.start();
         return zkClient;
     }

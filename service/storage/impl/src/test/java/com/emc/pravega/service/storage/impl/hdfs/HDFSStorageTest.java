@@ -1,34 +1,18 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.storage.impl.hdfs;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.io.FileHelpers;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.StorageTestBase;
-import lombok.val;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hdfs.MiniDFSCluster;
-import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
 
 import java.io.File;
 import java.io.IOException;
@@ -41,15 +25,23 @@ import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
 
+import lombok.val;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.junit.After;
+import org.junit.Before;
+import org.slf4j.LoggerFactory;
+
 /**
  * Unit tests for HDFSStorage.
  */
 public class HDFSStorageTest extends StorageTestBase {
-    private static File baseDir = null;
-    private static MiniDFSCluster hdfsCluster = null;
+    private File baseDir = null;
+    private MiniDFSCluster hdfsCluster = null;
 
-    @org.junit.BeforeClass
-    public static void setUp() throws Exception {
+    @Before
+    public void setUp() throws Exception {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.OFF);
         //context.reset();
@@ -62,8 +54,8 @@ public class HDFSStorageTest extends StorageTestBase {
         hdfsCluster = builder.build();
     }
 
-    @org.junit.AfterClass
-    public static void tearDown() {
+    @After
+    public void tearDown() {
         if (hdfsCluster != null) {
             hdfsCluster.shutdown();
             hdfsCluster = null;
@@ -96,7 +88,7 @@ public class HDFSStorageTest extends StorageTestBase {
      * Wrapper for a storage class which handles the ACL behavior of MiniDFSCluster.
      * This keeps track of the sealed segments and throws error when a write is attempted on a segment.
      **/
-    private class MiniClusterPermFixer implements Storage {
+    private static class MiniClusterPermFixer implements Storage {
         private final HDFSStorage storage;
         private ArrayList<String> sealedList;
 

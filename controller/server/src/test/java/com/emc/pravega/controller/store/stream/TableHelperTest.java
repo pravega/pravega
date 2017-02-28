@@ -1,23 +1,9 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.store.stream;
-
-import static org.junit.Assert.assertEquals;
 
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
@@ -29,6 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static org.junit.Assert.assertEquals;
 
 public class TableHelperTest {
     @Test
@@ -56,19 +44,34 @@ public class TableHelperTest {
 
     @Test
     public void getActiveSegmentsTest() {
-        final List<Integer> newSegments = Lists.newArrayList(0, 1, 2, 3, 4);
+        final List<Integer> startSegments = Lists.newArrayList(0, 1, 2, 3, 4);
         long timestamp = System.currentTimeMillis();
-        byte[] historyTable = TableHelper.updateHistoryTable(new byte[0], timestamp, newSegments);
+        byte[] historyTable = TableHelper.updateHistoryTable(new byte[0], timestamp, startSegments);
         List<Integer> activeSegments = TableHelper.getActiveSegments(historyTable);
+        assertEquals(activeSegments, startSegments);
+
+        List<Integer> newSegments = Lists.newArrayList(5, 6, 7, 8, 9);
+
+        historyTable = TableHelper.updateHistoryTable(historyTable, timestamp + 2, newSegments);
+        activeSegments = TableHelper.getActiveSegments(historyTable);
         assertEquals(activeSegments, newSegments);
 
-        List<Integer> newSegments2 = Lists.newArrayList(5, 6, 7, 8, 9);
-
-        historyTable = TableHelper.updateHistoryTable(historyTable, System.currentTimeMillis() + 1, newSegments2);
-        activeSegments = TableHelper.getActiveSegments(historyTable);
-        assertEquals(activeSegments, newSegments2);
-
         activeSegments = TableHelper.getActiveSegments(timestamp, new byte[0], historyTable);
+        assertEquals(startSegments, activeSegments);
+
+        activeSegments = TableHelper.getActiveSegments(0, new byte[0], historyTable);
+        assertEquals(startSegments, activeSegments);
+
+        activeSegments = TableHelper.getActiveSegments(timestamp - 1, new byte[0], historyTable);
+        assertEquals(startSegments, activeSegments);
+
+        activeSegments = TableHelper.getActiveSegments(timestamp + 1, new byte[0], historyTable);
+        assertEquals(startSegments, activeSegments);
+
+        activeSegments = TableHelper.getActiveSegments(timestamp + 2, new byte[0], historyTable);
+        assertEquals(newSegments, activeSegments);
+
+        activeSegments = TableHelper.getActiveSegments(timestamp + 3, new byte[0], historyTable);
         assertEquals(newSegments, activeSegments);
     }
 

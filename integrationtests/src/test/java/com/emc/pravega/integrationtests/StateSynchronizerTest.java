@@ -1,16 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
- * agreements. See the NOTICE file distributed with this work for additional information regarding
- * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License. You may obtain a
- * copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.integrationtests;
 
@@ -27,7 +18,7 @@ import com.emc.pravega.state.Update;
 import com.emc.pravega.state.examples.SetSynchronizer;
 import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.mock.MockClientFactory;
+import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.TestUtils;
 
 import java.io.Serializable;
@@ -58,7 +49,7 @@ public class StateSynchronizerTest {
     public void setup() throws Exception {
         originalLevel = ResourceLeakDetector.getLevel();
         ResourceLeakDetector.setLevel(Level.PARANOID);
-        InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
+        InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         this.serviceBuilder.initialize().get();
     }
@@ -101,13 +92,13 @@ public class StateSynchronizerTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-
-        MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
-        clientFactory.createStream(stateName, null);
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
+        streamManager.createStream(stateName, null);
         JavaSerializer<TestUpdate> serializer = new JavaSerializer<TestUpdate>();
         
-        val a = clientFactory.createStateSynchronizer(stateName, serializer, serializer, new SynchronizerConfig(null, null));
-        val b = clientFactory.createStateSynchronizer(stateName, serializer, serializer, new SynchronizerConfig(null, null));
+        val a = streamManager.getClientFactory().createStateSynchronizer(stateName, serializer, serializer, new SynchronizerConfig(null, null));
+        val b = streamManager.getClientFactory().createStateSynchronizer(stateName, serializer, serializer, new SynchronizerConfig(null, null));
 
         a.initialize(new TestUpdate("init"));
         b.fetchUpdates();
@@ -153,15 +144,15 @@ public class StateSynchronizerTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-
-        MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
-        clientFactory.createStream(stateName, null);
-        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, clientFactory);
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
+        streamManager.createStream(stateName, null);
+        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
 
         for (int i = 0; i < 10; i++) {
            setA.add("Append: " + i);
         }
-        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, clientFactory);
+        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
         assertEquals(10, setB.getCurrentSize());
         for (int i = 10; i < 20; i++) {
             setA.add("Append: " + i);
@@ -179,11 +170,11 @@ public class StateSynchronizerTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-
-        MockClientFactory clientFactory = new MockClientFactory("scope", endpoint, port);
-        clientFactory.createStream(stateName, null);
-        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, clientFactory);
-        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, clientFactory);
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
+        streamManager.createStream(stateName, null);
+        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
+        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stateName, streamManager.getClientFactory());
 
         setA.add("foo");
         assertEquals(1, setA.getCurrentSize());

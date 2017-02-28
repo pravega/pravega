@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.server;
 
@@ -22,8 +10,9 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.FutureSegment;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Position;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
@@ -37,17 +26,12 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
-import com.emc.pravega.stream.impl.PositionInternal;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ListMultimap;
-import com.google.common.collect.Multimaps;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -71,7 +55,7 @@ public class ControllerService {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         Preconditions.checkArgument(createTimestamp >= 0);
         return streamMetadataTasks.createStream(streamConfig.getScope(),
-                                                streamConfig.getName(),
+                                                streamConfig.getStreamName(),
                                                 streamConfig,
                                                 createTimestamp)
                 .thenApply(status -> CreateStreamStatus.newBuilder().setStatus(status).build());
@@ -79,8 +63,12 @@ public class ControllerService {
 
     public CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
-        return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getName(), streamConfig)
+        return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getStreamName(), streamConfig)
                 .thenApply(status -> UpdateStreamStatus.newBuilder().setStatus(status).build());
+    }
+
+    public CompletableFuture<StreamConfiguration> getStream(final String scopeName, final String streamName) {
+        return streamStore.getConfiguration(scopeName, streamName);
     }
 
     public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String stream) {
@@ -95,7 +83,7 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
 
         // Fetch active segments from segment store.
-        return streamStore.getActiveSegments(stream)
+        return streamStore.getActiveSegments(scope, stream)
                 .thenApply(activeSegments -> activeSegments
                                 .stream()
                                 .map(segment -> convert(scope, stream, segment))
@@ -110,34 +98,21 @@ public class ControllerService {
 
         // First fetch segments active at specified timestamp from the specified stream.
         // Divide current segments in segmentFutures into at most count positions.
-        return streamStore.getActiveSegments(stream, timestamp)
+        return streamStore.getActiveSegments(scope, stream, timestamp)
                 .thenApply(segmentFutures -> shard(scope, stream, segmentFutures, count));
     }
 
-    public CompletableFuture<List<Position>> updatePositions(final String scope, final String stream,
-            final List<Position> positions) {
-        Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(stream, "stream");
-        Preconditions.checkNotNull(positions, "positions");
-
-        // TODO: handle npe with null exception return case.
-        List<PositionInternal> internalPositions =
-                positions.stream().map(ModelHelper::encode).collect(Collectors.toList());
-
-        // Initialize completed segments set from those found in the list of input position objects.
-        Set<Integer> completedSegments = ModelHelper.getSegmentsFromPositions(internalPositions);
-
-        Map<Integer, Long> segmentOffsets = new HashMap<>();
-
-        // Convert positions to segmentFutures, while updating completedSegments set and
-        // storing segment offsets in segmentOffsets map.
-        List<SegmentFutures> segmentFutures = convertPositionsToSegmentFutures(internalPositions, segmentOffsets);
-
-        // Fetch updated SegmentFutures from stream metadata
-        // and finally convert SegmentFutures back to position objects.
-        return streamStore.getNextSegments(stream, completedSegments, segmentFutures)
-                .thenApply(updatedSegmentFutures ->
-                        convertSegmentFuturesToPositions(scope, stream, updatedSegmentFutures, segmentOffsets));
+    public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatlyFollowing(SegmentId segment) {
+        return streamStore.getSuccessors(
+                segment.getStreamInfo().getScope(), segment.getStreamInfo().getStream(), segment.getSegmentNumber())
+                .thenApply(successors -> {
+                    return successors.entrySet().stream().collect(
+                            Collectors.toMap(
+                                    entry -> ModelHelper.createSegmentId(segment.getStreamInfo().getScope(),
+                                                                         segment.getStreamInfo().getStream(),
+                                                                         entry.getKey()),
+                                    entry -> entry.getValue()));
+        });
     }
 
     public CompletableFuture<ScaleResponse> scale(final String scope,
@@ -180,7 +155,7 @@ public class ControllerService {
                                                      final int segmentNumber) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        return streamStore.getActiveSegments(stream)
+        return streamStore.getActiveSegments(scope, stream)
                 .thenApply(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber));
     }
 
@@ -205,11 +180,11 @@ public class ControllerService {
                 });
     }
 
-    public CompletableFuture<TxnStatus> dropTransaction(final String scope, final String stream, final TxnId txnId) {
+    public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final TxnId txnId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txnId, "txnId");
-        return streamTransactionMetadataTasks.dropTx(scope, stream, ModelHelper.encode(txnId))
+        return streamTransactionMetadataTasks.abortTx(scope, stream, ModelHelper.encode(txnId))
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user.
@@ -241,6 +216,50 @@ public class ControllerService {
      * @param n              number of shards
      * @return the list of position objects
      */
+    private List<Position> shard(final String scope, final String stream, final SegmentFutures segmentFutures, final int n) {
+        // divide the active segments equally into at most n partition
+        int currentCount = segmentFutures.getCurrent().size();
+        int quotient = currentCount / n;
+        int remainder = currentCount % n;
+        // if quotient < 1 then remainder number of positions shall be created, other wise n positions shall be created
+        int size = (quotient < 1) ? remainder : n;
+        List<Position> positions = new ArrayList<>(size);
+
+        int counter = 0;
+        // create a position object in each iteration of the for loop
+        for (int i = 0; i < size; i++) {
+            int j = (i < remainder) ? quotient + 1 : quotient;
+            List<SegmentId> current = new ArrayList<>(j);
+            for (int k = 0; k < j; k++, counter++) {
+                Integer number = segmentFutures.getCurrent().get(counter);
+                SegmentId segmentId = ModelHelper.createSegmentId(scope, stream, number);
+                current.add(segmentId);
+            }
+
+            // Compute the current and future segments set for position i
+            Map<SegmentId, Long> currentSegments = new HashMap<>();
+            current.stream().forEach(
+                    x -> {
+                        // TODO fetch correct offset within the segment at specified timestamp by contacting pravega host
+                        // put it in the currentSegments
+                        currentSegments.put(x, 0L);
+                    }
+            );
+            // create a new position object with current segments computed
+            Position position = Position.newBuilder()
+                    .addAllOwnedSegments(currentSegments.entrySet().stream()
+                                                 .map(val -> Position.OwnedSegmentEntry.newBuilder()
+                                                         .setSegmentId(val.getKey())
+                                                         .setValue(val.getValue())
+                                                         .build())
+                                                 .collect(Collectors.toList()))
+                    .build();
+            positions.add(position);
+        }
+        return positions;
+    }
+
+    /*
     private List<Position> shard(final String scope, final String stream, final SegmentFutures segmentFutures,
             final int n) {
         // divide the active segments equally into at most n partition
@@ -313,63 +332,47 @@ public class ControllerService {
         }
         return positions;
     }
+    */
 
     /**
-     * This method converts list of positions into list of segmentFutures.
-     * While doing so it updates the completedSegments set and stores segment offsets in a map.
+     * Controller Service API to create scope.
      *
-     * @param positions      input list of positions
-     * @param segmentOffsets map of segment number of its offset that shall be populated in this method
-     * @return the list of segmentFutures objects
+     * @param scope Name of scope to be created.
+     * @return Status of create scope.
      */
-    private List<SegmentFutures> convertPositionsToSegmentFutures(final List<PositionInternal> positions,
-                                                                  final Map<Integer, Long> segmentOffsets) {
-        List<SegmentFutures> segmentFutures = new ArrayList<>(positions.size());
-
-        // Construct SegmentFutures for each position object.
-        for (PositionInternal position : positions) {
-            Map<Integer, Long> segmentOffsetMap = ModelHelper.toSegmentOffsetMap(position);
-            segmentOffsets.putAll(segmentOffsetMap);
-            Map<Integer, Integer> futures = ModelHelper.getFutureSegmentMap(position);
-            segmentFutures.add(new SegmentFutures(new ArrayList<>(segmentOffsetMap.keySet()), futures));
-        }
-        return segmentFutures;
+    public CompletableFuture<CreateScopeStatus> createScope(final String scope) {
+        Preconditions.checkNotNull(scope);
+        return streamStore.createScope(scope);
     }
 
-    private List<Position> convertSegmentFuturesToPositions(String scope, String stream, List<SegmentFutures> segmentFutures, Map<Integer, Long> segmentOffsets) {
-        List<Position> resultPositions = new ArrayList<>(segmentFutures.size());
-        segmentFutures.stream().forEach(
-                future -> {
-                    Map<SegmentId, Long> currentSegments = new HashMap<>();
-                    Map<FutureSegment, Long> futureSegments = new HashMap<>();
-                    future.getCurrent().stream().forEach(
-                            current -> currentSegments.put(ModelHelper.createSegmentId(scope, stream, current),
-                                                           segmentOffsets.get(current))
-                    );
-                    future.getFutures().entrySet().stream().forEach(
-                            y -> futureSegments.put(
-                                    FutureSegment.newBuilder()
-                                            .setFutureSegment(ModelHelper.createSegmentId(scope, stream, y.getKey()))
-                                            .setPrecedingSegment(
-                                                    ModelHelper.createSegmentId(scope, stream, y.getValue()))
-                                            .build(),
-                                    0L)
-                    );
-                    Position position = Position.newBuilder()
-                            .addAllOwnedSegments(currentSegments.entrySet().stream().
-                                    map(val -> Position.OwnedSegmentEntry.newBuilder()
-                                            .setSegmentId(val.getKey())
-                                            .setValue(val.getValue())
-                                            .build()).collect(Collectors.toList()))
-                            .addAllFutureOwnedSegments(futureSegments.entrySet().stream().
-                                    map(val -> Position.FutureOwnedSegmentsEntry.newBuilder()
-                                            .setFutureSegment(val.getKey())
-                                            .setValue(val.getValue())
-                                            .build()).collect(Collectors.toList()))
-                            .build();
-                    resultPositions.add(position);
-                }
-        );
-        return resultPositions;
+    /**
+     * Controller Service API to delete scope.
+     *
+     * @param scope Name of scope to be deleted.
+     * @return Status of delete scope.
+     */
+    public CompletableFuture<DeleteScopeStatus> deleteScope(final String scope) {
+        Preconditions.checkNotNull(scope);
+        return streamStore.deleteScope(scope);
+    }
+
+    /**
+     * List existing streams in scopes.
+     *
+     * @param scopeName Name of the scope.
+     * @return List of streams in scope.
+     */
+    public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
+        Preconditions.checkNotNull(scopeName);
+        return streamStore.listStreamsInScope(scopeName);
+    }
+
+    /**
+     * List Scopes in cluster.
+     *
+     * @return List of scopes.
+     */
+    public CompletableFuture<List<String>> listScopes() {
+        return streamStore.listScopes();
     }
 }

@@ -1,25 +1,13 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.demo;
 
-import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
+import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -28,44 +16,24 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Position;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
-import com.emc.pravega.stream.impl.ModelHelper;
-import com.emc.pravega.stream.impl.PositionInternal;
-import com.emc.pravega.stream.impl.StreamSegments;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.TreeMap;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.stream.Collectors;
+public class ControllerWrapper {
 
-public class ControllerWrapper implements Controller {
-
-    private final ControllerService controller;
-
-    public ControllerWrapper(String connectionString) {
+    public static Controller getController(String connectionString) throws Exception {
         String hostId;
         try {
             // On each controller process restart, it gets a fresh hostId,
@@ -90,102 +58,25 @@ public class ControllerWrapper implements Controller {
 
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
-        //2) start RPC server with v1 implementation. Enable other versions if required.
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 executor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, executor, hostId);
+        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                                                                    streamTransactionMetadataTasks);
 
-        controller = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
-    }
+        //region Setup Event Processors
+        LocalController localController = new LocalController(controllerService);
 
-    @Override
-    public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {
-        return controller.createStream(streamConfig, System.currentTimeMillis());
-    }
+        ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
+                client, streamStore, hostStore);
 
-    @Override
-    public CompletableFuture<UpdateStreamStatus> alterStream(StreamConfiguration streamConfig) {
-        return controller.alterStream(streamConfig);
-    }
+        controllerEventProcessors.initialize();
 
-    @Override
-    public CompletableFuture<UpdateStreamStatus> sealStream(String scope, String streamName) {
-        return controller.sealStream(scope, streamName);
-    }
+        streamTransactionMetadataTasks.initializeStreamWriters(localController);
+        //endregion
 
-    @Override
-    public CompletableFuture<ScaleResponse> scaleStream(final Stream stream,
-                                                        final List<Integer> sealedSegments,
-                                                        final Map<Double, Double> newKeyRanges) {
-        return controller.scale(stream.getScope(),
-                stream.getStreamName(),
-                sealedSegments,
-                newKeyRanges,
-                System.currentTimeMillis());
-    }
-
-    @Override
-    public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
-        return controller.getCurrentSegments(scope, stream)
-                .thenApply((List<SegmentRange> ranges) -> {
-                    NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
-                    for (SegmentRange r : ranges) {
-                        rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
-                    }
-                    return rangeMap;
-                })
-                .thenApply(StreamSegments::new);
-    }
-
-    @Override
-    public CompletableFuture<TxnStatus> commitTransaction(Stream stream, UUID txnId) {
-        return controller.commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId));
-    }
-
-    @Override
-    public CompletableFuture<TxnStatus> dropTransaction(Stream stream, UUID txnId) {
-        return controller.dropTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId));
-    }
-
-    @Override
-    public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txnId) {
-        return controller.checkTransactionState(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
-                .thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txnId));
-    }
-
-    @Override
-    public CompletableFuture<UUID> createTransaction(Stream stream, long timeout) {
-        return controller.createTransaction(stream.getScope(), stream.getStreamName())
-                .thenApply(ModelHelper::encode);
-    }
-
-    @Override
-    public CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count) {
-        return controller.getPositions(stream.getScope(), stream.getStreamName(), timestamp, count)
-                .thenApply(result -> result.stream().map(ModelHelper::encode).collect(Collectors.toList()));
-    }
-
-    @Override
-    public CompletableFuture<List<PositionInternal>> updatePositions(Stream stream, List<PositionInternal> positions) {
-        final List<Position> transformed =
-                positions.stream().map(ModelHelper::decode).collect(Collectors.toList());
-
-        return controller.updatePositions(stream.getScope(), stream.getStreamName(), transformed)
-                .thenApply(result -> result.stream().map(ModelHelper::encode).collect(Collectors.toList()));
-    }
-
-    @Override
-    public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
-        Segment segment = Segment.fromScopedName(qualifiedSegmentName);
-        return controller.getURI(ModelHelper.createSegmentId(segment.getScope(), segment.getStreamName(),
-                segment.getSegmentNumber()))
-                .thenApply(ModelHelper::encode);
-    }
-
-    @Override
-    public CompletableFuture<Boolean> isSegmentValid(String scope, String stream, int segmentNumber) {
-        return controller.isSegmentValid(scope, stream, segmentNumber);
+        return new LocalController(controllerService);
     }
 }
 

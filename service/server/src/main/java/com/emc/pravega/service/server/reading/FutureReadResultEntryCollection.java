@@ -1,39 +1,30 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.Exceptions;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.CancellationException;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Organizes PlaceholderReadResultEntries by their starting offset and provides efficient methods for retrieving those
  * whose offsets are below certain values.
  */
+@ThreadSafe
 class FutureReadResultEntryCollection implements AutoCloseable {
     //region Members
 
+    @GuardedBy("reads")
     private final PriorityQueue<FutureReadResultEntry> reads;
+    @GuardedBy("reads")
     private boolean closed;
 
     //endregion
@@ -53,7 +44,14 @@ class FutureReadResultEntryCollection implements AutoCloseable {
 
     @Override
     public void close() {
-        this.closed = true;
+        synchronized (this.reads) {
+            if (this.closed) {
+                return;
+            }
+
+            this.closed = true;
+        }
+
         cancelAll();
     }
 
@@ -67,9 +65,8 @@ class FutureReadResultEntryCollection implements AutoCloseable {
      * @param entry The entry to add.
      */
     public void add(FutureReadResultEntry entry) {
-        Exceptions.checkNotClosed(this.closed, this);
-
         synchronized (this.reads) {
+            Exceptions.checkNotClosed(this.closed, this);
             this.reads.add(entry);
         }
     }
@@ -81,10 +78,10 @@ class FutureReadResultEntryCollection implements AutoCloseable {
      * @param maxOffset The offset to query against.
      */
     Collection<FutureReadResultEntry> poll(long maxOffset) {
-        Exceptions.checkNotClosed(this.closed, this);
-
         List<FutureReadResultEntry> result = new ArrayList<>();
         synchronized (this.reads) {
+            Exceptions.checkNotClosed(this.closed, this);
+
             // 'reads' is sorted by Starting Offset, in ascending order. As long as it is not empty and the
             // first entry overlaps the given offset by at least one byte, extract and return it.
             while (this.reads.size() > 0 && this.reads.peek().getStreamSegmentOffset() <= maxOffset) {

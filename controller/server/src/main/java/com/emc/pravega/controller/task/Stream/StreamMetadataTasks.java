@@ -1,31 +1,19 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.WireCommandFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
-import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamNotFoundException;
+import com.emc.pravega.controller.store.stream.StoreException;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -39,7 +27,6 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.annotations.VisibleForTesting;
-import lombok.extern.slf4j.Slf4j;
 
 import java.io.Serializable;
 import java.util.AbstractMap;
@@ -51,6 +38,11 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
+import lombok.extern.slf4j.Slf4j;
+
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
+import static com.emc.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
+
 /**
  * Collection of metadata update tasks on stream.
  * Task methods are annotated with @Task annotation.
@@ -59,7 +51,7 @@ import java.util.stream.Collectors;
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
 @Slf4j
-public class StreamMetadataTasks extends TaskBase implements Cloneable {
+public class StreamMetadataTasks extends TaskBase {
     private static final long RETRY_INITIAL_DELAY = 100;
     private static final int RETRY_MULTIPLIER = 10;
     private static final int RETRY_MAX_ATTEMPTS = 100;
@@ -74,15 +66,18 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                                final TaskMetadataStore taskMetadataStore,
                                final ScheduledExecutorService executor,
                                final String hostId) {
-        super(taskMetadataStore, executor, hostId);
+        this(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, new Context(hostId));
+    }
+
+    private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
+                                final HostControllerStore hostControllerStore,
+                                final TaskMetadataStore taskMetadataStore,
+                                final ScheduledExecutorService executor,
+                                final Context context) {
+        super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         connectionFactory = new ConnectionFactoryImpl(false);
-    }
-
-    @Override
-    public StreamMetadataTasks clone() throws CloneNotSupportedException {
-        return (StreamMetadataTasks) super.clone();
     }
 
     /**
@@ -120,7 +115,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     /**
      * Seal a stream.
-     * @param scope scope.
+     *
+     * @param scope  scope.
      * @param stream stream name.
      * @return update status.
      */
@@ -151,33 +147,44 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     private CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
-        return this.streamMetadataStore.createStream(stream, config, timestamp)
-                .thenCompose(x -> {
-                    if (x) {
-                        return this.streamMetadataStore.getActiveSegments(stream)
-                                .thenApply(activeSegments ->
-                                        notifyNewSegments(config.getScope(), stream, activeSegments))
-                                .thenApply(y -> CreateStreamStatus.Status.SUCCESS);
-                    } else {
-                        return CompletableFuture.completedFuture(CreateStreamStatus.Status.FAILURE);
-                    }
-                })
-                .handle((result, ex) -> {
-                    if (ex != null) {
-                        if (ex.getCause() instanceof StreamAlreadyExistsException) {
-                            return CreateStreamStatus.Status.STREAM_EXISTS;
+        if (!validateName(stream)) {
+            log.debug("Create stream failed due to invalid stream name {}", stream);
+            return CompletableFuture.completedFuture(CreateStreamStatus.Status.INVALID_STREAM_NAME);
+        } else {
+            return this.streamMetadataStore.createStream(scope, stream, config, timestamp)
+                    .thenCompose(x -> {
+                        if (x) {
+                            return this.streamMetadataStore.getActiveSegments(scope, stream)
+                                    .thenApply(activeSegments ->
+                                            notifyNewSegments(config.getScope(), stream, activeSegments))
+                                    .thenApply(y -> CreateStreamStatus.Status.SUCCESS);
                         } else {
-                            log.warn("Create stream failed due to ", ex);
-                            return CreateStreamStatus.Status.FAILURE;
+                            return CompletableFuture.completedFuture(CreateStreamStatus.Status.FAILURE);
                         }
-                    } else {
-                        return result;
-                    }
-                });
+                    })
+                    .handle((result, ex) -> {
+                        if (ex != null) {
+                            if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
+                                return CreateStreamStatus.Status.STREAM_EXISTS;
+                            } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) {
+                                return CreateStreamStatus.Status.SCOPE_NOT_FOUND;
+                            } else {
+                                log.warn("Create stream failed due to ", ex);
+                                return CreateStreamStatus.Status.FAILURE;
+                            }
+                        } else {
+                            return result;
+                        }
+                    });
+        }
+    }
+
+    private static boolean validateName(final String path) {
+        return (path.indexOf('\\') >= 0 || path.indexOf('/') >= 0) ? false : true;
     }
 
     public CompletableFuture<UpdateStreamStatus.Status> updateStreamConfigBody(String scope, String stream, StreamConfiguration config) {
-        return streamMetadataStore.updateConfiguration(stream, config)
+        return streamMetadataStore.updateConfiguration(scope, stream, config)
                 .handle((result, ex) -> {
                     if (ex != null) {
                         return handleUpdateStreamError(ex);
@@ -189,7 +196,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     public CompletableFuture<UpdateStreamStatus.Status> sealStreamBody(String scope, String stream) {
-        return streamMetadataStore.getActiveSegments(stream)
+        return streamMetadataStore.getActiveSegments(scope, stream)
                 .thenCompose(activeSegments -> {
                     if (activeSegments.isEmpty()) { //if active segments are empty then the stream is sealed.
                         //Do not update the state if the stream is already sealed.
@@ -198,7 +205,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                         List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
                                 collect(Collectors.toList());
                         return notifySealedSegments(scope, stream, segmentsToBeSealed)
-                                .thenCompose(v -> streamMetadataStore.setSealed(stream))
+                                .thenCompose(v -> streamMetadataStore.setSealed(scope, stream))
                                 .handle((result, ex) -> {
                                     if (ex != null) {
                                         return handleUpdateStreamError(ex);
@@ -219,7 +226,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         // 3. Transaction is active on the stream
         // 4. sealedSegments should be a subset of activeSegments.
         CompletableFuture<Boolean> checkValidity =
-                streamMetadataStore.getActiveSegments(stream)
+                streamMetadataStore.getActiveSegments(scope, stream)
                         .thenCompose(activeSegments ->
                                 streamMetadataStore
                                         .isTransactionOngoing(scope, stream)
@@ -249,7 +256,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                         return notifySealedSegments(scope, stream, sealedSegments)
 
                                 .thenCompose(results ->
-                                        streamMetadataStore.scale(stream, sealedSegments, newRanges, scaleTimestamp))
+                                        streamMetadataStore.scale(scope, stream, sealedSegments, newRanges, scaleTimestamp))
 
                                 .thenApply((List<Segment> newSegments) -> {
                                     notifyNewSegments(scope, stream, newSegments);
@@ -298,13 +305,12 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     private CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Integer> sealedSegments) {
-        return FutureCollectionHelper.sequence(
+        return FutureHelpers.allOf(
                 sealedSegments
                         .stream()
                         .parallel()
                         .map(number -> notifySealedSegment(scope, stream, number))
-                        .collect(Collectors.toList()))
-                .thenApply(x -> null);
+                        .collect(Collectors.toList()));
     }
 
     @VisibleForTesting
@@ -314,12 +320,12 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() ->
-                        SegmentHelper.sealSegment(
-                                scope,
-                                stream,
-                                sealedSegment,
-                                this.hostControllerStore,
-                                this.connectionFactory),
+                                SegmentHelper.sealSegment(
+                                        scope,
+                                        stream,
+                                        sealedSegment,
+                                        this.hostControllerStore,
+                                        this.connectionFactory),
                         executor);
     }
 
@@ -327,9 +333,16 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         if (ex instanceof StreamNotFoundException ||
                 (ex instanceof CompletionException && ex.getCause() instanceof StreamNotFoundException)) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
+        } else if (ex instanceof StoreException && ( (StoreException) ex).getType() == NODE_NOT_FOUND) {
+            return UpdateStreamStatus.Status.SCOPE_NOT_FOUND;
         } else {
             log.warn("Update stream failed due to ", ex);
             return UpdateStreamStatus.Status.FAILURE;
         }
+    }
+
+    @Override
+    public TaskBase copyWithContext(Context context) {
+        return new StreamMetadataTasks(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, context);
     }
 }

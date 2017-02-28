@@ -1,23 +1,19 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
- * agreements. See the NOTICE file distributed with this work for additional information regarding
- * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License. You may obtain a
- * copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.common.netty;
 
-import static com.emc.pravega.common.netty.WireCommands.APPEND_BLOCK_SIZE;
-import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
-import static com.emc.pravega.common.netty.WireCommands.TYPE_SIZE;
-import static io.netty.buffer.Unpooled.wrappedBuffer;
+import com.emc.pravega.common.netty.WireCommands.AppendBlock;
+import com.emc.pravega.common.netty.WireCommands.AppendBlockEnd;
+import com.emc.pravega.common.netty.WireCommands.ConditionalAppend;
+import com.emc.pravega.common.netty.WireCommands.Event;
+import com.emc.pravega.common.netty.WireCommands.Flush;
+import com.emc.pravega.common.netty.WireCommands.Padding;
+import com.emc.pravega.common.netty.WireCommands.PartialEvent;
+import com.emc.pravega.common.netty.WireCommands.SetupAppend;
+import com.google.common.base.Preconditions;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -25,21 +21,21 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
-import com.emc.pravega.common.netty.WireCommands.AppendBlock;
-import com.emc.pravega.common.netty.WireCommands.AppendBlockEnd;
-import com.emc.pravega.common.netty.WireCommands.ConditionalAppend;
-import com.emc.pravega.common.netty.WireCommands.Event;
-import com.emc.pravega.common.netty.WireCommands.Padding;
-import com.emc.pravega.common.netty.WireCommands.PartialEvent;
-import com.emc.pravega.common.netty.WireCommands.SetupAppend;
-import com.google.common.base.Preconditions;
+import javax.annotation.concurrent.NotThreadSafe;
+
+import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
+import static com.emc.pravega.common.netty.WireCommands.TYPE_SIZE;
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 
 /**
@@ -66,18 +62,22 @@ import lombok.SneakyThrows;
  * event in the block, so that it can be acknowledged.
  * 
  */
+@NotThreadSafe
+@RequiredArgsConstructor
 public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
 
+    private final AppendBatchSizeTracker blockSizeSupplier;
     private final HashMap<String, Session> setupSegments = new HashMap<>();
     private String segmentBeingAppendedTo;
+    private int currentBlockSize;
     private int bytesLeftInBlock;
-
+    
     @Data
     private static final class Session {
         private final UUID id;
         private long lastEventNumber = -1L;
-    }
+    }    
 
     @Override
     protected void encode(ChannelHandlerContext ctx, Object msg, ByteBuf out) throws Exception {
@@ -105,9 +105,15 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                     breakFromAppend(out);
                 }
                 if (bytesLeftInBlock == 0) {
-                    writeMessage(new AppendBlock(session.id), out);
-                    bytesLeftInBlock = APPEND_BLOCK_SIZE;
+                    currentBlockSize = Math.max(TYPE_PLUS_LENGTH_SIZE, blockSizeSupplier.getAppendBlockSize());
+                    bytesLeftInBlock = currentBlockSize;
                     segmentBeingAppendedTo = append.segment;
+                    writeMessage(new AppendBlock(session.id), out);
+                    if (ctx != null) {
+                        ctx.executor().schedule(new Flusher(ctx.channel(), currentBlockSize),
+                                                blockSizeSupplier.getBatchTimeout(),
+                                                TimeUnit.MILLISECONDS);
+                    }
                 }
 
                 session.lastEventNumber = append.getEventNumber();
@@ -127,7 +133,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                     writeMessage(new PartialEvent(dataInsideBlock), out);
                     writeMessage(new AppendBlockEnd(session.id,
                                                     session.lastEventNumber,
-                                                    APPEND_BLOCK_SIZE - bytesLeftInBlock,
+                                                    currentBlockSize - bytesLeftInBlock,
                                                     dataRemainging), out);
                     bytesLeftInBlock = 0;
                 }
@@ -137,6 +143,11 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             writeMessage((SetupAppend) msg, out);
             SetupAppend setup = (SetupAppend) msg;
             setupSegments.put(setup.getSegment(), new Session(setup.getConnectionId()));
+        } else if (msg instanceof Flush) {
+            Flush flush = (Flush) msg;
+            if (currentBlockSize == flush.getBlockSize()) {
+                breakFromAppend(out);
+            }
         } else if (msg instanceof WireCommand) {
             breakFromAppend(out);
             writeMessage((WireCommand) msg, out);
@@ -151,9 +162,10 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             Session session = setupSegments.get(segmentBeingAppendedTo);
             writeMessage(new AppendBlockEnd(session.id,
                     session.lastEventNumber,
-                    APPEND_BLOCK_SIZE - bytesLeftInBlock,
+                    currentBlockSize - bytesLeftInBlock,
                     null), out);
             bytesLeftInBlock = 0;
+            currentBlockSize = 0;
         }
         segmentBeingAppendedTo = null;
     }
@@ -184,7 +196,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         bout.close();
         int endIdx = out.writerIndex();
         int fieldsSize = endIdx - startIdx - TYPE_PLUS_LENGTH_SIZE;
-        out.setInt(startIdx + TYPE_SIZE, fieldsSize + APPEND_BLOCK_SIZE);
+        out.setInt(startIdx + TYPE_SIZE, fieldsSize + currentBlockSize);
     }
     
     @SneakyThrows(IOException.class)
@@ -201,5 +213,16 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         out.setInt(startIdx + TYPE_SIZE, fieldsSize);
         return endIdx - startIdx;
     }
-
+    
+    @RequiredArgsConstructor
+    private static class Flusher implements Runnable {
+        private final Channel channel;
+        private final int blockSize;
+  
+        @Override
+        public void run() {
+            channel.writeAndFlush(new Flush(blockSize));
+        }
+    }
+    
 }

@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.server.rpc.grpc.v1;
 
 import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetPositionRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
@@ -33,7 +34,6 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdatePositionRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import com.emc.pravega.stream.impl.ModelHelper;
@@ -94,14 +94,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void updatePositions(UpdatePositionRequest request, StreamObserver<Positions> responseObserver) {
-        log.debug("updatePositions called for stream " + request.getStreamInfo().getScope() + "/" +
-                          request.getStreamInfo().getStream());
-        processResult(controllerService.updatePositions(request.getStreamInfo().getScope(),
-                                                        request.getStreamInfo().getStream(),
-                                                        request.getPositions().getPositionsList())
-                              .thenApply(positions -> Positions.newBuilder().addAllPositions(positions).build()),
-                      responseObserver);
+    public void getSegmentsImmediatlyFollowing(SegmentId request,
+            StreamObserver<Controller.SuccessorResponse> responseObserver) {
+        super.getSegmentsImmediatlyFollowing(request, responseObserver);
     }
 
     @Override
@@ -153,10 +148,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void dropTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
+    public void abortTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
         log.debug("dropTransaction called for stream " + request.getStreamInfo().getScope() + "/" +
                           request.getStreamInfo().getStream() + " txid=" + request.getTxnId());
-        processResult(controllerService.dropTransaction(request.getStreamInfo().getScope(),
+        processResult(controllerService.abortTransaction(request.getStreamInfo().getScope(),
                                                         request.getStreamInfo().getStream(),
                                                         request.getTxnId()),
                       responseObserver);
@@ -169,6 +164,22 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         processResult(controllerService.checkTransactionState(request.getStreamInfo().getScope(),
                                                                request.getStreamInfo().getStream(),
                                                                request.getTxnId()),
+                      responseObserver);
+    }
+
+    @Override
+    public void createScope(Controller.ScopeInfo request,
+            StreamObserver<Controller.CreateScopeStatus> responseObserver) {
+        log.debug("createScope called for scope " + request.getScope());
+        processResult(controllerService.createScope(request.getScope()),
+                      responseObserver);
+    }
+
+    @Override
+    public void deleteScope(Controller.ScopeInfo request,
+            StreamObserver<Controller.DeleteScopeStatus> responseObserver) {
+        log.debug("deleteScope called for scope " + request.getScope());
+        processResult(controllerService.deleteScope(request.getScope()),
                       responseObserver);
     }
 

@@ -1,24 +1,13 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.stream.AckFuture;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Segment;
@@ -40,14 +29,13 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.concurrent.GuardedBy;
 
-import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
-
 import lombok.extern.slf4j.Slf4j;
+
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 /**
  * This class takes in events, finds out which segment they belong to and then calls write on the appropriate segment.
@@ -127,17 +115,27 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         }
         return toResend;
     }
+    
+    @Override
+    public AckFuture writeEvent(Type event) {
+        return writeEventInternal(null, event);
+    }
 
     @Override
-    public Future<Void> writeEvent(String routingKey, Type event) {
+    public AckFuture writeEvent(String routingKey, Type event) {
+        Preconditions.checkNotNull(routingKey);
+        return writeEventInternal(routingKey, event);
+    }
+    
+    private AckFuture writeEventInternal(String routingKey, Type event) {
         Preconditions.checkState(!closed.get());
-        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        CompletableFuture<Boolean> result = new CompletableFuture<Boolean>();
         synchronized (lock) {
             if (!attemptWrite(new PendingEvent<Type>(event, routingKey, result))) {
                 handleLogSealed();
             }
         }
-        return FutureHelpers.toVoid(result);
+        return new AckFutureImpl(result);
     }
 
     /**
@@ -197,6 +195,14 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             this.stream = stream;
         }
 
+        /**
+         * Uses the transactionId to generate the routing key so that we only need to use one segment.
+         */
+        @Override
+        public void writeEvent(Type event) throws TxnFailedException {
+            writeEvent(txId.toString(), event);
+        }
+        
         @Override
         public void writeEvent(String routingKey, Type event) throws TxnFailedException {
             Preconditions.checkState(!closed.get());
@@ -216,7 +222,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
         @Override
         public void abort() {
-            FutureHelpers.getAndHandleExceptions(controller.dropTransaction(stream, txId), RuntimeException::new);
+            FutureHelpers.getAndHandleExceptions(controller.abortTransaction(stream, txId), RuntimeException::new);
             closed.set(true);
         }
 

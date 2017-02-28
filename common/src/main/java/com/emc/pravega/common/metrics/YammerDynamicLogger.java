@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.common.metrics;
 
@@ -24,28 +12,34 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class YammerDynamicLogger implements DynamicLogger {
-    private static final long CACHESIZE = MetricsConfig.getDynamicCacheSize();
-    private static final long TTLSECONDS = MetricsConfig.getDynamicTTLSeconds();
+    private final long cacheSize;
+    private final long ttlSeconds;
 
-    protected final MetricRegistry metrics;
-    protected final StatsLogger underlying;
+    private final MetricRegistry metrics;
+    private final StatsLogger underlying;
     private final Cache<String, Counter> countersCache;
     private final Cache<String, Gauge> gaugesCache;
+    private final Cache<String, Meter> metersCache;
 
-    public YammerDynamicLogger(MetricRegistry metrics, StatsLogger statsLogger) {
+    public YammerDynamicLogger(MetricsConfig metricsConfig, MetricRegistry metrics, StatsLogger statsLogger) {
+        Preconditions.checkNotNull(metricsConfig, "metricsConfig");
         Preconditions.checkNotNull(metrics, "metrics");
         Preconditions.checkNotNull(statsLogger, "statsLogger");
         this.metrics = metrics;
         this.underlying = statsLogger;
+        this.cacheSize = metricsConfig.getDynamicCacheSize();
+        this.ttlSeconds = metricsConfig.getDynamicTTLSeconds();
 
         countersCache = CacheBuilder.newBuilder().
-                maximumSize(CACHESIZE).
-                expireAfterAccess(TTLSECONDS, TimeUnit.SECONDS).
+                maximumSize(cacheSize).
+                expireAfterAccess(ttlSeconds, TimeUnit.SECONDS).
                 removalListener(new RemovalListener<String, Counter>() {
                     public void onRemoval(RemovalNotification<String, Counter> removal) {
                         Counter counter = removal.getValue();
@@ -56,9 +50,9 @@ public class YammerDynamicLogger implements DynamicLogger {
                 }).
                 build();
 
-         gaugesCache = CacheBuilder.newBuilder().
-                maximumSize(CACHESIZE).
-                expireAfterAccess(TTLSECONDS, TimeUnit.SECONDS).
+        gaugesCache = CacheBuilder.newBuilder().
+                maximumSize(cacheSize).
+                expireAfterAccess(ttlSeconds, TimeUnit.SECONDS).
                 removalListener(new RemovalListener<String, Gauge>() {
                     public void onRemoval(RemovalNotification<String, Gauge> removal) {
                         Gauge gauge = removal.getValue();
@@ -67,6 +61,18 @@ public class YammerDynamicLogger implements DynamicLogger {
                     }
                 }).
                 build();
+
+        metersCache = CacheBuilder.newBuilder().
+            maximumSize(cacheSize).
+            expireAfterAccess(ttlSeconds, TimeUnit.SECONDS).
+            removalListener(new RemovalListener<String, Meter>() {
+                public void onRemoval(RemovalNotification<String, Meter> removal) {
+                    Meter meter = removal.getValue();
+                    metrics.remove(meter.getName());
+                    log.debug("TTL expired, removed Meter: {}.", meter.getName());
+                }
+            }).
+            build();
     }
 
     @Override
@@ -74,15 +80,17 @@ public class YammerDynamicLogger implements DynamicLogger {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(delta);
         String counterName = name + ".Counter";
-        Counter counter = countersCache.getIfPresent(counterName);
-        if (null == counter) {
-            Counter newCounter = underlying.createCounter(counterName);
-            countersCache.put(counterName, newCounter);
-            log.debug("Created Counter: {}.", newCounter.getName());
-            newCounter.add(delta);
-            return;
+        try {
+            Counter counter = countersCache.get(counterName, new Callable<Counter>() {
+                @Override
+                public Counter call() throws Exception {
+                    return underlying.createCounter(counterName);
+                }
+            });
+            counter.add(delta);
+        } catch (ExecutionException e) {
+            log.error("Error while countersCache create counter", e);
         }
-        counter.add(delta);
     }
 
     @Override
@@ -108,7 +116,27 @@ public class YammerDynamicLogger implements DynamicLogger {
         if (null == newGauge) {
             log.error("Unsupported Number type: {}.", value.getClass().getName());
         } else {
-            gaugesCache.put(gaugeName, newGauge);
+            if (null == gaugesCache.getIfPresent(gaugeName)) {
+                gaugesCache.put(gaugeName, newGauge);
+            }
+        }
+    }
+
+    @Override
+    public void recordMeterEvents(String name, long number) {
+        Exceptions.checkNotNullOrEmpty(name, "name");
+        Preconditions.checkNotNull(number);
+        String meterName = name + ".Meter";
+        try {
+            Meter meter = metersCache.get(meterName, new Callable<Meter>() {
+                @Override
+                public Meter call() throws Exception {
+                    return underlying.createMeter(meterName);
+                }
+            });
+            meter.recordEvents(number);
+        } catch (ExecutionException e) {
+            log.error("Error while metersCache create meter", e);
         }
     }
 }

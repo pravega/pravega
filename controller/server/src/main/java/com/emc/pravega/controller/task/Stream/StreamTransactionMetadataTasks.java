@@ -1,37 +1,30 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.ClientFactory;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.server.WireCommandFailedException;
 import com.emc.pravega.controller.server.SegmentHelper;
+import com.emc.pravega.controller.server.eventProcessor.AbortEvent;
+import com.emc.pravega.controller.server.eventProcessor.CommitEvent;
+import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
+import com.emc.pravega.stream.EventStreamWriter;
+import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.impl.ClientFactoryImpl;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-
 import java.io.Serializable;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -46,7 +39,7 @@ import java.util.stream.Collectors;
  * Any update to the task method signature should be avoided, since it can cause problems during upgrade.
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
-public class StreamTransactionMetadataTasks extends TaskBase implements Cloneable {
+public class StreamTransactionMetadataTasks extends TaskBase {
     private static final long INITIAL_DELAY = 1;
     private static final long PERIOD = 1;
     private static final long TIMEOUT = 60 * 60 * 1000;
@@ -59,12 +52,23 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactoryImpl connectionFactory;
 
+    private EventStreamWriter<CommitEvent> commitEventEventStreamWriter;
+    private EventStreamWriter<AbortEvent> abortEventEventStreamWriter;
+
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final HostControllerStore hostControllerStore,
                                           final TaskMetadataStore taskMetadataStore,
                                           final ScheduledExecutorService executor,
                                           final String hostId) {
-        super(taskMetadataStore, executor, hostId);
+        this(streamMetadataStore, hostControllerStore, taskMetadataStore, executor, new Context(hostId));
+    }
+
+    private StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
+            final HostControllerStore hostControllerStore,
+            final TaskMetadataStore taskMetadataStore,
+            final ScheduledExecutorService executor,
+            final Context context) {
+        super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.connectionFactory = new ConnectionFactoryImpl(false);
@@ -78,7 +82,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                         .forEach(x -> {
                             if (currentTime - x.getTxRecord().getTxCreationTimestamp() > TIMEOUT) {
                                 try {
-                                    dropTx(x.getScope(), x.getStream(), x.getTxid());
+                                    abortTx(x.getScope(), x.getStream(), x.getTxid());
                                 } catch (Exception e) {
                                     // TODO: log and ignore
                                 }
@@ -92,9 +96,25 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
 
     }
 
-    @Override
-    public StreamTransactionMetadataTasks clone() throws CloneNotSupportedException {
-        return (StreamTransactionMetadataTasks) super.clone();
+    /**
+     * Initializes stream writers for commit and abort streams.
+     * This method should be called immediately after creating StreamTransactionMetadataTasks object.
+     *
+     * @param controller Local controller reference
+     */
+    public void initializeStreamWriters(Controller controller) {
+
+        ClientFactory clientFactory = new ClientFactoryImpl(ControllerEventProcessors.CONTROLLER_SCOPE, controller);
+
+        this.commitEventEventStreamWriter = clientFactory.createEventWriter(
+                ControllerEventProcessors.COMMIT_STREAM,
+                ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
+                EventWriterConfig.builder().build());
+
+        this.abortEventEventStreamWriter = clientFactory.createEventWriter(
+                ControllerEventProcessors.ABORT_STREAM,
+                ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
+                EventWriterConfig.builder().build());
     }
 
     /**
@@ -113,19 +133,19 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     }
 
     /**
-     * Drop transaction.
+     * Abort transaction.
      *
      * @param scope  stream scope.
      * @param stream stream name.
      * @param txId   transaction id.
      * @return true/false.
      */
-    @Task(name = "dropTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
-    public CompletableFuture<TxnStatus> dropTx(final String scope, final String stream, final UUID txId) {
+    @Task(name = "abortTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
+    public CompletableFuture<TxnStatus> abortTx(final String scope, final String stream, final UUID txId) {
         return execute(
                 new Resource(scope, stream, txId.toString()),
                 new Serializable[]{scope, stream, txId},
-                () -> dropTxBody(scope, stream, txId));
+                () -> abortTxBody(scope, stream, txId));
     }
 
     /**
@@ -147,9 +167,9 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     private CompletableFuture<UUID> createTxBody(final String scope, final String stream) {
         return streamMetadataStore.createTransaction(scope, stream)
                 .thenCompose(txId ->
-                        streamMetadataStore.getActiveSegments(stream)
+                        streamMetadataStore.getActiveSegments(scope, stream)
                                 .thenCompose(activeSegments ->
-                                        FutureCollectionHelper.sequence(
+                                        FutureHelpers.allOf(
                                                 activeSegments.stream()
                                                         .parallel()
                                                         .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txId))
@@ -157,29 +177,22 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                                 .thenApply(x -> txId));
     }
 
-    private CompletableFuture<TxnStatus> dropTxBody(final String scope, final String stream, final UUID txid) {
-        // notify hosts to abort transaction
-        return streamMetadataStore.getActiveSegments(stream)
-                .thenCompose(segments ->
-                        FutureCollectionHelper.sequence(
-                                segments.stream()
-                                        .parallel()
-                                        .map(segment -> notifyDropToHost(scope, stream, segment.getNumber(), txid))
-                                        .collect(Collectors.toList())))
-                .thenCompose(x -> streamMetadataStore.dropTransaction(scope, stream, txid));
+    private CompletableFuture<TxnStatus> abortTxBody(final String scope, final String stream, final UUID txid) {
+        return streamMetadataStore.sealTransaction(scope, stream, txid, false)
+                .thenApply(status -> {
+                    this.abortEventEventStreamWriter
+                            .writeEvent(txid.toString(), new AbortEvent(scope, stream, txid));
+                    return status;
+                });
     }
 
     private CompletableFuture<TxnStatus> commitTxBody(final String scope, final String stream, final UUID txid) {
-        return streamMetadataStore.sealTransaction(scope, stream, txid)
-                .thenCompose(x ->
-                        streamMetadataStore.getActiveSegments(stream)
-                                .thenCompose(segments ->
-                                        FutureCollectionHelper.sequence(segments.stream()
-                                                .parallel()
-                                                .map(segment ->
-                                                        notifyCommitToHost(scope, stream, segment.getNumber(), txid))
-                                                .collect(Collectors.toList()))))
-                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txid));
+        return streamMetadataStore.sealTransaction(scope, stream, txid, true)
+                .thenApply(status -> {
+                    this.commitEventEventStreamWriter
+                            .writeEvent(scope + stream, new CommitEvent(scope, stream, txid));
+                    return status;
+                });
     }
 
     private CompletableFuture<UUID> notifyTxCreation(final String scope, final String stream, final int segmentNumber, final UUID txid) {
@@ -187,34 +200,19 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> SegmentHelper.createTransaction(scope,
-                                stream,
-                                segmentNumber,
-                                txid,
-                                this.hostControllerStore,
-                                this.connectionFactory), executor);
-    }
-
-    private CompletableFuture<Controller.TxnStatus> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-                .retryingOn(WireCommandFailedException.class)
-                .throwingOn(RuntimeException.class)
-                .runAsync(() -> SegmentHelper.dropTransaction(scope,
                         stream,
                         segmentNumber,
-                        txId,
+                        txid,
                         this.hostControllerStore,
                         this.connectionFactory), executor);
     }
 
-    private CompletableFuture<Controller.TxnStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-                .retryingOn(WireCommandFailedException.class)
-                .throwingOn(RuntimeException.class)
-                .runAsync(() -> SegmentHelper.commitTransaction(scope,
-                        stream,
-                        segmentNumber,
-                        txId,
-                        this.hostControllerStore,
-                        this.connectionFactory), executor);
+    @Override
+    public TaskBase copyWithContext(Context context) {
+        return new StreamTransactionMetadataTasks(streamMetadataStore,
+                                                  hostControllerStore,
+                                                  taskMetadataStore,
+                                                  executor,
+                                                  context);
     }
 }

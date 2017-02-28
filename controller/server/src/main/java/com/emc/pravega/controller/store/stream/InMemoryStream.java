@@ -1,19 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.controller.store.stream;
 
@@ -21,21 +9,25 @@ import com.emc.pravega.controller.store.stream.tables.State;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxnStatus;
 import com.google.common.base.Preconditions;
-import org.apache.commons.lang.NotImplementedException;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
+
+import org.apache.commons.lang.NotImplementedException;
 
 /**
  * Stream properties
  */
 class InMemoryStream implements Stream {
-    private final String name;
+    private final String streamName;
+    private final String scopeName;
     private StreamConfiguration configuration;
     private State state;
 
@@ -52,8 +44,9 @@ class InMemoryStream implements Stream {
      */
     private final List<Integer> currentSegments = new ArrayList<>();
 
-    InMemoryStream(String name) {
-        this.name = name;
+    InMemoryStream(final String scopeName, final String streamName) {
+        this.scopeName = scopeName;
+        this.streamName = streamName;
     }
 
     @Override
@@ -75,7 +68,12 @@ class InMemoryStream implements Stream {
 
     @Override
     public String getName() {
-        return this.name;
+        return this.streamName;
+    }
+
+    @Override
+    public String getScopeName() {
+        return this.scopeName;
     }
 
     @Override
@@ -110,6 +108,15 @@ class InMemoryStream implements Stream {
         return CompletableFuture.completedFuture(segments.get(number).getSuccessors());
     }
 
+    @Override
+    public CompletableFuture<Map<Integer, List<Integer>>> getSuccessorsWithPredecessors(final int number) {
+        Map<Integer, List<Integer>> result = new HashMap<>();
+        for (Integer successor : segments.get(number).getSuccessors()) {
+            result.put(successor, segments.get(successor).getPredecessors());
+        }
+        return CompletableFuture.completedFuture(result);
+    }
+    
     @Override
     public CompletableFuture<List<Integer>> getPredecessors(int number) {
         return CompletableFuture.completedFuture(segments.get(number).getPredecessors());
@@ -202,7 +209,7 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(UUID txId) {
+    public CompletableFuture<TxnStatus> sealTransaction(UUID txId, boolean commit) {
         throw new NotImplementedException();
     }
 
@@ -222,8 +229,8 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<Boolean> isTransactionOngoing() {
-        throw new NotImplementedException();
+    public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
+        return CompletableFuture.completedFuture(0); //Transactions are not supported in this implementation.
     }
 
     @Override
@@ -232,6 +239,6 @@ class InMemoryStream implements Stream {
     }
 
     public String toString() {
-        return String.format("Current Segments:%s\nSegments:%s\n", currentSegments.toString(), segments.toString());
+        return String.format("Current Segments:%s%nSegments:%s%n", currentSegments.toString(), segments.toString());
     }
 }

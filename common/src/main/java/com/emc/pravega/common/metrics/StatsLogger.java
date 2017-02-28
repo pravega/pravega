@@ -1,18 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements. See the NOTICE file distributed with this
- * work for additional information regarding copyright ownership. The ASF
- * licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
  */
 package com.emc.pravega.common.metrics;
 
@@ -29,7 +18,7 @@ public interface StatsLogger {
      * @param name Stats Name
      * @return logger for an OpStat described by the <i>name</i>.
      */
-    public OpStatsLogger createStats(String name);
+    OpStatsLogger createStats(String name);
 
     /**
      * Create counter.
@@ -37,7 +26,15 @@ public interface StatsLogger {
      * @param name Stats Name
      * @return counter described by the <i>name</i>
      */
-    public Counter createCounter(String name);
+    Counter createCounter(String name);
+
+    /**
+     * Create meter.
+     *
+     * @param name the meter name
+     * @return Create and register Meter described by the <i>name</i>
+     */
+    Meter createMeter(String name);
 
     /**
      * Register gauge.
@@ -47,7 +44,7 @@ public interface StatsLogger {
      * @param name  the name of gauge
      * @param value the supplier to provide value through get()
      */
-    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value);
+    <T extends Number> Gauge registerGauge(String name, Supplier<T> value);
 
     /**
      * Create the stats logger under scope <i>scope</i>.
@@ -55,6 +52,6 @@ public interface StatsLogger {
      * @param scope scope name.
      * @return stats logger under scope <i>scope</i>.
      */
-    public StatsLogger createScopeLogger(String scope);
+    StatsLogger createScopeLogger(String scope);
 
 }

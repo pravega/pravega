@@ -1,28 +1,21 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
-
 package com.emc.pravega.service.storage.impl.distributedlog;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.SegmentStoreMetricsNames;
+import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.metrics.Counter;
+import com.emc.pravega.common.metrics.MetricsProvider;
+import com.emc.pravega.common.metrics.OpStatsLogger;
+import com.emc.pravega.common.metrics.StatsLogger;
 import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.DataLogInitializationException;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
@@ -251,8 +244,13 @@ class LogHandle implements AutoCloseable {
 
         // Send the write to DistributedLog.
         log.debug("{}: LogWriter.write (TransactionId = {}, Length = {}).", this.logName, transactionId, buffer.length);
+        Timer timer = new Timer();
         Future<DLSN> writeFuture = this.logWriter.write(new LogRecord(transactionId, buffer));
         CompletableFuture<LogAddress> result = toCompletableFuture(writeFuture, dlsn -> new DLSNAddress(transactionId, dlsn));
+        result.thenRunAsync( () -> {
+            Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
+            Metrics.WRITE_BYTES.add(buffer.length);
+        });
         if (log.isTraceEnabled()) {
             result = result.thenApply(r -> {
                 LoggerHelpers.traceLeave(log, this.logName, "append", traceId, transactionId, buffer.length);
@@ -407,7 +405,6 @@ class LogHandle implements AutoCloseable {
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "getNext", traceId);
                     return null;
                 }
-
                 this.lastTransactionId = baseRecord.getTransactionId();
                 log.debug("{}: LogReader.readNext (TransactionId {}, Length = {}).", this.traceObjectId, this.lastTransactionId, baseRecord.getPayload().length);
                 LoggerHelpers.traceLeave(log, this.traceObjectId, "getNext", traceId);
@@ -459,6 +456,19 @@ class LogHandle implements AutoCloseable {
         }
 
         //endregion
+    }
+
+    //endregion
+
+
+    //region Metrics
+
+    private static class Metrics {
+        private static final StatsLogger DURABLE_DATALOG_LOGGER = MetricsProvider.createStatsLogger("DURABLEDATALOG");
+        private static final OpStatsLogger WRITE_LATENCY = DURABLE_DATALOG_LOGGER.createStats(SegmentStoreMetricsNames
+                .DURABLE_DATALOG_WRITE_LATENCY);
+        private static final Counter WRITE_BYTES = DURABLE_DATALOG_LOGGER.createCounter(SegmentStoreMetricsNames
+                .DURABLE_DATALOG_WRITE_BYTES);
     }
 
     //endregion

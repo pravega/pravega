@@ -1,16 +1,7 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
- * agreements. See the NOTICE file distributed with this work for additional information regarding
- * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License. You may obtain a
- * copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
  */
 package com.emc.pravega.state.impl;
 
@@ -19,21 +10,29 @@ import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.RevisionedStreamClient;
+import com.emc.pravega.state.StateSynchronizer;
+import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
+import com.emc.pravega.stream.mock.MockClientFactory;
+import com.emc.pravega.stream.mock.MockSegmentStreamFactory;
 import com.emc.pravega.testcommon.Async;
 
+import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.NotImplementedException;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
+import lombok.Cleanup;
 import lombok.Data;
 
 public class SynchronizerTest {
@@ -42,6 +41,19 @@ public class SynchronizerTest {
     private static class RevisionedImpl implements Revisioned {
         private final String scopedStreamName;
         private final Revision revision;
+    }
+    
+    @Data
+    private static class RegularUpdate implements Update<RevisionedImpl>, InitialUpdate<RevisionedImpl>, Serializable {
+        @Override
+        public RevisionedImpl create(String scopedStreamName, Revision revision) {
+            return new RevisionedImpl(scopedStreamName, revision);
+        }
+
+        @Override
+        public RevisionedImpl applyTo(RevisionedImpl oldState, Revision newRevision) {
+            return new RevisionedImpl(oldState.getScopedStreamName(), newRevision);
+        }
     }
 
     @Data
@@ -80,7 +92,7 @@ public class SynchronizerTest {
                     UpdateOrInit<RevisionedImpl> value;
                     RevisionImpl revision = new RevisionImpl(segment, pos, pos);
                     if (pos == 0) {
-                        value = new UpdateOrInit<>(init, revision);
+                        value = new UpdateOrInit<>(init);
                     } else {
                         value = new UpdateOrInit<>(Collections.singletonList(updates[pos - 1]));
                     }
@@ -103,6 +115,11 @@ public class SynchronizerTest {
         @Override
         public void writeUnconditionally(UpdateOrInit<RevisionedImpl> value) {
             throw new NotImplementedException();
+        }
+
+        @Override
+        public Revision fetchRevision() {
+            return new RevisionImpl(segment, visableLength, visableLength);
         }
 
     }
@@ -132,7 +149,6 @@ public class SynchronizerTest {
         client.visableLength = 3;
         Async.testBlocking(() -> {
             sync.fetchUpdates();
-
         }, () -> updates[2].latch.release());
         RevisionedImpl state2 = sync.getState();
         assertEquals(new RevisionImpl(segment, 3, 3), state2.getRevision());
@@ -148,4 +164,47 @@ public class SynchronizerTest {
         RevisionedImpl state3 = sync.getState();
         assertEquals(new RevisionImpl(segment, 4, 4), state3.getRevision());
     }
+    
+    @Test(timeout = 20000)
+    public void testCompaction() throws EndOfSegmentException {
+        String streamName = "streamName";
+        String scope = "scope";
+        
+        MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+
+        StateSynchronizer<RevisionedImpl> sync = clientFactory.createStateSynchronizer(streamName,
+                                                                                       new JavaSerializer<>(),
+                                                                                       new JavaSerializer<>(),
+                                                                                       new SynchronizerConfig(null, null));
+        AtomicInteger callCount = new AtomicInteger(0);
+        sync.initialize(new RegularUpdate());
+        sync.updateState(state -> {
+            callCount.incrementAndGet();
+            return Collections.singletonList(new RegularUpdate());
+        });
+        assertEquals(1, callCount.get());
+        sync.updateState(state -> {
+            callCount.incrementAndGet();
+            return Collections.singletonList(new RegularUpdate());
+        });
+        assertEquals(2, callCount.get());
+        sync.compact(state -> {
+            callCount.incrementAndGet();
+            return new RegularUpdate();
+        });
+        assertEquals(3, callCount.get());
+        sync.updateState(s -> {
+            callCount.incrementAndGet();
+            return Collections.singletonList(new RegularUpdate());
+        });
+        assertEquals(5, callCount.get());
+        sync.compact(state -> {
+            callCount.incrementAndGet();
+            return new RegularUpdate();
+        });
+        assertEquals(6, callCount.get());
+    }
+
 }
