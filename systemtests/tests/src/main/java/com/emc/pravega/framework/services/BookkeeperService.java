@@ -85,7 +85,6 @@ public class BookkeeperService extends MarathonBasedService {
         app.setContainer(new Container());
         app.getContainer().setType(CONTAINER_TYPE);
         app.getContainer().setDocker(new Docker());
-
         app.getContainer().getDocker().setImage(IMAGE_PATH + "bookkeeper:" + PRAVEGA_VERSION);
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);

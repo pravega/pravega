@@ -10,11 +10,9 @@ import com.emc.pravega.framework.marathon.AuthEnabledMarathonClient;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.model.v2.GetAppResponse;
-import mesosphere.marathon.client.model.v2.GetAppsResponse;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.utils.MarathonException;
-
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -129,31 +127,6 @@ public abstract class MarathonBasedService implements Service {
         List<List<String>> listString = new ArrayList<>();
         listString.add(Arrays.asList(key, value));
         return listString;
-    }
-
-    public void deleteServices() {
-        Marathon m = AuthEnabledMarathonClient.getClient();
-        GetAppsResponse list = new GetAppsResponse();
-        try {
-            list = m.getApps();
-        } catch (MarathonException e) {
-            log.error("Error in getApps {}", e);
-        }
-        log.debug("list of running apps {}", list);
-        for (int i = 0; i < list.getApps().size(); i++) {
-            String appId = list.getApps().get(i).getId();
-            if (!((appId.startsWith("/platform") || appId.startsWith("/hdfs")))) {
-                try {
-                    log.debug("running app id {}", appId);
-                    marathonClient.deleteApp(appId);
-                    marathonClient.deleteGroup(appId);
-                    log.debug("deleting app with id {}", appId);
-                } catch (MarathonException e) {
-                    throw new TestFrameworkException(RequestFailed, "Marathon Exception while deleting service", e);
-                }
-
-            }
-        }
     }
 
     void deleteApp(String appID) {
