@@ -115,7 +115,7 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
             ReaderConfig config) {
-        SynchronizerConfig synchronizerConfig = new SynchronizerConfig(null, null);
+        SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> sync = createStateSynchronizer(readerGroup,
                                                                            new JavaSerializer<>(),
                                                                            new JavaSerializer<>(),
@@ -137,10 +137,10 @@ public class ClientFactoryImpl implements ClientFactory {
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
             SynchronizerConfig config) {
         Segment segment = new Segment(scope, streamName, 0);
-        SegmentInputStream in = inFactory.createInputStreamForSegment(segment, config.getInputConfig());
+        SegmentInputStream in = inFactory.createInputStreamForSegment(segment);
         SegmentOutputStream out;
         try {
-            out = outFactory.createOutputStreamForSegment(segment, config.getOutputConfig());
+            out = outFactory.createOutputStreamForSegment(segment);
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Attempted to create synchronizer on sealed segment", e);
         }

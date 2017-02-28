@@ -59,7 +59,7 @@ public class ReaderGroupStateManagerTest {
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
-        SynchronizerConfig config = new SynchronizerConfig(null, null);
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),
@@ -110,7 +110,7 @@ public class ReaderGroupStateManagerTest {
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
-        SynchronizerConfig config = new SynchronizerConfig(null, null);
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),
@@ -153,7 +153,7 @@ public class ReaderGroupStateManagerTest {
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
 
-        SynchronizerConfig config = new SynchronizerConfig(null, null);
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),
@@ -189,7 +189,7 @@ public class ReaderGroupStateManagerTest {
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
 
-        SynchronizerConfig config = new SynchronizerConfig(null, null);
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),
@@ -270,7 +270,7 @@ public class ReaderGroupStateManagerTest {
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
-        SynchronizerConfig config = new SynchronizerConfig(null, null);
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),

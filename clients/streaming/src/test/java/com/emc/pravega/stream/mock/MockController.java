@@ -291,7 +291,9 @@ public class MockController implements Controller {
     }
 
     private PositionImpl getInitialPosition(String scope, String stream) {
-        return new PositionImpl(getSegmentsForStream(new StreamImpl(scope, stream)).stream().collect(Collectors.toMap(s->s, s->0L)));
+        return new PositionImpl(
+                getSegmentsForStream(new StreamImpl(scope, stream)).stream()
+                                                                   .collect(Collectors.toMap(s -> s, s -> 0L)));
     }
     
     private void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor) {

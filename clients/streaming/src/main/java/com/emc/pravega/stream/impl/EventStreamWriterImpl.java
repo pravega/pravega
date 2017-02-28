@@ -90,8 +90,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 Collection<Segment> s = getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new).getSegments();
                 for (Segment segment : s) {
                     if (!writers.containsKey(segment)) {
-                        SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment,
-                                                                                         config.getSegmentConfig());
+                        SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment);
                         writers.put(segment, new SegmentEventWriterImpl<>(out, serializer));
                     }
                 }

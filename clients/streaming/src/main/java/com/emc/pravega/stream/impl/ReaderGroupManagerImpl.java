@@ -68,7 +68,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                               .streamName(groupName)
                                               .scalingPolicy(ScalingPolicy.fixed(1))
                                               .build());
-        SynchronizerConfig synchronizerConfig = new SynchronizerConfig(null, null);
+        SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         ReaderGroupImpl result = new ReaderGroupImpl(scope,
                 groupName,
                 streams,
@@ -95,7 +95,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     
     @Override
     public ReaderGroup getReaderGroup(String groupName) {
-        SynchronizerConfig synchronizerConfig = new SynchronizerConfig(null, null);
+        SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> sync = clientFactory.createStateSynchronizer(groupName,
                                                                                          new JavaSerializer<>(),
                                                                                          new JavaSerializer<>(),

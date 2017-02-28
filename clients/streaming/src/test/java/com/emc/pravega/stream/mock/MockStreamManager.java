@@ -90,7 +90,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                                               .scope(scope)
                                               .streamName(groupName)
                                               .scalingPolicy(ScalingPolicy.fixed(1)).build());
-        SynchronizerConfig synchronizerConfig = new SynchronizerConfig(null, null);
+        SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         ReaderGroupImpl result = new ReaderGroupImpl(scope,
                 groupName,
                 streamNames,

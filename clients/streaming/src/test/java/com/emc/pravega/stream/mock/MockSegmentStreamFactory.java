@@ -6,10 +6,8 @@
 package com.emc.pravega.stream.mock;
 
 import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactory;
-import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
@@ -28,7 +26,7 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, SegmentOutputConfiguration config)
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment)
             throws SegmentSealedException {
         MockSegmentIoStreams streams = new MockSegmentIoStreams(segment);
         segments.putIfAbsent(segment, streams);
@@ -36,12 +34,12 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config, int bufferSize) {
-        return createInputStreamForSegment(segment, config);
+    public SegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize) {
+        return createInputStreamForSegment(segment);
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config) {
+    public SegmentInputStream createInputStreamForSegment(Segment segment) {
         MockSegmentIoStreams streams = new MockSegmentIoStreams(segment);
         segments.putIfAbsent(segment, streams);
         return segments.get(segment);
