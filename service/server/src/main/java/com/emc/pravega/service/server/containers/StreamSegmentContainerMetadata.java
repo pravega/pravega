@@ -298,11 +298,13 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
      *
      * @param metadata             The Metadata for the Segment that is considered for eviction.
      * @param sequenceNumberCutoff A Sequence Number that indicates the cutoff threshold. A Segment is eligible for eviction
-     *                             if it has a LastUsed value smaller than this threshold.
+     *                             if it has a LastUsed value smaller than this threshold. One exception to this rule
+     *                             is deleted segments, which only need to be truncated out of the Log.
      * @return True if the Segment can be evicted, false otherwise.
      */
     private boolean isEligibleForEviction(SegmentMetadata metadata, long sequenceNumberCutoff) {
-        return metadata.getLastUsed() < sequenceNumberCutoff;
+        return metadata.getLastUsed() < sequenceNumberCutoff
+                || metadata.isDeleted() && metadata.getLastUsed() <= this.lastTruncatedSequenceNumber.get();
     }
 
     //endregion

@@ -37,7 +37,7 @@ public class SelfTestRunner {
         @Cleanup
         SelfTest test = new SelfTest(testConfig, builderConfig);
 
-        // Star the test.
+        // Start the test.
         test.startAsync().awaitRunning(testConfig.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
 
         // Wait for the test to finish.
@@ -65,6 +65,8 @@ public class SelfTestRunner {
 
         ServiceBuilderConfig.set(p, ContainerConfig.COMPONENT_CODE, ContainerConfig.PROPERTY_SEGMENT_METADATA_EXPIRATION_SECONDS,
                 Integer.toString(ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS));
+        ServiceBuilderConfig.set(p, ContainerConfig.COMPONENT_CODE, ContainerConfig.PROPERTY_MAX_ACTIVE_SEGMENT_COUNT,
+                Integer.toString(500));
 
         // All component configs should have defaults built-in, so no need to override them here
         return new ServiceBuilderConfig(p);
@@ -85,7 +87,8 @@ public class SelfTestRunner {
 
                            // Transaction setup.
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
-                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 100)//Integer.MAX_VALUE)
+                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
+                           //.with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 100)
 
                            // Test setup.
                            .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 50 + testThreadPoolAddition)

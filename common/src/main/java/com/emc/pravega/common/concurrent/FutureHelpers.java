@@ -46,7 +46,7 @@ public final class FutureHelpers {
      * @param f   The future to wait for.
      * @param <T> The Type of the future's result.
      */
-    public static <T> boolean await(CompletableFuture<T> f) {
+    public static <T> boolean await(Future<T> f) {
         try {
             Exceptions.handleInterrupted(() -> f.get());
             return true;

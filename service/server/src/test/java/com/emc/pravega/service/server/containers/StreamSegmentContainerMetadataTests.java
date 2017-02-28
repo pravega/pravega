@@ -411,6 +411,13 @@ public class StreamSegmentContainerMetadataTests {
             }
         }
 
+        // Add one segment that will be deleted. This should be evicted as soon as its LastUsed is before the truncation point.
+        final long deletedSegmentId = segments.size();
+        UpdateableSegmentMetadata deletedSegment = m.mapStreamSegmentId(getName(deletedSegmentId), deletedSegmentId);
+        deletedSegment.markDeleted();
+        deletedSegment.setLastUsed(firstStageExpiration);
+        segments.add(deletedSegmentId);
+
         // Verify that not-yet-truncated operations will not be selected for truncation.
         val truncationPoints = Arrays.asList(0L, firstStageExpiration, transactionExpiration, finalExpiration, finalExpiration + 1);
         Collection<SegmentMetadata> evictionCandidates;
@@ -524,7 +531,7 @@ public class StreamSegmentContainerMetadataTests {
         HashSet<Long> candidateIds = new HashSet<>();
         for (SegmentMetadata candidate : candidates) {
             // Check that all segments in candidates are actually eligible for removal.
-            boolean isEligible = shouldExpectRemoval(candidate.getId(), metadata, transactions, cutoffSeqNo);
+            boolean isEligible = shouldExpectRemoval(candidate.getId(), metadata, transactions, cutoffSeqNo, truncatedSeqNo);
             Assert.assertTrue("Unexpected eviction candidate in segment " + candidate.getId(), isEligible);
 
             // Check that all segments in candidates are not actually removed from the metadata.
@@ -538,14 +545,19 @@ public class StreamSegmentContainerMetadataTests {
         // Check that all segments remaining in the metadata are still eligible to remain there.
         for (long segmentId : metadata.getAllStreamSegmentIds()) {
             if (!candidateIds.contains(segmentId)) {
-                boolean expectedRemoved = shouldExpectRemoval(segmentId, metadata, transactions, cutoffSeqNo);
+                boolean expectedRemoved = shouldExpectRemoval(segmentId, metadata, transactions, cutoffSeqNo, truncatedSeqNo);
                 Assert.assertFalse("Unexpected non-eviction for segment " + segmentId, expectedRemoved);
             }
         }
     }
 
-    private boolean shouldExpectRemoval(long segmentId, ContainerMetadata m, Map<Long, Long> transactions, long cutoffSeqNo) {
+    private boolean shouldExpectRemoval(long segmentId, ContainerMetadata m, Map<Long, Long> transactions, long cutoffSeqNo, long truncatedSeqNo) {
         SegmentMetadata segmentMetadata = m.getStreamSegmentMetadata(segmentId);
+        if (segmentMetadata.isDeleted()) {
+            // Deleted segments are immediately eligible for eviction as soon as their last op is truncated out.
+            return segmentMetadata.getLastUsed() <= truncatedSeqNo;
+        }
+
         SegmentMetadata transactionMetadata = null;
         if (transactions.containsKey(segmentId)) {
             transactionMetadata = m.getStreamSegmentMetadata(transactions.get(segmentId));

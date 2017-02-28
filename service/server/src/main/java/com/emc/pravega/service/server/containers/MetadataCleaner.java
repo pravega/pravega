@@ -11,15 +11,17 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.AsyncMap;
 import com.emc.pravega.service.server.EvictableMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -35,6 +37,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
     private final AsyncMap<String, SegmentState> stateStore;
     private final Consumer<Collection<SegmentMetadata>> cleanupCallback;
     private final AtomicLong lastIterationSequenceNumber;
+    private final SingleRunner runner;
     private final CancellationToken stopToken;
 
     //endregion
@@ -65,6 +68,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
         this.cleanupCallback = cleanupCallback;
         this.lastIterationSequenceNumber = new AtomicLong(metadata.getOperationSequenceNumber());
         this.stopToken = new CancellationToken();
+        this.runner = new SingleRunner(this::runOnceInternal);
     }
 
     //endregion
@@ -80,7 +84,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
     protected CompletableFuture<Void> doRun() {
         return FutureHelpers.loop(
                 () -> !this.stopToken.isCancellationRequested(),
-                () -> delay().thenCompose(this::runOnce),
+                () -> delay().thenCompose(v -> runOnce()),
                 this.executor);
     }
 
@@ -92,8 +96,19 @@ class MetadataCleaner extends AbstractThreadPoolService {
 
     //endregion
 
-    @VisibleForTesting
-    protected CompletableFuture<Void> runOnce(Void ignored) {
+    /**
+     * Executes one iteration of the MetadataCleaner. This ensures that there cannot be more than one concurrent executions of
+     * such an iteration (whether it's from this direct call or from the regular MetadataCleaner invocation). If concurrent
+     * invocations are made, then subsequent calls will be tied to the execution of the first, and will all complete at
+     * the same time (even though there's only one executing).
+     *
+     * @return A CompletableFuture that, when completed, indicates that the operation completed (successfully or not).
+     */
+    CompletableFuture<Void> runOnce() {
+        return this.runner.runOnce();
+    }
+
+    private CompletableFuture<Void> runOnceInternal() {
         long lastSeqNo = this.lastIterationSequenceNumber.getAndSet(this.metadata.getOperationSequenceNumber());
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "metadataCleanup", lastSeqNo);
 
@@ -121,4 +136,41 @@ class MetadataCleaner extends AbstractThreadPoolService {
         this.stopToken.register(result);
         return result;
     }
+
+    //region SingleRunner
+
+    /**
+     * Helps with the concurrent requests to an asynchronous task that is desired to be executed only once at any given time.
+     */
+    @RequiredArgsConstructor
+    private static class SingleRunner {
+        private final AtomicReference<CompletableFuture<Void>> currentIteration = new AtomicReference<>();
+        private final Supplier<CompletableFuture<Void>> futureSupplier;
+
+        CompletableFuture<Void> runOnce() {
+            CompletableFuture<Void> result = new CompletableFuture<>();
+            boolean needsToExecute = this.currentIteration.compareAndSet(null, result);
+
+            if (needsToExecute) {
+                // Unregister the current iteration when done.
+                result.whenComplete((r, ex) -> this.currentIteration.compareAndSet(result, null));
+
+                try {
+                    CompletableFuture<Void> f = this.futureSupplier.get();
+
+                    // Async termination.
+                    f.thenAccept(result::complete);
+                    FutureHelpers.exceptionListener(f, result::completeExceptionally);
+                } catch (Throwable ex) {
+                    // Synchronous termination.
+                    result.completeExceptionally(ex);
+                    throw ex;
+                }
+            }
+
+            return result;
+        }
+    }
+
+    //endregion
 }

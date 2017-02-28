@@ -4,6 +4,7 @@
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.ExceptionHelpers;
+import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
@@ -21,6 +22,7 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.contracts.TooManyActiveSegmentsException;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndexFactory;
@@ -63,6 +65,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -211,7 +214,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * are mostly independent of each other, so we would not be gaining much by doing so.
      */
     @Test
-    public void testConcurrentActivation() throws Exception {
+    public void testConcurrentSegmentActivation() throws Exception {
         final UUID attributeAccumulate = UUID.randomUUID();
         final long expectedAttributeValue = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
         final int appendLength = 10;
@@ -252,9 +255,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         // Wait for the submittal of tasks to complete.
-        for (Future sf : submitFutures) {
-            sf.get();
-        }
+        submitFutures.forEach(FutureHelpers::await);
 
         // Now wait for all the appends to finish.
         FutureHelpers.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -838,6 +839,131 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after deletion and re-creation.", expectedAttributes, sp);
     }
 
+    /**
+     * Tests the case when the ContainerMetadata has filled up to capacity (with segments and we cannot map anymore segments).
+     */
+    @Test
+    public void testForcedMetadataCleanup() throws Exception {
+        final int maxSegmentCount = 3;
+        final ContainerConfig containerConfig = ConfigHelpers.createContainerConfig(
+                PropertyBag.create()
+                           .with(ContainerConfig.PROPERTY_SEGMENT_METADATA_EXPIRATION_SECONDS, DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
+                           .with(ContainerConfig.PROPERTY_MAX_ACTIVE_SEGMENT_COUNT, maxSegmentCount));
+        // We need a special DL config so that we can force truncations after every operation - this will speed up metadata
+        // eviction eligibility.
+        final DurableLogConfig durableLogConfig = ConfigHelpers.createDurableLogConfig(
+                PropertyBag.create()
+                           .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 1)
+                           .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 5)
+                           .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024));
+
+        @Cleanup
+        TestContext context = new TestContext(containerConfig);
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(durableLogConfig, context.dataLogFactory, executorService());
+        @Cleanup
+        MetadataCleanupContainer localContainer = new MetadataCleanupContainer(CONTAINER_ID, containerConfig, localDurableLogFactory,
+                context.readIndexFactory, context.writerFactory, context.storageFactory, executorService());
+        localContainer.startAsync().awaitRunning();
+
+        // Create 4 segments and one transaction.
+        String segment0 = getSegmentName(0);
+        localContainer.createStreamSegment(segment0, null, TIMEOUT).join();
+        String segment1 = getSegmentName(1);
+        localContainer.createStreamSegment(segment1, null, TIMEOUT).join();
+        String segment2 = getSegmentName(2);
+        localContainer.createStreamSegment(segment2, null, TIMEOUT).join();
+        String segment3 = getSegmentName(3);
+        localContainer.createStreamSegment(segment3, null, TIMEOUT).join();
+        String txn1 = localContainer.createTransaction(segment3, UUID.randomUUID(), null, TIMEOUT).join();
+
+        // Activate one segment.
+        localContainer.getStreamSegmentInfo(segment2, false, TIMEOUT).join();
+
+        // Activate the transaction; this should fill up the metadata (itself + parent).
+        localContainer.getStreamSegmentInfo(txn1, false, TIMEOUT).join();
+
+        // Verify the transaction's parent has been activated.
+        Assert.assertNotNull("Transaction's parent has not been activated.",
+                localContainer.getStreamSegmentInfo(segment3, false, TIMEOUT).join());
+
+        // At this point, the active segments should be: 2, 3 and Txn.
+        // Verify we cannot activate any other segment.
+        AssertExtensions.assertThrows(
+                "getSegmentId() allowed mapping more segments than the metadata can support.",
+                () -> localContainer.getStreamSegmentInfo(segment1, false, TIMEOUT),
+                ex -> ex instanceof TooManyActiveSegmentsException);
+
+        AssertExtensions.assertThrows(
+                "getSegmentId() allowed mapping more segments than the metadata can support.",
+                () -> localContainer.getStreamSegmentInfo(segment0, false, TIMEOUT),
+                ex -> ex instanceof TooManyActiveSegmentsException);
+
+        // Test the ability to forcefully evict items from the metadata when there is pressure and we need to register something new.
+        // Case 1: following a Segment deletion.
+        localContainer.deleteStreamSegment(segment2, TIMEOUT).join();
+        val segment1Activation = tryActivate(localContainer, segment1, segment3);
+        val segment1Info = segment1Activation.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertNotNull("Unable to properly activate dormant segment (1).", segment1Info);
+
+        // Case 2: following a Merge.
+        localContainer.sealStreamSegment(txn1, TIMEOUT).join();
+        localContainer.mergeTransaction(txn1, TIMEOUT).join();
+        val segment0Activation = tryActivate(localContainer, segment0, segment3);
+        val segment0Info = segment0Activation.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertNotNull("Unable to properly activate dormant segment (0).", segment0Info);
+
+        // At this point the active segments should be: 0, 1 and 3.
+        Assert.assertNotNull("Pre-activated segment did not stay in metadata (3).",
+                localContainer.getStreamSegmentInfo(segment3, false, TIMEOUT).join());
+
+        Assert.assertNotNull("Pre-activated segment did not stay in metadata (1).",
+                localContainer.getStreamSegmentInfo(segment1, false, TIMEOUT).join());
+
+        Assert.assertNotNull("Pre-activated segment did not stay in metadata (0).",
+                localContainer.getStreamSegmentInfo(segment0, false, TIMEOUT).join());
+
+        context.container.stopAsync().awaitTerminated();
+    }
+
+    /**
+     * Attempts to activate the targetSegment in the given Container. Since we do not have access to the internals of the
+     * Container, we need to trigger this somehow, hence the need for this complex code. We need to trigger a truncation,
+     * so we need an 'appendSegment' to which we continuously append so that the DurableDataLog is truncated. After truncation,
+     * the Metadata should have enough leeway in making room for new activation.
+     *
+     * @return A Future that will complete either with an exception (failure) or SegmentProperties for the targetSegment.
+     */
+    private CompletableFuture<SegmentProperties> tryActivate(MetadataCleanupContainer localContainer, String targetSegment, String appendSegment) {
+        CompletableFuture<SegmentProperties> successfulMap = new CompletableFuture<>();
+
+        // Append continuously to an existing segment in order to trigger truncations (these are necessary for forced evictions).
+        val appendFuture = localContainer.appendRandomly(appendSegment, false, () -> !successfulMap.isDone());
+        FutureHelpers.exceptionListener(appendFuture, successfulMap::completeExceptionally);
+
+        // Repeatedly try to get info on 'segment1' (activate it), until we succeed or time out.
+        TimeoutTimer remaining = new TimeoutTimer(TIMEOUT);
+        FutureHelpers.loop(
+                () -> !successfulMap.isDone(),
+                () -> FutureHelpers
+                        .delayedFuture(Duration.ofMillis(250), executorService())
+                        .thenCompose(v -> localContainer.getStreamSegmentInfo(targetSegment, false, TIMEOUT))
+                        .thenAccept(successfulMap::complete)
+                        .exceptionally(ex -> {
+                            if (!(ExceptionHelpers.getRealException(ex) instanceof TooManyActiveSegmentsException)) {
+                                // Some other error.
+                                successfulMap.completeExceptionally(ex);
+                            } else if (!remaining.hasRemaining()) {
+                                // Waited too long.
+                                successfulMap.completeExceptionally(new TimeoutException("No successful activation could be done in the allotted time."));
+                            }
+
+                            // Try again.
+                            return null;
+                        }),
+                executorService());
+        return successfulMap;
+    }
+
     private static void checkStorage(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, TestContext context) {
         for (String segmentName : segmentContents.keySet()) {
             // 1. Deletion status
@@ -1134,6 +1260,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
          * @param expectedSegmentNames The segments that we are expecting to evict.
          */
         CompletableFuture<Void> triggerMetadataCleanup(Collection<String> expectedSegmentNames) {
+            String tempSegmentName = getSegmentName(Long.hashCode(System.nanoTime()));
             HashSet<String> remainingSegments = new HashSet<>(expectedSegmentNames);
             CompletableFuture<Void> cleanupTask = FutureHelpers.futureWithTimeout(TIMEOUT, this.executor);
 
@@ -1145,22 +1272,22 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 }
             };
 
-            appendRandomly(() -> !cleanupTask.isDone());
+            CompletableFuture<Void> af = appendRandomly(tempSegmentName, true, () -> !cleanupTask.isDone());
+            FutureHelpers.exceptionListener(af, cleanupTask::completeExceptionally);
             return cleanupTask;
         }
 
         /**
          * Appends continuously to a random new segment in the given container, as long as the given condition holds.
          */
-        private CompletableFuture<Void> appendRandomly(Supplier<Boolean> canContinue) {
-            String segmentName = getSegmentName(Long.hashCode(System.nanoTime()));
+        CompletableFuture<Void> appendRandomly(String segmentName, boolean createSegment, Supplier<Boolean> canContinue) {
             byte[] appendData = new byte[1];
-            return createStreamSegment(segmentName, null, TIMEOUT)
+            return (createSegment ? createStreamSegment(segmentName, null, TIMEOUT) : CompletableFuture.completedFuture(null))
                     .thenCompose(v -> FutureHelpers.loop(
                             canContinue,
                             () -> append(segmentName, appendData, null, TIMEOUT),
                             this.executor))
-                    .thenCompose(v -> deleteStreamSegment(segmentName, TIMEOUT));
+                    .thenCompose(v -> createSegment ? deleteStreamSegment(segmentName, TIMEOUT) : CompletableFuture.completedFuture(null));
         }
     }
 

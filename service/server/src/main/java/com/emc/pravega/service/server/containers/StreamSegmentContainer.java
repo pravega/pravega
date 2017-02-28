@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.service.server.containers;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
@@ -13,6 +14,7 @@ import com.emc.pravega.service.contracts.AttributeUpdate;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.contracts.TooManyActiveSegmentsException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.OperationLogFactory;
@@ -186,8 +188,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("append", streamSegmentName, data.length);
-        return FutureHelpers.toVoid(segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
+        return FutureHelpers.toVoid(getStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, attributeUpdates);
                     return this.durableLog.add(operation, timer.getRemaining());
@@ -200,8 +201,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("appendWithOffset", streamSegmentName, data.length);
-        return FutureHelpers.toVoid(this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
+        return FutureHelpers.toVoid(getStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, attributeUpdates);
                     return this.durableLog.add(operation, timer.getRemaining());
@@ -214,8 +214,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("updateAttributes", streamSegmentName, attributeUpdates);
-        return FutureHelpers.toVoid(segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
+        return FutureHelpers.toVoid(getStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamSegmentId -> {
                     UpdateAttributesOperation operation = new UpdateAttributesOperation(streamSegmentId, attributeUpdates);
                     return this.durableLog.add(operation, timer.getRemaining());
@@ -228,8 +227,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("read", streamSegmentName, offset, maxLength);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
+        return getStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenApply(streamSegmentId -> this.readIndex.read(streamSegmentId, offset, maxLength, timer.getRemaining()));
     }
 
@@ -246,9 +244,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             // before proceeding.
             segmentIdRetriever = this.durableLog
                     .operationProcessingBarrier(timer.getRemaining())
-                    .thenComposeAsync(v -> this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining()), this.executor);
+                    .thenComposeAsync(v -> getStreamSegmentId(streamSegmentName, timer.getRemaining()), this.executor);
         } else {
-            segmentIdRetriever = this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining());
+            segmentIdRetriever = getStreamSegmentId(streamSegmentName, timer.getRemaining());
         }
 
         return segmentIdRetriever.thenApply(streamSegmentId -> this.metadata.getStreamSegmentMetadata(streamSegmentId).getSnapshot());
@@ -298,8 +296,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("mergeTransaction", transactionName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper
-                .getOrAssignStreamSegmentId(transactionName, timer.getRemaining())
+        return getStreamSegmentId(transactionName, timer.getRemaining())
                 .thenCompose(transactionId -> {
                     SegmentMetadata transactionMetadata = this.metadata.getStreamSegmentMetadata(transactionId);
                     if (transactionMetadata == null) {
@@ -319,8 +316,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         logRequest("sealStreamSegment", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         AtomicReference<StreamSegmentSealOperation> operation = new AtomicReference<>();
-        return this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
+        return getStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamSegmentId -> {
                     operation.set(new StreamSegmentSealOperation(streamSegmentId));
                     return this.durableLog.add(operation.get(), timer.getRemaining());
@@ -350,6 +346,47 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //endregion
 
     //region Helpers
+
+    /**
+     * Attempts to get a SegmentId for the given Segment Name. This operation is delegated to the StreamSegmentMapper
+     * component, however if the operation fails due to ContainerMetadata capacity exceeded, it force-cleans the metadata
+     * and retries the map operation, exactly once.
+     *
+     * @param segmentName The case-sensitive Segment Name.
+     * @param timeout     The timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain the StreamSegment Id requested. If the operation
+     * failed, this will contain the exception that caused the failure.
+     */
+    private CompletableFuture<Long> getStreamSegmentId(String segmentName, Duration timeout) {
+        CompletableFuture<Long> result = new CompletableFuture<>();
+        this.segmentMapper
+                .getOrAssignStreamSegmentId(segmentName, timeout)
+                .thenAccept(result::complete)
+                .exceptionally(ex -> {
+                    // Check if the exception indicates the Metadata has reached capacity. In that case, force a cleanup
+                    // and try again, exactly once.
+                    try {
+                        if (ExceptionHelpers.getRealException(ex) instanceof TooManyActiveSegmentsException) {
+                            // Trigger metadata cleanup, then try again.
+                            log.debug("{}: Forcing metadata cleanup due to capacity exceeded ({}).", this.traceObjectId, ex.getMessage());
+                            CompletableFuture<Long> f = this.metadataCleaner
+                                    .runOnce()
+                                    .thenComposeAsync(v -> this.segmentMapper.getOrAssignStreamSegmentId(segmentName, timeout));
+                            f.thenAccept(result::complete);
+                            FutureHelpers.exceptionListener(f, result::completeExceptionally);
+                        } else {
+                            result.completeExceptionally(ex);
+                        }
+                    } catch (Throwable t) {
+                        result.completeExceptionally(t);
+                        throw t;
+                    }
+
+                    return null;
+                });
+
+        return result;
+    }
 
     /**
      * Callback that notifies eligible components that the given Segments' metadatas has been removed from the metadata,
