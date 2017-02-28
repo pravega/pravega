@@ -255,47 +255,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> setBlockFlag(long timestamp) {
-        return store.checkExists(blockerPath)
-                .thenCompose(x -> {
-                    if (x) {
-                        return cache.getCachedData(blockerPath);
-                    } else {
-                        return CompletableFuture.completedFuture(null);
-                    }
-                }).thenCompose(x -> {
-                    if (x == null) {
-                        return store.createZNodeIfNotExist(blockerPath, Utilities.toByteArray(timestamp));
-                    } else if (timestamp > System.currentTimeMillis()) {
-                        return store.setData(blockerPath, new Data<>(Utilities.toByteArray(timestamp), x.getVersion()));
-                    } else {
-                        return CompletableFuture.completedFuture(null);
-                    }
-                })
-                .thenAccept(x -> cache.invalidateCache(blockerPath));
-    }
-
-    @Override
-    CompletableFuture<Void> unsetBlockFlag() {
-        return store.deletePath(blockerPath, false)
-                .thenAccept(x -> cache.invalidateCache(blockerPath));
-    }
-
-    @Override
-    CompletableFuture<Boolean> isBlocked() {
-
-        return store.checkExists(blockerPath)
-                .thenCompose(x -> {
-                    if (x) {
-                        return cache.getCachedData(blockerPath);
-                    } else {
-                        return CompletableFuture.completedFuture(null);
-                    }
-                }).thenApply(x ->
-                        x != null && System.currentTimeMillis() < Utilities.toLong(x.getData()));
-    }
-
-    @Override
     public CompletableFuture<Map<String, Data<Integer>>> getCurrentTxns() {
         return store.getChildren(activeTxPath)
                 .thenCompose(txIds -> FutureHelpers.allOfWithResults(txIds.stream().collect(

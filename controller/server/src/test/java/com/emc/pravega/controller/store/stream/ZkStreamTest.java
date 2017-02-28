@@ -418,20 +418,6 @@ public class ZkStreamTest {
 
         assert store.transactionStatus(SCOPE, streamName, UUID.randomUUID(), context, executor).get().equals(TxnStatus.UNKNOWN);
 
-        store.blockTransactions(SCOPE, streamName, System.currentTimeMillis() + 1000, null, executor).get();
-        store.createTransaction(SCOPE, streamName, null, executor)
-                .handle((r, ex) -> {
-                    assertTrue(ex != null && ex.getCause() instanceof TransactionBlockedException);
-                    return null;
-                }).get();
-
-        Thread.sleep(1000);
-        store.createTransaction(SCOPE, streamName, null, executor)
-                .handle((r, ex) -> {
-                    assertTrue(ex == null);
-                    return null;
-                }).get();
-
         store.markCold(SCOPE, streamName, 0, System.currentTimeMillis() + 1000, null, executor).get();
         assertTrue(store.isCold(SCOPE, streamName, 0, null, executor).get());
         Thread.sleep(1000);

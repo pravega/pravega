@@ -17,7 +17,6 @@ import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.base.Preconditions;
@@ -202,42 +201,29 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
                                                      final OperationContext context) {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
-        CompletableFuture<ScaleResponse> scaleFuture = streamMetadataStore.blockTransactions(request.getScope(),
-                request.getStream(), System.currentTimeMillis() + BLOCK_VALIDITY_PERIOD, context, executor)
-                .thenCompose(x -> streamMetadataTasks.scale(request.getScope(),
-                        request.getStream(),
-                        segments,
-                        newRanges,
-                        System.currentTimeMillis(),
-                        context)
-                        .whenCompleteAsync((res, e) -> {
-                            if (e != null) {
-                                log.warn("Scale failed for request {}/{}/{} with exception {}", request.getScope(), request.getStream(), request.getSegmentNumber(), e);
-                                Throwable cause = ExceptionHelpers.getRealException(e);
-                                if (cause instanceof LockFailedException) {
-                                    throw (LockFailedException) cause;
-                                } else {
-                                    throw new RuntimeException(e);
-                                }
-                            } else if (res.getStatus().equals(ScaleStreamStatus.TXN_CONFLICT)) {
-                                // transactions were running, throw a retryable exception.
-                                throw new ConflictingTaskException(request.getStream());
-                            } else {
-                                // completed - either successfully or with pre-condition-failure. Clear markers on all scaled segments.
-                                clearMarkers(request.getScope(), request.getStream(), segments, context);
-                            }
-                        }, executor));
-
-        scaleFuture.whenComplete((r, ex) -> {
-            if (ex != null && ExceptionHelpers.getRealException(ex) instanceof LockFailedException) {
-                // lock failure, throw an exception here,
-                // and that will result in several retries exhausting which the request will be put back
-                // into request stream.
-                blockTxCreationAndSweepTimedout(request, context); // block and sweep returns a future, but we dont need any callbacks linked with it.
-            } else {
-                streamMetadataStore.unblockTransactions(request.getScope(), request.getStream(), context, executor);
-            }
-        });
+        CompletableFuture<ScaleResponse> scaleFuture = streamMetadataTasks.scale(request.getScope(),
+                request.getStream(),
+                segments,
+                newRanges,
+                System.currentTimeMillis(),
+                context)
+                .whenCompleteAsync((res, e) -> {
+                    if (e != null) {
+                        log.warn("Scale failed for request {}/{}/{} with exception {}", request.getScope(), request.getStream(), request.getSegmentNumber(), e);
+                        Throwable cause = ExceptionHelpers.getRealException(e);
+                        if (cause instanceof LockFailedException) {
+                            throw (LockFailedException) cause;
+                        } else {
+                            throw new RuntimeException(e);
+                        }
+                    } else if (res.getStatus().equals(ScaleStreamStatus.TXN_CONFLICT)) {
+                        // transactions were running, throw a retryable exception.
+                        throw new ConflictingTaskException(request.getStream());
+                    } else {
+                        // completed - either successfully or with pre-condition-failure. Clear markers on all scaled segments.
+                        clearMarkers(request.getScope(), request.getStream(), segments, context);
+                    }
+                }, executor);
 
         scaleFuture.whenComplete((res, ex) -> {
             // if it is retryable exception, do not unblock creation of txn and let scale be attempted again.
@@ -253,34 +239,6 @@ public class ScaleRequestHandler implements RequestHandler<ScaleRequest> {
         });
 
         return result;
-    }
-
-    /**
-     * Block creation of new transactions for limited period while scale will attempt to acquire lock.
-     * It may still not be able to acquire the lock immediately as there could be ongoing transactions.
-     * But by blocking creation of new transactions, it increase probability of scale to be processed
-     * after existing transactions complete.
-     * Note: there could be existing transactions that may have timed out
-     * but their timed clean up may not have been scheduled successfully. So if such a txn failed, we need to
-     * opportunistically sweep and clean them.
-     *
-     * @param request scale request
-     * @param context stream store context
-     */
-    private CompletableFuture<Void> blockTxCreationAndSweepTimedout(ScaleRequest request, OperationContext context) {
-        return streamMetadataStore.blockTransactions(request.getScope(), request.getStream(),
-                System.currentTimeMillis() + BLOCK_VALIDITY_PERIOD, context, executor)
-                .thenCompose(x -> streamMetadataStore.getActiveTxns(request.getScope(), request.getStream(), context, executor))
-                .thenCompose(x -> FutureHelpers.allOfWithResults(x.entrySet().stream().filter(y ->
-                        System.currentTimeMillis() - y.getValue().getTxCreationTimestamp() > Config.TXN_TIMEOUT_IN_SECONDS)
-                        .map(z -> streamTxMetadataTasks.abortTx(request.getScope(), request.getStream(), z.getKey(), null))
-                        .collect(Collectors.toList())))
-                .handle((res, ex) -> {
-                    if (ex != null) {
-                        throw new RuntimeException(ex);
-                    }
-                    return null;
-                });
     }
 
     private CompletableFuture<List<Void>> clearMarkers(final String scope, final String stream, final ArrayList<Integer> segments, final OperationContext context) {

@@ -224,16 +224,6 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<Void> blockTransactions(long timestamp) {
-        return null;
-    }
-
-    @Override
-    public CompletableFuture<Void> unblockTransactions() {
-        return null;
-    }
-
-    @Override
     public CompletableFuture<UUID> createTransaction() {
         throw new NotImplementedException();
     }

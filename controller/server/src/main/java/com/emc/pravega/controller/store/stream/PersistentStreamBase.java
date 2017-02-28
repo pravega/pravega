@@ -294,13 +294,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<UUID> createTransaction() {
         final UUID txId = UUID.randomUUID();
-        return verifyLegalState(isBlocked().thenCompose(x -> {
-            if (!x) {
-                return createNewTransaction(txId, System.currentTimeMillis()).thenApply(y -> txId);
-            } else {
-                throw new TransactionBlockedException(String.format("Transaction Creation disallowed temporarily for stream %s/%s", scope, name));
-            }
-        }));
+        return verifyLegalState(createNewTransaction(txId, System.currentTimeMillis()).thenApply(y -> txId));
     }
 
     @Override
@@ -459,16 +453,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Void> removeColdMarker(int segmentNumber) {
         return verifyLegalState(removeMarkerData(segmentNumber));
-    }
-
-    @Override
-    public CompletableFuture<Void> blockTransactions(long timestamp) {
-        return verifyLegalState(setBlockFlag(timestamp));
-    }
-
-    @Override
-    public CompletableFuture<Void> unblockTransactions() {
-        return verifyLegalState(unsetBlockFlag());
     }
 
     private <U> CompletableFuture<U> verifyLegalState(CompletableFuture<U> future) {
@@ -698,12 +682,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Void> removeMarkerData(int segmentNumber);
 
     abstract CompletableFuture<Data<T>> getMarkerData(int segmentNumber);
-
-    abstract CompletableFuture<Void> setBlockFlag(long timestamp);
-
-    abstract CompletableFuture<Void> unsetBlockFlag();
-
-    abstract CompletableFuture<Boolean> isBlocked();
 
     abstract CompletableFuture<Map<String, Data<T>>> getCurrentTxns();
 

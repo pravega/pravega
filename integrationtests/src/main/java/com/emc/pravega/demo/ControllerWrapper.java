@@ -39,7 +39,11 @@ public class ControllerWrapper {
     @Getter
     private final Controller controller;
 
-    public ControllerWrapper(String connectionString, boolean disableEventProcessors) throws Exception {
+    public ControllerWrapper(String connectionString) throws Exception {
+        this(connectionString, false);
+    }
+
+    public ControllerWrapper(String connectionString, boolean disableEventProcessor) throws Exception {
         String hostId;
         try {
             // On each controller process restart, it gets a fresh hostId,
@@ -81,8 +85,7 @@ public class ControllerWrapper {
         //region Setup Event Processors
         LocalController localController = new LocalController(controllerService);
 
-        if (!disableEventProcessors) {
-
+        if (!disableEventProcessor) {
             ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
                     client, streamStore, hostStore, segmentHelper);
 
@@ -90,7 +93,6 @@ public class ControllerWrapper {
 
             streamTransactionMetadataTasks.initializeStreamWriters(localController);
         }
-
         //endregion
 
         controller = new LocalController(controllerService);

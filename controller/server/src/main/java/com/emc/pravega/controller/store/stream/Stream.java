@@ -150,21 +150,6 @@ interface Stream {
     CompletableFuture<Void> removeColdMarker(int segmentNumber);
 
     /**
-     * Blocks creation of transaction till the specified time
-     *
-     * @param timestamp block validity timestamp.
-     * @return future
-     */
-    CompletableFuture<Void> blockTransactions(long timestamp);
-
-    /**
-     * Remove any block flags set against the stream.
-     *
-     * @return future
-     */
-    CompletableFuture<Void> unblockTransactions();
-
-    /**
      * Method to start new transaction creation
      *
      * @return

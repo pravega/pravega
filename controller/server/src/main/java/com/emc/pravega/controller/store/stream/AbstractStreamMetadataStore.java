@@ -388,19 +388,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(getStream(scope, stream, context).getActiveTxns(), executor);
     }
 
-    @Override
-    public CompletableFuture<Void> blockTransactions(final String scope, final String stream, final long timestamp,
-                                                     final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context)
-                .blockTransactions(timestamp), executor);
-    }
-
-    @Override
-    public CompletableFuture<Void> unblockTransactions(final String scope, final String stream,
-                                                       final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).unblockTransactions(), executor);
-    }
-
     private Stream getStream(String scope, final String name, OperationContext context) {
         Stream stream;
         if (context != null) {

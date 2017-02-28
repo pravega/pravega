@@ -27,8 +27,6 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.Serializable;
 import java.util.AbstractMap;
@@ -284,27 +282,39 @@ public class StreamMetadataTasks extends TaskBase {
         // we should stop retrying indefinitely and notify administrator.
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        CompletableFuture<Pair<Boolean, Boolean>> checkValidity = withRetries(
+        CompletableFuture<Boolean> checkValidity = withRetries(
                 () -> streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
-                .thenCompose(activeSegments -> withRetries(
-                        () -> streamMetadataStore.isTransactionOngoing(scope, stream, context, executor), executor)
-                        .thenApply(active -> {
-                            boolean result = false;
-                            Set<Integer> activeNum = activeSegments.stream().mapToInt(Segment::getNumber).boxed().collect(Collectors.toSet());
-                            if (activeNum.containsAll(segmentsToSeal)) {
-                                result = true;
-                            } else if (activeSegments.size() > 0 && activeSegments
-                                    .stream()
-                                    .mapToLong(Segment::getStart)
-                                    .max()
-                                    .getAsLong() == scaleTimestamp) {
-                                result = true;
-                            }
-                            return new ImmutablePair<>(!active, result);
-                        }));
+                .thenApply(activeSegments -> {
+                    boolean result = false;
+                    Set<Integer> activeNum = activeSegments.stream().mapToInt(Segment::getNumber).boxed().collect(Collectors.toSet());
+                    if (activeNum.containsAll(segmentsToSeal)) {
+                        result = true;
+                    } else if (activeSegments.size() > 0 && activeSegments
+                            .stream()
+                            .mapToLong(Segment::getStart)
+                            .max()
+                            .getAsLong() == scaleTimestamp) {
+                        result = true;
+                    }
+                    return result;
+                });
 
-        return checkValidity.thenCompose(result -> {
-                    if (result.getLeft() && result.getRight()) {
+        return checkValidity.thenCompose(valid -> {
+            if (valid) {
+                // keep checking until no transactions are running.
+                CompletableFuture<Boolean> check = new CompletableFuture<>();
+                FutureHelpers.loop(() -> !check.isDone(), () -> withRetries(() -> streamMetadataStore.isTransactionOngoing(scope, stream, context, executor)
+                        .thenAccept(txnOngoing -> {
+                            if (!txnOngoing) {
+                                check.complete(true);
+                            }
+                        }), executor), executor);
+                return check;
+            } else {
+                return CompletableFuture.completedFuture(false);
+            }
+        }).thenCompose(valid -> {
+                    if (valid) {
                         return notifySealedSegments(scope, stream, segmentsToSeal)
                                 .thenCompose(results -> withRetries(
                                         () -> streamMetadataStore.scale(scope, stream,
@@ -323,11 +333,9 @@ public class StreamMetadataTasks extends TaskBase {
                                 });
                     } else {
                         ScaleResponse response = new ScaleResponse();
-                        if (!result.getRight()) {
-                            response.setStatus(ScaleStreamStatus.PRECONDITION_FAILED);
-                        } else {
-                            response.setStatus(ScaleStreamStatus.TXN_CONFLICT);
-                        }
+
+                        response.setStatus(ScaleStreamStatus.PRECONDITION_FAILED);
+
                         response.setSegments(Collections.emptyList());
                         return CompletableFuture.completedFuture(response);
                     }

@@ -31,11 +31,13 @@ public class EndToEndTransactionTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
-        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), true);
+        Thread.sleep(1000);
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString());
         Controller controller = controllerWrapper.getController();
 
         final String testScope = "testScope";
@@ -122,5 +124,7 @@ public class EndToEndTransactionTest {
         txn2Status = transaction2.checkStatus();
         assertTrue(txn2Status == Transaction.Status.ABORTED);
         System.err.println("SUCCESS: successfully aborted transaction. Transaction status=" + txn2Status);
+
+        System.exit(0);
     }
 }

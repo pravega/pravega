@@ -15,7 +15,7 @@ class TaskStepsRetryHelper {
     private static final long RETRY_INITIAL_DELAY = 100;
     private static final int RETRY_MULTIPLIER = 2;
     private static final int RETRY_MAX_ATTEMPTS = 100;
-    private static final long RETRY_MAX_DELAY = Duration.ofSeconds(10).toMillis();
+    private static final long RETRY_MAX_DELAY = Duration.ofSeconds(5).toMillis();
     private static final Retry.RetryAndThrowConditionally<RuntimeException> RETRY = Retry
             .withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
             .retryWhen(RetryableException::isRetryable)

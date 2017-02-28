@@ -90,7 +90,7 @@ public class EventProcessorTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
-        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), true);
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString());
         Controller controller = controllerWrapper.getController();
 
         // Create controller object for testing against a separate controller process.

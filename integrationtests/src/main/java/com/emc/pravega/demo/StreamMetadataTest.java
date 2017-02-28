@@ -38,7 +38,7 @@ public class StreamMetadataTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
-        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), true);
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString());
         Controller controller = controllerWrapper.getController();
 
         final String scope1 = "scope1";

@@ -7,18 +7,18 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.controller.retryable.RetryableException;
 
 /**
- * Exception thrown when scale has blocked creation of new transactions.
+ * Exception thrown when scale cant be performed because on ongoing transactions.
  */
-public class TransactionBlockedException extends RuntimeException implements RetryableException {
+public class OngoingTransactionException extends RuntimeException implements RetryableException {
 
     private static final long serialVersionUID = 1L;
 
     /**
-     * Creates a new instance of TransactionBlockedException class.
+     * Creates a new instance of OngoingTransactionException class.
      *
      * @param value value
      */
-    public TransactionBlockedException(final String value) {
+    public OngoingTransactionException(final String value) {
         super(value);
     }
 }

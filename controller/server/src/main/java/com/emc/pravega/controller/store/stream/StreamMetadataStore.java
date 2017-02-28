@@ -287,32 +287,6 @@ public interface StreamMetadataStore {
     CompletableFuture<Map<UUID, ActiveTxRecord>> getActiveTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
 
     /**
-     * Api to block new transactions from being created for the specified duration.
-     * This is useful in scenarios where a scale operation may end up waiting indefinitely
-     * because there are always one or more on-going transactions.
-     *
-     * @param scope     scope.
-     * @param stream    stream.
-     * @param timestamp timestamp until block is valid.
-     * @param context   context in which this operation is taking place.
-     * @param executor  callers executor
-     * @return Completable Future
-     */
-    CompletableFuture<Void> blockTransactions(final String scope, final String stream, final long timestamp,
-                                              final OperationContext context, final Executor executor);
-
-    /**
-     * Api to unblock creation of transactions.
-     *
-     * @param scope    scope.
-     * @param stream   name.
-     * @param context  context.
-     * @param executor callers executor
-     * @return List of active transactions.
-     */
-    CompletableFuture<Void> unblockTransactions(final String scope, final String stream, final OperationContext context, final Executor executor);
-
-    /**
      * Api to mark a segment as cold.
      *
      * @param scope         scope for stream
