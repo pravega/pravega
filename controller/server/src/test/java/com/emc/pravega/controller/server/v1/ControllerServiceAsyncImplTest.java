@@ -1,12 +1,12 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -25,17 +25,16 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.apache.thrift.TException;
 import org.junit.Test;
+
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 
@@ -73,13 +72,15 @@ public class ControllerServiceAsyncImplTest {
 
         final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
 
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                executor, "host");
+                segmentHelper, executor, "host");
+
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
+                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper, executor, "host");
 
         this.controllerService = new ControllerServiceAsyncImpl(new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks));
+                streamTransactionMetadataTasks, new SegmentHelper(), executor));
     }
 
     @Test
@@ -142,7 +143,7 @@ public class ControllerServiceAsyncImplTest {
         createScopeStatus = result3.getResult().get();
         assertEquals("Create Scope", CreateScopeStatus.SUCCESS, createScopeStatus);
 
-        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
+        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 2);
         final StreamConfiguration configuration1 =
                 StreamConfiguration.builder().scope(SCOPE2).streamName(stream1).scalingPolicy(policy1).build();
         ThriftAsyncCallback<CreateStreamStatus> result4 = new ThriftAsyncCallback<>();
@@ -164,12 +165,10 @@ public class ControllerServiceAsyncImplTest {
 
     @Test
     public void createStreamTests() throws TException, ExecutionException, InterruptedException {
-        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
-        final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
-        final StreamConfiguration configuration1 =
-                StreamConfiguration.builder().scope(SCOPE1).streamName(stream1).scalingPolicy(policy1).build();
-        final StreamConfiguration configuration2 =
-                StreamConfiguration.builder().scope(SCOPE1).streamName(stream2).scalingPolicy(policy2).build();
+        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 2);
+        final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 3);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE1).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE1).streamName(stream2).scalingPolicy(policy2).build();
         final StreamConfiguration configuration3 =
                 StreamConfiguration.builder().scope("SCOPE3").streamName(stream2).scalingPolicy(policy2).build();
 

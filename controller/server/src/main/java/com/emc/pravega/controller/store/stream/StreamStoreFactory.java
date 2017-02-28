@@ -21,7 +21,7 @@ public class StreamStoreFactory {
     public static StreamMetadataStore createStore(final StoreType type, ScheduledExecutorService executor) {
         switch (type) {
             case InMemory:
-                return new InMemoryStreamMetadataStore();
+                return new InMemoryStreamMetadataStore(executor);
             case Zookeeper:
                 return new ZKStreamMetadataStore(executor);
             case ECS:

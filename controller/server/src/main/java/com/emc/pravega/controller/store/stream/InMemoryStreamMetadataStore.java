@@ -4,20 +4,20 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.stream.StreamConfiguration;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.NotImplementedException;
 
 import javax.annotation.concurrent.GuardedBy;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 /**
@@ -32,14 +32,23 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @GuardedBy("$lock")
     private final Map<String, InMemoryScope> scopes = new HashMap<>();
 
+    @GuardedBy("$lock")
+    private final Map<String, ByteBuffer> checkpoints = new HashMap<>();
+
+    private final Executor executor;
+
+    InMemoryStreamMetadataStore(Executor executor) {
+        this.executor = executor;
+    }
+
     @Override
     @Synchronized
-    Stream newStream(final String streamName) {
-        Stream stream = streams.get(streamName);
+    Stream newStream(String scope, String name) {
+        Stream stream = streams.get(scopedStreamName(scope, name));
         if (stream != null) {
             return stream;
         } else {
-            throw new StreamNotFoundException(streamName);
+            throw new DataNotFoundException(name);
         }
     }
 
@@ -52,8 +61,10 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     @Synchronized
     public CompletableFuture<Boolean> createStream(final String scopeName, final String streamName,
-                                                                final StreamConfiguration configuration,
-                                                                final long timeStamp) {
+                                                   final StreamConfiguration configuration,
+                                                   final long timeStamp,
+                                                   final OperationContext context,
+                                                   final Executor executor) {
         if (scopes.containsKey(scopeName)) {
             if (!streams.containsKey(scopedStreamName(scopeName, streamName))) {
                 InMemoryStream stream = new InMemoryStream(scopeName, streamName);
@@ -75,13 +86,28 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Synchronized
     public CompletableFuture<Boolean> updateConfiguration(final String scopeName,
                                                           final String streamName,
-                                                          final StreamConfiguration configuration) {
+                                                          final StreamConfiguration configuration,
+                                                          final OperationContext context,
+                                                          final Executor executor) {
         if (scopes.containsKey(scopeName)) {
             return streams.get(scopedStreamName(scopeName, streamName)).updateConfiguration(configuration);
         } else {
             return FutureHelpers.
                     failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
         }
+    }
+
+    @Override
+    public CompletableFuture<Void> checkpoint(String readerGroup, String readerId, ByteBuffer checkpointBlob) {
+        String key = String.format("%s/%s", readerGroup, readerId);
+        checkpoints.put(key, checkpointBlob);
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<ByteBuffer> readCheckpoint(String readerGroup, String readerId) {
+        String key = String.format("%s/%s", readerGroup, readerId);
+        return CompletableFuture.completedFuture(checkpoints.get(key));
     }
 
     @Override
@@ -139,15 +165,10 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         if (inMemoryScope != null) {
             return inMemoryScope.listStreamsInScope()
                     .thenApply(streams -> streams.stream().map(
-                            stream -> this.getConfiguration(scopeName, stream).join()).collect(Collectors.toList()));
+                            stream -> this.getConfiguration(scopeName, stream, null, executor).join()).collect(Collectors.toList()));
         } else {
             return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND));
         }
-    }
-
-    @Override
-    public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
-        throw new NotImplementedException();
     }
 
     private String scopedStreamName(final String scopeName, final String streamName) {

@@ -15,6 +15,7 @@ import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.SegmentDeleted;
 import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
+import com.emc.pravega.common.netty.WireCommands.SegmentPolicyUpdated;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
@@ -65,4 +66,6 @@ public interface ReplyProcessor {
     void keepAlive(KeepAlive keepAlive);
     
     void connectionDropped();
+
+    void segmentPolicyUpdated(SegmentPolicyUpdated segmentPolicyUpdated);
 }
