@@ -89,9 +89,9 @@ public class ReaderGroupTest {
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
         streamManager.createReaderGroup(READER_GROUP, groupConfig, Lists.newArrayList(STREAM_NAME));
 
-        writeEvents(800, clientFactory);
-        ReaderThread r1 = new ReaderThread(200, "Reader1", clientFactory);
-        ReaderThread r2 = new ReaderThread(600, "Reader2", clientFactory);
+        writeEvents(100, clientFactory);
+        ReaderThread r1 = new ReaderThread(20, "Reader1", clientFactory);
+        ReaderThread r2 = new ReaderThread(80, "Reader2", clientFactory);
         Thread reader1Thread = new Thread(r1);
         Thread reader2Thread = new Thread(r2);
         reader1Thread.start();
@@ -112,7 +112,6 @@ public class ReaderGroupTest {
                                                                            new JavaSerializer<>(),
                                                                            EventWriterConfig.builder().build());
         for (int i = 0; i < eventsToWrite; i++) {
-            System.err.println("Writing event: " + i);
             writer.writeEvent(Integer.toString(i), " Event " + i);
         }
         writer.flush();
