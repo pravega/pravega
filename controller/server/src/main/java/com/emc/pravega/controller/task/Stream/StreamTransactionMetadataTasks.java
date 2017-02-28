@@ -115,9 +115,6 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     }
 
     /**
-     *
-     */
-    /**
      * Transaction heartbeat, that increases transaction timeout by lease number of milliseconds.
      *
      * @param scope Stream scope.

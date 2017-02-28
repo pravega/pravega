@@ -45,7 +45,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     // region HashedWheelTimer parameters
 
     private static final ThreadFactory THREAD_FACTORY = Executors.defaultThreadFactory();
-    private static final long TICK_DURATION = 200;
+    private static final long TICK_DURATION = 400;
     private static final TimeUnit TIME_UNIT = TimeUnit.MILLISECONDS;
     private static final int TICKS_PER_WHEEL = 512;
     private static final boolean LEAK_DETECTION = true;
