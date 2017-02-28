@@ -107,7 +107,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         Map<String, String> map = new HashMap<>();
         map.put("ZK_URL", zk);
-        map.put("pravegaservice_zkHostName", zkUri.getHost());
+        map.put("pravegaservice_zkURL", zk);
         map.put("dlog_hostname", zkUri.getHost());
         map.put("hdfs_fs_default_name", "namenode-0.hdfs.mesos:9001");
         app.setEnv(map);
