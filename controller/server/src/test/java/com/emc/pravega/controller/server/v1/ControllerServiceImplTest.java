@@ -41,11 +41,12 @@ public abstract class ControllerServiceImplTest {
     private static final String SCOPE3 = "scope3";
     private static final String STREAM1 = "stream1";
     private static final String STREAM2 = "stream2";
-    ControllerServiceImpl controllerService;
 
     //Ensure each test completes within 10 seconds.
     @Rule
     public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+
+    ControllerServiceImpl controllerService;
 
     @Before
     public abstract void setupStore() throws Exception;
