@@ -39,6 +39,8 @@ import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
+import com.emc.pravega.common.netty.WireCommands.UpdateSegmentPolicy;
+import com.emc.pravega.common.netty.WireCommands.SegmentPolicyUpdated;
 import com.google.common.base.Preconditions;
 
 import java.io.DataInput;
@@ -94,6 +96,9 @@ public enum WireCommandType {
 
     DELETE_SEGMENT(30, DeleteSegment::readFrom),
     SEGMENT_DELETED(31, SegmentDeleted::readFrom),
+
+    UPDATE_SEGMENT_POLICY(32, UpdateSegmentPolicy::readFrom),
+    SEGMENT_POLICY_UPDATED(33, SegmentPolicyUpdated::readFrom),
 
     WRONG_HOST(50, WrongHost::readFrom),
     SEGMENT_IS_SEALED(51, SegmentIsSealed::readFrom),

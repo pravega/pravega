@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.demo;
 
@@ -18,11 +16,10 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockClientFactory;
-
-import java.util.concurrent.CompletableFuture;
-
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
+
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.Assert.assertTrue;
 
@@ -34,16 +31,20 @@ public class EndToEndTransactionTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize().get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
-        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString());
+        Thread.sleep(1000);
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString());
+        Controller controller = controllerWrapper.getController();
 
         final String testScope = "testScope";
         final String testStream = "testStream";
+        controllerWrapper.getControllerService().createScope("testScope").get();
 
-        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 5);
+        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 5);
         StreamConfiguration streamConfig =
                 StreamConfiguration.builder()
                         .scope(testScope)
@@ -123,5 +124,7 @@ public class EndToEndTransactionTest {
         txn2Status = transaction2.checkStatus();
         assertTrue(txn2Status == Transaction.Status.ABORTED);
         System.err.println("SUCCESS: successfully aborted transaction. Transaction status=" + txn2Status);
+
+        System.exit(0);
     }
 }

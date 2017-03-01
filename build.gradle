@@ -280,6 +280,7 @@ project('service:server:host') {
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
+        compile project(':clients:streaming')
         compile project(':service:storage')
         compile project(':service:storage:impl')
         compile project(':service:server')

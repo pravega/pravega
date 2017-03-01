@@ -15,7 +15,7 @@ public enum ScaleStreamStatus implements org.apache.thrift.TEnum {
   SUCCESS(0),
   FAILURE(1),
   PRECONDITION_FAILED(2),
-  UPDATE_CONFLICT(3);
+  TXN_CONFLICT(3);
 
   private final int value;
 
@@ -43,7 +43,7 @@ public enum ScaleStreamStatus implements org.apache.thrift.TEnum {
       case 2:
         return PRECONDITION_FAILED;
       case 3:
-        return UPDATE_CONFLICT;
+        return TXN_CONFLICT;
       default:
         return null;
     }
