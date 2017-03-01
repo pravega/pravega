@@ -42,7 +42,8 @@ public class MonitorTest {
             }
 
             @Override
-            public Transaction<ScaleRequest> beginTxn(long transactionTimeout) {
+            public Transaction<ScaleRequest> beginTxn(long transactionTimeout, long maxExecutionTime,
+                                                      long scaleGracePeriod) {
                 return null;
             }
 

@@ -87,11 +87,25 @@ public interface Controller {
     /**
      * Api to create a new transaction. The transaction timeout is relative to the creation time.
      * 
-     * @param stream Stream name
-     * @param timeout Tx timeout
-     * @return Transaction identifier.
+     * @param stream           Stream name
+     * @param lease            Time for which transaction shall remain open with sending any heartbeat.
+     * @param maxExecutionTime Maximum time for which client may extend txn lease.
+     * @param scaleGracePeriod Maximum time for which client may extend txn lease once
+     *                         the scaling operation is initiated on the txn stream.
+     * @return                 Transaction id.
      */
-    CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout);
+    CompletableFuture<UUID> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
+                                              final long scaleGracePeriod);
+
+    /**
+     * API to send transaction heartbeat and increase the transaction timeout by lease amount of milliseconds.
+     *
+     * @param stream Stream name
+     * @param txId   Transaction id
+     * @param lease  Time for which transaction shall remain open with sending any heartbeat.
+     * @return       Void or PingFailedException
+     */
+    CompletableFuture<Void> pingTransaction(final Stream stream, final UUID txId, final long lease);
 
     /**
      * Commits a transaction, atomically committing all events to the stream, subject to the

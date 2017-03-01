@@ -63,6 +63,14 @@ public interface Transaction<Type> {
     void flush() throws TxnFailedException;
 
     /**
+     * Send a transaction heartbeat and increase transaction's timeout by lease amount of milliseconds.
+     *
+     * @param lease Additional amount of time in milliseconds by which to increase transaction's timeout.
+     * @throws PingFailedException Ping failed.
+     */
+    void ping(long lease) throws PingFailedException;
+
+    /**
      * Causes all messages previously written to the transaction to go into the stream contiguously.
      * This operation will either fully succeed making all events consumable or fully fail such that none of them are.
      * There may be some time delay before readers see the events after this call has returned.
