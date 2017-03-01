@@ -72,8 +72,8 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceAsyncImpl
 
     @Override
     public void cleanupStore() throws IOException {
+        executorService.shutdown();
         zkClient.close();
         zkServer.close();
-        executorService.shutdown();
     }
 }
