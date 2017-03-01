@@ -21,6 +21,7 @@ import org.apache.curator.utils.ZKPaths;
 
 import java.util.AbstractMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -46,7 +47,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String INDEX_PATH = STREAM_PATH + "/index";
 
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
-    private static final String BLOCKER_PATH = STREAM_PATH + "/blocker";
 
     private final ZKStoreHelper store;
     private final String creationPath;
@@ -59,7 +59,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String activeTxPath;
     private final String completedTxPath;
     private final String markerPath;
-    private final String blockerPath;
     private final String scopePath;
 
     private final Cache<Integer> cache;
@@ -79,7 +78,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
         completedTxPath = String.format(ZKStoreHelper.COMPLETED_TX_PATH, streamName);
 
         markerPath = String.format(MARKER_PATH, scopeName, streamName);
-        blockerPath = String.format(BLOCKER_PATH, scopeName, streamName);
 
         cache = new Cache<>(store::getData);
     }
@@ -88,9 +86,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
-        return store.getChildren(activeTxPath).thenApply(list -> {
-            return list == null ? 0 : list.size();
-        });
+        return store.getChildren(activeTxPath).thenApply(list -> list == null ? 0 : list.size());
     }
 
     @Override
@@ -111,7 +107,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 })
                 .thenAccept(x -> {
                     if (x) {
-                        StoreException.create(StoreException.Type.NODE_EXISTS, creationPath);
+                        throw StoreException.create(StoreException.Type.NODE_EXISTS, creationPath);
                     }
                 });
     }
@@ -124,10 +120,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
     public CompletableFuture<Void> checkScopeExists() {
         return store.checkExists(scopePath)
                 .thenAccept(x -> {
-                    if (x) {
-                        return;
-                    } else {
-                        StoreException.create(StoreException.Type.NODE_NOT_FOUND);
+                    if (!x) {
+                        throw StoreException.create(StoreException.Type.NODE_NOT_FOUND);
                     }
                 });
     }
@@ -263,10 +257,13 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createNewTransaction(final UUID txId, final long timestamp) {
+    CompletableFuture<Void> createNewTransaction(final UUID txId, final long timestamp, final long leaseExpiryTime,
+                                                 final long maxExecutionExpiryTime,
+                                                 final long scaleGracePeriod) {
         final String activePath = getActiveTxPath(txId.toString());
         return store.createZNodeIfNotExist(activePath,
-                new ActiveTxRecord(timestamp, TxnStatus.OPEN).toByteArray())
+                new ActiveTxRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, TxnStatus.OPEN)
+                        .toByteArray())
                 .thenApply(x -> cache.invalidateCache(activePath));
     }
 
@@ -278,13 +275,25 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> sealActiveTx(final UUID txId, final boolean commit) {
+    CompletableFuture<Void> updateActiveTx(final UUID txId, final byte[] data) {
+        final String activeTxPath = getActiveTxPath(txId.toString());
+        return store.updateTxnData(activeTxPath, data);
+    }
+
+    @Override
+    CompletableFuture<Void> sealActiveTx(final UUID txId, final boolean commit, final Optional<Integer> version) {
         final String activePath = getActiveTxPath(txId.toString());
 
         return getActiveTx(txId)
                 .thenCompose(x -> {
+                    if (version.isPresent() && version.get().intValue() != x.getVersion()) {
+                        throw new WriteConflictException(txId.toString());
+                    }
                     ActiveTxRecord previous = ActiveTxRecord.parse(x.getData());
                     ActiveTxRecord updated = new ActiveTxRecord(previous.getTxCreationTimestamp(),
+                            previous.getLeaseExpiryTime(),
+                            previous.getMaxExecutionExpiryTime(),
+                            previous.getScaleGracePeriod(),
                             commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
                     return store.setData(activePath, new Data<>(updated.toByteArray(), x.getVersion()));
                 })
