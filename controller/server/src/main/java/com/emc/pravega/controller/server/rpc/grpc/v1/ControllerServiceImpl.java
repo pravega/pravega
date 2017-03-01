@@ -18,18 +18,21 @@
 package com.emc.pravega.controller.server.rpc.grpc.v1;
 
 import com.emc.pravega.controller.server.ControllerService;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetPositionRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Positions;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
@@ -94,9 +97,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void getSegmentsImmediatlyFollowing(SegmentId request,
-            StreamObserver<Controller.SuccessorResponse> responseObserver) {
-        super.getSegmentsImmediatlyFollowing(request, responseObserver);
+    public void getSegmentsImmediatlyFollowing(SegmentId segmentId,
+            StreamObserver<SuccessorResponse> responseObserver) {
+        log.debug("getSegmentsImmediatlyFollowing called for segment {} ", segmentId);
+        processResult(controllerService.getSegmentsImmediatlyFollowing(segmentId)
+                              .thenApply(ModelHelper::createSuccessorResponse),
+                      responseObserver);
     }
 
     @Override
@@ -168,16 +174,16 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void createScope(Controller.ScopeInfo request,
-            StreamObserver<Controller.CreateScopeStatus> responseObserver) {
+    public void createScope(ScopeInfo request,
+            StreamObserver<CreateScopeStatus> responseObserver) {
         log.debug("createScope called for scope " + request.getScope());
         processResult(controllerService.createScope(request.getScope()),
                       responseObserver);
     }
 
     @Override
-    public void deleteScope(Controller.ScopeInfo request,
-            StreamObserver<Controller.DeleteScopeStatus> responseObserver) {
+    public void deleteScope(ScopeInfo request,
+            StreamObserver<DeleteScopeStatus> responseObserver) {
         log.debug("deleteScope called for scope " + request.getScope());
         processResult(controllerService.deleteScope(request.getScope()),
                       responseObserver);

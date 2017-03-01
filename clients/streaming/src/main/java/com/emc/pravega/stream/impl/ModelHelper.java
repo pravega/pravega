@@ -14,6 +14,7 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import com.emc.pravega.stream.ScalingPolicy;
@@ -303,6 +304,19 @@ public final class ModelHelper {
                 .setSegmentId(createSegmentId(scope, stream, segmentNumber))
                 .setMinKey(rangeMinKey)
                 .setMaxKey(rangeMaxKey)
+                .build();
+    }
+
+    public static final SuccessorResponse createSuccessorResponse(Map<SegmentId, List<Integer>> segments) {
+        Preconditions.checkNotNull(segments);
+        return SuccessorResponse.newBuilder()
+                .addAllSegments(
+                        segments.entrySet().stream().map(
+                                segmentIdListEntry -> SuccessorResponse.SegmentEntry.newBuilder()
+                                        .setSegmentId(segmentIdListEntry.getKey())
+                                        .addAllValue(segmentIdListEntry.getValue())
+                                        .build())
+                                .collect(Collectors.toList()))
                 .build();
     }
 
