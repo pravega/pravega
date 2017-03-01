@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.connectors;
 
@@ -9,6 +7,7 @@ import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.grpc.GRPCServer;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
@@ -18,9 +17,9 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
-import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -35,6 +34,12 @@ import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.test.TestingServer;
 
 import java.net.InetAddress;
 import java.net.URI;
@@ -44,14 +49,6 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
 
 /**
  * Utility functions for creating the test setup.
@@ -93,11 +90,11 @@ public final class SetupUtils {
         @Cleanup
         StreamManager streamManager = StreamManager.withScope(scope, CONTROLLER_URI);
         streamManager.createStream(streamName,
-                                   StreamConfiguration.builder()
-                                                      .scope(scope)
-                                                      .streamName(streamName)
-                                                      .scalingPolicy(ScalingPolicy.fixed(numSegments))
-                                                      .build());
+                StreamConfiguration.builder()
+                        .scope(scope)
+                        .streamName(streamName)
+                        .scalingPolicy(ScalingPolicy.fixed(numSegments))
+                        .build());
         log.info("Created stream: " + streamName);
     }
 
@@ -188,7 +185,7 @@ public final class SetupUtils {
 
         String hostId;
         try {
-            //On each controller process restart, it gets a fresh hostId,
+            //On each controller report restart, it gets a fresh hostId,
             //which is a combination of hostname and random GUID.
             hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
         } catch (UnknownHostException e) {
@@ -197,7 +194,7 @@ public final class SetupUtils {
         }
 
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
-                                                                      new ExponentialBackoffRetry(200, 10, 5000));
+                new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
         final ScheduledExecutorService executor = Executors.newScheduledThreadPool(
@@ -213,18 +210,19 @@ public final class SetupUtils {
         final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
         final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
-
+        SegmentHelper segmentHelper = new SegmentHelper();
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(
-                streamStore, hostStore, taskMetadataStore, executor, hostId);
+                streamStore, hostStore, taskMetadataStore, segmentHelper, executor, hostId);
+
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, hostId);
+                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper, executor, hostId);
 
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                                                                    streamTransactionMetadataTasks);
+                streamTransactionMetadataTasks, new SegmentHelper(), Executors.newFixedThreadPool(10));
         GRPCServer.start(controllerService, RPC_PORT);
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
-                                                  streamTransactionMetadataTasks);
+                streamTransactionMetadataTasks);
         log.info("Started Pravega Controller");
     }
 }

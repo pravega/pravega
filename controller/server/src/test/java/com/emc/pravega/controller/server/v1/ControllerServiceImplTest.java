@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.server.v1;
 
 import com.emc.pravega.controller.server.ControllerService;
+import com.emc.pravega.controller.server.SegmentHelper;
 import com.emc.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
@@ -82,14 +83,16 @@ public class ControllerServiceImplTest {
         final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
         final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
-
+        SegmentHelper segmentHelper = new SegmentHelper();
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                executor, "host");
+                segmentHelper, executor, "host");
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
+                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper, executor,
+                                                   "host");
 
         this.controllerService = new ControllerServiceImpl(
-                new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
+                new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
+                                      segmentHelper, Executors.newFixedThreadPool(10)));
     }
 
     @Test
@@ -153,7 +156,7 @@ public class ControllerServiceImplTest {
         createScopeStatus = result3.get();
         assertEquals("Create Scope", CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
 
-        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
+        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 2);
         final StreamConfiguration configuration1 =
                 StreamConfiguration.builder().scope(SCOPE2).streamName(stream1).scalingPolicy(policy1).build();
         ResultObserver<CreateStreamStatus> result4 = new ResultObserver<>();
@@ -176,8 +179,8 @@ public class ControllerServiceImplTest {
 
     @Test
     public void createStreamTests() {
-        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
-        final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
+        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 2);
+        final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 3);
         final StreamConfiguration configuration1 =
                 StreamConfiguration.builder().scope(SCOPE1).streamName(stream1).scalingPolicy(policy1).build();
         final StreamConfiguration configuration2 =

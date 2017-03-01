@@ -29,10 +29,12 @@ import com.emc.pravega.stream.impl.ModelHelper;
 import com.google.common.base.Preconditions;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import lombok.AllArgsConstructor;
@@ -49,6 +51,8 @@ public class ControllerService {
     private final HostControllerStore hostStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private final SegmentHelper segmentHelper;
+    private final Executor executor;
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig,
             final long createTimestamp) {
@@ -63,18 +67,19 @@ public class ControllerService {
 
     public CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
-        return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getStreamName(), streamConfig)
-                .thenApply(status -> UpdateStreamStatus.newBuilder().setStatus(status).build());
+        return streamMetadataTasks.alterStream(
+                streamConfig.getScope(), streamConfig.getStreamName(), streamConfig, null)
+                .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
     }
 
     public CompletableFuture<StreamConfiguration> getStream(final String scopeName, final String streamName) {
-        return streamStore.getConfiguration(scopeName, streamName);
+        return streamStore.getConfiguration(scopeName, streamName, null, executor);
     }
 
     public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String stream) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        return streamMetadataTasks.sealStream(scope, stream)
+        return streamMetadataTasks.sealStream(scope, stream, null)
                 .thenApply(status -> UpdateStreamStatus.newBuilder().setStatus(status).build());
     }
 
@@ -83,12 +88,15 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
 
         // Fetch active segments from segment store.
-        return streamStore.getActiveSegments(scope, stream)
-                .thenApply(activeSegments -> activeSegments
-                                .stream()
-                                .map(segment -> convert(scope, stream, segment))
-                                .collect(Collectors.toList())
-                );
+        return streamStore.getActiveSegments(scope, stream, null, executor)
+                .thenApplyAsync(activeSegments -> {
+                    List<SegmentRange> listOfSegment = activeSegments
+                            .stream()
+                            .map(segment -> convert(scope, stream, segment))
+                            .collect(Collectors.toList());
+                    listOfSegment.sort(Comparator.comparingDouble(SegmentRange::getMinKey));
+                    return listOfSegment;
+                }, executor);
     }
 
     public CompletableFuture<List<Position>> getPositions(final String scope, final String stream, final long timestamp,
@@ -98,21 +106,21 @@ public class ControllerService {
 
         // First fetch segments active at specified timestamp from the specified stream.
         // Divide current segments in segmentFutures into at most count positions.
-        return streamStore.getActiveSegments(scope, stream, timestamp)
-                .thenApply(segmentFutures -> shard(scope, stream, segmentFutures, count));
+        return streamStore.getActiveSegments(scope, stream, timestamp, null, executor)
+                .thenApplyAsync(segmentFutures -> shard(scope, stream, segmentFutures, count), executor);
     }
 
     public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatlyFollowing(SegmentId segment) {
-        return streamStore.getSuccessors(
-                segment.getStreamInfo().getScope(), segment.getStreamInfo().getStream(), segment.getSegmentNumber())
-                .thenApply(successors -> {
-                    return successors.entrySet().stream().collect(
-                            Collectors.toMap(
-                                    entry -> ModelHelper.createSegmentId(segment.getStreamInfo().getScope(),
-                                                                         segment.getStreamInfo().getStream(),
-                                                                         entry.getKey()),
-                                    entry -> entry.getValue()));
-        });
+        return streamStore.getSuccessors(segment.getStreamInfo().getScope(),
+                                         segment.getStreamInfo().getStream(),
+                                         segment.getSegmentNumber(),
+                                         null,
+                                         executor)
+                .thenApplyAsync(successors -> successors.entrySet().stream().collect(
+                        Collectors.toMap(
+                                entry -> ModelHelper.createSegmentId(segment.getStreamInfo().getScope(),
+                                                                     segment.getStreamInfo().getStream(),
+                                                                     entry.getKey()), Map.Entry::getValue)), executor);
     }
 
     public CompletableFuture<ScaleResponse> scale(final String scope,
@@ -129,13 +137,14 @@ public class ControllerService {
                                          stream,
                                          new ArrayList<>(sealedSegments),
                                          new ArrayList<>(ModelHelper.encode(newKeyRanges)),
-                                         scaleTimestamp);
+                                         scaleTimestamp,
+                                         null);
     }
 
     public CompletableFuture<NodeUri> getURI(final SegmentId segment) {
         Preconditions.checkNotNull(segment, "segment");
         return CompletableFuture.completedFuture(
-                SegmentHelper.getSegmentUri(segment.getStreamInfo().getScope(), segment.getStreamInfo().getStream(),
+                segmentHelper.getSegmentUri(segment.getStreamInfo().getScope(), segment.getStreamInfo().getStream(),
                                             segment.getSegmentNumber(), hostStore)
         );
     }
@@ -155,53 +164,8 @@ public class ControllerService {
                                                      final int segmentNumber) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        return streamStore.getActiveSegments(scope, stream)
-                .thenApply(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber));
-    }
-
-    public CompletableFuture<TxnId> createTransaction(final String scope, final String stream) {
-        Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(stream, "stream");
-        return streamTransactionMetadataTasks.createTx(scope, stream).thenApply(ModelHelper::decode);
-    }
-
-    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId txnId) {
-        Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(stream, "stream");
-        Preconditions.checkNotNull(txnId, "txnId");
-        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txnId))
-                .handle((ok, ex) -> {
-                    if (ex != null) {
-                        // TODO: return appropriate failures to user.
-                        return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
-                    } else {
-                        return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
-                    }
-                });
-    }
-
-    public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final TxnId txnId) {
-        Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(stream, "stream");
-        Preconditions.checkNotNull(txnId, "txnId");
-        return streamTransactionMetadataTasks.abortTx(scope, stream, ModelHelper.encode(txnId))
-                .handle((ok, ex) -> {
-                    if (ex != null) {
-                        // TODO: return appropriate failures to user.
-                        return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
-                    } else {
-                        return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
-                    }
-                });
-    }
-
-    public CompletableFuture<TxnState> checkTransactionState(final String scope, final String stream,
-            final TxnId txnId) {
-        Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(stream, "stream");
-        Preconditions.checkNotNull(txnId, "txnId");
-        return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId))
-                .thenApply(res -> TxnState.newBuilder().setState(ModelHelper.decode(res)).build());
+        return streamStore.getActiveSegments(scope, stream, null, executor)
+                .thenApplyAsync(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber), executor);
     }
 
     /**
@@ -259,80 +223,51 @@ public class ControllerService {
         return positions;
     }
 
-    /*
-    private List<Position> shard(final String scope, final String stream, final SegmentFutures segmentFutures,
-            final int n) {
-        // divide the active segments equally into at most n partition
-        int currentCount = segmentFutures.getCurrent().size();
-        int quotient = currentCount / n;
-        int remainder = currentCount % n;
-
-        // if quotient < 1 then remainder number of positions shall be created, other wise n positions shall be created
-        int size = (quotient < 1) ? remainder : n;
-        List<Position> positions = new ArrayList<>(size);
-
-        ListMultimap<Integer, Integer> inverse = Multimaps.invertFrom(
-                Multimaps.forMap(segmentFutures.getFutures()),
-                ArrayListMultimap.create());
-
-        int counter = 0;
-
-        // create a position object in each iteration of the for loop
-        for (int i = 0; i < size; i++) {
-            int j = (i < remainder) ? quotient + 1 : quotient;
-            List<SegmentId> current = new ArrayList<>(j);
-            for (int k = 0; k < j; k++, counter++) {
-                Integer number = segmentFutures.getCurrent().get(counter);
-                SegmentId segmentId = ModelHelper.createSegmentId(scope, stream, number);
-                current.add(segmentId);
-            }
-
-            // Compute the current and future segments set for position i.
-            Map<SegmentId, Long> currentSegments = new HashMap<>();
-            Map<FutureSegment, Long> futureSegments = new HashMap<>();
-            current.stream().forEach(
-                    x -> {
-                        // TODO fetch correct offset within the segment at specified timestamp by contacting pravega
-                        // host put it in the currentSegments.
-                        currentSegments.put(x, 0L);
-
-                        // Update futures with all segments in segmentFutures.getFutures having x.number as the
-                        // predecessor these segments can be found from the inverted segmentFutures.getFutures.
-                        int previous = x.getSegmentNumber();
-                        if (inverse.containsKey(previous)) {
-                            inverse.get(previous).stream().forEach(
-                                    y -> {
-                                        SegmentId newSegment = ModelHelper.createSegmentId(scope, stream, y);
-                                        SegmentId oldSegment = ModelHelper.createSegmentId(scope, stream, previous);
-                                        futureSegments.put(FutureSegment.newBuilder()
-                                                                   .setFutureSegment(newSegment)
-                                                                   .setPrecedingSegment(oldSegment)
-                                                                   .build(),
-                                                           0L);
-                                    }
-                            );
-                        }
-                    }
-            );
-
-            // Create a new position object with current and futures segments thus computed.
-            Position position = Position.newBuilder()
-                    .addAllOwnedSegments(currentSegments.entrySet().stream().
-                            map(val -> Position.OwnedSegmentEntry.newBuilder()
-                                    .setSegmentId(val.getKey())
-                                    .setValue(val.getValue())
-                                    .build()).collect(Collectors.toList()))
-                    .addAllFutureOwnedSegments(futureSegments.entrySet().stream().
-                            map(val -> Position.FutureOwnedSegmentsEntry.newBuilder()
-                                    .setFutureSegment(val.getKey())
-                                    .setValue(val.getValue())
-                                    .build()).collect(Collectors.toList()))
-                    .build();
-            positions.add(position);
-        }
-        return positions;
+    public CompletableFuture<TxnId> createTransaction(final String scope, final String stream) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        return streamTransactionMetadataTasks.createTx(scope, stream, null)
+                .thenApplyAsync(ModelHelper::decode, executor);
     }
-    */
+
+    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId txnId) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        Preconditions.checkNotNull(txnId, "txnId");
+        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txnId), null)
+                .handleAsync((ok, ex) -> {
+                    if (ex != null) {
+                        // TODO: return appropriate failures to user.
+                        return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
+                    } else {
+                        return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
+                    }
+                }, executor);
+    }
+
+    public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final TxnId txnId) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        Preconditions.checkNotNull(txnId, "txnId");
+        return streamTransactionMetadataTasks.abortTx(scope, stream, ModelHelper.encode(txnId), null)
+                .handleAsync((ok, ex) -> {
+                    if (ex != null) {
+                        // TODO: return appropriate failures to user.
+                        return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
+                    } else {
+                        return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
+                    }
+                }, executor);
+    }
+
+    public CompletableFuture<TxnState> checkTransactionState(final String scope, final String stream,
+            final TxnId txnId) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        Preconditions.checkNotNull(txnId, "txnId");
+        return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId), null, executor)
+                .thenApplyAsync(res -> TxnState.newBuilder().setState(ModelHelper.decode(res)).build(), executor);
+    }
 
     /**
      * Controller Service API to create scope.

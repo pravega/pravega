@@ -99,11 +99,11 @@ message StreamInfo {
 message ScalingPolicy {
     enum ScalingPolicyType {
         FIXED_NUM_SEGMENTS = 0;
-        BY_RATE_IN_BYTES = 1;
-        BY_RATE_IN_EVENTS = 2;
+        BY_RATE_IN_KBYTES_PER_SEC = 1;
+        BY_RATE_IN_EVENTS_PER_SEC = 2;
     }
     ScalingPolicyType type = 1;
-    int64 targetRate = 2;
+    int32 targetRate = 2;
     int32 scaleFactor = 3;
     int32 minNumSegments = 4;
 }
@@ -171,7 +171,7 @@ message ScaleResponse {
         SUCCESS = 0;
         FAILURE = 1;
         PRECONDITION_FAILED = 2;
-        UPDATE_CONFLICT = 3;
+        TXN_CONFLICT = 3;
     }
     ScaleStreamStatus status = 1;
     repeated SegmentRange segments = 2;

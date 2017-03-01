@@ -84,7 +84,7 @@ public class StreamMetaDataTests extends JerseyTest {
             .scope(scope1)
             .streamName(stream1)
             .scalingPolicy(ScalingPolicy.builder()
-                           .type(Type.BY_RATE_IN_EVENTS)
+                           .type(Type.BY_RATE_IN_EVENTS_PER_SEC)
                            .targetRate(100)
                            .scaleFactor(2)
                            .minNumSegments(2)
@@ -122,7 +122,7 @@ public class StreamMetaDataTests extends JerseyTest {
 
     @Before
     public void initialize() {
-        scalingPolicyCommon.setType(ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS);
+        scalingPolicyCommon.setType(ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS_PER_SEC);
         scalingPolicyCommon.setTargetRate(100L);
         scalingPolicyCommon.setScaleFactor(2);
         scalingPolicyCommon.setMinSegments(2);
@@ -380,7 +380,7 @@ public class StreamMetaDataTests extends JerseyTest {
                 .scope(scope1)
                 .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.builder()
-                                       .type(Type.BY_RATE_IN_EVENTS)
+                                       .type(Type.BY_RATE_IN_EVENTS_PER_SEC)
                                        .targetRate(100)
                                        .scaleFactor(2)
                                        .minNumSegments(2)
@@ -394,7 +394,7 @@ public class StreamMetaDataTests extends JerseyTest {
                 .scope(scope1)
                 .streamName(stream2)
                 .scalingPolicy(ScalingPolicy.builder()
-                                       .type(Type.BY_RATE_IN_EVENTS)
+                                       .type(Type.BY_RATE_IN_EVENTS_PER_SEC)
                                        .targetRate(100)
                                        .scaleFactor(2)
                                        .minNumSegments(2)

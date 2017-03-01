@@ -1,13 +1,12 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.demo;
 
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -15,8 +14,11 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamImpl;
+import lombok.Cleanup;
+import org.apache.curator.test.TestingServer;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -25,13 +27,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import lombok.Cleanup;
-
-import org.apache.curator.test.TestingServer;
-
 /**
  * End to end scale tests.
- *
  */
 public class ScaleTest {
     @SuppressWarnings("checkstyle:ReturnCount")
@@ -45,16 +42,17 @@ public class ScaleTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
         server.startListening();
 
-        Controller controller = ControllerWrapper.getController(zkTestServer.getConnectString());
-
-        // Create controller object for testing against a separate controller process.
-        // ControllerImpl controller = new ControllerImpl("localhost", 9090);
+        // Create controller object for testing against a separate controller report.
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString());
+        Controller controller = controllerWrapper.getController();
 
         final String scope = "scope";
+        controllerWrapper.getControllerService().createScope(scope).get();
+
         final String streamName = "stream1";
         final StreamConfiguration config =
                 StreamConfiguration.builder().scope(scope).streamName(streamName).scalingPolicy(
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 1)).build();
+                        ScalingPolicy.fixed(1)).build();
 
         Stream stream = new StreamImpl(scope, streamName);
 
@@ -101,28 +99,20 @@ public class ScaleTest {
                         scope,
                         streamName));
         scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(3), map);
-        scaleResponse = scaleResponseFuture.get();
-        if (scaleResponse.getStatus() != ScaleStreamStatus.PRECONDITION_FAILED) {
-            System.err.println("Scale stream while transaction is ongoing failed, exiting");
-            return;
-        }
+        CompletableFuture<ScaleResponse> future = scaleResponseFuture.whenComplete((r, e) -> {
+            if (e != null) {
+                System.err.println("Failed: scale with ongoing transaction." + e);
+            } else if (FutureHelpers.getAndHandleExceptions(
+                    controller.checkTransactionStatus(stream, txId), RuntimeException::new) != Transaction.Status.OPEN) {
+                System.err.println("Success: scale with ongoing transaction.");
+            } else {
+                System.err.println("Failed: scale with ongoing transaction." + e);
+            }
+        });
 
         CompletableFuture<Void> statusFuture = controller.abortTransaction(stream, txId);
         statusFuture.get();
-
-        // Test 4: try scale operation after transaction is dropped
-        System.err.println(
-                String.format(
-                        "Scaling stream (%s, %s), splitting one segment into two, after transaction is dropped",
-                        scope,
-                        streamName));
-
-        scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(3), map);
-        scaleResponse = scaleResponseFuture.get();
-        if (scaleResponse.getStatus() != ScaleStreamStatus.SUCCESS) {
-            System.err.println("Scale stream after transaction is dropped failed, exiting");
-            return;
-        }
+        future.get();
 
         System.err.println("All scaling test PASSED");
 
