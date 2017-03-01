@@ -3,85 +3,43 @@
  */
 package com.emc.pravega.controller.server.v1;
 
-import com.emc.pravega.controller.mocks.SegmentHelperMock;
-import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
-import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
-import com.emc.pravega.controller.store.StoreClient;
-import com.emc.pravega.controller.store.ZKStoreClient;
-import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.store.stream.StreamStoreFactory;
-import com.emc.pravega.controller.store.task.TaskMetadataStore;
-import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
-import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
-import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.util.ThriftAsyncCallback;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
 import org.apache.thrift.TException;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 
 /**
- * Async Controller Service Impl tests.
+ * Async Controller Service Implementation tests.
+ * <p>
+ * Every test is run twice for both streamStore (Zookeeper and InMemory) types.
  */
-public class ControllerServiceAsyncImplTest {
+public abstract class ControllerServiceAsyncImplTest {
 
     private static final String SCOPE1 = "scope1";
     private static final String SCOPE2 = "scope2";
     private static final String SCOPE3 = "scope3";
-    private final String stream1 = "stream1";
-    private final String stream2 = "stream2";
-    private final ControllerServiceAsyncImpl controllerService;
-    private StreamMetadataStore streamStore;
+    private static final String STREAM1 = "stream1";
+    private static final String STREAM2 = "stream2";
+    ControllerServiceAsyncImpl controllerService;
 
-    private final TestingServer zkServer;
+    @Before
+    public abstract void setupStore() throws Exception;
 
-    public ControllerServiceAsyncImplTest() throws Exception {
-        zkServer = new TestingServer();
-        zkServer.start();
-
-        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
-                new ExponentialBackoffRetry(200, 10, 5000));
-        zkClient.start();
-
-        final ScheduledExecutorService executor = Executors.newScheduledThreadPool(20,
-                new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
-
-        StoreClient storeClient = new ZKStoreClient(zkClient);
-
-        streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, executor);
-
-        final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
-
-        final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
-
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                segmentHelper, executor, "host");
-
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper, executor, "host");
-
-        this.controllerService = new ControllerServiceAsyncImpl(new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, new SegmentHelper(), executor));
-    }
+    @After
+    public abstract void cleanupStore() throws IOException;
 
     @Test
     public void createScopeTests() throws TException, ExecutionException, InterruptedException {
@@ -106,7 +64,7 @@ public class ControllerServiceAsyncImplTest {
         assertEquals(status, CreateScopeStatus.SCOPE_EXISTS);
         // endregion
 
-        // region with invalid scope with name "abc/def'
+        // region with invalid scope with name "abc/def"
         ThriftAsyncCallback<CreateScopeStatus> result4 = new ThriftAsyncCallback<>();
         this.controllerService.createScope("abc/def", result4);
         status = result4.getResult().get();
@@ -145,7 +103,7 @@ public class ControllerServiceAsyncImplTest {
 
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 2);
         final StreamConfiguration configuration1 =
-                StreamConfiguration.builder().scope(SCOPE2).streamName(stream1).scalingPolicy(policy1).build();
+                StreamConfiguration.builder().scope(SCOPE2).streamName(STREAM1).scalingPolicy(policy1).build();
         ThriftAsyncCallback<CreateStreamStatus> result4 = new ThriftAsyncCallback<>();
         this.controllerService.createStream(ModelHelper.decode(configuration1), result4);
         createStreamStatus = result4.getResult().get();
@@ -167,10 +125,12 @@ public class ControllerServiceAsyncImplTest {
     public void createStreamTests() throws TException, ExecutionException, InterruptedException {
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 2);
         final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 3);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE1).streamName(stream1).scalingPolicy(policy1).build();
-        final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE1).streamName(stream2).scalingPolicy(policy2).build();
-        final StreamConfiguration configuration3 =
-                StreamConfiguration.builder().scope("SCOPE3").streamName(stream2).scalingPolicy(policy2).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().
+                scope(SCOPE1).streamName(STREAM1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().
+                scope(SCOPE1).streamName(STREAM2).scalingPolicy(policy2).build();
+        final StreamConfiguration configuration3 = StreamConfiguration.builder().
+                scope("SCOPE3").streamName(STREAM2).scalingPolicy(policy2).build();
 
         CreateStreamStatus status;
 

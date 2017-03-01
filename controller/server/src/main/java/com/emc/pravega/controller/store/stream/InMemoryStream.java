@@ -16,6 +16,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
@@ -224,12 +225,23 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction() {
+    public CompletableFuture<VersionedTransactionData> createTransaction(final long lease, final long maxExecutionTime,
+                                                                         final long scaleGracePeriod) {
         throw new NotImplementedException();
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(UUID txId, boolean commit) {
+    public CompletableFuture<VersionedTransactionData> pingTransaction(UUID txId, long lease) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<VersionedTransactionData> getTransactionData(UUID txId) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<TxnStatus> sealTransaction(UUID txId, boolean commit, Optional<Integer> version) {
         throw new NotImplementedException();
     }
 
