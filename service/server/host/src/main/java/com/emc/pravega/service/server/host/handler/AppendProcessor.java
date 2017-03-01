@@ -155,7 +155,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 if (last != null) {
                     numOfEvents = last.getEventNumber() - first.getEventNumber() + 1;
                 }
-                
+
                 String segment = last != null ? last.getSegment() : first.getSegment();
                 long eventNumber = last != null ? last.getEventNumber() : first.getEventNumber();
                 append = new Append(segment, writer, eventNumber, data, null);
@@ -231,13 +231,16 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
     private void handleException(String segment, Throwable u) {
         if (u == null) {
-            IllegalStateException exception = new IllegalStateException("Neither offset nor exception!?");
-            log.error("Error on segment: " + segment, exception);
+            IllegalStateException exception = new IllegalStateException("No exception to handle.");
+            log.error("Error (Segment = '{}', Operation = 'append')", segment, exception);
             throw exception;
         }
+
         if (u instanceof CompletionException) {
             u = u.getCause();
         }
+
+        log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
         if (u instanceof StreamSegmentExistsException) {
             connection.send(new SegmentAlreadyExists(segment));
         } else if (u instanceof StreamSegmentNotExistsException) {
@@ -250,7 +253,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else {
             // TODO: don't know what to do here...
             connection.close();
-            log.error("Unknown exception on append for segment " + segment, u);
         }
     }
 
