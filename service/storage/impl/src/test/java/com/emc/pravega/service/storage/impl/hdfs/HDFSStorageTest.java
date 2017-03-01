@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage.impl.hdfs;
 
@@ -15,13 +13,12 @@ import com.emc.pravega.service.storage.StorageTestBase;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ForkJoinPool;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
@@ -61,6 +58,7 @@ public class HDFSStorageTest extends StorageTestBase {
     }
 
     @Override
+    @SneakyThrows(IOException.class)
     protected Storage createStorage() {
         // Create a config object, using all defaults, except for the HDFS URL.
         // TODO: see if we can reuse ConfigHelpers from Storage Tests here, to avoid this code duplication.
@@ -70,16 +68,11 @@ public class HDFSStorageTest extends StorageTestBase {
                 String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()));
 
         HDFSStorageConfig config = new HDFSStorageConfig(prop);
-        val storage = new HDFSStorage(config, ForkJoinPool.commonPool());
-        try {
-            storage.initialize();
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
-
+        val storage = new HDFSStorage(config, executorService());
+        storage.initialize();
         return new MiniClusterPermFixer(storage);
     }
-    
+
     /**
      * Wrapper for a storage class which handles the ACL behavior of MiniDFSCluster.
      * This keeps track of the sealed segments and throws error when a write is attempted on a segment.
@@ -133,7 +126,7 @@ public class HDFSStorageTest extends StorageTestBase {
 
         @Override
         public void close() {
-
+            storage.close();
         }
 
         @Override

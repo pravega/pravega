@@ -1,8 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage;
 
@@ -11,6 +8,7 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
@@ -27,12 +25,17 @@ import static com.emc.pravega.testcommon.AssertExtensions.assertThrows;
 /**
  * Base class for testing any implementation of the Storage interface.
  */
-public abstract class StorageTestBase {
+public abstract class StorageTestBase extends ThreadPooledTestSuite {
     //region General Test arguments
 
     protected static final Duration TIMEOUT = Duration.ofSeconds(10);
     private static final int SEGMENT_COUNT = 4;
     private static final int APPENDS_PER_SEGMENT = 10;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 5;
+    }
 
     //endregion
 

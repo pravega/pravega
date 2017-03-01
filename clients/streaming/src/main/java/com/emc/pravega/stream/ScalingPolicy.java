@@ -26,15 +26,15 @@ public class ScalingPolicy implements Serializable {
         /**
          * Scale based on the rate in bytes specified in {@link ScalingPolicy#targetRate}.
          */
-        BY_RATE_IN_BYTES,
+        BY_RATE_IN_KBYTES_PER_SEC,
         /**
          * Scale based on the rate in events specified in {@link ScalingPolicy#targetRate}.
          */
-        BY_RATE_IN_EVENTS,
+        BY_RATE_IN_EVENTS_PER_SEC,
     }
 
     private final Type type;
-    private final long targetRate;
+    private final int targetRate;
     private final int scaleFactor;
     private final int minNumSegments;
     

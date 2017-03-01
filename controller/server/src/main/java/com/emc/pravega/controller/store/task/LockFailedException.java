@@ -5,10 +5,12 @@
  */
 package com.emc.pravega.controller.store.task;
 
+import com.emc.pravega.controller.retryable.RetryableException;
+
 /**
  * Lock failed exception.
  */
-public class LockFailedException extends RuntimeException {
+public class LockFailedException extends RuntimeException implements RetryableException {
     private static final long serialVersionUID = 1L;
     private static final String FORMAT_STRING = "Failed locking resource %s.";
 
