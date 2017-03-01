@@ -19,7 +19,7 @@ enum ScaleStreamStatus {
     SUCCESS,
     FAILURE,
     PRECONDITION_FAILED,
-    UPDATE_CONFLICT
+    TXN_CONFLICT
 }
 
 enum TxnStatus {
@@ -40,8 +40,8 @@ enum TxnState {
 
 enum ScalingPolicyType {
     FIXED_NUM_SEGMENTS,
-    BY_RATE_IN_BYTES,
-    BY_RATE_IN_EVENTS,
+    BY_RATE_IN_KBYTES_PER_SEC,
+    BY_RATE_IN_EVENTS_PER_SEC,
 }
 
 enum CreateScopeStatus {
@@ -60,7 +60,7 @@ enum DeleteScopeStatus {
 
 struct ScalingPolicy {
   1: required ScalingPolicyType type,
-  2: required i64 targetRate,
+  2: required i32 targetRate,
   3: required i32 scaleFactor,
   4: required i32 minNumSegments
 }

@@ -16,6 +16,7 @@ import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SealSegment;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
+import com.emc.pravega.common.netty.WireCommands.UpdateSegmentPolicy;
 
 /**
  * A class that handles each type of Request. (Visitor pattern)
@@ -44,4 +45,6 @@ public interface RequestProcessor {
     void deleteSegment(DeleteSegment deleteSegment);
 
     void keepAlive(KeepAlive keepAlive);
+
+    void updateSegmentPolicy(UpdateSegmentPolicy updateSegmentPolicy);
 }

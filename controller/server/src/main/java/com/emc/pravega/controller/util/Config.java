@@ -9,6 +9,7 @@ import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigResolveOptions;
 import com.typesafe.config.ConfigValue;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
 
@@ -67,4 +68,15 @@ public final class Config {
     //REST server configuration
     public static final String REST_SERVER_IP = CONFIG.getString("config.controller.server.rest.serverIp");
     public static final int REST_SERVER_PORT = CONFIG.getInt("config.controller.server.rest.serverPort");
+
+    public static final String INTERNAL_SCOPE = CONFIG.getString("config.controller.server.internal.scope");
+
+    // Request Stream Configuration
+    public static final String SCALE_STREAM_NAME = CONFIG.getString("config.controller.server.internal.scale.streamName");
+
+    // Request Stream readerGroup
+    public static final String SCALE_READER_GROUP = CONFIG.getString("config.controller.server.internal.scale.readerGroup.name");
+    public static final String SCALE_READER_ID = CONFIG.getString("config.controller.server.internal.scale.readerGroup.readerId");
+
+    public static final long TXN_TIMEOUT_IN_SECONDS = Duration.ofSeconds(CONFIG.getLong("config.controller.server.transactions.timeoutInSeconds")).toMillis();
 }

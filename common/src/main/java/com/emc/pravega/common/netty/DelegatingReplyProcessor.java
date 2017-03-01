@@ -118,6 +118,11 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
+    public void segmentPolicyUpdated(WireCommands.SegmentPolicyUpdated segment) {
+        getNextReplyProcessor().segmentPolicyUpdated(segment);
+    }
+
+    @Override
     public void keepAlive(KeepAlive keepAlive) {
         getNextReplyProcessor().keepAlive(keepAlive);
     }
