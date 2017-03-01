@@ -53,7 +53,6 @@ public class EndToEndTransactionTest {
 
         final String testScope = "testScope";
         final String testStream = "testStream";
-        controllerWrapper.getControllerService().createScope("testScope").get();
 
         CompletableFuture<CreateScopeStatus> futureScopeStatus = controller.createScope(testScope);
         CreateScopeStatus scopeStatus = futureScopeStatus.join();
