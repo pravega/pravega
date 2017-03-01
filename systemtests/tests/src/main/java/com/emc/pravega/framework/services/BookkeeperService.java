@@ -88,7 +88,7 @@ public class BookkeeperService extends MarathonBasedService {
         volumeCollection.add(createVolume("/bk/index", "/mnt/index", "RW"));
         volumeCollection.add(createVolume("/bk/ledgers", "/mnt/ledgers", "RW"));
         volumeCollection.add(createVolume("/opt/dl_all/distributedlog-service/logs/", "/mnt/logs", "RW"));
-        //TODO: set persistent volume size
+        //TODO: add persistent volume  (see issue https://github.com/pravega/pravega/issues/639)
         app.getContainer().setVolumes(volumeCollection);
         //set docker container parameters
         List<Parameter> parameterList = new ArrayList<>();

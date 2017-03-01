@@ -103,9 +103,9 @@ public class RemoteSequential implements TestExecutor {
         Run run = new Run();
         run.setArtifacts(Collections.singletonList(art));
 
-        run.setCmd("docker run --rm -v $(pwd):/data " + System.getProperty("imageRegistry")+"/java:8 java" +
+        run.setCmd("docker run --rm -v $(pwd):/data " + System.getProperty("dockerImageRegistry")+"/java:8 java" +
                 " -DmasterIP=" + MESOS_MASTER +
-                " -cp /data/systemtests-0.1.jar com.emc.pravega.SingleJUnitTestRunner " +
+                " -cp /data/systemtests-"+System.getProperty("testVersion")+".jar com.emc.pravega.SingleJUnitTestRunner " +
                 className + "#" + methodName + " > server.log 2>&1" +
                 "; exit $?");
 

@@ -565,6 +565,7 @@ project('systemtests:tests') {
 
     //This is  used to invoke systemTests
     task startSystemTests(type: Test) {
+        dependsOn 'publish'
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
         testClassesDir = sourceSets.test.output.classesDir
         classpath = sourceSets.test.runtimeClasspath
@@ -572,8 +573,6 @@ project('systemtests:tests') {
         systemProperty "test_collection_jar_path", "$jar.archivePath.path"
         systemProperty "execType", System.getProperty("execType")
         systemProperty "masterIP", System.getProperty("masterIP")
-        systemProperty "imageVersion", System.getProperty("imageVersion")
-        systemProperty "imageRegistry", System.getProperty("imageRegistry")
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"
@@ -581,31 +580,18 @@ project('systemtests:tests') {
         if (System.getProperty("masterIP") == null) {
             systemProperty "masterIP", "INVALID_MASTER_IP"
         }
-        if (System.getProperty("dockerImageVersion") == null) {
-            systemProperty "dockerImageVersion", "INVALID_IMAGE_VERSION"
-        }
-        if (System.getProperty("dockerImageRegistry") == null) {
-            systemProperty "dockerImageRegistry", "INVALID_IMAGE_REGISTRY"
-        }
-        systemProperty "testArtifactUrl", project.property('testArtifactUrl') + "/pravega/systemtests/0.1/systemtests-0.1.jar"
         maxParallelForks = 1
+        systemProperty "dockerImageRegistry", project.property("dockerRegistryUrl")
+        systemProperty "testVersion", project.property("pravegaVersion")
+        systemProperty "testArtifactUrl", project.property('repoUrl') + "/pravega/systemtests/"+pravegaVersion+"/systemtests-"+pravegaVersion+".jar"
     }
     publishing {
         publications {
             maven(MavenPublication) {
                 groupId 'pravega'
                 artifactId 'systemtests'
-                version = 0.1
+                version = pravegaVersion
                 from components.java
-            }
-        }
-        repositories {
-            maven {
-                credentials {
-                    username "$testFrameworkRepoUser"
-                    password "$testFrameworkRepoPass"
-                }
-                url "$testArtifactUrl"
             }
         }
     }
