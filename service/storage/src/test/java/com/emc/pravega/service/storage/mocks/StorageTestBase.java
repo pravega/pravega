@@ -34,7 +34,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     private static final int APPENDS_PER_SEGMENT = 10;
 
     @Override
-    protected int getThreadPoolSize(){
+    protected int getThreadPoolSize() {
         return 5;
     }
 
