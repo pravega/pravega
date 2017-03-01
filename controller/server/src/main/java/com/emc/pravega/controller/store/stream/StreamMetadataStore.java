@@ -14,6 +14,7 @@ import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -106,8 +107,8 @@ public interface StreamMetadataStore {
      * Fetches the current stream configuration.
      *
      * @param scope    stream scope
-     * @param context  operation context
      * @param name     stream name.
+     * @param context  operation context
      * @param executor callers executor
      * @return current stream configuration.
      */
@@ -119,8 +120,8 @@ public interface StreamMetadataStore {
      * Set the stream state to sealed.
      *
      * @param scope    stream scope
-     * @param context  operation context
      * @param name     stream name.
+     * @param context  operation context
      * @param executor callers executor
      * @return boolean indicating whether the stream was updated.
      */
@@ -130,8 +131,8 @@ public interface StreamMetadataStore {
      * Get the stream sealed status.
      *
      * @param scope    stream scope
-     * @param context  operation context
      * @param name     stream name.
+     * @param context  operation context
      * @param executor callers executor
      * @return boolean indicating whether the stream is sealed.
      */
@@ -141,9 +142,9 @@ public interface StreamMetadataStore {
      * Get Segment.
      *
      * @param scope    stream scope
-     * @param context  operation context
      * @param name     stream name.
      * @param number   segment number.
+     * @param context  operation context
      * @param executor callers executor
      * @return segment at given number.
      */
@@ -153,9 +154,9 @@ public interface StreamMetadataStore {
      * Get active segments.
      *
      * @param scope    stream scope
-     * @param context  operation context
      * @param name     stream name.
      * @param executor callers executor
+     * @param context  operation context
      * @return currently active segments
      */
     CompletableFuture<List<Segment>> getActiveSegments(final String scope, final String name, final OperationContext context, final Executor executor);
@@ -164,9 +165,9 @@ public interface StreamMetadataStore {
      * Get active segments at given timestamp.
      *
      * @param scope     stream scope
-     * @param context   operation context
      * @param name      stream name.
      * @param timestamp point in time.
+     * @param context   operation context
      * @param executor  callers executor
      * @return the list of segments active at timestamp.
      */
@@ -177,25 +178,25 @@ public interface StreamMetadataStore {
      * mapped to a list of the segments they succeed.
      *
      * @param scope         stream scope
-     * @param context       operation context
      * @param streamName    stream name.
      * @param segmentNumber the segment number
+     * @param context       operation context
      * @param executor      callers executor
      * @return segments that immediately follow the specified segment and the segments they follow.
      */
-    public CompletableFuture<Map<Integer, List<Integer>>> getSuccessors(final String scope, final String streamName,
+    CompletableFuture<Map<Integer, List<Integer>>> getSuccessors(final String scope, final String streamName,
                                                                         final int segmentNumber, final OperationContext context, final Executor executor);
 
     /**
      * Scales in or out the currently set of active segments of a stream.
      *
      * @param scope          stream scope
-     * @param context        operation context
      * @param name           stream name.
      * @param sealedSegments segments to be sealed
      * @param newRanges      new key ranges to be added to the stream which maps to a new segment per range in the stream
      * @param scaleTimestamp scaling timestamp, all sealed segments shall have it as their end time and
      *                       all new segments shall have it as their start time.
+     * @param context        operation context
      * @param executor       callers executor
      * @return the list of newly created segments
      */
@@ -207,13 +208,50 @@ public interface StreamMetadataStore {
     /**
      * Method to create a new transaction on a stream.
      *
-     * @param scope    stream scope
-     * @param context  operation context
-     * @param stream   stream
-     * @param executor callers executor
-     * @return new Transaction Id
+     * @param scopeName  Scope
+     * @param streamName Stream
+     * @param lease      Time for which transaction shall remain open with sending any heartbeat.
+     * @param maxExecutionTime Maximum time for which client may extend txn lease.
+     * @param scaleGracePeriod Maximum time for which client may extend txn lease once
+     *                         the scaling operation is initiated on the txn stream.
+     * @param context         operation context
+     * @param executor  callers executor
+     * @return Transaction data along with version information.
      */
-    CompletableFuture<UUID> createTransaction(final String scope, final String stream, final OperationContext context, final Executor executor);
+    CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName, final String streamName,
+                                                                  final long lease, final long maxExecutionTime,
+                                                                  final long scaleGracePeriod,
+                                                                  final OperationContext context,
+                                                                  final Executor executor);
+
+    /**
+     * Heartbeat to keep the transaction open for at least lease amount of time.
+     *
+     * @param scopeName  Scope
+     * @param streamName Stream
+     * @param txId       Transaction identifier
+     * @param lease      Lease duration in ms
+     * @param context    operation context
+     * @param executor   callers executor
+     * @return Transaction data along with version information.
+     */
+    CompletableFuture<VersionedTransactionData> pingTransaction(final String scopeName, final String streamName,
+                                                                final UUID txId, final long lease,
+                                                                final OperationContext context, final Executor executor);
+
+    /**
+     * Fetch transaction metadata along with its version.
+     *
+     * @param scopeName  scope
+     * @param streamName stream
+     * @param txId       transaction id
+     * @param context    operation context
+     * @param executor  callers executor
+     * @return           transaction metadata along with its version.
+     */
+    CompletableFuture<VersionedTransactionData> getTransactionData(String scopeName, String streamName, UUID txId,
+                                                                   final OperationContext context,
+                                                                   final Executor executor);
 
     /**
      * Get transaction status from the stream store.
@@ -223,7 +261,7 @@ public interface StreamMetadataStore {
      * @param txId     transaction id
      * @param context  operation context
      * @param executor callers executor
-     * @return
+     * @return         transaction status.
      */
     CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
 
@@ -235,22 +273,25 @@ public interface StreamMetadataStore {
      * @param txId     transaction id
      * @param context  operation context
      * @param executor callers executor
-     * @return
+     * @return         transaction status.
      */
     CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
 
     /**
      * Update stream store to mark transaction as sealed.
      *
-     * @param scope    scope
-     * @param stream   stream
-     * @param txId     transaction id
-     * @param commit   commit
+     * @param scope  scope
+     * @param stream stream
+     * @param txId   transaction id
+     * @param commit Boolean indicating whether to change txn state to committing or aborting.
+     * @param version  Expected version of the transaction record in the store.
      * @param context  operation context
      * @param executor callers executor
-     * @return
+     * @return         Transaction status.
      */
-    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId, final boolean commit, final OperationContext context, final Executor executor);
+    CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId,
+                                                 final boolean commit, final Optional<Integer> version,
+                                                 final OperationContext context, final Executor executor);
 
     /**
      * Update stream store to mark the transaction as aborted.
@@ -260,7 +301,7 @@ public interface StreamMetadataStore {
      * @param txId     transaction id
      * @param context  operation context
      * @param executor callers executor
-     * @return
+     * @return         transaction status
      */
     CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
 

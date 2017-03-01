@@ -22,6 +22,8 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStat
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.emc.pravega.controller.timeout.TimeoutService;
+import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
@@ -89,10 +91,11 @@ public class ControllerServiceImplTest {
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =
                 new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper, executor,
                                                    "host");
+        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 10000);
 
         this.controllerService = new ControllerServiceImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                                      segmentHelper, Executors.newFixedThreadPool(10)));
+                                      timeoutService, segmentHelper, Executors.newFixedThreadPool(10)));
     }
 
     @Test

@@ -16,9 +16,10 @@ service ControllerService {
     rpc scale(ScaleRequest) returns (ScaleResponse);
     rpc getURI(SegmentId) returns (NodeUri);
     rpc isSegmentValid(SegmentId) returns (SegmentValidityResponse);
-    rpc createTransaction(StreamInfo) returns (TxnId);
+    rpc createTransaction(CreateTxnRequest) returns (TxnId);
     rpc commitTransaction(TxnRequest) returns (TxnStatus);
     rpc abortTransaction(TxnRequest) returns (TxnStatus);
+    rpc pingTransaction(PingTxnRequest) returns (PingTxnStatus);
     rpc checkTransactionState(TxnRequest) returns (TxnState);
     rpc createScope(ScopeInfo) returns (CreateScopeStatus);
     rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
@@ -71,6 +72,17 @@ message TxnStatus {
         FAILURE = 1;
         STREAM_NOT_FOUND = 2;
         TRANSACTION_NOT_FOUND = 3;
+    }
+    Status status = 1;
+}
+
+message PingTxnStatus {
+    enum Status {
+        OK = 0;
+        LEASE_TOO_LARGE = 1;
+        MAX_EXECUTION_TIME_EXCEEDED = 2;
+        SCALE_GRACE_TIME_EXCEEDED = 3;
+        DISCONNECTED = 4;
     }
     Status status = 1;
 }
@@ -142,9 +154,22 @@ message TxnId {
     int64 lowBits = 2;
 }
 
+message CreateTxnRequest {
+    StreamInfo streamInfo = 1;
+    int64 lease = 2;
+    int64 maxExecutionTime = 3;
+    int64 scaleGracePeriod = 4;
+}
+
 message TxnRequest {
     StreamInfo streamInfo = 1;
     TxnId txnId = 2;
+}
+
+message PingTxnRequest {
+    StreamInfo streamInfo = 1;
+    TxnId txnId = 2;
+    int64 lease = 3;
 }
 
 message SuccessorResponse {

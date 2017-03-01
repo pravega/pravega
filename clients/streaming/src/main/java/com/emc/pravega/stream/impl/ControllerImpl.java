@@ -10,12 +10,22 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
+import com.emc.pravega.stream.PingFailedException;
+import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.TxnFailedException;
 
 import java.util.HashMap;
 import java.util.List;
@@ -26,11 +36,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxnFailedException;
 import com.google.common.base.Preconditions;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
@@ -199,29 +204,36 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout) {
+    public CompletableFuture<UUID> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
+                                                     final long scaleGracePeriod) {
         Preconditions.checkNotNull(stream, "stream");
-        Preconditions.checkArgument(timeout >= 0);
-
         log.trace("Invoke AdminService.Client.createTransaction() with stream: {}", stream);
-        RPCAsyncCallback<com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnId> callback = new RPCAsyncCallback<>();
-        client.createTransaction(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()), callback);
+        RPCAsyncCallback<TxnId> callback = new RPCAsyncCallback<>();
+        client.createTransaction(CreateTxnRequest.newBuilder().setStreamInfo(
+                ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                                         .setLease(lease)
+                                         .setMaxExecutionTime(maxExecutionTime)
+                                         .setScaleGracePeriod(scaleGracePeriod)
+                                         .build(),
+                                 callback);
         return callback.getFuture().thenApply(ModelHelper::encode);
     }
 
-    /*
     @Override
-    public CompletableFuture<Boolean> isSegmentValid(final String scope, final String stream, final int segmentNumber) {
-        Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(stream, "stream");
-        Preconditions.checkArgument(segmentNumber >= 0);
+    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
+        log.trace("Invoke AdminService.Client.pingTransaction() with stream: {}, txId: {}", stream, txId);
 
-        log.debug("Invoke isSegmentValid() for stream: {}/{}, segmentNumber: {}", scope, stream, segmentNumber);
-        RPCAsyncCallback<SegmentValidityResponse> callback = new RPCAsyncCallback<>();
-        client.isSegmentValid(ModelHelper.createSegmentId(scope, stream, segmentNumber), callback);
-        return callback.getFuture().thenApply(bRes -> bRes.getResponse());
+        RPCAsyncCallback<PingTxnStatus> callback = new RPCAsyncCallback<>();
+        client.pingTransaction(PingTxnRequest.newBuilder().setStreamInfo(
+                ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                                       .setTxnId(ModelHelper.decode(txId))
+                                       .setLease(lease)
+                                       .build(),
+                               callback);
+        return FutureHelpers.toVoidExpecting(callback.getFuture(),
+                                             PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
+                                             PingFailedException::new);
     }
-    */
 
     @Override
     public CompletableFuture<Void> commitTransaction(final Stream stream, final UUID txId) {

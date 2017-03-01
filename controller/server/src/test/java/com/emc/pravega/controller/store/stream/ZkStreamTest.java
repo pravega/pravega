@@ -24,6 +24,7 @@ import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -190,7 +191,6 @@ public class ZkStreamTest {
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test";
-        final String scopeName = "test";
         store.createScope(SCOPE).get();
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
@@ -303,6 +303,16 @@ public class ZkStreamTest {
         } catch (Exception e) {
             assertEquals(DataNotFoundException.class, e.getCause().getClass());
         }
+
+        store.markCold(SCOPE, streamName, 0, System.currentTimeMillis() + 1000, null, executor).get();
+        assertTrue(store.isCold(SCOPE, streamName, 0, null, executor).get());
+        Thread.sleep(1000);
+        assertFalse(store.isCold(SCOPE, streamName, 0, null, executor).get());
+
+        store.markCold(SCOPE, streamName, 0, System.currentTimeMillis() + 1000, null, executor).get();
+        store.removeMarker(SCOPE, streamName, 0, null, executor).get();
+
+        assertFalse(store.isCold(SCOPE, streamName, 0, null, executor).get());
     }
 
     @Ignore("run manually")
@@ -366,11 +376,10 @@ public class ZkStreamTest {
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testTx";
-        final String scopeName = "testTx";
         store.createScope(SCOPE).get();
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
-                .scope(streamName)
+                .scope(SCOPE)
                 .streamName(streamName)
                 .scalingPolicy(policy)
                 .build();
@@ -378,28 +387,36 @@ public class ZkStreamTest {
         store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
         store.setState(SCOPE, streamName, State.ACTIVE, null, executor).get();
 
-        OperationContext context = store.createContext(SCOPE, streamName);
+        OperationContext context = store.createContext(ZkStreamTest.SCOPE, streamName);
 
-        UUID tx = store.createTransaction(SCOPE, streamName, context, executor).get();
+        VersionedTransactionData tx = store.createTransaction(SCOPE, streamName, 10000, 600000, 30000,
+                context, executor).get();
 
-        UUID tx2 = store.createTransaction(SCOPE, streamName, context, executor).get();
+        VersionedTransactionData tx2 = store.createTransaction(SCOPE, streamName, 10000, 600000, 30000,
+                context, executor).get();
 
-        store.sealTransaction(SCOPE, streamName, tx, true, context, executor).get();
-        assert store.transactionStatus(SCOPE, streamName, tx, context, executor).get().equals(TxnStatus.COMMITTING);
+        store.sealTransaction(SCOPE, streamName, tx.getId(), true, Optional.<Integer>empty(),
+                context, executor).get();
+        assert store.transactionStatus(SCOPE, streamName, tx.getId(), context, executor)
+                .get().equals(TxnStatus.COMMITTING);
 
-        CompletableFuture<TxnStatus> f1 = store.commitTransaction(SCOPE, streamName, tx, null, executor);
+        CompletableFuture<TxnStatus> f1 = store.commitTransaction(SCOPE, streamName, tx.getId(), context, executor);
 
-        store.sealTransaction(SCOPE, streamName, tx2, false, null, executor).get();
-        assert store.transactionStatus(SCOPE, streamName, tx2, null, executor).get().equals(TxnStatus.ABORTING);
+        store.sealTransaction(SCOPE, streamName, tx2.getId(), false, Optional.<Integer>empty(),
+                context, executor).get();
+        assert store.transactionStatus(SCOPE, streamName, tx2.getId(), context, executor)
+                .get().equals(TxnStatus.ABORTING);
 
-        CompletableFuture<TxnStatus> f2 = store.abortTransaction(SCOPE, streamName, tx2, null, executor);
+        CompletableFuture<TxnStatus> f2 = store.abortTransaction(SCOPE, streamName, tx2.getId(), context, executor);
 
         CompletableFuture.allOf(f1, f2).get();
 
-        assert store.transactionStatus(SCOPE, streamName, tx, null, executor).get().equals(TxnStatus.COMMITTED);
-        assert store.transactionStatus(SCOPE, streamName, tx2, null, executor).get().equals(TxnStatus.ABORTED);
+        assert store.transactionStatus(SCOPE, streamName, tx.getId(), context, executor)
+                .get().equals(TxnStatus.COMMITTED);
+        assert store.transactionStatus(SCOPE, streamName, tx2.getId(), context, executor)
+                .get().equals(TxnStatus.ABORTED);
 
-        assert store.commitTransaction(SCOPE, streamName, UUID.randomUUID(), null, executor)
+        assert store.commitTransaction(ZkStreamTest.SCOPE, streamName, UUID.randomUUID(), null, executor)
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof TransactionNotFoundException) {
                         return true;
@@ -408,7 +425,7 @@ public class ZkStreamTest {
                     }
                 }).get();
 
-        assert store.abortTransaction(SCOPE, streamName, UUID.randomUUID(), null, executor)
+        assert store.abortTransaction(ZkStreamTest.SCOPE, streamName, UUID.randomUUID(), null, executor)
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof TransactionNotFoundException) {
                         return true;
@@ -417,16 +434,7 @@ public class ZkStreamTest {
                     }
                 }).get();
 
-        assert store.transactionStatus(SCOPE, streamName, UUID.randomUUID(), context, executor).get().equals(TxnStatus.UNKNOWN);
-
-        store.markCold(SCOPE, streamName, 0, System.currentTimeMillis() + 1000, null, executor).get();
-        assertTrue(store.isCold(SCOPE, streamName, 0, null, executor).get());
-        Thread.sleep(1000);
-        assertFalse(store.isCold(SCOPE, streamName, 0, null, executor).get());
-
-        store.markCold(SCOPE, streamName, 0, System.currentTimeMillis() + 1000, null, executor).get();
-        store.removeMarker(SCOPE, streamName, 0, null, executor).get();
-
-        assertFalse(store.isCold(SCOPE, streamName, 0, null, executor).get());
+        assert store.transactionStatus(ZkStreamTest.SCOPE, streamName, UUID.randomUUID(), context, executor)
+                .get().equals(TxnStatus.UNKNOWN);
     }
 }

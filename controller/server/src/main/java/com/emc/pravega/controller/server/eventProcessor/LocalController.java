@@ -5,13 +5,16 @@
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import com.emc.pravega.stream.PingFailedException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -83,9 +86,19 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(Stream stream, long timeout) {
-        return controller.createTransaction(stream.getScope(), stream.getStreamName())
+    public CompletableFuture<UUID> createTransaction(Stream stream, long lease, final long maxExecutionTime,
+                                                     final long scaleGracePeriod) {
+        return controller
+                .createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime, scaleGracePeriod)
                 .thenApply(ModelHelper::encode);
+    }
+
+    @Override
+    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
+        return FutureHelpers.toVoidExpecting(
+                controller.pingTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), lease),
+                PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
+                PingFailedException::new);
     }
 
     @Override
@@ -104,7 +117,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txnId) {
-        return controller.checkTransactionState(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
+        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
                 .thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txnId));
     }
 

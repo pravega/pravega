@@ -16,6 +16,8 @@ import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import com.emc.pravega.controller.timeout.TimeoutService;
+import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import org.apache.curator.framework.CuratorFramework;
@@ -80,8 +82,10 @@ public class StreamMetadataTasksTest {
 
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStorePartialMock, hostStore, taskMetadataStore, segmentHelperMock, executor, "host");
+        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
+
         consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, segmentHelperMock, executor);
+                streamTransactionMetadataTasks, timeoutService, segmentHelperMock, executor);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();

@@ -20,9 +20,12 @@ package com.emc.pravega.controller.server.rpc.grpc.v1;
 import com.emc.pravega.controller.server.ControllerService;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.GetPositionRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Positions;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
@@ -138,9 +141,15 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void createTransaction(StreamInfo request, StreamObserver<TxnId> responseObserver) {
-        log.debug("createTransaction called for stream " + request.getScope() + "/" + request.getStream());
-        processResult(controllerService.createTransaction(request.getScope(), request.getStream()), responseObserver);
+    public void createTransaction(CreateTxnRequest request, StreamObserver<TxnId> responseObserver) {
+        log.debug("createTransaction called for stream " + request.getStreamInfo().getScope() + "/" +
+                          request.getStreamInfo().getStream());
+        processResult(controllerService.createTransaction(request.getStreamInfo().getScope(),
+                                                          request.getStreamInfo().getStream(),
+                                                          request.getLease(),
+                                                          request.getMaxExecutionTime(),
+                                                          request.getScaleGracePeriod()),
+                      responseObserver);
     }
 
     @Override
@@ -164,10 +173,19 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
+    public void pingTransaction(PingTxnRequest request, StreamObserver<PingTxnStatus> responseObserver) {
+        processResult(controllerService.pingTransaction(request.getStreamInfo().getScope(),
+                                                        request.getStreamInfo().getStream(),
+                                                        request.getTxnId(),
+                                                        request.getLease()),
+                      responseObserver);
+    }
+
+    @Override
     public void checkTransactionState(TxnRequest request, StreamObserver<TxnState> responseObserver) {
         log.debug("checkTransactionState called for stream " + request.getStreamInfo().getScope() + "/" +
                           request.getStreamInfo().getStream() + " txid=" + request.getTxnId());
-        processResult(controllerService.checkTransactionState(request.getStreamInfo().getScope(),
+        processResult(controllerService.checkTransactionStatus(request.getStreamInfo().getScope(),
                                                                request.getStreamInfo().getStream(),
                                                                request.getTxnId()),
                       responseObserver);

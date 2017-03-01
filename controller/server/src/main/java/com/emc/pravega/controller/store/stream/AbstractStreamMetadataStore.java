@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -314,20 +315,46 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final String scope, final String streamName, final OperationContext context, final Executor executor) {
-        Stream stream = getStream(scope, streamName, context);
-        return withCompletion(stream.createTransaction(), executor).thenApply(result -> {
-            stream.getNumberOfOngoingTransactions().thenAccept(count -> {
-                DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(CREATE_TRANSACTION, scope, streamName), 1);
-                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
-            });
-            return result;
-        });
+    public CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName,
+                                                                         final String streamName,
+                                                                         final long lease,
+                                                                         final long maxExecutionTime,
+                                                                         final long scaleGracePeriod,
+                                                                         final OperationContext context,
+                                                                         final Executor executor) {
+        Stream stream = getStream(scopeName, streamName, context);
+        return withCompletion(stream.createTransaction(lease, maxExecutionTime, scaleGracePeriod), executor)
+                .thenApply(result -> {
+                    stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+                        DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(CREATE_TRANSACTION, scopeName, streamName), 1);
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), count);
+                    });
+                    return result;
+                });
     }
 
     @Override
-    public CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).checkTransactionStatus(txId), executor);
+    public CompletableFuture<VersionedTransactionData> pingTransaction(final String scopeName, final String streamName,
+                                                                       final UUID txId, final long lease,
+                                                                       final OperationContext context,
+                                                                       final Executor executor) {
+        return withCompletion(getStream(scopeName, streamName, context).pingTransaction(txId, lease), executor);
+    }
+
+    @Override
+    public CompletableFuture<VersionedTransactionData> getTransactionData(final String scopeName,
+                                                                          final String streamName,
+                                                                          final UUID txId,
+                                                                          final OperationContext context,
+                                                                          final Executor executor) {
+        return withCompletion(getStream(scopeName, streamName, context).getTransactionData(txId), executor);
+    }
+
+    @Override
+    public CompletableFuture<TxnStatus> transactionStatus(final String scopeName, final String streamName,
+                                                          final UUID txId, final OperationContext context,
+                                                          final Executor executor) {
+        return withCompletion(getStream(scopeName, streamName, context).checkTransactionStatus(txId), executor);
     }
 
     @Override
@@ -346,8 +373,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<TxnStatus> sealTransaction(final String scope, final String stream, final UUID txId, final boolean commit, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).sealTransaction(txId, commit), executor);
+    public CompletableFuture<TxnStatus> sealTransaction(final String scopeName, final String streamName,
+                                                        final UUID txId, final boolean commit,
+                                                        final Optional<Integer> version,
+                                                        final OperationContext context,
+                                                        final Executor executor) {
+        return withCompletion(getStream(scopeName, streamName, context)
+                .sealTransaction(txId, commit, version), executor);
     }
 
     @Override

@@ -18,6 +18,8 @@ import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.emc.pravega.controller.timeout.TimeoutService;
+import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.stream.impl.Controller;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -76,8 +78,11 @@ public class ControllerWrapper {
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, taskMetadataStore, segmentHelper, executor, hostId);
 
-        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                segmentHelper, executor);
+        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
+
+        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, timeoutService, segmentHelper, executor);
+
         GRPCServer.start(controllerService, Config.SERVER_PORT);
 
         RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);

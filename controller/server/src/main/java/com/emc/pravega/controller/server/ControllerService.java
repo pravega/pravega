@@ -6,6 +6,7 @@
 package com.emc.pravega.controller.server;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
@@ -14,6 +15,7 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatu
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Position;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
@@ -24,6 +26,7 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.google.common.base.Preconditions;
@@ -33,6 +36,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
@@ -51,6 +56,7 @@ public class ControllerService {
     private final HostControllerStore hostStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private final TimeoutService timeoutService;
     private final SegmentHelper segmentHelper;
     private final Executor executor;
 
@@ -223,44 +229,118 @@ public class ControllerService {
         return positions;
     }
 
-    public CompletableFuture<TxnId> createTransaction(final String scope, final String stream) {
+    public CompletableFuture<TxnId> createTransaction(final String scope, final String stream, final long lease,
+                                                      final long maxExecutionTime, final long scaleGracePeriod) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        return streamTransactionMetadataTasks.createTx(scope, stream, null)
-                .thenApplyAsync(ModelHelper::decode, executor);
+
+        // If scaleGracePeriod is larger than maxScaleGracePeriod return error
+        if (scaleGracePeriod > timeoutService.getMaxScaleGracePeriod()) {
+            return FutureHelpers.failedFuture(new IllegalArgumentException("scaleGracePeriod too large"));
+        }
+
+        // If lease value is too large return error
+        if (lease > scaleGracePeriod || lease > maxExecutionTime || lease > timeoutService.getMaxLeaseValue()) {
+            return FutureHelpers.failedFuture(new IllegalArgumentException("lease value too large"));
+        }
+
+        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, maxExecutionTime, scaleGracePeriod, null)
+                .thenApply(data -> {
+                    timeoutService.addTxn(scope, stream, data.getId(), data.getVersion(), lease,
+                            data.getMaxExecutionExpiryTime(), data.getScaleGracePeriod());
+                    return data.getId();
+                })
+                .thenApply(ModelHelper::decode);
     }
 
-    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId txnId) {
+    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId
+            txnId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txnId, "txnId");
-        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txnId), null)
-                .handleAsync((ok, ex) -> {
+
+        UUID txId = ModelHelper.encode(txnId);
+        return streamTransactionMetadataTasks.commitTxn(scope, stream, txId, null)
+                .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user.
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
+                        timeoutService.removeTxn(scope, stream, txId);
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                     }
-                }, executor);
+                });
     }
 
     public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final TxnId txnId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txnId, "txnId");
-        return streamTransactionMetadataTasks.abortTx(scope, stream, ModelHelper.encode(txnId), null)
-                .handleAsync((ok, ex) -> {
+        UUID txId = ModelHelper.encode(txnId);
+        return streamTransactionMetadataTasks.abortTxn(scope, stream, txId, Optional.<Integer>empty(), null)
+                .handle((ok, ex) -> {
                     if (ex != null) {
                         // TODO: return appropriate failures to user.
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
+                        timeoutService.removeTxn(scope, stream, txId);
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                     }
-                }, executor);
+                });
     }
 
-    public CompletableFuture<TxnState> checkTransactionState(final String scope, final String stream,
+    public CompletableFuture<PingTxnStatus> pingTransaction(final String scope, final String stream, final TxnId txnId,
+                                                         final long lease) {
+        UUID txId = ModelHelper.encode(txnId);
+
+        if (!timeoutService.isRunning()) {
+            return CompletableFuture.completedFuture(
+                    PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.DISCONNECTED).build());
+        }
+
+        if (timeoutService.containsTxn(scope, stream, txId)) {
+            // If timeout service knows about this transaction, try to increase its lease.
+            PingTxnStatus status = timeoutService.pingTxn(scope, stream, txId, lease);
+
+            return CompletableFuture.completedFuture(status);
+        } else {
+            // Otherwise, first check whether lease value is within necessary bounds, and then
+            // start owning the transaction timeout management by updating the txn node data in the store,
+            // thus updating its version.
+            // Pass this transaction metadata along with its version to timeout service, and ask timeout service to
+            // start managing timeout for this transaction.
+            return streamStore.getTransactionData(scope, stream, txId, null, executor)
+                    .thenApply(txnData -> {
+                        // sanity check for lease value
+                        if (lease > txnData.getScaleGracePeriod() || lease > timeoutService.getMaxLeaseValue()) {
+                            return PingTxnStatus.Status.LEASE_TOO_LARGE;
+                        } else if (lease + System.currentTimeMillis() > txnData.getMaxExecutionExpiryTime()) {
+                            return PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED;
+                        } else {
+                            return PingTxnStatus.Status.OK;
+                        }
+                    })
+                    .thenCompose(status -> {
+                        if (status == PingTxnStatus.Status.OK) {
+                            // If lease value if within necessary bounds, update the transaction node data, thus
+                            // updating its version.
+                            return streamTransactionMetadataTasks.pingTxn(scope, stream, txId, lease, null)
+                                    .thenApply(data -> {
+                                        // Let timeout service start managing timeout for the transaction.
+                                        timeoutService.addTxn(scope, stream, txId, data.getVersion(), lease,
+                                                data.getMaxExecutionExpiryTime(), data.getScaleGracePeriod());
+
+                                        return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build();
+                                    });
+                        } else {
+                            return CompletableFuture.completedFuture(
+                                    PingTxnStatus.newBuilder().setStatus(status).build());
+                        }
+                    });
+        }
+    }
+
+    public CompletableFuture<TxnState> checkTransactionStatus(final String scope, final String stream,
             final TxnId txnId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");

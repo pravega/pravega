@@ -19,6 +19,8 @@ import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.emc.pravega.controller.timeout.TimeoutService;
+import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -216,9 +218,10 @@ public final class SetupUtils {
 
         StreamTransactionMetadataTasks streamTransactionMetadataTasks =
                 new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper, executor, hostId);
+        TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
 
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, new SegmentHelper(), Executors.newFixedThreadPool(10));
+                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), Executors.newFixedThreadPool(10));
         GRPCServer.start(controllerService, RPC_PORT);
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
