@@ -62,7 +62,7 @@ public class ControllerService {
                                                 streamConfig.getStreamName(),
                                                 streamConfig,
                                                 createTimestamp)
-                .thenApply(status -> CreateStreamStatus.newBuilder().setStatus(status).build());
+                .thenApplyAsync(status -> CreateStreamStatus.newBuilder().setStatus(status).build(), executor);
     }
 
     public CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig) {
@@ -80,7 +80,7 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         return streamMetadataTasks.sealStream(scope, stream, null)
-                .thenApply(status -> UpdateStreamStatus.newBuilder().setStatus(status).build());
+                .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
     }
 
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(final String scope, final String stream) {
