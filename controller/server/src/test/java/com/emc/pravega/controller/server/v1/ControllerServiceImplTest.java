@@ -191,11 +191,11 @@ public class ControllerServiceImplTest {
         CreateStreamStatus status;
 
         // region checkStream
-        ResultObserver<CreateStreamStatus> result1 = new ResultObserver<>();
         ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
         this.controllerService.createScope(Controller.ScopeInfo.newBuilder().setScope(SCOPE1).build(), result);
         Assert.assertEquals(result.get().getStatus(), CreateScopeStatus.Status.SUCCESS);
 
+        ResultObserver<CreateStreamStatus> result1 = new ResultObserver<>();
         this.controllerService.createStream(ModelHelper.decode(configuration1), result1);
         status = result1.get();
         Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
