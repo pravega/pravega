@@ -20,11 +20,11 @@ import java.util.concurrent.ScheduledExecutorService;
 public class TestTasks extends TaskBase {
 
     public TestTasks(TaskMetadataStore taskMetadataStore, ScheduledExecutorService executor, String hostId) {
-        super(taskMetadataStore, executor, hostId);
+        super(taskMetadataStore, executor, hostId, CompletableFuture.completedFuture(null));
     }
 
     public TestTasks(TaskMetadataStore taskMetadataStore, ScheduledExecutorService executor, Context context) {
-        super(taskMetadataStore, executor, context);
+        super(taskMetadataStore, executor, context, CompletableFuture.completedFuture(null));
     }
 
     @Task(name = "test", version = "1.0", resource = "{scope}/{stream}")

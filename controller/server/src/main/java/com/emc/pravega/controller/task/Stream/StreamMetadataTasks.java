@@ -74,7 +74,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 final SegmentHelper segmentHelper,
                                 final ScheduledExecutorService executor,
                                 final Context context) {
-        super(taskMetadataStore, executor, context);
+        super(taskMetadataStore, executor, context, CompletableFuture.completedFuture(null));
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;

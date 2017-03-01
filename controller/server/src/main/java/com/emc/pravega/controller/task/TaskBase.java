@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.controller.task;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
@@ -61,14 +62,19 @@ public abstract class TaskBase {
 
     protected final TaskMetadataStore taskMetadataStore;
 
-    public TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor, final String hostId) {
-        this(taskMetadataStore, executor, new Context(hostId));
+    protected final CompletableFuture<Void> latch;
+
+    public TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor,
+                    final String hostId, final CompletableFuture<Void> latch) {
+        this(taskMetadataStore, executor, new Context(hostId), latch);
     }
 
-    protected TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor, Context context) {
+    protected TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor,
+                       final Context context, final CompletableFuture<Void> latch) {
         this.taskMetadataStore = taskMetadataStore;
         this.executor = executor;
         this.context = context;
+        this.latch = latch;
     }
     
     public abstract TaskBase copyWithContext(Context context);
@@ -87,6 +93,9 @@ public abstract class TaskBase {
      * @return return value of task execution.
      */
     public <T> CompletableFuture<T> execute(final Resource resource, final Serializable[] parameters, final FutureOperation<T> operation) {
+        if (!isInitialized()) {
+            return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet initialized"));
+        }
         final String tag = UUID.randomUUID().toString();
         final TaskData taskData = getTaskData(parameters);
         final CompletableFuture<T> result = new CompletableFuture<>();
@@ -212,5 +221,9 @@ public abstract class TaskBase {
             }
         }
         throw new TaskAnnotationNotFoundException(method);
+    }
+
+    private boolean isInitialized() {
+        return this.latch.isDone() && !latch.isCompletedExceptionally() && !latch.isCancelled();
     }
 }

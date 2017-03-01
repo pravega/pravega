@@ -32,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -112,14 +113,23 @@ public class Main {
         ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
                 ZKUtils.getCuratorClient(), streamStore, hostStore, segmentHelper);
 
-        try {
-            controllerEventProcessors.initialize();
-        } catch (Exception e) {
-            log.error("Error initializing event processors", e);
-            throw new RuntimeException(e);
-        }
-
-        streamTransactionMetadataTasks.initializeStreamWriters(localController);
+        CompletableFuture
+                .supplyAsync(() -> {
+                    // Asynchronously try initializing controller event processors. At botstrap this operation
+                    // will not complete until a pravega host is available.
+                    try {
+                        controllerEventProcessors.initialize();
+                        return null;
+                    } catch (Exception e) {
+                        log.error("Error initializing event processors", e);
+                        throw new RuntimeException(e);
+                    }
+                }, controllerServiceExecutor)
+                .thenApplyAsync(ignore -> {
+                    // Finally initialize the event writers in streamTransactionMetadataTasks
+                    streamTransactionMetadataTasks.initializeStreamWriters(localController);
+                    return null;
+                }, controllerServiceExecutor);
 
         //endregion
 
