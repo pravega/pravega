@@ -5,7 +5,6 @@
  */
 package com.emc.pravega.service.server.host.handler;
 
-import com.emc.pravega.common.SegmentStoreMetricsNames;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.metrics.DynamicLogger;
@@ -37,6 +36,9 @@ import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.segment.StreamSegmentNameUtils;
+import com.emc.pravega.service.contracts.AttributeUpdate;
+import com.emc.pravega.service.contracts.AttributeUpdateType;
+import com.emc.pravega.service.contracts.Attributes;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -46,21 +48,32 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
+import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import lombok.extern.slf4j.Slf4j;
 
+import static com.emc.pravega.common.SegmentStoreMetricsNames.CREATE_SEGMENT;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_READ_BYTES;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_READ_LATENCY;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.nameFromSegment;
+import static com.emc.pravega.common.netty.WireCommands.SegmentPolicyUpdated;
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
+import static com.emc.pravega.common.netty.WireCommands.UpdateSegmentPolicy;
+import static com.emc.pravega.service.contracts.Attributes.CREATION_TIME;
+import static com.emc.pravega.service.contracts.Attributes.SCALE_POLICY_RATE;
+import static com.emc.pravega.service.contracts.Attributes.SCALE_POLICY_TYPE;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Cache;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static com.emc.pravega.service.contracts.ReadResultEntryType.Future;
@@ -75,15 +88,24 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("HOST");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
-    static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(SegmentStoreMetricsNames.CREATE_SEGMENT);
+
+    @VisibleForTesting
+    static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
 
     private final StreamSegmentStore segmentStore;
 
     private final ServerConnection connection;
 
+    private final SegmentStatsRecorder statsRecorder;
+
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
+        this(segmentStore, connection, null);
+    }
+
+    public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, SegmentStatsRecorder statsRecorder) {
         this.segmentStore = segmentStore;
         this.connection = connection;
+        this.statsRecorder = statsRecorder;
     }
 
     @Override
@@ -231,15 +253,25 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
-        CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), null, TIMEOUT);
-        future.thenApply((Void v) -> {
+        Collection<AttributeUpdate> attributes = Arrays.asList(
+                new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamsSegment.getScaleType()).longValue()),
+                new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamsSegment.getTargetRate()).longValue())
+        );
+
+        CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), attributes, TIMEOUT);
+        future.thenAccept((Void v) -> {
             CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
             connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
-            return null;
-        }).exceptionally((Throwable e) -> {
-            CREATE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
-            handleException(createStreamsSegment.getSegment(), "Create segment", e);
-            return null;
+        }).whenComplete((res, e) -> {
+            if (e == null) {
+                if (statsRecorder != null) {
+                    statsRecorder.createSegment(createStreamsSegment.getSegment(),
+                            createStreamsSegment.getScaleType(), createStreamsSegment.getTargetRate());
+                }
+            } else {
+                CREATE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
+                handleException(createStreamsSegment.getSegment(), "Create segment", e);
+            }
         });
     }
 
@@ -269,7 +301,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void createTransaction(CreateTransaction createTransaction) {
-        CompletableFuture<String> future = segmentStore.createTransaction(createTransaction.getSegment(), createTransaction.getTxid(), null, TIMEOUT);
+        Collection<AttributeUpdate> attributes = Collections.singleton(
+                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()));
+
+        CompletableFuture<String> future = segmentStore.createTransaction(createTransaction.getSegment(), createTransaction.getTxid(), attributes, TIMEOUT);
         future.thenApply((String txName) -> {
             connection.send(new TransactionCreated(createTransaction.getSegment(), createTransaction.getTxid()));
             return null;
@@ -285,7 +320,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         segmentStore.sealStreamSegment(transactionName, TIMEOUT).thenApply((Long length) -> {
             segmentStore.mergeTransaction(transactionName, TIMEOUT).thenAccept(v -> {
                 connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));
-            }).exceptionally((Throwable e) -> {
+            }).thenCompose(x -> recordStatForTransaction(commitTx.getSegment())
+                    .exceptionally((Throwable e) -> {
+                        // gobble up any errors from stat recording so we do not affect rest of the flow.
+                        log.error("exception while computing stats while merging txn {}", e);
+                        return null;
+                    })
+            ).exceptionally((Throwable e) -> {
                 handleException(transactionName, "Commit transaction", e);
                 return null;
             });
@@ -318,9 +359,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         CompletableFuture<Long> future = segmentStore.sealStreamSegment(segment, TIMEOUT);
         future.thenAccept(size -> {
             connection.send(new SegmentSealed(segment));
-        }).exceptionally(e -> {
-            handleException(segment, "Seal segment", e);
-            return null;
+        }).whenComplete((r, e) -> {
+            if (e != null) {
+                handleException(segment, "Seal segment", e);
+            } else {
+                if (statsRecorder != null) {
+                    statsRecorder.sealSegment(sealSegment.getSegment());
+                }
+            }
         });
     }
 
@@ -335,4 +381,43 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return null;
         });
     }
+
+    @Override
+    public void updateSegmentPolicy(UpdateSegmentPolicy updateSegmentPolicy) {
+        Collection<AttributeUpdate> attributes = Arrays.asList(
+                new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, (long) updateSegmentPolicy.getScaleType()),
+                new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, updateSegmentPolicy.getTargetRate()));
+
+        CompletableFuture<Void> future = segmentStore.updateAttributes(updateSegmentPolicy.getSegment(), attributes, TIMEOUT);
+        future.thenAccept((Void v) -> {
+            connection.send(new SegmentPolicyUpdated(updateSegmentPolicy.getSegment()));
+        }).whenComplete((r, e) -> {
+            if (e != null) {
+                handleException(updateSegmentPolicy.getSegment(), "Update segment", e);
+            } else {
+                if (statsRecorder != null) {
+                    statsRecorder.policyUpdate(updateSegmentPolicy.getSegment(),
+                            updateSegmentPolicy.getScaleType(), updateSegmentPolicy.getTargetRate());
+                }
+            }
+        });
+    }
+
+    private CompletableFuture<Void> recordStatForTransaction(String parentSegmentName) {
+        return segmentStore.getStreamSegmentInfo(parentSegmentName, false, TIMEOUT)
+                .thenAccept(prop -> {
+                    if (prop != null &&
+                            prop.getAttributes().containsKey(Attributes.CREATION_TIME) &&
+                            prop.getAttributes().containsKey(Attributes.EVENT_COUNT)) {
+                        long creationTime = prop.getAttributes().get(Attributes.CREATION_TIME);
+                        int numOfEvents = prop.getAttributes().get(Attributes.EVENT_COUNT).intValue();
+                        long len = prop.getLength();
+
+                        if (statsRecorder != null) {
+                            statsRecorder.merge(parentSegmentName, len, numOfEvents, creationTime);
+                        }
+                    }
+                });
+    }
+
 }

@@ -3,8 +3,10 @@
  */
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.controller.mocks.SegmentHelperMock;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -39,6 +41,7 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceAsyncImpl
     private ScheduledExecutorService executorService;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private StreamMetadataStore streamStore;
+    private SegmentHelper segmentHelper;
 
     @Override
     public void setupStore() throws Exception {
@@ -54,15 +57,17 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceAsyncImpl
         taskMetadataStore = TaskStoreFactory.createStore(storeClient, executorService);
         hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
         streamStore = new ZKStreamMetadataStore(zkClient, executorService);
+        segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executorService, "host");
 
         streamTransactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executorService, "host");
+                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host");
 
         controllerService = new ControllerServiceAsyncImpl(
-                new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
+                new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
+                        new SegmentHelper(), executorService));
     }
 
     @Override

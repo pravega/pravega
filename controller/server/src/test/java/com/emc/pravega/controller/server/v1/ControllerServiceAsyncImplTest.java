@@ -101,7 +101,7 @@ public abstract class ControllerServiceAsyncImplTest {
         createScopeStatus = result3.getResult().get();
         assertEquals("Create Scope", CreateScopeStatus.SUCCESS, createScopeStatus);
 
-        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
+        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 2);
         final StreamConfiguration configuration1 =
                 StreamConfiguration.builder().scope(scope2).streamName(stream1).scalingPolicy(policy1).build();
         ThriftAsyncCallback<CreateStreamStatus> result4 = new ThriftAsyncCallback<>();
@@ -123,14 +123,14 @@ public abstract class ControllerServiceAsyncImplTest {
 
     @Test
     public void createStreamTests() throws TException, ExecutionException, InterruptedException {
-        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
-        final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
-        final StreamConfiguration configuration1 =
-                StreamConfiguration.builder().scope(scope1).streamName(stream1).scalingPolicy(policy1).build();
-        final StreamConfiguration configuration2 =
-                StreamConfiguration.builder().scope(scope1).streamName(stream2).scalingPolicy(policy2).build();
-        final StreamConfiguration configuration3 =
-                StreamConfiguration.builder().scope("SCOPE3").streamName(stream2).scalingPolicy(policy2).build();
+        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 2);
+        final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100, 2, 3);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().
+                scope(scope1).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().
+                scope(scope1).streamName(stream2).scalingPolicy(policy2).build();
+        final StreamConfiguration configuration3 = StreamConfiguration.builder().
+                scope("SCOPE3").streamName(stream2).scalingPolicy(policy2).build();
 
         CreateStreamStatus status;
 
