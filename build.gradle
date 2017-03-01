@@ -117,7 +117,7 @@ allprojects {
         testLogging.showExceptions = true
         testLogging.showStackTraces = true
         testLogging.events = ["PASSED", "FAILED"]
-        maxParallelForks = 2
+        maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : 1
         minHeapSize = "128m"
         maxHeapSize = "512m"
     }
@@ -304,7 +304,6 @@ project('service:server:host') {
             }
         }
     }
-
 }
 
 project('integrationtests') {
