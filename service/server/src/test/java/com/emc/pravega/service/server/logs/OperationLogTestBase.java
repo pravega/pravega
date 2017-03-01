@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.server.logs;
 
@@ -12,12 +10,12 @@ import com.emc.pravega.service.contracts.AttributeUpdateType;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.server.ContainerMetadata;
-import com.emc.pravega.service.server.containers.InMemoryStateStore;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
+import com.emc.pravega.service.server.containers.InMemoryStateStore;
 import com.emc.pravega.service.server.containers.StreamSegmentMapper;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
@@ -47,6 +45,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -57,6 +56,7 @@ import org.junit.Assert;
  */
 abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     protected static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final Supplier<CompletableFuture<Void>> NO_OP_METADATA_CLEANUP = () -> CompletableFuture.completedFuture(null);
     private static final int MAX_SEGMENT_COUNT = 1000 * 1000;
 
     @Override
@@ -88,7 +88,8 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
      * Creates a number of StreamSegments in the given Metadata and OperationLog.
      */
     HashSet<Long> createStreamSegmentsWithOperations(int streamSegmentCount, ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
-        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, new InMemoryStateStore(), storage, ForkJoinPool.commonPool());
+        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, new InMemoryStateStore(), NO_OP_METADATA_CLEANUP,
+                storage, ForkJoinPool.commonPool());
         HashSet<Long> result = new HashSet<>();
         for (int i = 0; i < streamSegmentCount; i++) {
             String name = getStreamSegmentName(i);
@@ -127,9 +128,11 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     /**
      * Creates a number of Transaction Segments in the given Metadata and OperationLog.
      */
-    AbstractMap<Long, Long> createTransactionsWithOperations(HashSet<Long> streamSegmentIds, int transactionsPerStreamSegment, ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
+    AbstractMap<Long, Long> createTransactionsWithOperations(HashSet<Long> streamSegmentIds, int transactionsPerStreamSegment,
+                                                             ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
         HashMap<Long, Long> result = new HashMap<>();
-        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, new InMemoryStateStore(), storage, ForkJoinPool.commonPool());
+        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, new InMemoryStateStore(), NO_OP_METADATA_CLEANUP,
+                storage, ForkJoinPool.commonPool());
         for (long streamSegmentId : streamSegmentIds) {
             String streamSegmentName = containerMetadata.getStreamSegmentMetadata(streamSegmentId).getName();
 

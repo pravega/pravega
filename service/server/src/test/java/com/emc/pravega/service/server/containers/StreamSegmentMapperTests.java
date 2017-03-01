@@ -13,6 +13,7 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.contracts.TooManyActiveSegmentsException;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.MetadataBuilder;
 import com.emc.pravega.service.server.OperationLog;
@@ -33,15 +34,18 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -76,8 +80,6 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext();
-        setupOperationLog(context);
-
         HashSet<String> storageSegments = new HashSet<>();
         setupStorageCreateHandler(context, storageSegments);
         setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, 0, false, false, new ImmutableDate()));
@@ -103,13 +105,9 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     @Test
     public void testCreateNewStreamSegmentWithFailures() {
         final String segmentName = "NewSegment";
-        final long segmentId = 1;
 
         @Cleanup
         TestContext context = new TestContext();
-        setupOperationLog(context); // Operation Log works just fine.
-
-        HashSet<String> storageSegments = new HashSet<>();
 
         // 1. Create fails with StreamSegmentExistsException.
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new StreamSegmentExistsException("intentional"));
@@ -117,8 +115,6 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 "createNewStreamSegment did not fail when Segment already exists.",
                 () -> context.mapper.createNewStreamSegment(segmentName, null, TIMEOUT),
                 ex -> ex instanceof StreamSegmentExistsException);
-        Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (StreamSegmentExistsException).",
-                ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName, false));
 
         // 2. Create fails with random exception.
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
@@ -126,20 +122,18 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 "createNewStreamSegment did not fail when random exception was thrown.",
                 () -> context.mapper.createNewStreamSegment(segmentName, null, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
-        Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (IntentionalException).",
-                ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName, false));
 
         // Manually create the StreamSegment and test the Transaction creation.
-        storageSegments.add(segmentName);
-        context.metadata.mapStreamSegmentId(segmentName, segmentId);
 
         // 3. Create-Transaction fails with StreamSegmentExistsException.
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new StreamSegmentExistsException("intentional"));
+        setupStorageGetHandler(context,
+                Collections.singleton(segmentName),
+                name -> new StreamSegmentInformation(name, 0, false, false, new ImmutableDate()));
         AssertExtensions.assertThrows(
                 "createNewTransactionStreamSegment did not fail when Segment already exists.",
                 () -> context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), null, TIMEOUT),
                 ex -> ex instanceof StreamSegmentExistsException);
-        Assert.assertEquals("Transaction was registered in the metadata even if it failed to be created (StreamSegmentExistsException).", 1, context.metadata.getAllStreamSegmentIds().size());
 
         // 4. Create-Transaction fails with random exception.
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
@@ -147,12 +141,6 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 "createNewTransactionStreamSegment did not fail when random exception was thrown.",
                 () -> context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), null, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
-        Assert.assertEquals("Transaction was registered in the metadata even if it failed to be created (IntentionalException).", 1, context.metadata.getAllStreamSegmentIds().size());
-
-        // Check how this behaves when Storage works, but the OperationLog cannot process the operations.
-        context.operationLog.addHandler = op -> FutureHelpers.failedFuture(new TimeoutException("intentional"));
-        setupStorageCreateHandler(context, storageSegments);
-        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new ImmutableDate()));
     }
 
     /**
@@ -312,7 +300,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         // 2d. Attribute fetch failure.
         val testStateStore = new TestStateStore();
-        val badMapper = new StreamSegmentMapper(context.metadata, context.operationLog, testStateStore, context.storage, executorService());
+        val badMapper = new StreamSegmentMapper(context.metadata, context.operationLog, testStateStore, context.noOpMetadataCleanup, context.storage, executorService());
         val segmentName2 = segmentName + "2";
         val transactionName2 = StreamSegmentNameUtils.getTransactionNameFromId(segmentName2, UUID.randomUUID());
         context.storage.getInfoHandler = sn -> CompletableFuture.completedFuture(new StreamSegmentInformation(sn, 0, false, false, new ImmutableDate()));
@@ -327,6 +315,71 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 "getOrAssignStreamSegmentId did not throw the right exception for a Transaction when attributes could not be retrieved.",
                 () -> badMapper.getOrAssignStreamSegmentId(transactionName2, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
+    }
+
+    /**
+     * Tests the ability of getOrAssignStreamSegmentId to handle the TooManyActiveSegmentsException.
+     */
+    @Test
+    public void testGetOrAssignStreamSegmentIdWithMetadataLimit() throws Exception {
+        final String segmentName = "Segment";
+        final String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+
+        HashSet<String> storageSegments = new HashSet<>();
+        storageSegments.add(segmentName);
+        storageSegments.add(transactionName);
+
+        @Cleanup
+        TestContext context = new TestContext();
+        setupStorageGetHandler(context, storageSegments, name -> new StreamSegmentInformation(name, 0, false, false, new ImmutableDate()));
+
+        // 1. Verify the behavior when even after the retry we still cannot map.
+        AtomicInteger exceptionCounter = new AtomicInteger();
+        AtomicBoolean cleanupInvoked = new AtomicBoolean();
+
+        // We use 'containerId' as a proxy for the exception id (to make sure we collect the right one).
+        context.operationLog.addHandler = op -> FutureHelpers.failedFuture(new TooManyActiveSegmentsException(exceptionCounter.incrementAndGet(), 0));
+        Supplier<CompletableFuture<Void>> noOpCleanup = () -> {
+            if (!cleanupInvoked.compareAndSet(false, true)) {
+                return FutureHelpers.failedFuture(new AssertionError("Cleanup invoked multiple times/"));
+            }
+            return CompletableFuture.completedFuture(null);
+        };
+        val mapper1 = new StreamSegmentMapper(context.metadata, context.operationLog, context.stateStore, noOpCleanup, context.storage, executorService());
+        AssertExtensions.assertThrows(
+                "Unexpected outcome when trying to map a segment name to a full metadata that cannot be cleaned.",
+                () -> mapper1.getOrAssignStreamSegmentId(segmentName, TIMEOUT),
+                ex -> ex instanceof TooManyActiveSegmentsException && ((TooManyActiveSegmentsException) ex).getContainerId() == exceptionCounter.get());
+        Assert.assertEquals("Unexpected number of attempts to map.", 2, exceptionCounter.get());
+        Assert.assertTrue("Cleanup was not invoked.", cleanupInvoked.get());
+
+        // Now with a transaction.
+        exceptionCounter.set(0);
+        cleanupInvoked.set(false);
+        AssertExtensions.assertThrows(
+                "Unexpected outcome when trying to map a segment name to a full metadata that cannot be cleaned.",
+                () -> mapper1.getOrAssignStreamSegmentId(transactionName, TIMEOUT),
+                ex -> ex instanceof TooManyActiveSegmentsException && ((TooManyActiveSegmentsException) ex).getContainerId() == exceptionCounter.get());
+        Assert.assertEquals("Unexpected number of attempts to map.", 2, exceptionCounter.get());
+        Assert.assertTrue("Cleanup was not invoked.", cleanupInvoked.get());
+
+        // 2. Verify the behavior when the first call fails, but the second one succeeds.
+        exceptionCounter.set(0);
+        cleanupInvoked.set(false);
+        Supplier<CompletableFuture<Void>> workingCleanup = () -> {
+            if (!cleanupInvoked.compareAndSet(false, true)) {
+                return FutureHelpers.failedFuture(new AssertionError("Cleanup invoked multiple times."));
+            }
+
+            setupOperationLog(context); // Setup the OperationLog to function correctly.
+            return CompletableFuture.completedFuture(null);
+        };
+
+        val mapper2 = new StreamSegmentMapper(context.metadata, context.operationLog, context.stateStore, workingCleanup, context.storage, executorService());
+        long id = mapper2.getOrAssignStreamSegmentId(segmentName, TIMEOUT).join();
+        Assert.assertEquals("Unexpected number of attempts to map.", 1, exceptionCounter.get());
+        Assert.assertTrue("Cleanup was not invoked.", cleanupInvoked.get());
+        Assert.assertNotEquals("No valid SegmentId assigned.", ContainerMetadata.NO_STREAM_SEGMENT_ID, id);
     }
 
     /**
@@ -454,7 +507,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         };
     }
 
-    private void setupStorageGetHandler(TestContext context, HashSet<String> storageSegments, Function<String, SegmentProperties> infoGetter) {
+    private void setupStorageGetHandler(TestContext context, Set<String> storageSegments, Function<String, SegmentProperties> infoGetter) {
         context.storage.getInfoHandler = segmentName -> {
             synchronized (storageSegments) {
                 if (!storageSegments.contains(segmentName)) {
@@ -469,6 +522,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     //region TestContext
 
     private class TestContext implements AutoCloseable {
+        final Supplier<CompletableFuture<Void>> noOpMetadataCleanup = () -> CompletableFuture.completedFuture(null);
         final UpdateableContainerMetadata metadata;
         final TestStorage storage;
         final TestOperationLog operationLog;
@@ -480,7 +534,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
             this.operationLog = new TestOperationLog();
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.stateStore = new InMemoryStateStore();
-            this.mapper = new StreamSegmentMapper(this.metadata, this.operationLog, this.stateStore, this.storage, executorService());
+            this.mapper = new StreamSegmentMapper(this.metadata, this.operationLog, this.stateStore, noOpMetadataCleanup, this.storage, executorService());
         }
 
         @Override

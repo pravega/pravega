@@ -3,6 +3,7 @@
  */
 package com.emc.pravega.service.server.containers;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
@@ -14,6 +15,7 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.contracts.TooManyActiveSegmentsException;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.OperationLog;
@@ -32,6 +34,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +51,7 @@ public class StreamSegmentMapper {
     private final ContainerMetadata containerMetadata;
     private final OperationLog durableLog;
     private final AsyncMap<String, SegmentState> stateStore;
+    private final Supplier<CompletableFuture<Void>> metadataCleanup;
     private final Storage storage;
     private final Executor executor;
     @GuardedBy("assignmentLock")
@@ -65,14 +69,18 @@ public class StreamSegmentMapper {
      *                          but the Metadata is not touched directly from this component.
      * @param durableLog        The Durable Log to bind to. All assignments are durably stored here.
      * @param stateStore        A AsyncMap that can be used to store Segment State.
+     * @param metadataCleanup   A callback returning a CompletableFuture that will be invoked when a foced metadata cleanup
+     *                          is requested.
      * @param storage           The Storage to use for all external operations (create segment, get info, etc.)
      * @param executor          The executor to use for async operations.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public StreamSegmentMapper(ContainerMetadata containerMetadata, OperationLog durableLog, AsyncMap<String, SegmentState> stateStore, Storage storage, Executor executor) {
+    public StreamSegmentMapper(ContainerMetadata containerMetadata, OperationLog durableLog, AsyncMap<String, SegmentState> stateStore,
+                               Supplier<CompletableFuture<Void>> metadataCleanup, Storage storage, Executor executor) {
         Preconditions.checkNotNull(containerMetadata, "containerMetadata");
         Preconditions.checkNotNull(durableLog, "durableLog");
         Preconditions.checkNotNull(stateStore, "stateStore");
+        Preconditions.checkNotNull(metadataCleanup, "metadataCleanup");
         Preconditions.checkNotNull(storage, "storage");
         Preconditions.checkNotNull(executor, "executor");
 
@@ -80,6 +88,7 @@ public class StreamSegmentMapper {
         this.containerMetadata = containerMetadata;
         this.durableLog = durableLog;
         this.stateStore = stateStore;
+        this.metadataCleanup = metadataCleanup;
         this.storage = storage;
         this.executor = executor;
         this.pendingRequests = new HashMap<>();
@@ -87,7 +96,7 @@ public class StreamSegmentMapper {
 
     //endregion
 
-    //region Operations
+    //region Create Segments
 
     /**
      * Creates a new StreamSegment with given name (in Storage) and persists the given attributes (in Storage).
@@ -161,6 +170,10 @@ public class StreamSegmentMapper {
                     return transactionName;
                 });
     }
+
+    //endregion
+
+    //region Segment Id Assignment
 
     /**
      * Attempts to get an existing StreamSegmentId for the given case-sensitive StreamSegment Name.
@@ -254,7 +267,7 @@ public class StreamSegmentMapper {
     private CompletableFuture<Long> assignTransactionStreamSegmentId(SegmentProperties transInfo, long parentStreamSegmentId, Duration timeout) {
         assert transInfo != null : "transInfo is null";
         assert parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID : "parentStreamSegmentId is invalid.";
-        return persistInDurableLog(transInfo, parentStreamSegmentId, timeout);
+        return submitToOperationLogWithRetry(transInfo, parentStreamSegmentId, timeout);
     }
 
     /**
@@ -270,7 +283,7 @@ public class StreamSegmentMapper {
                         .open(streamSegmentName)
                         .thenComposeAsync(bool -> this.storage.getStreamSegmentInfo(streamSegmentName, timer.getRemaining()), this.executor)
                         .thenComposeAsync(si -> retrieveAttributes(si, timer.getRemaining()), this.executor)
-                        .thenComposeAsync(si -> persistInDurableLog(si, timer.getRemaining()), this.executor),
+                        .thenComposeAsync(si -> submitToOperationLogWithRetry(si, ContainerMetadata.NO_STREAM_SEGMENT_ID, timer.getRemaining()), this.executor),
                 streamSegmentName);
     }
 
@@ -323,24 +336,33 @@ public class StreamSegmentMapper {
     }
 
     /**
-     * Generates a unique Id for the StreamSegment with given info and persists that in DurableLog.
-     *
-     * @param streamSegmentInfo The SegmentProperties for the StreamSegment to generate and persist.
-     * @param timeout           Timeout for the operation.
-     */
-    private CompletableFuture<Long> persistInDurableLog(SegmentProperties streamSegmentInfo, Duration timeout) {
-        return persistInDurableLog(streamSegmentInfo, ContainerMetadata.NO_STREAM_SEGMENT_ID, timeout);
-    }
-
-    /**
-     * Generates a unique Id for the StreamSegment with given info and persists that in DurableLog.
+     * Same as submitToOperationLog, but retries exactly once in case TooManyActiveSegmentsException was encountered, in
+     * which case it forces a metadata cleanup before retrying. If the second attempt also fails, there will be no more retry
+     * and the Exception from the second failure will be the one that this call fails with too.
      *
      * @param streamSegmentInfo     The SegmentProperties for the StreamSegment to generate and persist.
      * @param parentStreamSegmentId If different from ContainerMetadata.NO_STREAM_SEGMENT_ID, the given streamSegmentInfo
-     *                              will be mapped as a f. Otherwise, this will be registered as a standalone StreamSegment.
+     *                              will be mapped as a transaction. Otherwise, this will be registered as a standalone StreamSegment.
      * @param timeout               Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain the internal SegmentId that was assigned. If the operation
+     * failed, then this Future will complete with that exception.
      */
-    private CompletableFuture<Long> persistInDurableLog(SegmentProperties streamSegmentInfo, long parentStreamSegmentId, Duration timeout) {
+    private CompletableFuture<Long> submitToOperationLogWithRetry(SegmentProperties streamSegmentInfo, long parentStreamSegmentId, Duration timeout) {
+        return retryWithCleanup(() -> submitToOperationLog(streamSegmentInfo, parentStreamSegmentId, timeout));
+    }
+
+    /**
+     * Submits a StreamSegmentMapOperation or TransactionMapOperation to the OperationLog. Upon completion, this operation
+     * will have mapped the given Segment to a new internal Segment Id.
+     *
+     * @param streamSegmentInfo     The SegmentProperties for the StreamSegment to generate and persist.
+     * @param parentStreamSegmentId If different from ContainerMetadata.NO_STREAM_SEGMENT_ID, the given streamSegmentInfo
+     *                              will be mapped as a transaction. Otherwise, this will be registered as a standalone StreamSegment.
+     * @param timeout               Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain the internal SegmentId that was assigned. If the operation
+     * failed, then this Future will complete with that exception.
+     */
+    private CompletableFuture<Long> submitToOperationLog(SegmentProperties streamSegmentInfo, long parentStreamSegmentId, Duration timeout) {
         if (streamSegmentInfo.isDeleted()) {
             // Stream does not exist. Fail the request with the appropriate exception.
             failAssignment(streamSegmentInfo.getName(), new StreamSegmentNotExistsException("StreamSegment does not exist."));
@@ -428,6 +450,41 @@ public class StreamSegmentMapper {
 
     private boolean isValidStreamSegmentId(long id) {
         return id != ContainerMetadata.NO_STREAM_SEGMENT_ID;
+    }
+
+    /**
+     * Retries Future from the given supplier exactly once if encountering TooManyActiveSegmentsException.
+     *
+     * @param toTry A Supplier that returns a Future to execute. This will be invoked either once or twice.
+     * @param <T>   Return type of Future.
+     * @return A CompletableFuture with the result, or failure cause.
+     */
+    private <T> CompletableFuture<T> retryWithCleanup(Supplier<CompletableFuture<T>> toTry) {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        toTry.get()
+             .thenAccept(result::complete)
+             .exceptionally(ex -> {
+                 // Check if the exception indicates the Metadata has reached capacity. In that case, force a cleanup
+                 // and try again, exactly once.
+                 try {
+                     if (ExceptionHelpers.getRealException(ex) instanceof TooManyActiveSegmentsException) {
+                         log.debug("{}: Forcing metadata cleanup due to capacity exceeded ({}).", this.traceObjectId,
+                                 ExceptionHelpers.getRealException(ex).getMessage());
+                         CompletableFuture<T> f = this.metadataCleanup.get().thenComposeAsync(v -> toTry.get(), this.executor);
+                         f.thenAccept(result::complete);
+                         FutureHelpers.exceptionListener(f, result::completeExceptionally);
+                     } else {
+                         result.completeExceptionally(ex);
+                     }
+                 } catch (Throwable t) {
+                     result.completeExceptionally(t);
+                     throw t;
+                 }
+
+                 return null;
+             });
+
+        return result;
     }
 
     //endregion
