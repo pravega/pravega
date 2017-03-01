@@ -1,18 +1,19 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.demo;
 
+import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
+import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
+import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.ZKStreamMetadataStore;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
@@ -22,6 +23,10 @@ import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.stream.impl.Controller;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import lombok.Getter;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -29,13 +34,18 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
-
 public class ControllerWrapper {
 
-    public static Controller getController(String connectionString) throws Exception {
+    @Getter
+    private final ControllerService controllerService;
+    @Getter
+    private final Controller controller;
+
+    public ControllerWrapper(String connectionString) throws Exception {
+        this(connectionString, false);
+    }
+
+    public ControllerWrapper(String connectionString, boolean disableEventProcessor) throws Exception {
         String hostId;
         try {
             // On each controller process restart, it gets a fresh hostId,
@@ -54,33 +64,43 @@ public class ControllerWrapper {
 
         StoreClient storeClient = new ZKStoreClient(client);
 
-        StreamMetadataStore streamStore = new ZKStreamMetadataStore(client, executor);
+        ZKStreamMetadataStore streamStore = new ZKStreamMetadataStore(client, executor);
 
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
 
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
+        SegmentHelper segmentHelper = new SegmentHelper();
+
+        //2) start RPC server with v1 implementation. Enable other versions if required.
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                executor, hostId);
+                segmentHelper, executor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, executor, hostId);
+                hostStore, taskMetadataStore, segmentHelper, executor, hostId);
+
         TimeoutService timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 100000);
 
-        ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService);
+        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, timeoutService, segmentHelper, executor);
+
+        RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
+
+        RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);
 
         //region Setup Event Processors
         LocalController localController = new LocalController(controllerService);
 
-        ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
-                client, streamStore, hostStore);
+        if (!disableEventProcessor) {
+            ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
+                    client, streamStore, hostStore, segmentHelper);
 
-        controllerEventProcessors.initialize();
+            controllerEventProcessors.initialize();
 
-        streamTransactionMetadataTasks.initializeStreamWriters(localController);
+            streamTransactionMetadataTasks.initializeStreamWriters(localController);
+        }
         //endregion
 
-        return new LocalController(controllerService);
+        controller = new LocalController(controllerService);
     }
 }
 

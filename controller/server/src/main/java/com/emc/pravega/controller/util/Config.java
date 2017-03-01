@@ -71,4 +71,13 @@ public final class Config {
     //Transaction configuration
     public static final long MAX_LEASE_VALUE = CONFIG.getLong("config.controller.server.transaction.maxLeaseValue");
     public static final long MAX_SCALE_GRACE_PERIOD = CONFIG.getLong("config.controller.server.transaction.maxScaleGracePeriod");
+
+    public static final String INTERNAL_SCOPE = CONFIG.getString("config.controller.server.internal.scope");
+
+    // Request Stream Configuration
+    public static final String SCALE_STREAM_NAME = CONFIG.getString("config.controller.server.internal.scale.streamName");
+
+    // Request Stream readerGroup
+    public static final String SCALE_READER_GROUP = CONFIG.getString("config.controller.server.internal.scale.readerGroup.name");
+    public static final String SCALE_READER_ID = CONFIG.getString("config.controller.server.internal.scale.readerGroup.readerId");
 }

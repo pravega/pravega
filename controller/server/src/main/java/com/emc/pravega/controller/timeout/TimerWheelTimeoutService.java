@@ -78,7 +78,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
             TxnData txnData = map.get(key);
 
             log.debug("Executing timeout task for txn {}", key);
-            streamTransactionMetadataTasks.abortTxn(scope, stream, txnId, Optional.of(txnData.getVersion()))
+            streamTransactionMetadataTasks.abortTxn(scope, stream, txnId, Optional.of(txnData.getVersion()), null)
                     .handle((ok, ex) -> {
                         // If abort attempt fails because of (1) version mismatch, or (2) node not found,
                         // ignore the timeout task.

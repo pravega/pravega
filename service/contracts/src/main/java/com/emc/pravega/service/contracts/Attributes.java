@@ -28,6 +28,16 @@ public final class Attributes {
     public static final UUID EVENT_COUNT = new UUID(WELL_KNOWN_ID_PREFIX, 1);
 
     /**
+     * Defines an attribute that is used to keep scale policy type for stream segment.
+     */
+    public static final UUID SCALE_POLICY_TYPE = new UUID(WELL_KNOWN_ID_PREFIX, 2);
+
+    /**
+     * Defines an attribute that is used to keep scale policy rate for stream segment.
+     */
+    public static final UUID SCALE_POLICY_RATE = new UUID(WELL_KNOWN_ID_PREFIX, 3);
+
+    /**
      * Determines whether the given Attribute Id refers to a dynamic attribute (vs a well-known one).
      *
      * @param attributeId The Attribute Id to check.

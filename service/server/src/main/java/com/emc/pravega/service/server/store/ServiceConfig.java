@@ -7,6 +7,7 @@ package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
+import lombok.Getter;
 
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
@@ -27,6 +28,9 @@ public class ServiceConfig extends ComponentConfig {
     public static final String PROPERTY_ZK_RETRY_SLEEP_MS = "zkRetrySleepMs";
     public static final String PROPERTY_ZK_RETRY_COUNT = "zkRetryCount";
     public static final String PROPERTY_CLUSTER_NAME = "clusterName";
+    public static final String PROPERTY_CONTROLLER_URI = "controllerUri";
+    public static final String PROPERTY_REQUEST_STREAM = "internalRequestStream";
+    public static final String PROPERTY_INTERNAL_SCOPE = "internalScope";
 
     private static final int DEFAULT_LISTENING_PORT = 12345;
     private static final int DEFAULT_THREAD_POOL_SIZE = 50;
@@ -36,6 +40,9 @@ public class ServiceConfig extends ComponentConfig {
 
     private static final int DEFAULT_ZK_RETRY_COUNT = 5;
     private static final String DEFAULT_CLUSTER_NAME = "pravega-cluster";
+    private static final String DEFAULT_CONTROLLER_URI = "tcp://localhost:9090";
+    private static final String DEFAULT_INTERNAL_SCOPE = "pravega";
+    private static final String DEFAULT_REQUEST_STREAM = "requeststream";
 
     private int containerCount;
     private int threadPoolSize;
@@ -45,6 +52,13 @@ public class ServiceConfig extends ComponentConfig {
     private int zkRetrySleepMs;
     private int zkRetryCount;
     private String clusterName;
+
+    @Getter
+    private String controllerUri;
+    @Getter
+    private String internalScope;
+    @Getter
+    private String internalRequestStream;
 
     //endregion
 
@@ -143,6 +157,9 @@ public class ServiceConfig extends ComponentConfig {
         this.zkRetrySleepMs = getInt32Property(PROPERTY_ZK_RETRY_SLEEP_MS, DEFAULT_ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = getInt32Property(PROPERTY_ZK_RETRY_COUNT, DEFAULT_ZK_RETRY_COUNT);
         this.clusterName = getProperty(PROPERTY_CLUSTER_NAME, DEFAULT_CLUSTER_NAME);
+        this.controllerUri = getProperty(PROPERTY_CONTROLLER_URI, DEFAULT_CONTROLLER_URI);
+        this.internalScope = getProperty(PROPERTY_INTERNAL_SCOPE, DEFAULT_INTERNAL_SCOPE);
+        this.internalRequestStream = getProperty(PROPERTY_REQUEST_STREAM, DEFAULT_REQUEST_STREAM);
     }
 
     private static String getHostAddress() {

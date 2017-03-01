@@ -20,6 +20,8 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import io.netty.buffer.Unpooled;
+
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
@@ -27,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import static com.emc.pravega.service.contracts.Attributes.EVENT_COUNT;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -276,7 +279,9 @@ public class AppendProcessorTest {
     }
 
     private Collection<AttributeUpdate> updateEventNumber(UUID clientId, long newValue) {
-        return Collections.singleton(new AttributeUpdate(clientId, AttributeUpdateType.ReplaceIfGreater, newValue));
+        return Arrays.asList(
+                new AttributeUpdate(clientId, AttributeUpdateType.ReplaceIfGreater, newValue),
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, 1));
     }
 
     private void setupGetStreamSegmentInfo(String streamSegmentName, UUID clientId, StreamSegmentStore store) {

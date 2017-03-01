@@ -18,6 +18,7 @@ import com.emc.pravega.common.netty.CommandEncoder;
 import com.emc.pravega.common.netty.ExceptionLoggingHandler;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 
+import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
@@ -49,11 +50,17 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private Channel serverChannel;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
+    private final SegmentStatsRecorder statsRecorder;
 
     public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
+        this(ssl, port, streamSegmentStore, null);
+    }
+
+    public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore, SegmentStatsRecorder statsRecorder) {
         this.ssl = ssl;
         this.port = port;
         this.store = streamSegmentStore;
+        this.statsRecorder = statsRecorder;
         InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
     }
 
@@ -102,7 +109,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          lsh);
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
-                         new PravegaRequestProcessor(store, lsh)));
+                         new PravegaRequestProcessor(store, lsh, statsRecorder),
+                         statsRecorder));
              }
          });
 
