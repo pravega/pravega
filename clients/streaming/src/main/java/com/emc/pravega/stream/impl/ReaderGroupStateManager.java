@@ -10,15 +10,15 @@ import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.impl.ReaderGroupState.AddReader;
 import com.emc.pravega.stream.impl.ReaderGroupState.AcquireSegment;
+import com.emc.pravega.stream.impl.ReaderGroupState.AddReader;
+import com.emc.pravega.stream.impl.ReaderGroupState.CheckpointReader;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReleaseSegment;
 import com.emc.pravega.stream.impl.ReaderGroupState.RemoveReader;
 import com.emc.pravega.stream.impl.ReaderGroupState.SegmentCompleted;
 import com.emc.pravega.stream.impl.ReaderGroupState.UpdateDistanceToTail;
 import com.google.common.base.Preconditions;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,10 +31,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import lombok.val;
 
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
-
-import lombok.val;
 
 /**
  * Manages the state of the reader group on behalf of a reader.
@@ -289,5 +288,15 @@ public class ReaderGroupStateManager {
 
     private Duration calculateAcquireTime(ReaderGroupState state) {
         return TIME_UNIT.multipliedBy(state.getNumberOfReaders() - state.getRanking(readerId));
+    }
+    
+    String getCheckpoint() {
+        return sync.getState().getCheckpointsForReader(readerId);
+    }
+    
+    void checkpoint(String checkpointName, PositionInternal lastPosition) {
+        sync.updateState(state -> {
+            return Collections.singletonList(new CheckpointReader(checkpointName, readerId, lastPosition.getOwnedSegmentsWithOffsets()));
+        });
     }
 }

@@ -6,6 +6,8 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.ClientFactory;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.stream.Checkpoint;
@@ -14,17 +16,17 @@ import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
+import com.emc.pravega.stream.impl.ReaderGroupState.ClearCheckpoints;
+import com.emc.pravega.stream.impl.ReaderGroupState.CreateCheckpoint;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateInit;
 import com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 import com.google.common.annotations.VisibleForTesting;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
-
 import lombok.Data;
-
 import org.apache.commons.lang.NotImplementedException;
 
 @Data
@@ -73,7 +75,25 @@ public class ReaderGroupImpl implements ReaderGroup {
 
     @Override
     public Future<Checkpoint> initiateCheckpoint(String checkpointName) {
-        throw new NotImplementedException();
+        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(groupName,
+                                                                                                 updateSerializer,
+                                                                                                 initSerializer,
+                                                                                                 synchronizerConfig);
+        synchronizer.fetchUpdates();
+        synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointName));
+        boolean checkpointCompleted;
+        do {
+            Exceptions.handleInterrupted(()->Thread.sleep(2000));
+            synchronizer.fetchUpdates();
+            checkpointCompleted = synchronizer.getState().isCheckpointComplete(checkpointName);
+        } while (checkpointCompleted);
+        Map<Segment, Long> map = synchronizer.getState().getPositionsForCompletedCheckpoint(checkpointName);
+        synchronizer.updateStateUnconditionally(new ClearCheckpoints(checkpointName));
+        if (map != null) {
+            return CompletableFuture.completedFuture(new CheckpointImpl(checkpointName, map));
+        } else {
+            return FutureHelpers.failedFuture(new CheckpointFailedException("Checkpoint was cleared before results could be read."));
+        }
     }
 
     @Override

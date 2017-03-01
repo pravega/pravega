@@ -13,7 +13,6 @@ import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
-
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -23,9 +22,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -43,6 +40,8 @@ class ReaderGroupState implements Revisioned {
     private final ReaderGroupConfig config;
     @GuardedBy("$lock")
     private Revision revision;
+    @GuardedBy("$lock")
+    private final CheckpointState checkpointState = new CheckpointState();
     @GuardedBy("$lock")
     private final Map<String, Long> distanceToTail = new HashMap<>();
     @GuardedBy("$lock")
@@ -167,8 +166,24 @@ class ReaderGroupState implements Revisioned {
         return result;
     }
     
+    @Synchronized
+    public String getCheckpointsForReader(String readerName) {
+        return checkpointState.getCheckpointForReader(readerName);
+    }
+    
+    @Synchronized
+    public boolean isCheckpointComplete(String checkpointId) {
+        return checkpointState.isCheckpointComplete(checkpointId);
+    }
+    
+    @Synchronized
+    public Map<Segment, Long> getPositionsForCompletedCheckpoint(String checkpointId) {
+        return checkpointState.getPositionsForCompletedCheckpoint(checkpointId);
+    }
+    
     @RequiredArgsConstructor
     static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState>, Serializable {
+        private static final long serialVersionUID = 1L;
         private final ReaderGroupConfig config;
         private final Map<Segment, Long> segments;
         
@@ -182,6 +197,8 @@ class ReaderGroupState implements Revisioned {
      * Abstract class from which all state updates extend.
      */
     static abstract class ReaderGroupStateUpdate implements Update<ReaderGroupState>, Serializable {
+        private static final long serialVersionUID = 1L;
+
         @Override
         public ReaderGroupState applyTo(ReaderGroupState oldState, Revision newRevision) {
             synchronized (oldState.$lock) {
@@ -205,6 +222,7 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class AddReader extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
         private final String readerId;
 
         /**
@@ -225,6 +243,7 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class RemoveReader extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
         private final String readerId;
         private final PositionInternal lastPosition;
         
@@ -246,6 +265,7 @@ class ReaderGroupState implements Revisioned {
                 }
             }
             state.distanceToTail.remove(readerId);
+            state.checkpointState.removeReader(readerId, lastPosition.getOwnedSegmentsWithOffsets());
         }
     }
 
@@ -254,6 +274,7 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class ReleaseSegment extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
         private final String readerId;
         private final Segment segment;
         private final long offset;
@@ -278,6 +299,7 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class AcquireSegment extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
         private final String readerId;
         private final Segment segment;
 
@@ -300,6 +322,7 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class UpdateDistanceToTail extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
         private final String readerId;
         private final long distanceToTail;
         
@@ -317,6 +340,7 @@ class ReaderGroupState implements Revisioned {
      */
     @RequiredArgsConstructor
     static class SegmentCompleted extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
         private final String readerId;
         private final Segment segmentCompleted;
         private final Map<Segment, List<Integer>> successorsMappedToTheirPredecessors; //Immutable
@@ -352,6 +376,48 @@ class ReaderGroupState implements Revisioned {
         }
     }
     
+    @RequiredArgsConstructor
+    static class CheckpointReader extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
+        private final String checkpointId;
+        private final String readerId;
+        private final Map<Segment, Long> positions; //Immutable
+        
+        /**
+         * @see com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate#update(com.emc.pravega.stream.impl.ReaderGroupState)
+         */
+        @Override
+        void update(ReaderGroupState state) {
+            state.checkpointState.readerCheckpointed(checkpointId, readerId, positions);
+        }
+    }
     
+    @RequiredArgsConstructor
+    static class CreateCheckpoint extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
+        private final String checkpointId;
+        
+        /**
+         * @see com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate#update(com.emc.pravega.stream.impl.ReaderGroupState)
+         */
+        @Override
+        void update(ReaderGroupState state) {
+            state.checkpointState.beginNewCheckpoint(checkpointId, state.getOnlineReaders());
+        }
+    }
     
+    @RequiredArgsConstructor
+    static class ClearCheckpoints extends ReaderGroupStateUpdate {
+        private static final long serialVersionUID = 1L;
+        private final String beforeWhichToClear;
+        
+        /**
+         * @see com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate#update(com.emc.pravega.stream.impl.ReaderGroupState)
+         */
+        @Override
+        void update(ReaderGroupState state) {
+            state.checkpointState.clearCheckpointsBefore(beforeWhichToClear);
+        }
+    }
+
 }

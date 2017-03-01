@@ -1,17 +1,16 @@
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.stream.Segment;
+import com.google.common.base.Preconditions;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-
+import java.util.OptionalInt;
+import java.util.Set;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
-
-import com.emc.pravega.stream.Segment;
-import com.google.common.base.Preconditions;
-
 import lombok.Synchronized;
 
 public class CheckpointState {
@@ -23,7 +22,7 @@ public class CheckpointState {
     private final Map<String, Map<Segment, Long>> checkpointPositions = new HashMap<>(); // Maps CheckpointId to positions in segments.
     
     @Synchronized
-    void beginNewCheckpoint(String checkpointId, List<String> currentReaders) {
+    void beginNewCheckpoint(String checkpointId, Set<String> currentReaders) {
         if (!checkpointPositions.containsKey(checkpointId)) {
             uncheckpointedHosts.put(checkpointId, new ArrayList<>(currentReaders));
             checkpointPositions.put(checkpointId, new HashMap<>());
@@ -32,23 +31,31 @@ public class CheckpointState {
     }
     
     @Synchronized
-    List<String> getCheckpointsForReader(String readerName) {
-        List<String> result = new ArrayList<>(1);
-        for (Entry<String, List<String>> entry : uncheckpointedHosts.entrySet()) {
-            if (entry.getValue().contains(readerName)) {
-                result.add(entry.getKey());
-            }
+    String getCheckpointForReader(String readerName) {
+        OptionalInt min = getCheckpointsForReader(readerName).stream().mapToInt(cp -> checkpoints.indexOf(cp)).min();
+        if (min.isPresent()) {
+            return checkpoints.get(min.getAsInt());
+        } else {
+            return null;
         }
-        return result;
     }
     
+    private List<String> getCheckpointsForReader(String readerName) {
+        return uncheckpointedHosts.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().contains(readerName))
+            .map(entry -> entry.getKey())
+            .collect(Collectors.toList());
+    }
+
     @Synchronized
-    void readerDied(String readerName, Map<Segment, Long> position) {
+    void removeReader(String readerName, Map<Segment, Long> position) {
         for (String checkpointId : getCheckpointsForReader(readerName)) {            
             readerCheckpointed(checkpointId, readerName, position);
         }
     }
     
+
     @Synchronized
     void readerCheckpointed(String checkpointId, String readerName, Map<Segment, Long> position) {
         List<String> readers = uncheckpointedHosts.get(checkpointId);
@@ -64,15 +71,8 @@ public class CheckpointState {
     }
     
     @Synchronized
-    Boolean isCheckpointCompleted(String checkpointId) { 
-        if (!checkpointPositions.containsKey(checkpointId)) {
-            return null;
-        }
-        if (uncheckpointedHosts.containsKey(checkpointId)) {
-            return false;
-        } else {
-            return true;
-        }
+    boolean isCheckpointComplete(String checkpointId) {
+        return !uncheckpointedHosts.containsKey(checkpointId);
     }
     
     @Synchronized
