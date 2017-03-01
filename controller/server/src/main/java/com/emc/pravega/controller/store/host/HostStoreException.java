@@ -1,14 +1,14 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.store.host;
+
+import com.emc.pravega.controller.retryable.RetryableException;
 
 /**
  * This exception is thrown on errors from the HostControllerStore implementation.
  */
-public class HostStoreException extends RuntimeException {
+public class HostStoreException extends RuntimeException implements RetryableException {
 
     /**
      * Create a HostStoreException using a text cause.

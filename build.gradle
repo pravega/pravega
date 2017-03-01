@@ -280,6 +280,7 @@ project('service:server:host') {
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
+        compile project(':clients:streaming')
         compile project(':service:storage')
         compile project(':service:storage:impl')
         compile project(':service:server')
@@ -558,6 +559,7 @@ project('systemtests:tests') {
 
     //This is  used to invoke systemTests
     task startSystemTests(type: Test) {
+        dependsOn 'publish'
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
         testClassesDir = sourceSets.test.output.classesDir
         classpath = sourceSets.test.runtimeClasspath
@@ -572,8 +574,10 @@ project('systemtests:tests') {
         if (System.getProperty("masterIP") == null) {
             systemProperty "masterIP", "INVALID_MASTER_IP"
         }
+        maxParallelForks = 1
+        systemProperty "dockerImageRegistry", project.property("dockerRegistryUrl")
         systemProperty "testVersion", project.property("pravegaVersion")
-        systemProperty "testArtifactUrl", project.property('testArtifactUrl') + "/pravega/systemtests/"+pravegaVersion+"/systemtests-"+pravegaVersion+".jar"
+        systemProperty "testArtifactUrl", project.property('repoUrl') + "/pravega/systemtests/"+pravegaVersion+"/systemtests-"+pravegaVersion+".jar"
     }
     publishing {
         publications {

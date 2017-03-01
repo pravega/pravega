@@ -14,6 +14,7 @@ import com.emc.pravega.controller.eventProcessor.ExceptionHandler;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import com.emc.pravega.controller.eventProcessor.EventProcessorSystem;
 import com.emc.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
+import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
@@ -44,16 +45,19 @@ public class ControllerEventProcessors {
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final EventProcessorSystem system;
+    private final SegmentHelper segmentHelper;
 
     public ControllerEventProcessors(final String host,
                                      final Controller controller,
                                      final CuratorFramework client,
                                      final StreamMetadataStore streamMetadataStore,
-                                     final HostControllerStore hostControllerStore) {
+                                     final HostControllerStore hostControllerStore,
+                                     final SegmentHelper segmentHelper) {
         this.controller = controller;
         this.client = client;
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
+        this.segmentHelper = segmentHelper;
         this.system = new EventProcessorSystemImpl("Controller", host, CONTROLLER_SCOPE, controller);
     }
 
@@ -79,7 +83,7 @@ public class ControllerEventProcessors {
 
         // region Create commit and abort streams
 
-        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0L, 0, 5);
+        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 5);
         StreamConfiguration commitStreamConfig =
                 StreamConfiguration.builder()
                         .scope(CONTROLLER_SCOPE)
@@ -144,7 +148,7 @@ public class ControllerEventProcessors {
                         .config(commitReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(COMMIT_EVENT_SERIALIZER)
-                        .supplier(() -> new CommitEventProcessor(streamMetadataStore, hostControllerStore, executor))
+                        .supplier(() -> new CommitEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper))
                         .build();
 
         Retry.withExpBackoff(delay, multiplier, attempts, maxDelay)
@@ -184,7 +188,7 @@ public class ControllerEventProcessors {
                         .config(abortReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(ABORT_EVENT_SERIALIZER)
-                        .supplier(() -> new AbortEventProcessor(streamMetadataStore, hostControllerStore, executor))
+                        .supplier(() -> new AbortEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper))
                         .build();
 
         Retry.withExpBackoff(delay, multiplier, attempts, maxDelay)

@@ -5,6 +5,7 @@
 build
 .classpath
 bin/
+classes/
 .settings
 .gradle
 output

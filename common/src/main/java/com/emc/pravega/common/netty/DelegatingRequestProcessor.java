@@ -56,6 +56,12 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
     }
 
     @Override
+    public void updateSegmentPolicy(WireCommands.UpdateSegmentPolicy updateSegmentPolicy) {
+        getNextRequestProcessor().updateSegmentPolicy(updateSegmentPolicy);
+    }
+
+
+    @Override
     public void createTransaction(CreateTransaction createTransaction) {
         getNextRequestProcessor().createTransaction(createTransaction);
     }
