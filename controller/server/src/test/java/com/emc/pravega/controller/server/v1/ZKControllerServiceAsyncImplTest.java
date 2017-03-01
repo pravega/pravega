@@ -17,6 +17,8 @@ import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.emc.pravega.controller.timeout.TimeoutService;
+import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -42,6 +44,7 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceAsyncImpl
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private StreamMetadataStore streamStore;
     private SegmentHelper segmentHelper;
+    private TimeoutService timeoutService;
 
     @Override
     public void setupStore() throws Exception {
@@ -62,12 +65,13 @@ public class ZKControllerServiceAsyncImplTest extends ControllerServiceAsyncImpl
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executorService, "host");
 
-        streamTransactionMetadataTasks =
-                new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host");
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
+                streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host");
+        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 10000);
 
         controllerService = new ControllerServiceAsyncImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                        new SegmentHelper(), executorService));
+                        timeoutService, new SegmentHelper(), executorService));
     }
 
     @Override

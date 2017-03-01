@@ -30,6 +30,7 @@ import com.emc.pravega.stream.impl.JavaSerializer;
 import com.google.common.base.Preconditions;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
@@ -40,6 +41,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * End-to-end tests for event processor.
  */
+@Slf4j
 public class EventProcessorTest {
 
     public static class TestEventProcessor extends EventProcessor<TestEvent> {
@@ -111,7 +113,7 @@ public class EventProcessorTest {
         final StreamConfiguration config = StreamConfiguration.builder()
                 .scope(scope)
                 .streamName(streamName)
-                .scalingPolicy(new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 1))
+                .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
 
         System.err.println(String.format("Creating stream (%s, %s)", scope, streamName));
@@ -169,11 +171,13 @@ public class EventProcessorTest {
 
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());
-        System.err.println("SUCCESS: received expected sum");
+        log.info("SUCCESS: received expected sum = " + expectedSum);
 
         producer.close();
         eventEventProcessorGroup.stopAll();
         server.close();
         zkTestServer.close();
+
+        System.exit(0);
     }
 }

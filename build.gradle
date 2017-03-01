@@ -374,6 +374,12 @@ project('integrationtests') {
         standardInput = System.in
     }
 
+    task startEndToEndTransactionTest(type: JavaExec) {
+        main = "com.emc.pravega.demo.EndToEndTransactionTest"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+    }
+
     task startEventProcessorTest(type: JavaExec) {
         main = "com.emc.pravega.demo.EventProcessorTest"
         classpath = sourceSets.main.runtimeClasspath

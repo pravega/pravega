@@ -16,6 +16,8 @@ import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.emc.pravega.controller.timeout.TimeoutService;
+import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import java.io.IOException;
@@ -34,6 +36,7 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceAsy
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private StreamMetadataStore streamStore;
     private SegmentHelper segmentHelper;
+    private TimeoutService timeoutService;
 
     @Override
     public void setupStore() throws Exception {
@@ -52,9 +55,10 @@ public class InMemoryControllerServiceAsyncImplTest extends ControllerServiceAsy
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host");
 
+        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks, 100000, 10000);
         controllerService = new ControllerServiceAsyncImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                        new SegmentHelper(), executorService));
+                        timeoutService, new SegmentHelper(), executorService));
     }
 
     @Override
