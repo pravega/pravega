@@ -5,15 +5,13 @@
  */
 package com.emc.pravega.service.storage.impl.hdfs;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.io.FileHelpers;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
-import com.emc.pravega.service.storage.mocks.StorageTestBase;
-
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
-
+import com.emc.pravega.service.storage.StorageTestBase;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,9 +22,7 @@ import java.util.ArrayList;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
-
 import lombok.val;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;

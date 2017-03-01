@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage.impl.distributedlog;
 
@@ -43,8 +41,6 @@ import com.twitter.distributedlog.namespace.DistributedLogNamespace;
 import com.twitter.distributedlog.util.FutureUtils;
 import com.twitter.util.Future;
 import com.twitter.util.FutureEventListener;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -54,6 +50,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Read/Write handle for a particular DistributedLog Stream.
@@ -247,7 +244,7 @@ class LogHandle implements AutoCloseable {
         Timer timer = new Timer();
         Future<DLSN> writeFuture = this.logWriter.write(new LogRecord(transactionId, buffer));
         CompletableFuture<LogAddress> result = toCompletableFuture(writeFuture, dlsn -> new DLSNAddress(transactionId, dlsn));
-        result.thenRunAsync( () -> {
+        result.thenRunAsync(() -> {
             Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
             Metrics.WRITE_BYTES.add(buffer.length);
         });
@@ -387,7 +384,8 @@ class LogHandle implements AutoCloseable {
             this.traceObjectId = String.format("%s@%d", logManager.getStreamName(), afterTransactionId);
             this.logManager = logManager;
             this.lastTransactionId = afterTransactionId;
-            this.baseReader = this.logManager.getInputStream(afterTransactionId);
+            // Add 1 to the transaction id because of different contracts; ours is read after, DL's is read at and after.
+            this.baseReader = this.logManager.getInputStream(afterTransactionId + 1);
             this.closeCallback = closeCallback;
         }
 
@@ -459,7 +457,6 @@ class LogHandle implements AutoCloseable {
     }
 
     //endregion
-
 
     //region Metrics
 
