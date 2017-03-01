@@ -37,7 +37,7 @@ public class ModelHelper {
                                                                                         .name()),
                                           createStreamRequest.getScalingPolicy().getTargetRate(),
                                           createStreamRequest.getScalingPolicy().getScaleFactor(),
-                                          createStreamRequest.getScalingPolicy().getMinNumSegments()))
+                                          createStreamRequest.getScalingPolicy().getMinSegments()))
                                   .retentionPolicy(RetentionPolicy.builder()
                                                                   .retentionTimeMillis(createStreamRequest.getRetentionPolicy()
                                                                                                           .getRetentionTimeMillis())
@@ -64,7 +64,7 @@ public class ModelHelper {
                                                                                         .name()),
                                           updateStreamRequest.getScalingPolicy().getTargetRate(),
                                           updateStreamRequest.getScalingPolicy().getScaleFactor(),
-                                          updateStreamRequest.getScalingPolicy().getMinNumSegments()))
+                                          updateStreamRequest.getScalingPolicy().getMinSegments()))
                                   .retentionPolicy(RetentionPolicy.builder()
                                                                   .retentionTimeMillis(updateStreamRequest.getRetentionPolicy()
                                                                                                           .getRetentionTimeMillis())
@@ -84,14 +84,14 @@ public class ModelHelper {
         scalingPolicy.setType(ScalingConfig.TypeEnum.valueOf(streamConfiguration.getScalingPolicy().getType().name()));
         scalingPolicy.setTargetRate(streamConfiguration.getScalingPolicy().getTargetRate());
         scalingPolicy.setScaleFactor(streamConfiguration.getScalingPolicy().getScaleFactor());
-        scalingPolicy.setMinNumSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
+        scalingPolicy.setMinSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
 
         RetentionConfig retentionPolicy = new RetentionConfig();
         retentionPolicy.setRetentionTimeMillis(streamConfiguration.getRetentionPolicy().getRetentionTimeMillis());
 
         StreamProperty streamProperty = new StreamProperty();
-        streamProperty.setName(streamConfiguration.getStreamName());
-        streamProperty.setScope(streamConfiguration.getScope());
+        streamProperty.setStreamName(streamConfiguration.getStreamName());
+        streamProperty.setScopeName(streamConfiguration.getScope());
         streamProperty.setScalingPolicy(scalingPolicy);
         streamProperty.setRetentionPolicy(retentionPolicy);
 

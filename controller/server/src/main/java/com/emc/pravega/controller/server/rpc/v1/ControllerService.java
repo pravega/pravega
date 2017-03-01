@@ -65,6 +65,10 @@ public class ControllerService {
         return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getStreamName(), streamConfig);
     }
 
+    public CompletableFuture<StreamConfiguration> getStream(final String scopeName, final String streamName) {
+        return streamStore.getConfiguration(scopeName, streamName);
+    }
+
     public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String stream) {
         return streamMetadataTasks.sealStream(scope, stream);
     }
@@ -225,5 +229,25 @@ public class ControllerService {
     public CompletableFuture<DeleteScopeStatus> deleteScope(final String scope) {
         Preconditions.checkNotNull(scope);
         return streamStore.deleteScope(scope);
+    }
+
+    /**
+     * List existing streams in scopes.
+     *
+     * @param scopeName Name of the scope.
+     * @return List of streams in scope.
+     */
+    public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
+        Preconditions.checkNotNull(scopeName);
+        return streamStore.listStreamsInScope(scopeName);
+    }
+
+    /**
+     * List Scopes in cluster.
+     *
+     * @return List of scopes.
+     */
+    public CompletableFuture<List<String>> listScopes() {
+        return streamStore.listScopes();
     }
 }

@@ -31,7 +31,6 @@ import lombok.extern.slf4j.Slf4j;
 public class RESTServer {
 
     public static final void start(ControllerService controllerService) {
-
         final String serverURI = "http://" + REST_SERVER_IP + "/";
         final URI baseUri = UriBuilder.fromUri(serverURI).port(REST_SERVER_PORT).build();
 
@@ -42,6 +41,9 @@ public class RESTServer {
         final ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
         final ResourceConfig resourceConfig = ResourceConfig.forApplication(controllerApplication);
         resourceConfig.property(ServerProperties.BV_SEND_ERROR_IN_RESPONSE, true);
+
+        // Register the custom JSON parser.
+        resourceConfig.register(new CustomObjectMapperProvider());
 
         try {
             NettyHttpContainerProvider.createServer(baseUri, resourceConfig, true);

@@ -7,17 +7,18 @@ package com.emc.pravega.common.cluster.zkImpl;
 
 import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
@@ -34,24 +35,24 @@ public class ClusterZKTest {
     private final static int RETRY_SLEEP_MS = 100;
     private final static int MAX_RETRY = 5;
 
-    private static TestingServer zkTestServer;
-    private static String zkUrl;
+    private TestingServer zkTestServer;
+    private String zkUrl;
 
-    @BeforeClass
-    public static void startZookeeper() throws Exception {
+    @Before
+    public void startZookeeper() throws Exception {
         zkTestServer = new TestingServer();
         zkUrl = zkTestServer.getConnectString();
     }
 
-    @AfterClass
-    public static void stopZookeeper() throws IOException {
+    @After
+    public void stopZookeeper() throws IOException {
         zkTestServer.close();
     }
 
     @Test(timeout = TEST_TIMEOUT)
     public void registerNode() throws Exception {
-        LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue();
-        LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue();
+        LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue<>();
 
         //ClusterListener for testing purposes
         CuratorFramework client2 = CuratorFrameworkFactory.builder()
@@ -99,8 +100,8 @@ public class ClusterZKTest {
 
     @Test(timeout = TEST_TIMEOUT)
     public void deregisterNode() throws Exception {
-        LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue();
-        LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue();
+        LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue<>();
 
         CuratorFramework client2 = CuratorFrameworkFactory.builder()
                 .connectString(zkUrl)
