@@ -592,7 +592,7 @@ project('systemtests:tests') {
             systemProperty "masterIP", "INVALID_MASTER_IP"
         }
         if (System.getProperty("imageVersion") == null) {
-            systemProperty "masterIP", "INVALID_IMAGE_VERSION"
+            systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
         }
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", project.property("dockerRegistryUrl")
