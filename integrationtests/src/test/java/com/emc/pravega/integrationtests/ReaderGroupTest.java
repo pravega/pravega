@@ -24,6 +24,7 @@ import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.TestUtils;
 
 import java.util.Collections;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import lombok.Cleanup;
@@ -104,6 +105,35 @@ public class ReaderGroupTest {
         if (r2.exception.get() != null) {
             throw r2.exception.get();
         }
+    }
+    
+    @Test
+    public void testMultiSegmentsPerReader() throws InterruptedException, ExecutionException {
+        String endpoint = "localhost";
+        int port = TestUtils.randomPort();
+
+        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder.initialize().get();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, port);
+        streamManager.createStream(STREAM_NAME,
+                                   StreamConfiguration.builder()
+                                       .scope(SCOPE)
+                                       .streamName(STREAM_NAME)
+                                       .scalingPolicy(ScalingPolicy.fixed(2))
+                                       .build());
+        MockClientFactory clientFactory = streamManager.getClientFactory();
+
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        streamManager.createReaderGroup(READER_GROUP, groupConfig, Collections.singleton(STREAM_NAME));
+
+        writeEvents(100, clientFactory);
+        new ReaderThread(100, "Reader", clientFactory).run();
     }
     
     public void writeEvents(int eventsToWrite, ClientFactory clientFactory) {
