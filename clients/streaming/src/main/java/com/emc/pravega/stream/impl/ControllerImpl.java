@@ -222,8 +222,8 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> isSegmentValid(final Segment segment) {
-        log.trace("Invoke ProducerService.Client.isSegmentValid() for segment: {}", segment);
+    public CompletableFuture<Boolean> isSegmentOpen(final Segment segment) {
+        log.trace("Invoke ProducerService.Client.isSegmentOpen() for segment: {}", segment);
         final ThriftAsyncCallback<ControllerService.AsyncClient.isSegmentValid_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
             client.getURI(new SegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber()),

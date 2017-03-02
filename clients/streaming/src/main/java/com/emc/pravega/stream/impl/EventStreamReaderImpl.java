@@ -75,7 +75,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 rebalance |= acquireSegmentsIfNeeded();
                 SegmentInputStream segmentReader = orderer.nextSegment(readers);
                 if (segmentReader == null) {
-                    Exceptions.handleInterrupted(() -> Thread.sleep(Math.max(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis())));
+                    Exceptions.handleInterrupted(() -> Thread.sleep(Math.min(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis())));
                     buffer = null;
                 } else {
                     segment = segmentReader.getSegmentId();

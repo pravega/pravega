@@ -313,7 +313,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> isSegmentValid(Segment segment) {
+    public CompletableFuture<Boolean> isSegmentOpen(Segment segment) {
         return CompletableFuture.completedFuture(true);
     }
 

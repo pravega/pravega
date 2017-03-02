@@ -178,12 +178,12 @@ public interface Controller {
     // Controller Apis that are called by writers and readers
 
     /**
-     * Checks to see if a segment exists.
+     * Checks to see if a segment exists and is not sealed.
      * 
      * @param segment The segment to verify.
-     * @return true if the segment exists and false if it does not.
+     * @return true if the segment exists and is open or false if it is not.
      */
-    CompletableFuture<Boolean> isSegmentValid(final Segment segment);
+    CompletableFuture<Boolean> isSegmentOpen(final Segment segment);
     
     /**
      * Given a segment return the endpoint that currently is the owner of that segment.
