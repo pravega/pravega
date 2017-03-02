@@ -283,11 +283,25 @@ project('service:server') {
 }
 
 project('service:server:host') {
+    sourceSets {
+        main.resources.srcDirs += "$projectDir/src/resoruces"
+    }
     apply plugin: 'application'
     mainClassName = "com.emc.pravega.service.server.host.ServiceStarter"
 
-    applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError"]
+    applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-Dlogback.configurationFile=SERVER_APP_HOME/resources/logback.xml"]
 
+    applicationDistribution.from('src/resources') {
+        into "resources"
+    }
+
+    startScripts {
+        doLast {
+            unixScript.text = unixScript.text.replace('SERVER_APP_HOME', '\$APP_HOME')
+            windowsScript.text = windowsScript.text.replace('SERVER_APP_HOME', '%~dp0..')
+        }
+    }
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
