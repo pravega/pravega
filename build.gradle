@@ -583,12 +583,16 @@ project('systemtests:tests') {
         systemProperty "test_collection_jar_path", "$jar.archivePath.path"
         systemProperty "execType", System.getProperty("execType")
         systemProperty "masterIP", System.getProperty("masterIP")
+        systemProperty "imageVersion", System.getProperty("imageVersion")
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"
         }
         if (System.getProperty("masterIP") == null) {
             systemProperty "masterIP", "INVALID_MASTER_IP"
+        }
+        if (System.getProperty("imageVersion") == null) {
+            systemProperty "masterIP", "INVALID_IMAGE_VERSION"
         }
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", project.property("dockerRegistryUrl")
