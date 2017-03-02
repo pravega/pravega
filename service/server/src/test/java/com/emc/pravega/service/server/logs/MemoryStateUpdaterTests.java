@@ -54,7 +54,7 @@ public class MemoryStateUpdaterTests {
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
         @Cleanup
         InMemoryCache cache = new InMemoryCache("0");
-        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, new CacheUpdater(cache, readIndex));
+        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, readIndex);
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         // Verify they were properly processed.
@@ -103,7 +103,7 @@ public class MemoryStateUpdaterTests {
         SequencedItemList<Operation> opLog = new SequencedItemList<>();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex));
+        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, readIndex);
 
         StreamSegmentContainerMetadata metadata1 = new StreamSegmentContainerMetadata(1);
         updater.enterRecoveryMode(metadata1);
@@ -133,7 +133,7 @@ public class MemoryStateUpdaterTests {
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
         AtomicInteger flushCallbackCallCount = new AtomicInteger();
-        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex), flushCallbackCallCount::incrementAndGet);
+        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, readIndex, flushCallbackCallCount::incrementAndGet);
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         methodInvocations.clear(); // We've already tested up to here.
@@ -247,7 +247,7 @@ public class MemoryStateUpdaterTests {
         }
 
         @Override
-        public void cleanup(Collection<Long> segmentIds) {
+        public void cleanup(Iterator<Long> segmentIds) {
             invoke(new MethodInvocation(CLEANUP));
         }
 

@@ -19,7 +19,7 @@ import java.util.function.Consumer;
  */
 public class InMemoryCacheTests {
     private static final String CACHE_ID = "cache_id";
-    private static final int SEGMENT_COUNT = 1000;
+    private static final int SEGMENT_COUNT = 100;
     private static final int OFFSET_COUNT = 100;
     private static final long OFFSET_MULTIPLIER = 1024 * 1024 * 1024;
 

@@ -11,6 +11,7 @@ import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.FileAppender;
 import com.emc.pravega.common.util.PropertyBag;
+import com.emc.pravega.service.server.containers.ContainerConfig;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
@@ -61,6 +62,9 @@ public class SelfTestRunner {
         ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, Integer.toString(60 * 1000));
         ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.toString(128 * 1024 * 1024));
         ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_MEMORY_READ_MIN_LENGTH, Integer.toString(128 * 1024));
+
+        ServiceBuilderConfig.set(p, ContainerConfig.COMPONENT_CODE, ContainerConfig.PROPERTY_SEGMENT_METADATA_EXPIRATION_SECONDS,
+                Integer.toString(ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS));
 
         // All component configs should have defaults built-in, so no need to override them here
         return new ServiceBuilderConfig(p);

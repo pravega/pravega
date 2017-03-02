@@ -12,18 +12,17 @@ import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.CacheException;
 import com.google.common.base.Preconditions;
+import java.io.File;
+import java.nio.file.Paths;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.WriteOptions;
-
-import java.io.File;
-import java.nio.file.Paths;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 /**
  * RocksDB-backed Cache.
@@ -95,7 +94,7 @@ class RocksDBCache implements Cache {
         Preconditions.checkState(this.database.get() == null, "%s has already been initialized.", this.logId);
 
         try {
-            clear();
+            clear(true);
             this.database.set(openDatabase());
         } catch (Exception ex) {
             // Make sure we cleanup anything we may have created in case of failure.
@@ -132,6 +131,7 @@ class RocksDBCache implements Cache {
                 this.databaseOptions.close();
             }
 
+            clear(false);
             log.info("{}: Closed.", this.logId);
             this.closed.set(true);
 
@@ -214,13 +214,13 @@ class RocksDBCache implements Cache {
                 .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB);
     }
 
-    private void clear() {
+    private void clear(boolean recreateDirectory) {
         File dbDir = new File(this.dbDir);
         if (FileHelpers.deleteFileOrDirectory(dbDir)) {
             log.debug("{}: Deleted existing database directory '{}'.", this.logId, dbDir.getAbsolutePath());
         }
 
-        if (dbDir.mkdirs()) {
+        if (recreateDirectory && dbDir.mkdirs()) {
             log.info("{}: Created empty database directory '{}'.", this.logId, dbDir.getAbsolutePath());
         }
     }

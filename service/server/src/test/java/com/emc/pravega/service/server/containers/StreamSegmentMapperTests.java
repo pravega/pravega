@@ -118,7 +118,8 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 "createNewStreamSegment did not fail when Segment already exists.",
                 () -> context.mapper.createNewStreamSegment(segmentName, null, TIMEOUT),
                 ex -> ex instanceof StreamSegmentExistsException);
-        Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (StreamSegmentExistsException).", ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName));
+        Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (StreamSegmentExistsException).",
+                ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName, false));
 
         // 2. Create fails with random exception.
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
@@ -126,7 +127,8 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 "createNewStreamSegment did not fail when random exception was thrown.",
                 () -> context.mapper.createNewStreamSegment(segmentName, null, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
-        Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (IntentionalException).", ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName));
+        Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (IntentionalException).",
+                ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName, false));
 
         // Manually create the StreamSegment and test the Transaction creation.
         storageSegments.add(segmentName);
@@ -171,7 +173,8 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability of the StreamSegmentMapper to generate/return the Id of an existing StreamSegment.
+     * Tests the ability of the StreamSegmentMapper to generate/return the Id of an existing StreamSegment, as well as
+     * retrieving existing attributes.
      */
     @Test
     public void testGetOrAssignStreamSegmentId() {
@@ -239,7 +242,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
                 // Check parenthood.
                 Assert.assertNotEquals("No parent defined in metadata for Transaction " + name, ContainerMetadata.NO_STREAM_SEGMENT_ID, sm.getParentId());
-                long parentId = context.metadata.getStreamSegmentId(parentName);
+                long parentId = context.metadata.getStreamSegmentId(parentName, false);
                 Assert.assertEquals("Unexpected parent defined in metadata for Transaction " + name, parentId, sm.getParentId());
             }
         }
@@ -413,10 +416,9 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     }
 
     private void assertStreamSegmentCreated(String segmentName, Collection<AttributeUpdate> attributeUpdates, TestContext context) {
-        SegmentProperties storageProperties = context.storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
-        Assert.assertNotNull("No segment has been created in the Storage for " + segmentName, storageProperties);
-
-        long segmentId = context.metadata.getStreamSegmentId(segmentName);
+        SegmentProperties sp = context.storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+        Assert.assertNotNull("No segment has been created in the Storage for " + segmentName, sp);
+        long segmentId = context.metadata.getStreamSegmentId(segmentName, false);
         Assert.assertNotEquals("Segment '" + segmentName + "' has not been registered in the metadata.", ContainerMetadata.NO_STREAM_SEGMENT_ID, segmentId);
         SegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
         Assert.assertNotNull("Segment '" + segmentName + "' has not been registered in the metadata.", sm);
@@ -427,8 +429,8 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
     private void assertTransactionCreated(String transactionName, String segmentName, Collection<AttributeUpdate> attributes, TestContext context) {
         assertStreamSegmentCreated(transactionName, attributes, context);
-        long parentId = context.metadata.getStreamSegmentId(segmentName);
-        long transactionId = context.metadata.getStreamSegmentId(transactionName);
+        long parentId = context.metadata.getStreamSegmentId(segmentName, false);
+        long transactionId = context.metadata.getStreamSegmentId(transactionName, false);
         SegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
         Assert.assertNotEquals("Transaction StreamSegment is not mapped to any parent.", ContainerMetadata.NO_STREAM_SEGMENT_ID, transactionMetadata.getParentId());
         Assert.assertEquals("Transaction StreamSegment is not mapped to the correct parent.", parentId, transactionMetadata.getParentId());
@@ -554,11 +556,13 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        @SuppressWarnings("deprecation")
         public ListenableFuture<State> start() {
             return null;
         }
 
         @Override
+        @SuppressWarnings("deprecation")
         public State startAndWait() {
             return null;
         }
@@ -579,11 +583,13 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        @SuppressWarnings("deprecation")
         public ListenableFuture<State> stop() {
             return null;
         }
 
         @Override
+        @SuppressWarnings("deprecation")
         public State stopAndWait() {
             return null;
         }

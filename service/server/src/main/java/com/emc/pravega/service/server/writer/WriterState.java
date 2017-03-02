@@ -5,10 +5,9 @@
  */
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.common.AutoStopwatch;
+import com.emc.pravega.common.AbstractTimer;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.google.common.base.Preconditions;
-
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -48,21 +47,21 @@ class WriterState {
     /**
      * Records the fact that an iteration started.
      *
-     * @param stopwatch The reference stopwatch.
+     * @param timer The reference timer.
      */
-    void recordIterationStarted(AutoStopwatch stopwatch) {
+    void recordIterationStarted(AbstractTimer timer) {
         this.iterationId.incrementAndGet();
-        this.currentIterationStartTime.set(stopwatch.elapsed());
+        this.currentIterationStartTime.set(timer.getElapsed());
         this.lastIterationError.set(false);
     }
 
     /**
      * Calculates the amount of time elapsed since the current iteration started.
      *
-     * @param stopwatch The reference stopwatch.
+     * @param timer The reference timer.
      */
-    Duration getElapsedSinceIterationStart(AutoStopwatch stopwatch) {
-        return stopwatch.elapsed().minus(this.currentIterationStartTime.get());
+    Duration getElapsedSinceIterationStart(AbstractTimer timer) {
+        return timer.getElapsed().minus(this.currentIterationStartTime.get());
     }
 
     /**

@@ -74,7 +74,7 @@ class DistributedLogDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<Boolean> truncate(LogAddress logAddress, Duration timeout) {
+    public CompletableFuture<Void> truncate(LogAddress logAddress, Duration timeout) {
         ensureInitialized();
         Preconditions.checkArgument(logAddress instanceof DLSNAddress, "Invalid logAddress. Expected a DLSNAddress.");
         return this.handle.truncate((DLSNAddress) logAddress, timeout);
