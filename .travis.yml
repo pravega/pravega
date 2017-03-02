@@ -23,3 +23,5 @@ notifications:
     - Abhijeet.Jadhav@emc.com
     - Flavio.Junqueira@emc.com
 
+after_success:
+  - bash <(curl -s https://codecov.io/bash) -t ccceafaf-7c60-4a02-9165-480174b535a2

@@ -10,6 +10,7 @@ import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.stream.AckFuture;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
+import com.emc.pravega.stream.PingFailedException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
@@ -240,6 +241,13 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         }
 
         @Override
+        public void ping(long lease) throws PingFailedException {
+            Preconditions.checkArgument(lease > 0);
+            FutureHelpers.getAndHandleExceptions(controller.pingTransaction(stream, txId, lease),
+                    PingFailedException::new);
+        }
+
+        @Override
         public UUID getTxnId() {
             return txId;
         }
@@ -247,13 +255,15 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     }
 
     @Override
-    public Transaction<Type> beginTxn(long timeout) {
+    public Transaction<Type> beginTxn(long timeout, long maxExecutionTime, long scaleGracePeriod) {
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         ArrayList<Segment> segmentIds;
         synchronized (lock) {
             segmentIds = new ArrayList<>(writers.keySet());
         }
-        UUID txId = FutureHelpers.getAndHandleExceptions(controller.createTransaction(stream, timeout), RuntimeException::new);
+        UUID txId = FutureHelpers.getAndHandleExceptions(
+                controller.createTransaction(stream, timeout, maxExecutionTime, scaleGracePeriod),
+                RuntimeException::new);
         for (Segment s : segmentIds) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);

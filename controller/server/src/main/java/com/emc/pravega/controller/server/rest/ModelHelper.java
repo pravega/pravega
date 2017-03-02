@@ -1,7 +1,5 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.controller.server.rest;
 
@@ -35,7 +33,7 @@ public class ModelHelper {
                                           ScalingPolicy.Type.valueOf(createStreamRequest.getScalingPolicy()
                                                                                         .getType()
                                                                                         .name()),
-                                          createStreamRequest.getScalingPolicy().getTargetRate(),
+                                          createStreamRequest.getScalingPolicy().getTargetRate().intValue(),
                                           createStreamRequest.getScalingPolicy().getScaleFactor(),
                                           createStreamRequest.getScalingPolicy().getMinSegments()))
                                   .retentionPolicy(RetentionPolicy.builder()
@@ -62,7 +60,7 @@ public class ModelHelper {
                                           ScalingPolicy.Type.valueOf(updateStreamRequest.getScalingPolicy()
                                                                                         .getType()
                                                                                         .name()),
-                                          updateStreamRequest.getScalingPolicy().getTargetRate(),
+                                          updateStreamRequest.getScalingPolicy().getTargetRate().intValue(),
                                           updateStreamRequest.getScalingPolicy().getScaleFactor(),
                                           updateStreamRequest.getScalingPolicy().getMinSegments()))
                                   .retentionPolicy(RetentionPolicy.builder()
@@ -82,7 +80,7 @@ public class ModelHelper {
 
         ScalingConfig scalingPolicy = new ScalingConfig();
         scalingPolicy.setType(ScalingConfig.TypeEnum.valueOf(streamConfiguration.getScalingPolicy().getType().name()));
-        scalingPolicy.setTargetRate(streamConfiguration.getScalingPolicy().getTargetRate());
+        scalingPolicy.setTargetRate((long) streamConfiguration.getScalingPolicy().getTargetRate());
         scalingPolicy.setScaleFactor(streamConfiguration.getScalingPolicy().getScaleFactor());
         scalingPolicy.setMinSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
 
