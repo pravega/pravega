@@ -23,6 +23,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -184,6 +185,7 @@ class ReaderGroupState implements Revisioned {
     @RequiredArgsConstructor
     static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState>, Serializable {
         private static final long serialVersionUID = 1L;
+
         private final ReaderGroupConfig config;
         private final Map<Segment, Long> segments;
         
