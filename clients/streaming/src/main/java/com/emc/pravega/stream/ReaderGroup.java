@@ -34,7 +34,7 @@ public interface ReaderGroup {
      *
      * @return List of stream names
      */
-    List<String> getStreamNames();
+    Set<String> getStreamNames();
 
     /**
      * Returns the name of the group.
@@ -54,8 +54,8 @@ public interface ReaderGroup {
      * Initiate a checkpoint. This causes all readers in the group to receive a special {@link EventRead} that
      * contains the provided checkpoint name. This can be used to provide an indication to them that they
      * should persist their state. Once all of the readers have received the notification, a
-     * {@link Checkpoint} object will be returned. This can be used to reset all the reader to this point in
-     * the stream by
+     * {@link Checkpoint} object will be returned. This can be used to reset the group to this point in
+     * the stream by calling {@link #resetReadersToCheckpoint(Checkpoint)}
      * 
      * This method can be called and a new checkpoint can be initiated while another is still in progress if
      * they have different names. If this method is is called again before the checkpoint has completed with
@@ -68,9 +68,11 @@ public interface ReaderGroup {
     Future<Checkpoint> initiateCheckpoint(String checkpointName);
     
     /**
-     * Given a Checkpoint restore the reader group to the positions contained within it. All readers in the
-     * group will encounter a {@link ReinitializationRequiredException} and when they rejoin the group they
-     * will resume from the position the provided checkpoint was taken.
+     * Given a Checkpoint, restore the reader group to the provided checkpoint. All readers in the
+     * group will encounter a {@link ReinitializationRequiredException} and when they rejoin the
+     * group they will resume from the position the provided checkpoint was taken. (The mapping of
+     * segments to readers may not be the same, and the current readers need not be the same ones as
+     * existed at the time of the checkpoint.)
      * 
      * @param checkpoint The checkpoint to restore to.
      */

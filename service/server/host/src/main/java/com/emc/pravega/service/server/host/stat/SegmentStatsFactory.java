@@ -7,8 +7,6 @@ import com.emc.pravega.ClientFactory;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import lombok.Data;
-
 import java.net.URI;
 import java.time.Duration;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -17,6 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import lombok.Data;
 
 @Data
 public class SegmentStatsFactory implements AutoCloseable {

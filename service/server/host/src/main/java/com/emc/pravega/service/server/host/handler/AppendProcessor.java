@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.service.server.host.handler;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
@@ -30,8 +31,10 @@ import com.emc.pravega.service.contracts.WrongHostException;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.google.common.collect.LinkedListMultimap;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -40,9 +43,11 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+
 import javax.annotation.concurrent.GuardedBy;
-import lombok.extern.slf4j.Slf4j;
+
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.service.contracts.Attributes.EVENT_COUNT;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_WRITE_BYTES;
@@ -189,8 +194,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
         future.whenComplete((t, u) -> {
             try {
-                boolean conditionalFailed = u != null
-                        && (u instanceof BadOffsetException || u.getCause() instanceof BadOffsetException);
+                boolean conditionalFailed = u != null && (ExceptionHelpers.getRealException(u) instanceof BadOffsetException);
                 synchronized (lock) {
                     if (outstandingAppend != toWrite) {
                         throw new IllegalStateException(

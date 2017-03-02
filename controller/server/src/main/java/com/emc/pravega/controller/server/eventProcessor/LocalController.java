@@ -24,8 +24,6 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.PositionInternal;
 import com.emc.pravega.stream.impl.StreamSegments;
-import org.apache.thrift.TException;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +32,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import org.apache.thrift.TException;
 
 public class LocalController implements Controller {
 
@@ -145,6 +144,15 @@ public class LocalController implements Controller {
         try {
             return controller.getURI(new SegmentId(segment.getScope(), segment.getStreamName(),
                     segment.getSegmentNumber())).thenApply(ModelHelper::encode);
+        } catch (TException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public CompletableFuture<Boolean> isSegmentOpen(Segment segment) {
+        try {
+            return controller.isSegmentValid(segment.getScope(), segment.getScopedName(), segment.getSegmentNumber());
         } catch (TException e) {
             throw new RuntimeException(e);
         }
