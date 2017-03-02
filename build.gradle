@@ -31,9 +31,20 @@ allprojects {
     apply plugin: 'com.bmuschko.docker-java-application'
     apply plugin: 'maven-publish'
 
+    apply plugin: 'jacoco'
+
     checkstyle {
         toolVersion = "7.1"
     }
+
+    jacocoTestReport {
+        reports {
+            xml.enabled true
+            html.enabled false
+        }
+    }
+
+    test { finalizedBy jacocoTestReport }
 
     javadoc {
         failOnError = false
