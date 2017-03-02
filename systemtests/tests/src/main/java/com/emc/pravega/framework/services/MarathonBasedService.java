@@ -7,23 +7,29 @@ package com.emc.pravega.framework.services;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.framework.TestFrameworkException;
 import com.emc.pravega.framework.marathon.AuthEnabledMarathonClient;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.Marathon;
+import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.GetAppResponse;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.utils.MarathonException;
+
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
+import static com.emc.pravega.framework.TestFrameworkException.Type.InternalError;
 import static com.emc.pravega.framework.TestFrameworkException.Type.RequestFailed;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 /**
@@ -86,6 +92,27 @@ public abstract class MarathonBasedService implements Service {
                     .collect(Collectors.toList());
         } catch (MarathonException ex) {
             throw new TestFrameworkException(RequestFailed, "Marathon Exception while fetching service details", ex);
+        }
+    }
+
+    @Override
+    public void scaleService(final int instanceCount, final boolean wait) {
+        Preconditions.checkArgument(instanceCount >= 0, "negative value: %s", instanceCount);
+        try {
+            App updatedConfig = new App();
+            updatedConfig.setInstances(instanceCount);
+            marathonClient.updateApp(getID(), updatedConfig, false);
+            if (wait) {
+                waitUntilServiceRunning().get(); // wait until scale operation is complete.
+            }
+        } catch (MarathonException ex) {
+            if (ex.getStatus() == CONFLICT.code()) {
+                log.error("Scaling operation failed as the application is locked by an ongoing deployment", ex);
+                throw new TestFrameworkException(RequestFailed, "Scaling operation failed", ex);
+            }
+            handleMarathonException(ex);
+        } catch (InterruptedException | ExecutionException ex) {
+            throw new TestFrameworkException(InternalError, "Exception during scale operation", ex);
         }
     }
 
