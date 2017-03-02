@@ -20,12 +20,12 @@ import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.IdempotentEventStreamWriter;
+import com.emc.pravega.stream.InvalidStreamException;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.StreamDoesNotExistException;
 import com.emc.pravega.stream.impl.netty.ConnectionFactory;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
@@ -150,12 +150,14 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     @Override
-    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> StateSynchronizer<StateT> createStateSynchronizer(
-            String streamName, Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer,
-            SynchronizerConfig config) {
+    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> StateSynchronizer<StateT> 
+        createStateSynchronizer(String streamName,
+                                Serializer<UpdateT> updateSerializer,
+                                Serializer<InitT> initialSerializer,
+                                SynchronizerConfig config) {
         Segment segment = new Segment(scope, streamName, 0);
-        if (!getAndHandleExceptions(controller.isSegmentValid(segment), StreamDoesNotExistException::new)) {
-            throw new StreamDoesNotExistException("Segment does not exist: " + segment);
+        if (!getAndHandleExceptions(controller.isSegmentValid(segment), InvalidStreamException::new)) {
+            throw new InvalidStreamException("Segment does not exist: " + segment);
         }
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
         return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(streamName, serializer, config));

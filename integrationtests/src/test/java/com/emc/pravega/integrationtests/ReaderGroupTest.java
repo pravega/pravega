@@ -121,12 +121,11 @@ public class ReaderGroupTest {
 
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, port);
-        streamManager.createStream(STREAM_NAME,
-                                   StreamConfiguration.builder()
-                                       .scope(SCOPE)
-                                       .streamName(STREAM_NAME)
-                                       .scalingPolicy(ScalingPolicy.fixed(2))
-                                       .build());
+        streamManager.createStream(STREAM_NAME, StreamConfiguration.builder()
+                                                                   .scope(SCOPE)
+                                                                   .streamName(STREAM_NAME)
+                                                                   .scalingPolicy(ScalingPolicy.fixed(2))
+                                                                   .build());
         MockClientFactory clientFactory = streamManager.getClientFactory();
 
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();

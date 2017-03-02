@@ -68,10 +68,11 @@ public interface ReaderGroup {
     Future<Checkpoint> initiateCheckpoint(String checkpointName);
     
     /**
-     * Given a Checkpoint restore the reader group to the provided checkpoint. All readers in the
+     * Given a Checkpoint, restore the reader group to the provided checkpoint. All readers in the
      * group will encounter a {@link ReinitializationRequiredException} and when they rejoin the
-     * group they will resume from the position the provided checkpoint was taken. (The current
-     * readers need not be the same ones as existed at the time of the checkpoint.)
+     * group they will resume from the position the provided checkpoint was taken. (The mapping of
+     * segments to readers may not be the same, and the current readers need not be the same ones as
+     * existed at the time of the checkpoint.)
      * 
      * @param checkpoint The checkpoint to restore to.
      */
