@@ -5,14 +5,17 @@
  */
 package com.emc.pravega.controller.server.eventProcessor;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.PingStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.stream.PingFailedException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -21,8 +24,6 @@ import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.ModelHelper;
 import com.emc.pravega.stream.impl.PositionInternal;
 import com.emc.pravega.stream.impl.StreamSegments;
-import org.apache.thrift.TException;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import org.apache.thrift.TException;
 
 public class LocalController implements Controller {
 
@@ -85,9 +87,19 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(Stream stream, long timeout) {
-        return controller.createTransaction(stream.getScope(), stream.getStreamName())
+    public CompletableFuture<UUID> createTransaction(Stream stream, long lease, final long maxExecutionTime,
+                                                     final long scaleGracePeriod) {
+        return controller
+                .createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime, scaleGracePeriod)
                 .thenApply(ModelHelper::encode);
+    }
+
+    @Override
+    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
+        return FutureHelpers.toVoidExpecting(
+                controller.pingTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), lease),
+                PingStatus.OK,
+                PingFailedException::new);
     }
 
     @Override
@@ -138,7 +150,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> isSegmentValid(Segment segment) {
+    public CompletableFuture<Boolean> isSegmentOpen(Segment segment) {
         try {
             return controller.isSegmentValid(segment.getScope(), segment.getScopedName(), segment.getSegmentNumber());
         } catch (TException e) {

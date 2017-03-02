@@ -6,6 +6,7 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.stream.EventPointer;
 import com.emc.pravega.stream.EventRead;
@@ -65,7 +66,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     public EventRead<Type> readNextEvent(long timeout) {
         synchronized (readers) {
             Preconditions.checkState(!closed, "Reader is closed");
-            long startTime = System.currentTimeMillis();
+            Timer timer = new Timer();
             Segment segment = null;
             long offset = -1;
             ByteBuffer buffer;
@@ -76,7 +77,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 }
                 SegmentInputStream segmentReader = orderer.nextSegment(readers);
                 if (segmentReader == null) {
-                    Exceptions.handleInterrupted(() -> Thread.sleep(Math.max(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis())));
+                    Exceptions.handleInterrupted(() -> Thread.sleep(Math.min(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis())));
                     buffer = null;
                 } else {
                     segment = segmentReader.getSegmentId();
@@ -88,7 +89,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                         buffer = null;
                     }
                 }
-            } while (buffer == null && System.currentTimeMillis() < startTime + timeout);
+            } while (buffer == null && timer.getElapsedMillis() < timeout);
             
             if (buffer == null) {
                return createEmptyEvent(null);

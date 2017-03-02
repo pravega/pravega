@@ -57,7 +57,7 @@ public class EventStreamReaderTest {
         reader.close();
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testRead() throws SegmentSealedException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
@@ -82,7 +82,7 @@ public class EventStreamReaderTest {
         reader.close();
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testReleaseSegment() throws SegmentSealedException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
@@ -125,8 +125,8 @@ public class EventStreamReaderTest {
         return buffer;
     }
 
-    @Test
-    public void testAquireSegment() throws SegmentSealedException {
+    @Test(timeout = 10000)
+    public void testAcquireSegment() throws SegmentSealedException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();

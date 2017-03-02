@@ -242,7 +242,8 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(Stream stream, long timeout) {
+    public CompletableFuture<UUID> createTransaction(final Stream stream, final long lease,
+                                                     final long maxExecutionTime, final long scaleGracePeriod) {
         UUID txId = UUID.randomUUID();
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         for (Segment segment : getSegmentsForStream(stream)) {
@@ -272,6 +273,11 @@ public class MockController implements Controller {
         };
         sendRequestOverNewConnection(new CreateTransaction(segment.getScopedName(), txId), replyProcessor);
         return result;
+    }
+
+    @Override
+    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
+        throw new NotImplementedException();
     }
 
     @Override
@@ -307,7 +313,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> isSegmentValid(Segment segment) {
+    public CompletableFuture<Boolean> isSegmentOpen(Segment segment) {
         return CompletableFuture.completedFuture(true);
     }
 
