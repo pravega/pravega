@@ -1,4 +1,4 @@
-package com.emc.pravega.controller.server.rest.generated;
+package com.emc.pravega.controller.server.rest.generated.api;
 
 
 public class StringUtil {
