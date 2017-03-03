@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.Assert.assertEquals;
 
 /**
- * Async Controller Service Implementation tests.
+ * Controller Service Implementation tests.
  * <p>
  * Every test is run twice for both streamStore (Zookeeper and InMemory) types.
  */

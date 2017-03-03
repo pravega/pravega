@@ -108,7 +108,7 @@ public class Main {
 
         // Start the RPC server.
         log.info("Starting gRPC server");
-        GRPCServer.start(controllerService, Config.SERVER_PORT);
+        GRPCServer.start(controllerService, Config.RPC_SERVER_PORT);
 
         //2. set up Event Processors
 

@@ -117,6 +117,7 @@ public class ControllerService {
     }
 
     public CompletableFuture<Map<SegmentId, List<Integer>>> getSegmentsImmediatlyFollowing(SegmentId segment) {
+        Preconditions.checkNotNull(segment, "segment");
         return streamStore.getSuccessors(segment.getStreamInfo().getScope(),
                                          segment.getStreamInfo().getStream(),
                                          segment.getSegmentNumber(),
@@ -291,6 +292,9 @@ public class ControllerService {
 
     public CompletableFuture<PingTxnStatus> pingTransaction(final String scope, final String stream, final TxnId txnId,
                                                          final long lease) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        Preconditions.checkNotNull(txnId, "txnId");
         UUID txId = ModelHelper.encode(txnId);
 
         if (!timeoutService.isRunning()) {
@@ -356,7 +360,7 @@ public class ControllerService {
      * @return Status of create scope.
      */
     public CompletableFuture<CreateScopeStatus> createScope(final String scope) {
-        Preconditions.checkNotNull(scope);
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
         return streamStore.createScope(scope);
     }
 
@@ -367,7 +371,7 @@ public class ControllerService {
      * @return Status of delete scope.
      */
     public CompletableFuture<DeleteScopeStatus> deleteScope(final String scope) {
-        Preconditions.checkNotNull(scope);
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
         return streamStore.deleteScope(scope);
     }
 
@@ -377,9 +381,9 @@ public class ControllerService {
      * @param scopeName Name of the scope.
      * @return List of streams in scope.
      */
-    public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
-        Preconditions.checkNotNull(scopeName);
-        return streamStore.listStreamsInScope(scopeName);
+    public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scope) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        return streamStore.listStreamsInScope(scope);
     }
 
     /**

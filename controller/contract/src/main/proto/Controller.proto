@@ -1,3 +1,8 @@
+/**
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ */
 syntax = "proto3";
 package com.emc.pravega.controller.stream.api.grpc.v1;
 

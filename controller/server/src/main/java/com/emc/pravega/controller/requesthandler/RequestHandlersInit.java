@@ -53,7 +53,7 @@ public class RequestHandlersInit {
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(checkpointStore);
         Preconditions.checkNotNull(executor);
-        URI uri = URI.create("tcp://localhost:" + Config.SERVER_PORT);
+        URI uri = URI.create("tcp://localhost:" + Config.RPC_SERVER_PORT);
         ClientFactory clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, uri);
 
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, uri);

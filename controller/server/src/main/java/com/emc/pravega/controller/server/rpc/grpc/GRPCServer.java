@@ -17,6 +17,14 @@ import java.io.IOException;
  */
 @Slf4j
 public class GRPCServer {
+
+    /**
+     * Start the gRPC server on the provided port.
+     *
+     * @param controllerService The controller service implementation.
+     * @param rpcPort           The listen post for gRPC Server.
+     * @throws IOException      On any network failures.
+     */
     public static void start(ControllerService controllerService, int rpcPort) throws IOException {
         ServerBuilder
                 .forPort(rpcPort)
