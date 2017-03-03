@@ -27,12 +27,14 @@ import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
  * Twitter DistributedLog implementation for DurableDataLog.
  */
 @ThreadSafe
+@Slf4j
 class DistributedLogDataLog implements DurableDataLog {
     //region Members
 
@@ -46,6 +48,7 @@ class DistributedLogDataLog implements DurableDataLog {
     private final ScheduledExecutorService executor;
     private final AtomicBoolean closed;
     private final Object handleInitLock = new Object();
+    private final String traceObjectId;
     @GuardedBy("handleInitLock")
     private LogHandle handle;
     @GuardedBy("handleInitLock")
@@ -74,6 +77,7 @@ class DistributedLogDataLog implements DurableDataLog {
         this.executor = executor;
         this.truncatedAddress = new AtomicReference<>();
         this.closed = new AtomicBoolean();
+        this.traceObjectId = String.format("Log[%s]", logName);
     }
 
     //endregion
@@ -207,6 +211,7 @@ class DistributedLogDataLog implements DurableDataLog {
         } catch (Throwable ex) {
             if (!ExceptionHelpers.mustRethrow(ex)) {
                 // Make sure we closed whatever resources or locks we acquired.
+                log.warn("{}: Could not open handles; closing.", this.traceObjectId, ex);
                 close();
             }
 
@@ -237,6 +242,8 @@ class DistributedLogDataLog implements DurableDataLog {
                 this.truncateHandle = null;
             }
         }
+
+        log.info("{}: Closed handles.", this.traceObjectId);
     }
 
     /**
@@ -268,6 +275,7 @@ class DistributedLogDataLog implements DurableDataLog {
     private <T> T handleException(Throwable ex) {
         if (isRetryable(ex) || (ex instanceof ObjectClosedException && !this.closed.get())) {
             // Close the handles upon an exception. They will be reopened when the operation is retried.
+            log.warn("{}: Caught retryable exception.", this.traceObjectId, ex);
             closeHandles();
         }
 
