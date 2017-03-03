@@ -48,10 +48,8 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             LogAddress prevAddress = null;
             int writeCount = getWriteCountForWrites();
             for (int i = 0; i < writeCount; i++) {
-                byte[] writeData = String.format("Write_%s", i).getBytes();
-                ByteArrayInputStream writeStream = new ByteArrayInputStream(writeData);
-                LogAddress address = log.append(writeStream, TIMEOUT).join();
-
+                LogAddress address = log.append(new ByteArrayInputStream(String.format("Write_%s", i).getBytes()), TIMEOUT).join();
+                Assert.assertNotNull("No address returned from append().", address);
                 if (prevAddress != null) {
                     AssertExtensions.assertGreaterThan("Sequence Number is not monotonically increasing.", prevAddress.getSequence(), address.getSequence());
                 }

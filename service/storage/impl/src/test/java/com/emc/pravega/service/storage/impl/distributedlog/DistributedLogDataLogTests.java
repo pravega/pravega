@@ -25,9 +25,7 @@ import lombok.val;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.util.ReflectionUtils;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 /**
@@ -44,25 +42,49 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
     private static final int WRITE_COUNT_READS = 25;
     private static final String CLIENT_ID = "UnitTest";
 
-    private static final AtomicReference<DistributedLogConfig> CONFIG = new AtomicReference<>();
-    private static final AtomicReference<LocalDLMEmulator> DLOG_PROCESS = new AtomicReference<>();
+    private final AtomicReference<DistributedLogConfig> config = new AtomicReference<>();
+    private final AtomicReference<LocalDLMEmulator> dlogProcess = new AtomicReference<>();
     private final AtomicReference<DistributedLogDataLogFactory> factory = new AtomicReference<>();
 
-    @BeforeClass
-    public static void startDistributedLog() throws Exception {
+    @Before
+    public void initializeTest() throws Exception {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
         final int port = TestUtils.randomPort();
+        startDistributedLog(port);
 
+        // Setup config to use the port and namespace.
+        this.config.set(new TestConfig()
+                .withDistributedLogHost(DLOG_HOST)
+                .withDistributedLogPort(port)
+                .withDistributedLogNamespace(DLOG_NAMESPACE));
+
+        // Create default factory.
+        val factory = new DistributedLogDataLogFactory(CLIENT_ID, this.config.get(), executorService());
+        factory.initialize();
+        this.factory.set(factory);
+    }
+
+    @After
+    public void cleanupAfterTest() throws Exception {
+        val factory = this.factory.getAndSet(null);
+        if (factory != null) {
+            factory.close();
+        }
+
+        stopDistributedLog();
+    }
+
+    private void startDistributedLog(int port) throws Exception {
         // Start DistributedLog in-process.
         ServerConfiguration sc = new ServerConfiguration()
                 .setJournalAdaptiveGroupWrites(false)
-                .setJournalMaxGroupWaitMSec(1);
+                .setJournalMaxGroupWaitMSec(0);
         val dlm = LocalDLMEmulator.newBuilder()
                                   .zkPort(port)
                                   .serverConf(sc)
                                   .build();
         dlm.start();
-        DLOG_PROCESS.set(dlm);
+        this.dlogProcess.set(dlm);
 
         // Create a namespace.
         Tool tool = ReflectionUtils.newInstance(DistributedLogAdmin.class.getName(), Tool.class);
@@ -71,32 +93,13 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
                 "-l", "/ledgers",
                 "-s", String.format("%s:%s", DLOG_HOST, port),
                 "-c", String.format("distributedlog://%s:%s/%s", DLOG_HOST, port, DLOG_NAMESPACE)});
-
-        // Setup config to use the port and namespace.
-        CONFIG.set(new TestConfig()
-                .withDistributedLogHost(DLOG_HOST)
-                .withDistributedLogPort(port)
-                .withDistributedLogNamespace(DLOG_NAMESPACE));
     }
 
-    @AfterClass
-    public static void stopDistributedLog() throws Exception {
-        // It turns out that this doesn't fully shut down DistributedLog; something (like ZooKeeper) is still hanging around,
-        // which is why we need to start it before we run the class and shut it down at the end vs. with each test.
-        DLOG_PROCESS.get().teardown();
-    }
-
-    @Before
-    public void initializeTest() throws Exception {
-        // Create default factory.
-        val factory = new DistributedLogDataLogFactory(CLIENT_ID, CONFIG.get(), executorService());
-        factory.initialize();
-        this.factory.set(factory);
-    }
-
-    @After
-    public void cleanupAfterTest() throws Exception {
-        this.factory.getAndSet(null).close();
+    private void stopDistributedLog() throws Exception {
+        val dlm = this.dlogProcess.getAndSet(null);
+        if (dlm != null) {
+            dlm.teardown();
+        }
     }
 
     //endregion
@@ -134,7 +137,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
 
             // Simulate a different client trying to
             @Cleanup
-            val factory = new DistributedLogDataLogFactory(CLIENT_ID + "_secondary", CONFIG.get(), executorService());
+            val factory = new DistributedLogDataLogFactory(CLIENT_ID + "_secondary", config.get(), executorService());
             factory.initialize();
             AssertExtensions.assertThrows(
                     "A second log was able to acquire the exclusive write lock, even if another log held it.",
@@ -149,7 +152,6 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
             TreeMap<LogAddress, byte[]> writeData = populate(log, getWriteCountForWrites());
             verifyReads(log, createLogAddress(-1), writeData);
         }
-        System.out.println();
     }
 
     //endregion

@@ -5,31 +5,50 @@ package com.emc.pravega.service.storage.impl.distributedlog;
 
 import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.TimeoutTimer;
+import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.util.CloseableIterator;
+import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.LogAddress;
+import com.emc.pravega.service.storage.WriteFailureException;
 import com.google.common.base.Preconditions;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+import lombok.SneakyThrows;
 import lombok.val;
 
 /**
  * Twitter DistributedLog implementation for DurableDataLog.
  */
+@ThreadSafe
 class DistributedLogDataLog implements DurableDataLog {
     //region Members
 
+    private static final Retry.RetryAndThrowBase<Exception> RETRY_POLICY = Retry
+            .withExpBackoff(50, 5, 3, 1000)
+            .retryWhen(DistributedLogDataLog::isRetryable)
+            .throwingOn(Exception.class);
     private final LogClient client;
     private final String logName;
     private final AtomicReference<DLSNAddress> truncatedAddress;
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
+    private final AtomicBoolean closed;
+    private final Object handleInitLock = new Object();
+    @GuardedBy("handleInitLock")
     private LogHandle handle;
+    @GuardedBy("handleInitLock")
     private LogHandle truncateHandle;
 
     //endregion
@@ -45,7 +64,7 @@ class DistributedLogDataLog implements DurableDataLog {
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If logName is an empty string.
      */
-    DistributedLogDataLog(String logName, LogClient client, Executor executor) {
+    DistributedLogDataLog(String logName, LogClient client, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(client, "client");
         Exceptions.checkNotNullOrEmpty(logName, "logName");
         Preconditions.checkNotNull(executor, "executor");
@@ -54,6 +73,7 @@ class DistributedLogDataLog implements DurableDataLog {
         this.client = client;
         this.executor = executor;
         this.truncatedAddress = new AtomicReference<>();
+        this.closed = new AtomicBoolean();
     }
 
     //endregion
@@ -62,14 +82,8 @@ class DistributedLogDataLog implements DurableDataLog {
 
     @Override
     public void close() {
-        if (this.handle != null) {
-            this.handle.close();
-            this.handle = null;
-        }
-
-        if (this.truncateHandle != null) {
-            this.truncateHandle.close();
-            this.truncateHandle = null;
+        if (!this.closed.getAndSet(true)) {
+            closeHandles();
         }
     }
 
@@ -79,7 +93,105 @@ class DistributedLogDataLog implements DurableDataLog {
 
     @Override
     public void initialize(Duration timeout) throws DurableDataLogException {
-        Preconditions.checkState(this.handle == null, "DistributedLogDataLog is already initialized.");
+        openHandles();
+    }
+
+    @Override
+    public CompletableFuture<LogAddress> append(InputStream data, Duration timeout) {
+        ensureActive();
+        return withRetries(() -> getHandle().append(data), () -> resetInput(data));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> truncate(LogAddress logAddress, Duration timeout) {
+        ensureActive();
+        Preconditions.checkArgument(logAddress instanceof DLSNAddress, "Invalid logAddress. Expected a DLSNAddress.");
+        DLSNAddress dlsnAddress = (DLSNAddress) logAddress;
+        return withRetries(() -> getHandle().truncate(dlsnAddress))
+                .thenComposeAsync(
+                        v -> withRetries(() -> getTruncateHandle().append(new ByteArrayInputStream(dlsnAddress.serialize()))),
+                        this.executor)
+                .thenComposeAsync(
+                        truncateAddress -> withRetries(() -> getTruncateHandle().truncate((DLSNAddress) truncateAddress)),
+                        this.executor)
+                .thenApply(v -> {
+                    this.truncatedAddress.set(dlsnAddress);
+                    return true;
+                });
+    }
+
+    @Override
+    public CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException {
+        ensureActive();
+        DLSNAddress truncatedAddress = this.truncatedAddress.get();
+        if (truncatedAddress != null) {
+            afterSequence = Math.max(afterSequence, truncatedAddress.getSequence());
+        }
+
+        return getHandle().getReader(afterSequence);
+    }
+
+    @Override
+    public int getMaxAppendLength() {
+        ensureActive();
+        return LogHandle.MAX_APPEND_LENGTH;
+    }
+
+    @Override
+    public long getLastAppendSequence() {
+        ensureActive();
+        return getHandle().getLastTransactionId();
+    }
+
+    private void ensureActive() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        synchronized (this.handleInitLock) {
+            Preconditions.checkState(this.handle != null, "DistributedLogDataLog is not initialized.");
+        }
+    }
+
+    //endregion
+
+    //region Helpers
+
+    /**
+     * Gets a pointer to the LogHandle for the primary log. If the handles are not yet initialized, they will both be
+     * reopened.
+     */
+    @SneakyThrows(DurableDataLogException.class)
+    private LogHandle getHandle() {
+        synchronized (this.handleInitLock) {
+            if (!areHandlesOpen()) {
+                openHandles();
+            }
+
+            return this.handle;
+        }
+    }
+
+    /**
+     * Gets a pointer to the LogHandle for the truncation log. If the handles are not yet initialized, they will both be
+     * reopened.
+     */
+    @SneakyThrows(DurableDataLogException.class)
+    private LogHandle getTruncateHandle() {
+        synchronized (this.handleInitLock) {
+            if (!areHandlesOpen()) {
+                openHandles();
+            }
+
+            return this.truncateHandle;
+        }
+    }
+
+    /**
+     * Attempts to open the handles.
+     *
+     * @throws DurableDataLogException If either handle could not be opened.
+     */
+    @GuardedBy("handleInitLock")
+    private void openHandles() throws DurableDataLogException {
+        Preconditions.checkState(!areHandlesOpen(), "DistributedLogDataLog is already initialized.");
         try {
             this.handle = this.client.getLogHandle(this.logName);
             this.truncateHandle = this.client.getLogHandle(this.logName + "#truncation");
@@ -102,53 +214,81 @@ class DistributedLogDataLog implements DurableDataLog {
         }
     }
 
-    @Override
-    public CompletableFuture<LogAddress> append(InputStream data, Duration timeout) {
-        ensureInitialized();
-        return this.handle.append(data, timeout);
+    /**
+     * Determines whether the Log Handles are open.
+     */
+    @GuardedBy("handleInitLock")
+    private boolean areHandlesOpen() {
+        return this.handle != null && this.truncateHandle != null;
     }
 
-    @Override
-    public CompletableFuture<Boolean> truncate(LogAddress logAddress, Duration timeout) {
-        ensureInitialized();
-        Preconditions.checkArgument(logAddress instanceof DLSNAddress, "Invalid logAddress. Expected a DLSNAddress.");
-        DLSNAddress dlsnAddress = (DLSNAddress) logAddress;
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.handle
-                .truncate(dlsnAddress, timer.getRemaining())
-                .thenComposeAsync(v -> this.truncateHandle.append(new ByteArrayInputStream(dlsnAddress.serialize()), timer.getRemaining()), this.executor)
-                .thenComposeAsync(truncateAddress -> this.truncateHandle.truncate((DLSNAddress) truncateAddress, timer.getRemaining()), this.executor)
-                .thenApply(v -> {
-                    this.truncatedAddress.set(dlsnAddress);
-                    return true;
-                });
+    /**
+     * Closes any open Log Handle.
+     */
+    private void closeHandles() {
+        synchronized (this.handleInitLock) {
+            if (this.handle != null) {
+                this.handle.close();
+                this.handle = null;
+            }
+
+            if (this.truncateHandle != null) {
+                this.truncateHandle.close();
+                this.truncateHandle = null;
+            }
+        }
     }
 
-    @Override
-    public CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException {
-        ensureInitialized();
-        DLSNAddress truncatedAddress = this.truncatedAddress.get();
-        if (truncatedAddress != null) {
-            afterSequence = Math.max(afterSequence, truncatedAddress.getSequence());
+    /**
+     * Executes the given futureSupplier with this class' Retry Policy and default Exception Handler.
+     */
+    private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier) {
+        return RETRY_POLICY.runAsync(() -> futureSupplier.get().exceptionally(this::handleException), this.executor);
+    }
+
+    /**
+     * Executes the given futureSupplier with this class' Retry Policy and default Exception Handler.
+     */
+    private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier, Runnable onRetry) {
+        AtomicInteger retryCount = new AtomicInteger(0);
+        return RETRY_POLICY.runAsync(() -> {
+            if (onRetry != null && retryCount.incrementAndGet() > 1) {
+                onRetry.run();
+            }
+
+            return futureSupplier.get().exceptionally(this::handleException);
+        }, this.executor);
+    }
+
+    /**
+     * Handles an exception from the code executed with a Retry Policy. If the exception is retryable, the Log Handles
+     * are closed (in hopes that reopening them would solve the problem.
+     */
+    @SneakyThrows(Throwable.class)
+    private <T> T handleException(Throwable ex) {
+        if (isRetryable(ex) || (ex instanceof ObjectClosedException && !this.closed.get())) {
+            // Close the handles upon an exception. They will be reopened when the operation is retried.
+            closeHandles();
         }
 
-        return this.handle.getReader(afterSequence);
+        // Rethrow the original exception.
+        throw ex;
     }
 
-    @Override
-    public int getMaxAppendLength() {
-        ensureInitialized();
-        return LogHandle.MAX_APPEND_LENGTH;
+    /**
+     * Determines whether the given exception can be retried.
+     */
+    private static boolean isRetryable(Throwable ex) {
+        ex = ExceptionHelpers.getRealException(ex);
+        return ex instanceof DataLogNotAvailableException
+                || ex instanceof WriteFailureException;
     }
 
-    @Override
-    public long getLastAppendSequence() {
-        ensureInitialized();
-        return this.handle.getLastTransactionId();
-    }
-
-    private void ensureInitialized() {
-        Preconditions.checkState(this.handle != null, "DistributedLogDataLog is not initialized.");
+    @SneakyThrows(IOException.class)
+    private void resetInput(InputStream data) {
+        if (data.markSupported()) {
+            data.reset();
+        }
     }
 
     //endregion

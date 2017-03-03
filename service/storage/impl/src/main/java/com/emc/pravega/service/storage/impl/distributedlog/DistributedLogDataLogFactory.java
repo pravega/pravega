@@ -7,14 +7,14 @@ import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.google.common.base.Preconditions;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Represents a DurableDataLogFactory that creates and manages instances of DistributedLogDataLog instances.
  */
 public class DistributedLogDataLogFactory implements DurableDataLogFactory {
     private final LogClient client;
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
 
     /**
      * Creates a new instance of the DistributedLogDataLogFactory class.
@@ -25,7 +25,7 @@ public class DistributedLogDataLogFactory implements DurableDataLogFactory {
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the clientId is invalid.
      */
-    public DistributedLogDataLogFactory(String clientId, DistributedLogConfig config, Executor executor) {
+    public DistributedLogDataLogFactory(String clientId, DistributedLogConfig config, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(executor, "executor");
         this.executor = executor;
         this.client = new LogClient(clientId, config);
