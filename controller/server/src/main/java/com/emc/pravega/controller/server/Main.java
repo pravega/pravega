@@ -120,7 +120,7 @@ public class Main {
 
         CompletableFuture
                 .supplyAsync(() -> {
-                    // Asynchronously try initializing controller event processors. At botstrap this operation
+                    // Asynchronously try initializing controller event processors. At bootstrap this operation
                     // will not complete until a pravega host is available.
                     try {
                         controllerEventProcessors.initialize();
