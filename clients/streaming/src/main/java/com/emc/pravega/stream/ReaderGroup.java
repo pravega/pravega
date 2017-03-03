@@ -8,7 +8,7 @@ package com.emc.pravega.stream;
 import com.emc.pravega.ClientFactory;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Future;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -66,7 +66,7 @@ public interface ReaderGroup {
      * @param backgroundExecutor A threadPool that can be used to poll for the completion of the checkpoint.
      * @return A future Checkpoint object that can be used to restore the reader group to this position.
      */
-    Future<Checkpoint> initiateCheckpoint(String checkpointName, ScheduledExecutorService backgroundExecutor);
+    CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName, ScheduledExecutorService backgroundExecutor);
     
     /**
      * Given a Checkpoint, restore the reader group to the provided checkpoint. All readers in the
