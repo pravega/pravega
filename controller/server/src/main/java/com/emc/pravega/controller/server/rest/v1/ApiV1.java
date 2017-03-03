@@ -119,6 +119,20 @@ public final class ApiV1 {
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
 
         @GET
+        @Path("/{scopeName}")
+        @Consumes({ "application/json" })
+        @Produces({ "application/json" })
+        @io.swagger.annotations.ApiOperation(value = "", notes = "", response = void.class, tags = {  })
+        @io.swagger.annotations.ApiResponses(value = {
+                @io.swagger.annotations.ApiResponse(code = 200, message = "Successfully retrieved the scope", response = void.class),
+
+                @io.swagger.annotations.ApiResponse(code = 404, message = "Scope not found", response = void.class),
+
+                @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = void.class) })
+        void getScope(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
+                      @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
+
+        @GET
         @Path("/{scopeName}/streams/{streamName}")
         @Produces({ "application/json" })
         @io.swagger.annotations.ApiOperation(

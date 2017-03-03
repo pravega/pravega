@@ -56,6 +56,15 @@ paths:
         description: Scope name
         required: true
         type: string
+    get:
+      operationId: getScope
+      responses:
+        200:
+          description: Successfully retrieved the scope
+        404:
+          description: Scope not found
+        500:
+          description: Server error
     delete:
       operationId: deleteScope
       responses:

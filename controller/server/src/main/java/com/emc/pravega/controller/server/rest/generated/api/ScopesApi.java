@@ -103,6 +103,22 @@ public class ScopesApi  {
         return delegate.deleteStream(scopeName,streamName,securityContext);
     }
     @GET
+    @Path("/{scopeName}")
+    
+    
+    @io.swagger.annotations.ApiOperation(value = "", notes = "", response = void.class, tags={  })
+    @io.swagger.annotations.ApiResponses(value = { 
+        @io.swagger.annotations.ApiResponse(code = 200, message = "Successfully retrieved the scope", response = void.class),
+        
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope not found", response = void.class),
+        
+        @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = void.class) })
+    public Response getScope(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
+,@Context SecurityContext securityContext)
+    throws NotFoundException {
+        return delegate.getScope(scopeName,securityContext);
+    }
+    @GET
     @Path("/{scopeName}/streams/{streamName}")
     
     @Produces({ "application/json" })

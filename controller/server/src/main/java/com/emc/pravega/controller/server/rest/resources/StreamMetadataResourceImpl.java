@@ -56,7 +56,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         controllerService.createScope(createScopeRequest.getScopeName()).thenApply(scopeStatus -> {
             if (scopeStatus == CreateScopeStatus.SUCCESS) {
                 log.info("Successfully created new scope: {}", createScopeRequest.getScopeName());
-                return Response.status(Status.CREATED).entity(createScopeRequest).build();
+                return Response.status(Status.CREATED).
+                        entity(new ScopeProperty().scopeName(createScopeRequest.getScopeName())).build();
             } else if (scopeStatus == CreateScopeStatus.SCOPE_EXISTS) {
                 log.warn("Scope name: {} already exists", createScopeRequest.getScopeName());
                 return Response.status(Status.CONFLICT).build();
@@ -156,6 +157,35 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     public void deleteStream(final String scopeName, final String streamName, final SecurityContext securityContext,
             final AsyncResponse asyncResponse) {
         asyncResponse.resume(Response.status(Status.NOT_IMPLEMENTED));
+    }
+
+    /**
+     * Implementation of getScope REST API.
+     *
+     * @param scopeName Scope Name.
+     * @param securityContext The security for API access.
+     * @param asyncResponse AsyncResponse provides means for asynchronous server side response processing.
+     */
+    @Override
+    public void getScope(final String scopeName, final SecurityContext securityContext,
+                         final AsyncResponse asyncResponse) {
+        long traceId = LoggerHelpers.traceEnter(log, "getScope");
+
+        controllerService.getScope(scopeName)
+                .thenApply(scope -> {
+                    System.out.println("\nscope asd "+scope);
+                    if (scope != null) {
+                        return Response.status(Status.OK).entity(new ScopeProperty().scopeName(scope)).build();
+                    } else {
+                        return Response.status(Status.NOT_FOUND).build();
+                    }
+                })
+                .exceptionally( exception -> {
+                   log.warn("getScope for {} failed with exception: {}", scopeName, exception);
+                   return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+                }).thenApply(asyncResponse::resume);
+
+        LoggerHelpers.traceLeave(log, "getScope", traceId);
     }
 
     /**

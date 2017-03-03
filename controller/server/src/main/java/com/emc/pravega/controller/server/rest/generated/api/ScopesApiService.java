@@ -27,6 +27,7 @@ public abstract class ScopesApiService {
     public abstract Response createStream(String scopeName,CreateStreamRequest createStreamRequest,SecurityContext securityContext) throws NotFoundException;
     public abstract Response deleteScope(String scopeName,SecurityContext securityContext) throws NotFoundException;
     public abstract Response deleteStream(String scopeName,String streamName,SecurityContext securityContext) throws NotFoundException;
+    public abstract Response getScope(String scopeName,SecurityContext securityContext) throws NotFoundException;
     public abstract Response getStream(String scopeName,String streamName,SecurityContext securityContext) throws NotFoundException;
     public abstract Response listScopes(SecurityContext securityContext) throws NotFoundException;
     public abstract Response listStreams(String scopeName,SecurityContext securityContext) throws NotFoundException;

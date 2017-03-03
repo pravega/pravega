@@ -20,9 +20,9 @@ public class ScalingConfig   {
    */
   public enum TypeEnum {
     FIXED_NUM_SEGMENTS("FIXED_NUM_SEGMENTS"),
-
+    
     BY_RATE_IN_KBYTES_PER_SEC("BY_RATE_IN_KBYTES_PER_SEC"),
-
+    
     BY_RATE_IN_EVENTS_PER_SEC("BY_RATE_IN_EVENTS_PER_SEC");
 
     private String value;
