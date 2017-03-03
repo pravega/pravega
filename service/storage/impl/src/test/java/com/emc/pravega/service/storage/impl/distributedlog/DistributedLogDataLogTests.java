@@ -11,15 +11,22 @@ import com.emc.pravega.service.storage.DurableDataLogTestBase;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.twitter.distributedlog.DLSN;
+import com.twitter.distributedlog.LocalDLMEmulator;
+import com.twitter.distributedlog.tools.Tool;
 import java.util.Properties;
+import java.util.Random;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.val;
+import org.apache.bookkeeper.conf.ServerConfiguration;
+import org.apache.bookkeeper.util.ReflectionUtils;
 import org.junit.After;
-import org.junit.Assert;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 /**
@@ -27,53 +34,69 @@ import org.junit.Test;
  * filesystem. It starts up the local sandbox and uses that for testing purposes.
  */
 public class DistributedLogDataLogTests extends DurableDataLogTestBase {
-    //region DistributedLog Bootstrapping
+    //region Setup, Config and Cleanup
 
-    private static final int DLOG_PORT = 7000;
-    private static final String DLOG_PATH = "/home/andrei/src/distributedlog";
+    private static final int BASE_PORT = 11000;
+    private static final String DLOG_HOST = "127.0.0.1";
     private static final String DLOG_NAMESPACE = "pravegatest";
-    private static final String DLOG_START = DLOG_PATH + "/distributedlog-service/bin/dlog local " + DLOG_PORT;
-    private static final String DLOG_CREATE_NAMESPACE = DLOG_PATH + String.format(
-            "/distributedlog-service/bin/dlog admin bind -l /ledgers -s 127.0.0.1:%s -c distributedlog://127.0.0.1:%s/%s",
-            DLOG_PORT, DLOG_PORT, DLOG_NAMESPACE);
-
-    //endregion
-
-    private static final int CONTAINER_ID = 9999;
+    private static final AtomicInteger CONTAINER_ID = new AtomicInteger(9999); // This changes with every run because we cannot cleanup.
     private static final int WRITE_COUNT_WRITES = 250;
     private static final int WRITE_COUNT_READS = 25;
     private static final String CLIENT_ID = "UnitTest";
 
-    private static final DistributedLogConfig CONFIG = new TestConfig()
-            .withDistributedLogHost("127.0.0.1")
-            .withDistributedLogPort(DLOG_PORT)
-            .withDistributedLogNamespace(DLOG_NAMESPACE);
-
-    //region Setup and Cleanup
-
-    private final AtomicReference<Process> dlogProcess = new AtomicReference<>();
+    private static final AtomicReference<DistributedLogConfig> CONFIG = new AtomicReference<>();
+    private static final AtomicReference<LocalDLMEmulator> DLOG_PROCESS = new AtomicReference<>();
     private final AtomicReference<DistributedLogDataLogFactory> factory = new AtomicReference<>();
+
+    @BeforeClass
+    public static void startDistributedLog() throws Exception {
+        // Pick a random port to reduce chances of collisions during concurrent test executions.
+        final int port = BASE_PORT + new Random().nextInt(1000);
+
+        // Start DistributedLog in-process.
+        ServerConfiguration sc = new ServerConfiguration()
+                .setJournalAdaptiveGroupWrites(false)
+                .setJournalMaxGroupWaitMSec(1);
+        val dlm = LocalDLMEmulator.newBuilder()
+                                  .zkPort(port)
+                                  .serverConf(sc)
+                                  .build();
+        dlm.start();
+        DLOG_PROCESS.set(dlm);
+
+        // Create a namespace.
+        Tool tool = ReflectionUtils.newInstance(com.twitter.distributedlog.admin.DistributedLogAdmin.class.getName(), Tool.class);
+        tool.run(new String[]{
+                "bind",
+                "-l", "/ledgers",
+                "-s", String.format("%s:%s", DLOG_HOST, port),
+                "-c", String.format("distributedlog://%s:%s/%s", DLOG_HOST, port, DLOG_NAMESPACE)});
+
+        // Setup config to use the port and namespace.
+        CONFIG.set(new TestConfig()
+                .withDistributedLogHost(DLOG_HOST)
+                .withDistributedLogPort(port)
+                .withDistributedLogNamespace(DLOG_NAMESPACE));
+    }
+
+    @AfterClass
+    public static void stopDistributedLog() throws Exception {
+        // It turns out that this doesn't fully shut down DistributedLog; something (like ZooKeeper) is still hanging around,
+        // which is why we need to start it before we run the class and shut it down at the end vs. with each test.
+        DLOG_PROCESS.get().teardown();
+    }
 
     @Before
     public void initializeTest() throws Exception {
-        this.dlogProcess.set(Runtime.getRuntime().exec(DLOG_START));
-        Process p = Runtime.getRuntime().exec(DLOG_CREATE_NAMESPACE);
-        int retVal = p.waitFor();
-        Assert.assertEquals("Unable to start DistributedLog process.", 0, retVal);
-
-        val factory = new DistributedLogDataLogFactory(CLIENT_ID, CONFIG, executorService());
+        // Create default factory.
+        val factory = new DistributedLogDataLogFactory(CLIENT_ID, CONFIG.get(), executorService());
         factory.initialize();
         this.factory.set(factory);
     }
 
     @After
-    public void cleanupAfterTest() {
-        factory.getAndSet(null).close();
-        System.out.println("DLOG: Factory closed.");
-
-        System.out.println("DLOG: Stopping.");
-        dlogProcess.get().destroyForcibly();
-        System.out.println("DLOG: Stopped.");
+    public void cleanupAfterTest() throws Exception {
+        this.factory.getAndSet(null).close();
     }
 
     //endregion
@@ -82,7 +105,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
 
     @Override
     protected DurableDataLog createDurableDataLog() {
-        return this.factory.get().createDurableDataLog(CONTAINER_ID);
+        return this.factory.get().createDurableDataLog(CONTAINER_ID.getAndIncrement());
     }
 
     @Override
@@ -105,17 +128,18 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
     public void testExclusiveWriteLock() throws Exception {
         // Tests the ability of the DurableDataLog to enforce an exclusive writer, by only allowing one client at a time
         // to write to the same physical log.
-        try (DurableDataLog log = createDurableDataLog()) {
+        final int containerId = CONTAINER_ID.getAndIncrement();
+        try (DurableDataLog log = this.factory.get().createDurableDataLog(containerId)) {
             log.initialize(TIMEOUT);
 
             // Simulate a different client trying to
             @Cleanup
-            val factory = new DistributedLogDataLogFactory(CLIENT_ID + "_secondary", CONFIG, executorService());
+            val factory = new DistributedLogDataLogFactory(CLIENT_ID + "_secondary", CONFIG.get(), executorService());
             factory.initialize();
             AssertExtensions.assertThrows(
                     "A second log was able to acquire the exclusive write lock, even if another log held it.",
                     () -> {
-                        try (DurableDataLog log2 = factory.createDurableDataLog(CONTAINER_ID)) {
+                        try (DurableDataLog log2 = factory.createDurableDataLog(containerId)) {
                             log2.initialize(TIMEOUT);
                         }
                     },
@@ -125,6 +149,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
             TreeMap<LogAddress, byte[]> writeData = populate(log, getWriteCountForWrites());
             verifyReads(log, createLogAddress(-1), writeData);
         }
+        System.out.println();
     }
 
     //endregion
