@@ -378,7 +378,7 @@ public class ControllerService {
     /**
      * List existing streams in scopes.
      *
-     * @param scopeName Name of the scope.
+     * @param scope Name of the scope.
      * @return List of streams in scope.
      */
     public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scope) {
