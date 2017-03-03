@@ -31,10 +31,21 @@ import static com.emc.pravega.controller.util.Config.SERVER_WORKER_THREAD_COUNT;
 @Slf4j
 public class RPCServer {
 
+    public static void start(final ControllerService.AsyncIface controllerService, final int port) {
+        try {
+
+            Runnable simple = () -> threadedSelectorServer(new ControllerService.AsyncProcessor<>(controllerService), port);
+
+            new Thread(simple).start();
+        } catch (Exception x) {
+            log.error("Exception during start of RPC Server", x);
+        }
+    }
+
     public static void start(ControllerService.AsyncIface controllerService) {
         try {
 
-            Runnable simple = () -> threadedSelectorServer(new ControllerService.AsyncProcessor<>(controllerService));
+            Runnable simple = () -> threadedSelectorServer(new ControllerService.AsyncProcessor<>(controllerService), SERVER_PORT);
 
             new Thread(simple).start();
         } catch (Exception x) {
@@ -54,9 +65,9 @@ public class RPCServer {
         }
     }
 
-    private static void threadedSelectorServer(final TProcessor processor) {
+    private static void threadedSelectorServer(final TProcessor processor, int port) {
         try {
-            TNonblockingServerSocket socket = new TNonblockingServerSocket(SERVER_PORT);
+            TNonblockingServerSocket socket = new TNonblockingServerSocket(port);
 
             TThreadedSelectorServer.Args config = new TThreadedSelectorServer.Args(socket);
             config.processor(processor)
@@ -66,7 +77,7 @@ public class RPCServer {
                     .selectorThreads(SERVER_SELECTOR_THREAD_COUNT);
             config.maxReadBufferBytes = SERVER_MAX_READ_BUFFER_BYTES;
             TServer server = new TThreadedSelectorServer(config);
-            log.info("Starting Controller Server (Threaded Selector Server) on port {}", SERVER_PORT);
+            log.info("Starting Controller Server (Threaded Selector Server) on port {}", port);
             server.serve();
         } catch (TTransportException e) {
             log.error("Exception during start of Threaded Selector Server", e);

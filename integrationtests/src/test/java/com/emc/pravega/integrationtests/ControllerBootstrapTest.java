@@ -16,6 +16,7 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.StreamImpl;
+import com.emc.pravega.testcommon.TestUtils;
 import org.junit.Assert;
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
@@ -33,8 +34,13 @@ public class ControllerBootstrapTest {
     private static final String SCOPE = "testScope";
     private static final String STREAM = "testStream";
 
-    @Test
+    @Test(timeout = 10000)
     public void bootstrapTest() throws Exception {
+        final int controllerPort = TestUtils.randomPort();
+        final String serviceHost = "localhost";
+        final int servicePort = TestUtils.randomPort();
+        final int containerCount = 4;
+
         // 1. Start ZK
         @Cleanup
         TestingServer zkTestServer = new TestingServer();
@@ -45,11 +51,12 @@ public class ControllerBootstrapTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
 
         // 3. Start controller
-        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString());
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
+                controllerPort, serviceHost, servicePort, containerCount);
         Controller controller = controllerWrapper.getController();
 
         // Create test scope. This operation should succeed.
