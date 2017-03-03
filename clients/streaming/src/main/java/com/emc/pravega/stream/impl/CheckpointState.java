@@ -1,3 +1,8 @@
+/**
+ *
+ *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ *
+ */
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.stream.Segment;
@@ -32,7 +37,7 @@ public class CheckpointState {
     
     @Synchronized
     String getCheckpointForReader(String readerName) {
-        OptionalInt min = getCheckpointsForReader(readerName).stream().mapToInt(cp -> checkpoints.indexOf(cp)).min();
+        OptionalInt min = getCheckpointsForReader(readerName).stream().mapToInt(checkpoints::indexOf).min();
         if (min.isPresent()) {
             return checkpoints.get(min.getAsInt());
         } else {
@@ -44,7 +49,7 @@ public class CheckpointState {
         return uncheckpointedHosts.entrySet()
             .stream()
             .filter(entry -> entry.getValue().contains(readerName))
-            .map(entry -> entry.getKey())
+            .map(Map.Entry::getKey)
             .collect(Collectors.toList());
     }
 
@@ -91,7 +96,7 @@ public class CheckpointState {
                 uncheckpointedHosts.remove(cp);
                 checkpointPositions.remove(cp);
                 iterator.remove();
-                if (cp == checkpointId) {
+                if (cp.equals(checkpointId)) {
                     break;
                 }
             }

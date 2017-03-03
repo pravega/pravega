@@ -83,7 +83,7 @@ public class ReaderGroupImpl implements ReaderGroup {
         synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointName));
         boolean checkpointCompleted;
         do {
-            Exceptions.handleInterrupted(()->Thread.sleep(2000));
+            Exceptions.handleInterrupted(() -> Thread.sleep(2000));
             synchronizer.fetchUpdates();
             checkpointCompleted = synchronizer.getState().isCheckpointComplete(checkpointName);
         } while (checkpointCompleted);
