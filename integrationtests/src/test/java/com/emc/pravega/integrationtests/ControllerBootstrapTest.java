@@ -70,7 +70,7 @@ public class ControllerBootstrapTest {
             CreateStreamStatus status = streamStatus.join();
             Assert.assertEquals(CreateStreamStatus.SUCCESS, status);
         } catch (CompletionException ce) {
-            Assert.assertTrue(false);
+            Assert.fail();
         }
 
         // Now create transaction should succeed.
@@ -81,7 +81,7 @@ public class ControllerBootstrapTest {
             UUID id = txIdFuture.join();
             Assert.assertNotNull(id);
         } catch (CompletionException ce) {
-            Assert.assertTrue(false);
+            Assert.fail();
         }
     }
 }
