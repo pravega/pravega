@@ -138,7 +138,7 @@ public final class TrustingSSLSocketFactory extends SSLSocketFactory
     }
 
     public X509Certificate[] getAcceptedIssuers() {
-        return null;
+        return new java.security.cert.X509Certificate[]{};
     }
 
     public void checkClientTrusted(X509Certificate[] certs, String authType) {

@@ -69,7 +69,7 @@ public class LoginClient {
     }
 
     public static RequestInterceptor getAuthenticationRequestInterceptor() {
-        return new BasicAuthRequestInterceptor("admin", "password");
+        return new BasicAuthRequestInterceptor(getUsername(), getPassword());
     }
 
     private static String getMesosMasterIP() {
