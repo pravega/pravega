@@ -73,7 +73,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, SegmentOutputConfiguration config)
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment)
             throws SegmentSealedException {
         SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, UUID.randomUUID());
         try {

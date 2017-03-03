@@ -19,10 +19,9 @@ public interface SegmentInputStreamFactory {
      * process space).
      *
      * @param segment The segment to create an input for.
-     * @param config  The SegmentInputConfiguration to use.
      * @return New instance of SegmentInputStream for reading.
      */
-    SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config);
+    SegmentInputStream createInputStreamForSegment(Segment segment);
 
     /**
      * Opens an existing segment for reading. This operation will fail if the
@@ -36,9 +35,8 @@ public interface SegmentInputStreamFactory {
      * reading events with {@link EventReader#read()}
      *
      * @param segment  The segment to create an input for.
-     * @param config   The SegmentInputConfiguration to use.
      * @param bufferSize Size of the input stream read buffer.
      * @return A segment input stream.
      */
-    SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config, int bufferSize);
+    SegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize);
 }

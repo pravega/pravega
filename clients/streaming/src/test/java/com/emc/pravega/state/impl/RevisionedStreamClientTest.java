@@ -43,7 +43,7 @@ public class RevisionedStreamClientTest {
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
         
-        SynchronizerConfig config = new SynchronizerConfig(null, null);
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
         Revision initialRevision = client.fetchRevision();
@@ -81,7 +81,7 @@ public class RevisionedStreamClientTest {
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory);
         
-        SynchronizerConfig config = new SynchronizerConfig(null, null);
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
         client.writeUnconditionally("a");

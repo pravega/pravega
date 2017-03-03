@@ -5,6 +5,7 @@
  */
 package com.emc.pravega.service.server.host.handler;
 
+import com.emc.pravega.common.ExceptionHelpers;
 import com.emc.pravega.common.Timer;
 import com.emc.pravega.common.metrics.DynamicLogger;
 import com.emc.pravega.common.metrics.MetricsProvider;
@@ -30,8 +31,10 @@ import com.emc.pravega.service.contracts.WrongHostException;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.google.common.collect.LinkedListMultimap;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -40,9 +43,11 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+
 import javax.annotation.concurrent.GuardedBy;
-import lombok.extern.slf4j.Slf4j;
+
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.service.contracts.Attributes.EVENT_COUNT;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_WRITE_BYTES;
@@ -155,7 +160,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 if (last != null) {
                     numOfEvents = last.getEventNumber() - first.getEventNumber() + 1;
                 }
-                
+
                 String segment = last != null ? last.getSegment() : first.getSegment();
                 long eventNumber = last != null ? last.getEventNumber() : first.getEventNumber();
                 append = new Append(segment, writer, eventNumber, data, null);
@@ -189,8 +194,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
         future.whenComplete((t, u) -> {
             try {
-                boolean conditionalFailed = u != null
-                        && (u instanceof BadOffsetException || u.getCause() instanceof BadOffsetException);
+                boolean conditionalFailed = u != null && (ExceptionHelpers.getRealException(u) instanceof BadOffsetException);
                 synchronized (lock) {
                     if (outstandingAppend != toWrite) {
                         throw new IllegalStateException(
@@ -231,13 +235,16 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
     private void handleException(String segment, Throwable u) {
         if (u == null) {
-            IllegalStateException exception = new IllegalStateException("Neither offset nor exception!?");
-            log.error("Error on segment: " + segment, exception);
+            IllegalStateException exception = new IllegalStateException("No exception to handle.");
+            log.error("Error (Segment = '{}', Operation = 'append')", segment, exception);
             throw exception;
         }
+
         if (u instanceof CompletionException) {
             u = u.getCause();
         }
+
+        log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
         if (u instanceof StreamSegmentExistsException) {
             connection.send(new SegmentAlreadyExists(segment));
         } else if (u instanceof StreamSegmentNotExistsException) {
@@ -250,7 +257,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else {
             // TODO: don't know what to do here...
             connection.close();
-            log.error("Unknown exception on append for segment " + segment, u);
         }
     }
 

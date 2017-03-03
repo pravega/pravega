@@ -143,4 +143,9 @@ public class LocalController implements Controller {
             return controller.getURI(ModelHelper.createSegmentId(segment.getScope(), segment.getStreamName(),
                     segment.getSegmentNumber())).thenApply(ModelHelper::encode);
     }
+
+    @Override
+    public CompletableFuture<Boolean> isSegmentOpen(Segment segment) {
+        return controller.isSegmentValid(segment.getScope(), segment.getScopedName(), segment.getSegmentNumber());
+    }
 }

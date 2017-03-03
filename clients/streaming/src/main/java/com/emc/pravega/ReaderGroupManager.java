@@ -12,7 +12,7 @@ import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 
 import java.net.URI;
-import java.util.List;
+import java.util.Set;
 
 public interface ReaderGroupManager extends AutoCloseable {
     
@@ -43,7 +43,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @param streamNames The name of the streams the reader will read from.
      * @return Newly created ReaderGroup object
      */
-    ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, List<String> streamNames);
+    ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streamNames);
     
     /**
      * Returns the requested reader group.

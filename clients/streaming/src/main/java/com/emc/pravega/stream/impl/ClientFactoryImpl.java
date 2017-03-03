@@ -20,6 +20,7 @@ import com.emc.pravega.stream.EventStreamReader;
 import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.IdempotentEventStreamWriter;
+import com.emc.pravega.stream.InvalidStreamException;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.Segment;
@@ -37,13 +38,11 @@ import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
-import java.net.URI;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
+import lombok.val;
 
 import org.apache.commons.lang.NotImplementedException;
 
-import lombok.val;
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 public class ClientFactoryImpl implements ClientFactory {
 
@@ -52,22 +51,6 @@ public class ClientFactoryImpl implements ClientFactory {
     private final SegmentInputStreamFactory inFactory;
     private final SegmentOutputStreamFactory outFactory;
     private final ConnectionFactory connectionFactory;
-
-    /**
-     * Creates a new instance of ClientFactory class.
-     *
-     * @param scope         The scope string.
-     * @param controllerUri The Controller URI.
-     */
-    public ClientFactoryImpl(String scope, URI controllerUri) {
-        Preconditions.checkNotNull(scope);
-        Preconditions.checkNotNull(controllerUri);
-        this.scope = scope;
-        this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
-        connectionFactory = new ConnectionFactoryImpl(false);
-        this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
-        this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
-    }
 
     /**
      * Creates a new instance of ClientFactory class.
@@ -112,7 +95,6 @@ public class ClientFactoryImpl implements ClientFactory {
         this.outFactory = outFactory;
     }
 
-
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         Stream stream = new StreamImpl(scope, streamName);
@@ -135,7 +117,7 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
             ReaderConfig config) {
-        SynchronizerConfig synchronizerConfig = new SynchronizerConfig(null, null);
+        SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> sync = createStateSynchronizer(readerGroup,
                                                                            new JavaSerializer<>(),
                                                                            new JavaSerializer<>(),
@@ -148,29 +130,19 @@ public class ClientFactoryImpl implements ClientFactory {
         return new EventStreamReaderImpl<T>(inFactory,
                                       s,
                                       stateManager,
-                                      new RoundRobinOrderer(),
+                                      new Orderer(),
                                       System::currentTimeMillis,
                                       config);
-    }
-
-    private static class RoundRobinOrderer implements Orderer {
-        private final AtomicInteger counter = new AtomicInteger(0);
-
-        @Override
-        public SegmentEventReader nextSegment(List<SegmentEventReader> segments) {
-            int count = counter.incrementAndGet();
-            return segments.get(count % segments.size());
-        }
     }
 
     @Override
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
             SynchronizerConfig config) {
         Segment segment = new Segment(scope, streamName, 0);
-        SegmentInputStream in = inFactory.createInputStreamForSegment(segment, config.getInputConfig());
+        SegmentInputStream in = inFactory.createInputStreamForSegment(segment);
         SegmentOutputStream out;
         try {
-            out = outFactory.createOutputStreamForSegment(segment, config.getOutputConfig());
+            out = outFactory.createOutputStreamForSegment(segment);
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Attempted to create synchronizer on sealed segment", e);
         }
@@ -178,14 +150,17 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     @Override
-    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>>
-            StateSynchronizer<StateT> createStateSynchronizer(String streamName,
-                    Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer,
-                    SynchronizerConfig config) {
+    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> StateSynchronizer<StateT> 
+        createStateSynchronizer(String streamName,
+                                Serializer<UpdateT> updateSerializer,
+                                Serializer<InitT> initialSerializer,
+                                SynchronizerConfig config) {
         Segment segment = new Segment(scope, streamName, 0);
+        if (!getAndHandleExceptions(controller.isSegmentOpen(segment), InvalidStreamException::new)) {
+            throw new InvalidStreamException("Segment does not exist: " + segment);
+        }
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
-        return new StateSynchronizerImpl<StateT>(segment,
-                createRevisionedStreamClient(streamName, serializer, config));
+        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(streamName, serializer, config));
     }
 
     @Override

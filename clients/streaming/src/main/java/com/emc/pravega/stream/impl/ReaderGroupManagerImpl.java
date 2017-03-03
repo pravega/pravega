@@ -8,6 +8,7 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.state.StateSynchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.stream.ReaderGroup;
 import com.emc.pravega.stream.ReaderGroupConfig;
@@ -15,11 +16,13 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.InvalidStreamException;
 
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -60,14 +63,14 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     }
     
     @Override
-    public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, List<String> streams) {
+    public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streams) {
         createStreamHelper(groupName,
                            StreamConfiguration.builder()
                                               .scope(scope)
                                               .streamName(groupName)
                                               .scalingPolicy(ScalingPolicy.fixed(1))
                                               .build());
-        SynchronizerConfig synchronizerConfig = new SynchronizerConfig(null, null);
+        SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         ReaderGroupImpl result = new ReaderGroupImpl(scope,
                 groupName,
                 streams,
@@ -87,14 +90,28 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
             return listOfMaps.stream()
                              .flatMap(map -> map.entrySet().stream())
                              .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
-        }), RuntimeException::new);
+        }), InvalidStreamException::new);
         result.initializeGroup(segments);
         return result;
     }
     
     @Override
     public ReaderGroup getReaderGroup(String groupName) {
-        throw new NotImplementedException();
+        SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
+        StateSynchronizer<ReaderGroupState> sync = clientFactory.createStateSynchronizer(groupName,
+                                                                                         new JavaSerializer<>(),
+                                                                                         new JavaSerializer<>(),
+                                                                                         synchronizerConfig);
+        Set<String> streamNames = sync.getState().getStreamNames();
+        ReaderGroupConfig config = sync.getState().getConfig();
+        return new ReaderGroupImpl(scope,
+                groupName,
+                streamNames,
+                config,
+                synchronizerConfig,
+                new JavaSerializer<>(),
+                new JavaSerializer<>(),
+                clientFactory);
     }
 
     @Override

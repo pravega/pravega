@@ -213,6 +213,18 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> isSegmentOpen(final Segment segment) {
+        log.trace("Invoke ProducerService.Client.isSegmentOpen() for segment: {}", segment);
+        final ThriftAsyncCallback<ControllerService.AsyncClient.isSegmentValid_call> callback = new ThriftAsyncCallback<>();
+        ThriftHelper.thriftCall(() -> {
+            client.getURI(new SegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber()),
+                          callback);
+            return callback.getResult();
+        });
+        return callback.getResult().thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+    }
+
+    @Override
     public CompletableFuture<UUID> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
                                                      final long scaleGracePeriod) {
         Preconditions.checkNotNull(stream, "stream");

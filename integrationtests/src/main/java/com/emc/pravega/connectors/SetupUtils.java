@@ -17,11 +17,11 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
+import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
-import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -32,25 +32,22 @@ import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.ReaderConfig;
 import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import java.net.InetAddress;
+import java.net.URI;
+import java.net.UnknownHostException;
+import java.util.Collections;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
-
-import java.net.InetAddress;
-import java.net.URI;
-import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.UUID;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Utility functions for creating the test setup.
@@ -115,17 +112,7 @@ public final class SetupUtils {
         ClientFactory clientFactory = ClientFactory.withScope(scope, SetupUtils.CONTROLLER_URI);
         return clientFactory.createEventWriter(
                 streamName,
-                new Serializer<Integer>() {
-                    @Override
-                    public ByteBuffer serialize(Integer value) {
-                        return ByteBuffer.wrap(String.valueOf(value).getBytes());
-                    }
-
-                    @Override
-                    public Integer deserialize(ByteBuffer serializedValue) {
-                        return null;
-                    }
-                },
+                new IntegerSerializer(),
                 EventWriterConfig.builder().build());
     }
 
@@ -146,25 +133,14 @@ public final class SetupUtils {
         readerGroupManager.createReaderGroup(
                 readerGroup,
                 ReaderGroupConfig.builder().startingTime(0).build(),
-                Collections.singletonList(streamName));
+                Collections.singleton(streamName));
 
         ClientFactory clientFactory = ClientFactory.withScope(scope, SetupUtils.CONTROLLER_URI);
         final String readerGroupId = UUID.randomUUID().toString();
         return clientFactory.createReader(
                 readerGroupId,
                 readerGroup,
-                new Serializer<Integer>() {
-                    @Override
-                    public ByteBuffer serialize(Integer value) {
-                        return null;
-                    }
-
-                    @Override
-                    public Integer deserialize(ByteBuffer serializedValue) {
-
-                        return Integer.valueOf(new String(serializedValue.array()));
-                    }
-                },
+                new IntegerSerializer(),
                 ReaderConfig.builder().build());
     }
 

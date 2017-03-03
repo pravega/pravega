@@ -22,18 +22,16 @@ import com.emc.pravega.stream.ReaderGroupConfig;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Sequence;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.ReaderGroupManagerImpl;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import lombok.extern.slf4j.Slf4j;
-
 import java.net.URI;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class RequestHandlersInit {
@@ -54,7 +52,7 @@ public class RequestHandlersInit {
         Preconditions.checkNotNull(checkpointStore);
         Preconditions.checkNotNull(executor);
         URI uri = URI.create("tcp://localhost:" + Config.RPC_SERVER_PORT);
-        ClientFactory clientFactory = new ClientFactoryImpl(Config.INTERNAL_SCOPE, uri);
+        ClientFactory clientFactory = ClientFactory.withScope(Config.INTERNAL_SCOPE, uri);
 
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(Config.INTERNAL_SCOPE, uri);
 
@@ -111,7 +109,7 @@ public class RequestHandlersInit {
                 .runAsync(() -> {
                     ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
 
-                    readerGroupManager.createReaderGroup(Config.SCALE_READER_GROUP, groupConfig, Lists.newArrayList(Config.SCALE_STREAM_NAME));
+                    readerGroupManager.createReaderGroup(Config.SCALE_READER_GROUP, groupConfig, Collections.singleton(Config.SCALE_STREAM_NAME));
 
                     if (SCALE_HANDLER_REF.get() == null) {
                         SCALE_HANDLER_REF.compareAndSet(null, new ScaleRequestHandler(streamMetadataTasks, streamStore, streamTransactionMetadataTasks, executor));

@@ -51,8 +51,6 @@ import com.emc.pravega.service.contracts.WrongHostException;
 import com.emc.pravega.service.server.host.stat.SegmentStatsRecorder;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -63,6 +61,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.emc.pravega.common.SegmentStoreMetricsNames.CREATE_SEGMENT;
 import static com.emc.pravega.common.SegmentStoreMetricsNames.SEGMENT_READ_BYTES;
@@ -277,11 +276,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private void handleException(String segment, String operation, Throwable u) {
         if (u == null) {
-            throw new IllegalStateException("Neither offset nor exception!?");
+            IllegalStateException exception = new IllegalStateException("No exception to handle.");
+            log.error("Error (Segment = '{}', Operation = '{}')", segment, operation, exception);
+            throw exception;
         }
+
         if (u instanceof CompletionException) {
             u = u.getCause();
         }
+
+        log.error("Error (Segment = '{}', Operation = '{}')", segment, operation, u);
         if (u instanceof StreamSegmentExistsException) {
             connection.send(new SegmentAlreadyExists(segment));
         } else if (u instanceof StreamSegmentNotExistsException) {
@@ -294,7 +298,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else {
             // TODO: don't know what to do here...
             connection.close();
-            log.error("Unknown exception on " + operation + " for segment " + segment, u);
             throw new IllegalStateException("Unknown exception.", u);
         }
     }
@@ -419,5 +422,4 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     }
                 });
     }
-
 }

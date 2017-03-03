@@ -69,7 +69,7 @@ public class FlinkPravegaReaderTest {
         FlinkPravegaReader<Integer> pravegaSource = new FlinkPravegaReader<>(
                 SetupUtils.CONTROLLER_URI,
                  SCOPE,
-                 Collections.singletonList(streamName),
+                 Collections.singleton(streamName),
                  0,
                  new AbstractDeserializationSchema<Integer>() {
                      @Override

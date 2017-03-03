@@ -33,9 +33,20 @@ allprojects {
     apply plugin: 'maven-publish'
     apply plugin: 'com.google.protobuf'
 
+    apply plugin: 'jacoco'
+
     checkstyle {
         toolVersion = "7.1"
     }
+
+    jacocoTestReport {
+        reports {
+            xml.enabled true
+            html.enabled false
+        }
+    }
+
+    test { finalizedBy jacocoTestReport }
 
     javadoc {
         failOnError = false
@@ -119,7 +130,7 @@ allprojects {
         testLogging.showExceptions = true
         testLogging.showStackTraces = true
         testLogging.events = ["PASSED", "FAILED"]
-        maxParallelForks = 2
+        maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : 1
         minHeapSize = "128m"
         maxHeapSize = "512m"
     }
@@ -306,7 +317,6 @@ project('service:server:host') {
             }
         }
     }
-
 }
 
 project('integrationtests') {
@@ -585,12 +595,16 @@ project('systemtests:tests') {
         systemProperty "test_collection_jar_path", "$jar.archivePath.path"
         systemProperty "execType", System.getProperty("execType")
         systemProperty "masterIP", System.getProperty("masterIP")
+        systemProperty "imageVersion", System.getProperty("imageVersion")
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"
         }
         if (System.getProperty("masterIP") == null) {
             systemProperty "masterIP", "INVALID_MASTER_IP"
+        }
+        if (System.getProperty("imageVersion") == null) {
+            systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
         }
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", project.property("dockerRegistryUrl")
