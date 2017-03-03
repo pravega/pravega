@@ -21,6 +21,9 @@ import com.emc.pravega.stream.impl.TxnStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
+import static com.emc.pravega.controller.store.stream.tables.TableHelper.findSegmentPredecessorCandidates;
+import static com.emc.pravega.controller.store.stream.tables.TableHelper.findSegmentSuccessorCandidates;
+
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
@@ -179,29 +182,30 @@ public abstract class PersistentStreamBase<T> implements Stream {
         futures[0] = getSegment(number);
         futures[1] = getIndexTable();
         futures[2] = getHistoryTable();
-
-        return verifyLegalState(CompletableFuture.allOf(futures)
-                .thenCompose(x -> {
-                    final Segment segment = (Segment) futures[0].getNow(null);
-                    final Data<T> indexTable = (Data<T>) futures[1].getNow(null);
-                    final Data<T> historyTable = (Data<T>) futures[2].getNow(null);
-                    List<Integer> candidates = TableHelper.findSegmentSuccessorCandidates(segment,
-                            indexTable.getData(),
-                            historyTable.getData());
-                    return findOverlapping(segment, candidates);
-                }).thenCompose(successors -> {
-                    final Data<T> indexTable = (Data<T>) futures[1].getNow(null);
-                    final Data<T> historyTable = (Data<T>) futures[2].getNow(null);
-                    List<CompletableFuture<Map.Entry<Segment, List<Integer>>>> result = new ArrayList<>();
-                    for (Segment successor : successors) {
-                        List<Integer> candidates = TableHelper.findSegmentPredecessorCandidates(successor,
-                                indexTable.getData(),
-                                historyTable.getData());
-                        result.add(findOverlapping(successor, candidates).thenApply(list -> new SimpleImmutableEntry<>(
-                                successor, candidates)));
-                    }
-                    return FutureHelpers.allOfWithResults(result);
-                }).thenApply(list -> list.stream().collect(Collectors.toMap(e -> e.getKey().getNumber(), Map.Entry::getValue))));
+        CompletableFuture<List<Segment>> segments = CompletableFuture.allOf(futures).thenCompose(x -> {
+            final Segment segment = (Segment) futures[0].getNow(null);
+            final Data<T> indexTable = (Data<T>) futures[1].getNow(null);
+            final Data<T> historyTable = (Data<T>) futures[2].getNow(null);
+            List<Integer> candidates = findSegmentSuccessorCandidates(segment,
+                                                                      indexTable.getData(),
+                                                                      historyTable.getData());
+            return findOverlapping(segment, candidates);
+        });
+        CompletableFuture<Map<Integer, List<Integer>>> result = segments.thenCompose(successors -> {
+            final Data<T> indexTable = (Data<T>) futures[1].getNow(null);
+            final Data<T> historyTable = (Data<T>) futures[2].getNow(null);
+            List<CompletableFuture<Map.Entry<Segment, List<Integer>>>> resultFutures = new ArrayList<>();
+            for (Segment successor : successors) {
+                List<Integer> candidates = findSegmentPredecessorCandidates(successor,
+                                                                            indexTable.getData(),
+                                                                            historyTable.getData());
+                resultFutures.add(findOverlapping(successor,
+                                                  candidates).thenApply(list -> new SimpleImmutableEntry<>(successor,
+                                                                                                           candidates)));
+            }
+            return FutureHelpers.allOfWithResults(resultFutures);
+        }).thenApply(list -> list.stream().collect(Collectors.toMap(e -> e.getKey().getNumber(), Map.Entry::getValue)));
+        return verifyLegalState(result);
     }
 
     /**

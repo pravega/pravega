@@ -70,7 +70,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 actorSystem.readerGroupManager,
                 eventProcessorConfig.getConfig().getReaderGroupName(),
                 ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build(),
-                Collections.singletonList(eventProcessorConfig.getConfig().getStreamName()));
+                Collections.singleton(eventProcessorConfig.getConfig().getStreamName()));
 
         createEventProcessors(eventProcessorConfig.getConfig().getEventProcessorCount());
     }
@@ -78,7 +78,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
     private ReaderGroup createIfNotExists(final ReaderGroupManager readerGroupManager,
                                           final String groupName,
                                           final ReaderGroupConfig groupConfig,
-                                          final List<String> streamNanes) {
+                                          final Set<String> streamNanes) {
         return readerGroupManager.createReaderGroup(groupName, groupConfig, streamNanes);
         // todo: getReaderGroup currently throws NotImplementedException
         //ReaderGroup readerGroup = streamManager.getReaderGroup(groupName);

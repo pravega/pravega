@@ -22,6 +22,7 @@ import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.ControllerImpl;
 import com.emc.pravega.stream.impl.RebalancerUtils;
 
 import java.net.URI;
@@ -62,7 +63,7 @@ public interface ClientFactory extends AutoCloseable {
      * @return Instance of ClientFactory implementation.
      */
     static ClientFactory withScope(String scope, URI controllerUri) {
-        return new ClientFactoryImpl(scope, controllerUri);
+        return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri.getHost(), controllerUri.getPort()));
     }
 
     static ClientFactory withScope(String scope, Controller controller) {

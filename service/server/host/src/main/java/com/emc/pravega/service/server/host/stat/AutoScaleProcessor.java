@@ -11,17 +11,12 @@ import com.emc.pravega.stream.EventStreamWriter;
 import com.emc.pravega.stream.EventWriterConfig;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
-import com.emc.pravega.stream.impl.ClientFactoryImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalListener;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -31,6 +26,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * This looks at segment aggregates and determines if a scale operation has to be triggered.
@@ -106,7 +104,7 @@ public class AutoScaleProcessor {
                 e -> log.error("error while creating writer for requeststream {}", e))
                 .runAsync(() -> {
                     if (clientFactory.get() == null) {
-                        clientFactory.compareAndSet(null, new ClientFactoryImpl(configuration.getInternalScope(), configuration.getConrollerUri()));
+                        clientFactory.compareAndSet(null, ClientFactory.withScope(configuration.getInternalScope(), configuration.getConrollerUri()));
                     }
 
                     this.writer.set(clientFactory.get().createEventWriter(configuration.getInternalStream(),
