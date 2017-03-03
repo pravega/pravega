@@ -23,6 +23,7 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
+import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
@@ -164,7 +165,6 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
     @Override
     public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(Segment segment) {
         log.trace("Invoke ConsumerService.Client.getSegmentsImmediatlyFollowing() for segment: {} ", segment);
-        final SegmentId transformed = ModelHelper.decode(segment);
 
         RPCAsyncCallback<SuccessorResponse> callback = new RPCAsyncCallback<>();
         client.getSegmentsImmediatlyFollowing(ModelHelper.decode(segment), callback);
@@ -215,13 +215,10 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
     @Override
     public CompletableFuture<Boolean> isSegmentOpen(final Segment segment) {
         log.trace("Invoke ProducerService.Client.isSegmentOpen() for segment: {}", segment);
-        final ThriftAsyncCallback<ControllerService.AsyncClient.isSegmentValid_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
-            client.getURI(new SegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber()),
+        RPCAsyncCallback<SegmentValidityResponse> callback = new RPCAsyncCallback<>();
+        client.isSegmentValid(ModelHelper.createSegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber()),
                           callback);
-            return callback.getResult();
-        });
-        return callback.getResult().thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+        return callback.getFuture().thenApply(SegmentValidityResponse::getResponse);
     }
 
     @Override
@@ -248,8 +245,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         client.pingTransaction(PingTxnRequest.newBuilder().setStreamInfo(
                 ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
                                        .setTxnId(ModelHelper.decode(txId))
-                                       .setLease(lease)
-                                       .build(),
+                                       .setLease(lease).build(),
                                callback);
         return FutureHelpers.toVoidExpecting(callback.getFuture(),
                                              PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
@@ -281,7 +277,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(txId, "txId");
 
-        log.trace("Invoke AdminService.Client.dropTransaction() with stream: {}, txUd: {}", stream, txId);
+        log.trace("Invoke AdminService.Client.abortTransaction() with stream: {}, txUd: {}", stream, txId);
         RPCAsyncCallback<Controller.TxnStatus> callback = new RPCAsyncCallback<>();
         client.abortTransaction(TxnRequest.newBuilder()
                                        .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
