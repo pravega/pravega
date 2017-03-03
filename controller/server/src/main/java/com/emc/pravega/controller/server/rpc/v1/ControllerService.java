@@ -340,4 +340,8 @@ public class ControllerService {
     public CompletableFuture<List<String>> listScopes() {
         return streamStore.listScopes();
     }
+
+    public CompletableFuture<String> getScope(final String scopeName) {
+        return streamStore.getScopeConfiguration(scopeName);
+    }
 }

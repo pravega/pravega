@@ -160,4 +160,24 @@ public class StreamMetadataStoreTest {
         list = store.listScopes().get();
         assertEquals("List Scopes size", 2, list.size());
     }
+
+    @Test
+    public void getScopeTest() throws  Exception {
+        final String scope1 = "Scope1";
+        String scopeName;
+
+        // get existent scope
+        store.createScope(scope1).get();
+        scopeName = store.getScopeConfiguration(scope1).get();
+        assertEquals("Get existent scope", scope1, scopeName);
+
+        // get non-existent scope
+        try {
+            store.getScopeConfiguration("Scope2").get();
+        } catch (ExecutionException ee) {
+            assertTrue("Get non-existent scope", ee.getCause() instanceof StoreException);
+            assertTrue("Get non-existent scope",
+                    ((StoreException) ee.getCause()).getType() == StoreException.Type.NODE_NOT_FOUND);
+        }
+    }
 }

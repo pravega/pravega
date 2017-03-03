@@ -45,6 +45,18 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    public CompletableFuture<String> getScopeConfiguration(final String scopeName) {
+        return storeHelper.checkExists(String.format("/store/%s",scopeName))
+                .thenApply(scopeExists -> {
+                    if(scopeExists) {
+                        return scopeName;
+                    } else {
+                        return null;
+                    }
+                });
+    }
+
+    @Override
     public CompletableFuture<List<String>> listScopes() {
         return storeHelper.listScopes();
     }

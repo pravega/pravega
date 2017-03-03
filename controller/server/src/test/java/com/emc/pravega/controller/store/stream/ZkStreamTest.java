@@ -169,6 +169,22 @@ public class ZkStreamTest {
     }
 
     @Test
+    public void testGetScope() throws Exception {
+        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
+        final String scope1 = "Scope1";
+        String scopeName;
+
+        // get existent scope
+        store.createScope(scope1).get();
+        scopeName = store.getScopeConfiguration(scope1).get();
+        assertEquals("Get existent scope", scope1, scopeName);
+
+        //get non-existent scope
+        scopeName = store.getScopeConfiguration("scope2").get();
+        assertEquals("Get non-existent scope", null, scopeName);
+    }
+
+    @Test
     public void testZkListScope() throws Exception {
         // list scope test
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
