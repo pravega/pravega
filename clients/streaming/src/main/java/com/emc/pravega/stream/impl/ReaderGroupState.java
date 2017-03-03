@@ -411,14 +411,14 @@ class ReaderGroupState implements Revisioned {
     @RequiredArgsConstructor
     static class ClearCheckpoints extends ReaderGroupStateUpdate {
         private static final long serialVersionUID = 1L;
-        private final String beforeWhichToClear;
+        private final String clearUpThroughCheckpoint;
         
         /**
          * @see com.emc.pravega.stream.impl.ReaderGroupState.ReaderGroupStateUpdate#update(com.emc.pravega.stream.impl.ReaderGroupState)
          */
         @Override
         void update(ReaderGroupState state) {
-            state.checkpointState.clearCheckpointsBefore(beforeWhichToClear);
+            state.checkpointState.clearCheckpointsThrough(clearUpThroughCheckpoint);
         }
     }
 

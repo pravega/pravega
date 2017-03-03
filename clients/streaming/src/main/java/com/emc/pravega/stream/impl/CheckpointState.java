@@ -84,16 +84,16 @@ public class CheckpointState {
     }
     
     @Synchronized
-    void clearCheckpointsBefore(String checkpointId) {
+    void clearCheckpointsThrough(String checkpointId) {
         if (checkpointPositions.containsKey(checkpointId)) {
             for (Iterator<String> iterator = checkpoints.iterator(); iterator.hasNext();) {
                 String cp = iterator.next();
-                if (cp == checkpointId) {
-                    break;
-                }
                 uncheckpointedHosts.remove(cp);
                 checkpointPositions.remove(cp);
                 iterator.remove();
+                if (cp == checkpointId) {
+                    break;
+                }
             }
         }
     }
