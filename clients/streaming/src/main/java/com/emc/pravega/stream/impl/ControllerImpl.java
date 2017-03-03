@@ -20,7 +20,6 @@ import com.emc.pravega.controller.stream.api.grpc.v1.Controller.Positions;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
-import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
 import com.emc.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
@@ -216,8 +215,10 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
     public CompletableFuture<Boolean> isSegmentOpen(final Segment segment) {
         log.trace("Invoke ProducerService.Client.isSegmentOpen() for segment: {}", segment);
         RPCAsyncCallback<SegmentValidityResponse> callback = new RPCAsyncCallback<>();
-        client.isSegmentValid(ModelHelper.createSegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber()),
-                          callback);
+        client.isSegmentValid(ModelHelper.createSegmentId(segment.getScope(),
+                                                          segment.getStreamName(),
+                                                          segment.getSegmentNumber()),
+                              callback);
         return callback.getFuture().thenApply(SegmentValidityResponse::getResponse);
     }
 
@@ -308,6 +309,7 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
             .thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txId));
     }
 
+    // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.
     private static final class RPCAsyncCallback<T> implements StreamObserver<T> {
         private T result = null;
         private final CompletableFuture<T> future = new CompletableFuture<>();
@@ -324,6 +326,8 @@ public class ControllerImpl implements com.emc.pravega.stream.impl.Controller {
 
         @Override
         public void onCompleted() {
+
+            // gRPC interface guarantees that onNext() with the success result would have been called before this.
             future.complete(result);
         }
 
