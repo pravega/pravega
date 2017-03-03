@@ -63,7 +63,7 @@ public class SegmentHelper {
 
             @Override
             public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
-                result.complete(false);
+                result.complete(true);
             }
 
             @Override

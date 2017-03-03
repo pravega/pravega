@@ -24,6 +24,7 @@ import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.emc.pravega.stream.impl.Controller;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -31,9 +32,11 @@ import org.apache.curator.retry.RetryOneTime;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
+@Slf4j
 public class ControllerWrapper {
 
     @Getter
@@ -94,9 +97,23 @@ public class ControllerWrapper {
             ControllerEventProcessors controllerEventProcessors = new ControllerEventProcessors(hostId, localController,
                     client, streamStore, hostStore, segmentHelper);
 
-            controllerEventProcessors.initialize();
-
-            streamTransactionMetadataTasks.initializeStreamWriters(localController);
+            CompletableFuture
+                    .supplyAsync(() -> {
+                        // Asynchronously try initializing controller event processors. At bootstrap this operation
+                        // will not complete until a pravega host is available.
+                        try {
+                            controllerEventProcessors.initialize();
+                            return null;
+                        } catch (Exception e) {
+                            log.error("Error initializing event processors", e);
+                            throw new RuntimeException(e);
+                        }
+                    }, executor)
+                    .thenApplyAsync(ignore -> {
+                        // Finally initialize the event writers in streamTransactionMetadataTasks
+                        streamTransactionMetadataTasks.initializeStreamWriters(localController);
+                        return null;
+                    }, executor);
         }
         //endregion
 

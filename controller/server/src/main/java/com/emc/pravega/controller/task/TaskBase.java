@@ -62,19 +62,19 @@ public abstract class TaskBase {
 
     protected final TaskMetadataStore taskMetadataStore;
 
-    protected final CompletableFuture<Void> latch;
+    protected volatile boolean initialized;
 
     public TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor,
-                    final String hostId, final CompletableFuture<Void> latch) {
-        this(taskMetadataStore, executor, new Context(hostId), latch);
+                    final String hostId, final boolean initialized) {
+        this(taskMetadataStore, executor, new Context(hostId), initialized);
     }
 
     protected TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor,
-                       final Context context, final CompletableFuture<Void> latch) {
+                       final Context context, final boolean initialized) {
         this.taskMetadataStore = taskMetadataStore;
         this.executor = executor;
         this.context = context;
-        this.latch = latch;
+        this.initialized = initialized;
     }
     
     public abstract TaskBase copyWithContext(Context context);
@@ -93,7 +93,7 @@ public abstract class TaskBase {
      * @return return value of task execution.
      */
     public <T> CompletableFuture<T> execute(final Resource resource, final Serializable[] parameters, final FutureOperation<T> operation) {
-        if (!isInitialized()) {
+        if (!initialized) {
             return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet initialized"));
         }
         final String tag = UUID.randomUUID().toString();
@@ -221,9 +221,5 @@ public abstract class TaskBase {
             }
         }
         throw new TaskAnnotationNotFoundException(method);
-    }
-
-    private boolean isInitialized() {
-        return this.latch.isDone() && !latch.isCompletedExceptionally() && !latch.isCancelled();
     }
 }
