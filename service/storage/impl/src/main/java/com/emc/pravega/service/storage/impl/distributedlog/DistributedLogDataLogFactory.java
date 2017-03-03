@@ -1,29 +1,33 @@
 /**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries.
  */
 package com.emc.pravega.service.storage.impl.distributedlog;
 
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
+import com.google.common.base.Preconditions;
+import java.util.concurrent.Executor;
 
 /**
  * Represents a DurableDataLogFactory that creates and manages instances of DistributedLogDataLog instances.
  */
 public class DistributedLogDataLogFactory implements DurableDataLogFactory {
     private final LogClient client;
+    private final Executor executor;
 
     /**
      * Creates a new instance of the DistributedLogDataLogFactory class.
      *
      * @param clientId The Id of the client to set for the DistributedLog client.
      * @param config   DistributedLog configuration.
+     * @param executor An Executor to use for async operations.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the clientId is invalid.
      */
-    public DistributedLogDataLogFactory(String clientId, DistributedLogConfig config) {
+    public DistributedLogDataLogFactory(String clientId, DistributedLogConfig config, Executor executor) {
+        Preconditions.checkNotNull(executor, "executor");
+        this.executor = executor;
         this.client = new LogClient(clientId, config);
     }
 
@@ -44,7 +48,7 @@ public class DistributedLogDataLogFactory implements DurableDataLogFactory {
     @Override
     public DurableDataLog createDurableDataLog(int containerId) {
         String logName = ContainerToLogNameConverter.getLogName(containerId);
-        return new DistributedLogDataLog(logName, this.client);
+        return new DistributedLogDataLog(logName, this.client, this.executor);
     }
 
     @Override

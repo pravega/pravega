@@ -58,7 +58,7 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
             log.initialize(TIMEOUT);
 
             // Verify it contains the same entries.
-            testRead(log, createLogAddress(-1), writeData);
+            verifyReads(log, createLogAddress(-1), writeData);
         }
     }
 
@@ -81,23 +81,23 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
                     ex -> ex instanceof DataLogWriterNotPrimaryException);
 
             // Verify we can still append to the first log.
-            TreeMap<LogAddress, byte[]> writeData = populate(log, WRITE_COUNT);
+            TreeMap<LogAddress, byte[]> writeData = populate(log, getWriteCountForWrites());
 
             // 2. If during the normal operation of a log, it loses its lock, it should no longer be able to append...
             entries.forceAcquireLock("ForceLock");
             AssertExtensions.assertThrows(
-                    "A second log was able to acquire the exclusive write lock, even if another log held it.",
+                    "A second log acquired the exclusive write lock, but the first log could still append to it.",
                     () -> log.append(new ByteArrayInputStream("h".getBytes()), TIMEOUT).join(),
                     ex -> ex instanceof DataLogWriterNotPrimaryException);
 
             // ... or to truncate ...
             AssertExtensions.assertThrows(
-                    "A second log was able to acquire the exclusive write lock, even if another log held it.",
+                    "A second log acquired the exclusive write lock, but the first log could still truncate it.",
                     () -> log.truncate(writeData.lastKey(), TIMEOUT).join(),
                     ex -> ex instanceof DataLogWriterNotPrimaryException);
 
             // ... but it should still be able to read.
-            testRead(log, createLogAddress(-1), writeData);
+            verifyReads(log, createLogAddress(-1), writeData);
         }
     }
 

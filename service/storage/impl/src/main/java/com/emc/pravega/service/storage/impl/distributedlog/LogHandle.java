@@ -62,6 +62,7 @@ class LogHandle implements AutoCloseable {
      * Maximum append length, as specified by DistributedLog (this is hardcoded inside DLog's code).
      */
     static final int MAX_APPEND_LENGTH = 1024 * 1024 - 8 * 1024 - 20;
+    static final long START_TRANSACTION_ID = 0;
 
     private final AtomicLong lastTransactionId;
     private final String logName;
@@ -87,7 +88,7 @@ class LogHandle implements AutoCloseable {
 
         this.logName = logName;
         this.handleClosedCallback = handleClosedCallback;
-        this.lastTransactionId = new AtomicLong(0);
+        this.lastTransactionId = new AtomicLong(START_TRANSACTION_ID);
         this.activeReaders = new HashSet<>();
     }
 
@@ -182,7 +183,7 @@ class LogHandle implements AutoCloseable {
         try {
             this.lastTransactionId.set(this.logManager.getLastTxId());
         } catch (LogEmptyException ex) {
-            this.lastTransactionId.set(0);
+            this.lastTransactionId.set(START_TRANSACTION_ID);
         } catch (Exception ex) {
             throw new DataLogInitializationException(String.format("Unable to determine last transaction Id for log '%s'.", logName), ex);
         }
