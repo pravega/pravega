@@ -226,7 +226,7 @@ public class ControllerImpl implements Controller {
         log.trace("Invoke ProducerService.Client.isSegmentOpen() for segment: {}", segment);
         final ThriftAsyncCallback<ControllerService.AsyncClient.isSegmentValid_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.getURI(new SegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber()),
+            client.isSegmentValid(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(),
                           callback);
             return callback.getResult();
         });
