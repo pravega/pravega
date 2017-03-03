@@ -10,11 +10,12 @@ import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogTestBase;
 import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.TestUtils;
 import com.twitter.distributedlog.DLSN;
 import com.twitter.distributedlog.LocalDLMEmulator;
+import com.twitter.distributedlog.admin.DistributedLogAdmin;
 import com.twitter.distributedlog.tools.Tool;
 import java.util.Properties;
-import java.util.Random;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,7 +37,6 @@ import org.junit.Test;
 public class DistributedLogDataLogTests extends DurableDataLogTestBase {
     //region Setup, Config and Cleanup
 
-    private static final int BASE_PORT = 11000;
     private static final String DLOG_HOST = "127.0.0.1";
     private static final String DLOG_NAMESPACE = "pravegatest";
     private static final AtomicInteger CONTAINER_ID = new AtomicInteger(9999); // This changes with every run because we cannot cleanup.
@@ -51,7 +51,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
     @BeforeClass
     public static void startDistributedLog() throws Exception {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
-        final int port = BASE_PORT + new Random().nextInt(1000);
+        final int port = TestUtils.randomPort();
 
         // Start DistributedLog in-process.
         ServerConfiguration sc = new ServerConfiguration()
@@ -65,7 +65,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
         DLOG_PROCESS.set(dlm);
 
         // Create a namespace.
-        Tool tool = ReflectionUtils.newInstance(com.twitter.distributedlog.admin.DistributedLogAdmin.class.getName(), Tool.class);
+        Tool tool = ReflectionUtils.newInstance(DistributedLogAdmin.class.getName(), Tool.class);
         tool.run(new String[]{
                 "bind",
                 "-l", "/ledgers",
