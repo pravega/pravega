@@ -17,7 +17,6 @@ import com.twitter.distributedlog.admin.DistributedLogAdmin;
 import com.twitter.distributedlog.tools.Tool;
 import java.util.Properties;
 import java.util.TreeMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.Getter;
@@ -37,7 +36,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
 
     private static final String DLOG_HOST = "127.0.0.1";
     private static final String DLOG_NAMESPACE = "pravegatest";
-    private static final AtomicInteger CONTAINER_ID = new AtomicInteger(9999); // This changes with every run because we cannot cleanup.
+    private static final int CONTAINER_ID = 9999;
     private static final int WRITE_COUNT_WRITES = 250;
     private static final int WRITE_COUNT_READS = 25;
     private static final String CLIENT_ID = "UnitTest";
@@ -108,7 +107,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
 
     @Override
     protected DurableDataLog createDurableDataLog() {
-        return this.factory.get().createDurableDataLog(CONTAINER_ID.getAndIncrement());
+        return this.factory.get().createDurableDataLog(CONTAINER_ID);
     }
 
     @Override
@@ -131,8 +130,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
     public void testExclusiveWriteLock() throws Exception {
         // Tests the ability of the DurableDataLog to enforce an exclusive writer, by only allowing one client at a time
         // to write to the same physical log.
-        final int containerId = CONTAINER_ID.getAndIncrement();
-        try (DurableDataLog log = this.factory.get().createDurableDataLog(containerId)) {
+        try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
 
             // Simulate a different client trying to
@@ -142,7 +140,7 @@ public class DistributedLogDataLogTests extends DurableDataLogTestBase {
             AssertExtensions.assertThrows(
                     "A second log was able to acquire the exclusive write lock, even if another log held it.",
                     () -> {
-                        try (DurableDataLog log2 = factory.createDurableDataLog(containerId)) {
+                        try (DurableDataLog log2 = factory.createDurableDataLog(CONTAINER_ID)) {
                             log2.initialize(TIMEOUT);
                         }
                     },
