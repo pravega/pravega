@@ -1,8 +1,5 @@
-/**
- *
- *  Copyright (c) 2017 Dell Inc., or its subsidiaries.
- *
- */
+
+
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.ClientFactory;
@@ -29,6 +26,8 @@ import lombok.Cleanup;
 import lombok.val;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.BlockJUnit4ClassRunner;
 
 import static java.util.Collections.singletonList;
 import static java.util.concurrent.CompletableFuture.completedFuture;
@@ -38,6 +37,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(BlockJUnit4ClassRunner.class)
 public class ReaderGroupStateManagerTest {
 
     @Test
@@ -99,11 +99,10 @@ public class ReaderGroupStateManagerTest {
             public CompletableFuture<Map<Segment, List<Integer>>> getSuccessors(Segment segment) {
                 if (segment.getSegmentNumber() == 0) {
                     assertEquals(initialSegmentA, segment);
-                    return completedFuture(Collections.singletonMap(successor, ImmutableList.of(0, 1)));
                 } else {
                     assertEquals(initialSegmentB, segment);
-                    return completedFuture(Collections.singletonMap(successor, ImmutableList.of(0, 1)));
                 }
+                return completedFuture(Collections.singletonMap(successor, ImmutableList.of(0, 1)));
             }
         };
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
