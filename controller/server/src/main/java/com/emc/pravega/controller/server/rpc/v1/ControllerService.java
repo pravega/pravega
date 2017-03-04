@@ -341,7 +341,14 @@ public class ControllerService {
         return streamStore.listScopes();
     }
 
+    /**
+     * Retrieve a scope.
+     *
+     * @param scopeName Name of Scope.
+     * @return Scope if it exists.
+     */
     public CompletableFuture<String> getScope(final String scopeName) {
+        Preconditions.checkNotNull(scopeName);
         return streamStore.getScopeConfiguration(scopeName);
     }
 }

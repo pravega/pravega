@@ -181,8 +181,13 @@ public class ZkStreamTest {
         assertEquals("Get existent scope", scope1, scopeName);
 
         // get non-existent scope
-        scopeName = store.getScopeConfiguration(scope2).get();
-        assertEquals("Get non existent scope", null, scopeName);
+        try {
+            store.getScopeConfiguration(scope2).get();
+        } catch (ExecutionException e) {
+            assertTrue("Get non existent scope", e.getCause() instanceof StoreException);
+            assertTrue("Get non existent scope",
+                    ((StoreException) e.getCause()).getType() == StoreException.Type.NODE_NOT_FOUND);
+        }
     }
 
     @Test

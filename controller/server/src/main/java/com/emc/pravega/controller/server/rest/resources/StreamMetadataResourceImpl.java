@@ -173,16 +173,17 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
         controllerService.getScope(scopeName)
                 .thenApply(scope -> {
-                    System.out.println("\nscope asd "+scope);
-                    if (scope != null) {
                         return Response.status(Status.OK).entity(new ScopeProperty().scopeName(scope)).build();
-                    } else {
-                        return Response.status(Status.NOT_FOUND).build();
-                    }
                 })
                 .exceptionally( exception -> {
-                   log.warn("getScope for {} failed with exception: {}", scopeName, exception);
-                   return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+                    if ( (exception.getCause() instanceof  StoreException && ( (StoreException) exception.getCause()).getType() == StoreException.Type.NODE_NOT_FOUND)
+                            || (exception.getCause() instanceof StoreException.NodeNotFoundException)) {
+                        log.warn("Scope: {} not found", scopeName);
+                        return Response.status(Status.NOT_FOUND).build();
+                    } else {
+                        log.warn("getScope for {} failed with exception: {}", scopeName, exception);
+                        return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+                    }
                 }).thenApply(asyncResponse::resume);
 
         LoggerHelpers.traceLeave(log, "getScope", traceId);

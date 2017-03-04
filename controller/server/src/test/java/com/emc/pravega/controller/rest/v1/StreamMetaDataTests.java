@@ -17,6 +17,7 @@ import com.emc.pravega.controller.server.rest.generated.model.UpdateStreamReques
 import com.emc.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.stream.DataNotFoundException;
+import com.emc.pravega.controller.store.stream.StoreException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
@@ -349,7 +350,9 @@ public class StreamMetaDataTests extends JerseyTest {
         assertEquals("Get existent scope", 200, response.get().getStatus());
 
         // Test to get non-existent scope
-        when(mockControllerService.getScope("scope2")).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockControllerService.getScope("scope2")).thenReturn(CompletableFuture.supplyAsync(() -> {
+            throw new StoreException(StoreException.Type.NODE_NOT_FOUND);
+        }));
         response = target(resourceURI2).request().async().get();
         assertEquals("Get non existent scope", 404, response.get().getStatus());
 
