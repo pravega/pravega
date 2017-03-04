@@ -8,6 +8,7 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.EventStreamWriter;
@@ -36,6 +37,14 @@ public interface Controller {
      * @return Status of create stream operation.
      */
     CompletableFuture<CreateScopeStatus> createScope(final String scopeName);
+
+    /**
+     * API to delete scope.
+     *
+     * @param scopeName Scope name.
+     * @return          Status of delete scope operation.
+     */
+    CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName);
 
     /**
      * Api to create stream.

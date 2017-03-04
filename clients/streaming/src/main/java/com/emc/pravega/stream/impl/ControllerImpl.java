@@ -10,6 +10,7 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.ControllerService;
 import com.emc.pravega.controller.stream.api.v1.CreateScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.DeleteScopeStatus;
 import com.emc.pravega.controller.stream.api.v1.PingStatus;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
@@ -80,6 +81,19 @@ public class ControllerImpl implements Controller {
         final ThriftAsyncCallback<ControllerService.AsyncClient.createScope_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
             client.createScope(scopeName, callback);
+            return null;
+        });
+        return callback.getResult()
+                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
+    }
+
+    @Override
+    public CompletableFuture<DeleteScopeStatus> deleteScope(String scopeName) {
+        log.trace("Invoke AdminService.Client.deleteScope() with name: {}", scopeName);
+
+        final ThriftAsyncCallback<ControllerService.AsyncClient.deleteScope_call> callback = new ThriftAsyncCallback<>();
+        ThriftHelper.thriftCall(() -> {
+            client.deleteScope(scopeName, callback);
             return null;
         });
         return callback.getResult()
