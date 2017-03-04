@@ -109,7 +109,9 @@ public class EventStreamReaderTest {
         assertEquals(segment1, readers.get(0).getSegmentId());
         assertEquals(segment2, readers.get(1).getSegmentId());
 
+        Mockito.when(groupState.getCheckpoint()).thenReturn("checkpoint");
         Mockito.when(groupState.findSegmentToReleaseIfRequired()).thenReturn(segment2);
+        reader.readNextEvent(0);
         reader.readNextEvent(0);
         Mockito.verify(groupState).releaseSegment(Mockito.eq(segment2), Mockito.anyLong(), Mockito.anyLong());
         readers = reader.getReaders();

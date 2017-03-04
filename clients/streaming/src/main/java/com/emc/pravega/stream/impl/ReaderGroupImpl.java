@@ -80,7 +80,6 @@ public class ReaderGroupImpl implements ReaderGroup {
                 updateSerializer,
                 initSerializer,
                 synchronizerConfig);
-        synchronizer.fetchUpdates();
         synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointName));
         AtomicBoolean checkpointCompleted = new AtomicBoolean(false);
 
