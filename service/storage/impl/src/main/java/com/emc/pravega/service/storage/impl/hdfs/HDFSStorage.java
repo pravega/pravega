@@ -12,9 +12,11 @@ import com.emc.pravega.common.metrics.Counter;
 import com.emc.pravega.common.metrics.MetricsProvider;
 import com.emc.pravega.common.metrics.OpStatsLogger;
 import com.emc.pravega.common.metrics.StatsLogger;
+import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.common.util.ImmutableDate;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
@@ -164,7 +166,10 @@ class HDFSStorage implements Storage {
 
     //region Helpers
 
-    private SegmentProperties createSync(String streamSegmentName) throws IOException {
+    private SegmentProperties createSync(String streamSegmentName) throws IOException, StreamSegmentExistsException {
+        if(existsSync(streamSegmentName)) {
+            throw new StreamSegmentExistsException(streamSegmentName);
+        }
         String ownedFullPath = getOwnedSegmentFullPath(streamSegmentName);
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName, ownedFullPath);
         this.fileSystem
