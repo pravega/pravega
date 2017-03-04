@@ -3,10 +3,10 @@
  */
 package com.emc.pravega.service.storage.impl.distributedlog;
 
-import com.emc.pravega.common.util.BitConverter;
 import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
 import com.twitter.distributedlog.DLSN;
+import java.nio.ByteBuffer;
 
 /**
  * LogAddress for DistributedLog. Wraps around DistributedLog-specific addressing scheme, using DLSNs, without exposing
@@ -45,17 +45,13 @@ class DLSNAddress extends LogAddress {
      * @return A byte array with the result.
      */
     byte[] serialize() {
-        byte[] result = new byte[Byte.BYTES + Long.BYTES * 4];
-        result[0] = SERIALIZATION_VERSION;
-        int offset = 1;
-        BitConverter.writeLong(result, offset, getSequence());
-        offset += Long.BYTES;
-        BitConverter.writeLong(result, offset, this.dlsn.getLogSegmentSequenceNo());
-        offset += Long.BYTES;
-        BitConverter.writeLong(result, offset, this.dlsn.getEntryId());
-        offset += Long.BYTES;
-        BitConverter.writeLong(result, offset, this.dlsn.getSlotId());
-        return result;
+        ByteBuffer bb = ByteBuffer.allocate(Byte.BYTES + Long.BYTES * 4);
+        bb.put(SERIALIZATION_VERSION);
+        bb.putLong(getSequence());
+        bb.putLong(this.dlsn.getLogSegmentSequenceNo());
+        bb.putLong(this.dlsn.getEntryId());
+        bb.putLong(this.dlsn.getSlotId());
+        return bb.array();
     }
 
     /**
@@ -65,16 +61,12 @@ class DLSNAddress extends LogAddress {
      * @return a DLSNAddress.
      */
     static DLSNAddress deserialize(byte[] serialization) {
-        // We skip version for now because we only have one.
-        int offset = 1;
-        long seqNo = BitConverter.readLong(serialization, offset);
-        offset += Long.BYTES;
-        long logSegmentSeqNo = BitConverter.readLong(serialization, offset);
-        offset += Long.BYTES;
-        long entryId = BitConverter.readLong(serialization, offset);
-        offset += Long.BYTES;
-        long slotId = BitConverter.readLong(serialization, offset);
-
+        ByteBuffer bb = ByteBuffer.wrap(serialization);
+        bb.get(); // We skip version for now because we only have one.
+        long seqNo = bb.getLong();
+        long logSegmentSeqNo = bb.getLong();
+        long entryId = bb.getLong();
+        long slotId = bb.getLong();
         return new DLSNAddress(seqNo, new DLSN(logSegmentSeqNo, entryId, slotId));
     }
 }
