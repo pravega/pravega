@@ -7,6 +7,7 @@ import com.emc.pravega.controller.requesthandler.RequestHandlersInit;
 import com.emc.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import com.emc.pravega.controller.server.eventProcessor.LocalController;
 import com.emc.pravega.controller.server.rpc.RPCServer;
+import com.emc.pravega.controller.server.rpc.RPCServerConfig;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
@@ -92,7 +93,13 @@ public class ControllerWrapper {
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, segmentHelper, executor);
 
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService), controllerPort);
+        RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
+                .port(controllerPort)
+                .workerThreadCount(Config.SERVER_WORKER_THREAD_COUNT)
+                .selectorThreadCount(Config.SERVER_SELECTOR_THREAD_COUNT)
+                .maxReadBufferBytes(Config.SERVER_MAX_READ_BUFFER_BYTES)
+                .build();
+        RPCServer.start(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
 
         RequestHandlersInit.bootstrapRequestHandlers(controllerService, streamStore, executor);
 

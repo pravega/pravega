@@ -7,6 +7,7 @@ import com.emc.pravega.ClientFactory;
 import com.emc.pravega.ReaderGroupManager;
 import com.emc.pravega.StreamManager;
 import com.emc.pravega.controller.server.rpc.RPCServer;
+import com.emc.pravega.controller.server.rpc.RPCServerConfig;
 import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
@@ -23,6 +24,7 @@ import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.timeout.TimeoutService;
 import com.emc.pravega.controller.timeout.TimerWheelTimeoutService;
+import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -198,7 +200,13 @@ public final class SetupUtils {
 
         ControllerService controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), Executors.newFixedThreadPool(10));
-        RPCServer.start(new ControllerServiceAsyncImpl(controllerService));
+        RPCServerConfig rpcServerConfig = RPCServerConfig.builder()
+                .port(Config.SERVER_PORT)
+                .workerThreadCount(Config.SERVER_WORKER_THREAD_COUNT)
+                .selectorThreadCount(Config.SERVER_SELECTOR_THREAD_COUNT)
+                .maxReadBufferBytes(Config.SERVER_MAX_READ_BUFFER_BYTES)
+                .build();
+        RPCServer.start(new ControllerServiceAsyncImpl(controllerService), rpcServerConfig);
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
                 streamTransactionMetadataTasks);
