@@ -151,7 +151,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         if (scopes.containsKey(scopeName)) {
             return CompletableFuture.completedFuture(scopeName);
         } else {
-            return CompletableFuture.completedFuture(null);
+            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND));
         }
     }
 

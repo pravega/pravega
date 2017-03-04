@@ -173,7 +173,11 @@ public class StreamMetadataStoreTest {
         assertEquals("Get existent scope", scope1, scopeName);
 
         // get non-existent scope
-        scopeName = store.getScopeConfiguration(scope2).get();
-        assertEquals("Get non-existent scope", null, scopeName);
+        try {
+            store.getScopeConfiguration(scope2).get();
+        } catch (Exception e) {
+            assertTrue("Get non existent scope", e instanceof StoreException);
+            assertTrue("Get non existent scope", ((StoreException) e).getType() == StoreException.Type.NODE_NOT_FOUND);
+        }
     }
 }
